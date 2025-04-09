@@ -67,8 +67,8 @@ const Header = () => {
   };
   
   return (
-    <AppBar position="sticky" color="primary" elevation={4}>
-      <Toolbar>
+    <AppBar position="sticky" color="primary" elevation={4} sx={{ width: '100vw', maxWidth: '100vw', boxSizing: 'border-box' }}>
+      <Toolbar sx={{ width: '100%', maxWidth: '100%', padding: { xs: '0 8px', sm: '0 16px' } }}>
         <Box display="flex" alignItems="center">
           <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor" color="white">
             <path d="M11 2v20c-5.07-.5-9-4.79-9-10s3.93-9.5 9-10zm2 0v10h9c-.5-5.05-4.76-9-10-9zm0 12v8c5.24-.1 9.5-4.05 10-9h-10z"></path>

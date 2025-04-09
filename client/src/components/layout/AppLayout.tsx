@@ -12,8 +12,11 @@ const MainContent = styled(Box)(({ theme }) => ({
   overflow: 'auto',
   backgroundColor: theme.palette.background.default,
   minHeight: 'calc(100vh - 120px)', // Adjust for header and nav height
-  width: '100%',
-  padding: 0
+  width: '100vw', 
+  maxWidth: '100vw',
+  padding: 0,
+  margin: 0,
+  boxSizing: 'border-box'
 }));
 
 interface AppLayoutProps {
@@ -74,11 +77,11 @@ const AppLayout = ({ children }: AppLayoutProps) => {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <Box display="flex" flexDirection="column" minHeight="100vh">
+      <Box display="flex" flexDirection="column" minHeight="100vh" maxWidth="100vw" width="100vw" sx={{ overflowX: 'hidden' }}>
         <Header />
         <Navigation />
         <MainContent>
-          <Box sx={{ p: 3, width: '100%', height: '100%' }}>
+          <Box sx={{ p: 3, width: '100%', height: '100%', maxWidth: '100%', overflowX: 'hidden' }}>
             {children}
           </Box>
         </MainContent>
