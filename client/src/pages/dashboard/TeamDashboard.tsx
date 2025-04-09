@@ -137,7 +137,7 @@ const TeamDashboard = () => {
   }
   
   return (
-    <Box sx={{ width: '100%', maxWidth: '100%' }}>
+    <Box>
       <Box mb={4}>
         <Paper elevation={0} sx={{ p: 3, borderRadius: 2, mb: 4 }}>
           <Box display="flex" justifyContent="space-between" alignItems="flex-start">
