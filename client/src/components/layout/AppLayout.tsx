@@ -4,7 +4,7 @@ import { styled } from '@mui/material/styles';
 import { useLocation } from 'wouter';
 import Header from './Header';
 import Navigation from './Navigation';
-import { useAuth } from '@/lib/authProvider';
+import { useAuth } from '@/hooks/use-auth';
 import theme from '@/lib/theme';
 
 const MainContent = styled(Box)(({ theme }) => ({
@@ -25,7 +25,7 @@ const AppLayout = ({ children }: AppLayoutProps) => {
   useEffect(() => {
     // Redirect to login if not authenticated
     if (!isLoading && !isAuthenticated && !location.startsWith('/auth')) {
-      setLocation('/auth/login');
+      setLocation('/auth');
     }
   }, [isAuthenticated, isLoading, location, setLocation]);
   

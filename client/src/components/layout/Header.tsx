@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { AppBar, Toolbar, Typography, IconButton, Badge, Avatar, Menu, MenuItem, Box, useTheme } from '@mui/material';
 import { Notifications as NotificationsIcon, AccountCircle, ArrowDropDown } from '@mui/icons-material';
-import { useAuth } from '@/lib/authProvider';
+import { useAuth } from '@/hooks/use-auth';
+import { AccountInfo } from '@azure/msal-browser';
 
 const Header = () => {
   const theme = useTheme();
@@ -31,11 +32,34 @@ const Header = () => {
     logout();
   };
   
+  // Get current auth method outside the display name function to avoid useAuth hook re-rendering issues
+  const { authMethod } = useAuth();
+  
+  // Get user display name
+  const getUserDisplayName = () => {
+    if (!user) return 'User';
+    
+    // For Azure AD user
+    if (authMethod === 'azure') {
+      // Azure user has the name in different property
+      const azureUser = user as any;
+      return azureUser.name || azureUser.username || 'User';
+    } 
+    
+    // For local user
+    const localUser = user as any; // Type as any to bypass TS errors
+    return localUser.displayName || localUser.username || 'User';
+  };
+
   // Get user initials for avatar
   const getUserInitials = () => {
-    if (!user || !user.name) return '?';
+    if (!user) return '?';
     
-    const names = user.name.split(' ');
+    // Get name based on auth method
+    const displayName = getUserDisplayName();
+    if (displayName === 'User') return '?';
+    
+    const names = displayName.split(' ');
     if (names.length > 1) {
       return `${names[0][0]}${names[names.length - 1][0]}`.toUpperCase();
     }
@@ -102,7 +126,7 @@ const Header = () => {
                 display: { xs: 'none', md: 'block' },
               }}
             >
-              {user?.name || 'User'}
+              {getUserDisplayName()}
             </Typography>
             <ArrowDropDown />
           </Box>
