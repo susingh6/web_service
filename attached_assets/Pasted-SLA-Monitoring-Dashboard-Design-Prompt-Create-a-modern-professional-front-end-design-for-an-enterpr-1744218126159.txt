@@ -1,0 +1,82 @@
+SLA Monitoring Dashboard Design Prompt
+Create a modern, professional front-end design for an enterprise SLA monitoring application with the following specifications:
+Application Overview
+Design a web application for monitoring SLAs (Service Level Agreements) for data tables and DAGs (Directed Acyclic Graphs) across multiple teams. The application uses Azure AD SSO for authentication and connects to a FastAPI backend.
+Technology Stack
+
+Frontend Framework: React 18 with TypeScript
+State Management: Redux Toolkit for global state, React Context for component-level state
+UI Component Library: Material UI v5 with custom theme extensions
+Authentication: MSAL.js v2 for Azure AD integration
+Data Visualization: Recharts for charts, D3.js for complex visualizations
+Form Management: React Hook Form with Yup validation
+API Communication: Axios with request/response interceptors
+CSS Approach: Styled Components with Material UI's styling system
+Testing Framework: Jest with React Testing Library
+
+Design System
+
+Create a clean, modern enterprise design system with consistent components
+Include a color palette with primary, secondary, and accent colors plus semantic colors for status indicators (success, warning, critical, neutral)
+Design responsive layouts that work on desktop and tablet
+Incorporate accessibility considerations throughout
+
+Key Pages & Components
+1. Authentication
+
+Azure AD SSO login screen with corporate styling (MSAL.js + React)
+Loading/transition states during authentication (Material UI Skeleton + Progress)
+Technology: React + MSAL.js + Material UI
+
+2. Main Dashboard Layout
+
+Persistent header with app logo, notification bell, and user profile (Material UI AppBar)
+Tab navigation with dynamic team tabs (Material UI Tabs)
+Summary tab as default view
+Technology: React + Material UI + Redux for tab state management
+
+3. Summary Dashboard
+
+Overall SLA compliance metrics with visual indicators (Material UI Card + Recharts)
+Two main sections: Tables SLA performance and DAGs SLA performance
+Team comparison data grid with sorting and filtering (Material UI DataGrid)
+Quick action buttons for adding entities and bulk uploads (Material UI Button variants)
+Technology: React + Material UI + Recharts + Redux for data
+
+4. Team-specific Dashboard
+
+Team performance header with key metrics (Material UI Card + Box)
+Date range selector (Material UI DateRangePicker)
+Separate panels for tables and DAGs monitoring (Material UI Tabs + Card)
+Data grid with comprehensive columns for monitoring status (Material UI DataGrid)
+Performance trend charts showing compliance over time (Recharts LineChart)
+Technology: React + Material UI + Recharts + Redux for data fetching
+
+5. Interactive Components
+
+Add New Entity modal with form fields for Tables and DAGs (Material UI Dialog + React Hook Form)
+Bulk Upload modal with file dropzone and data preview (Material UI Dialog + react-dropzone)
+Entity Details popup with comprehensive information (Material UI Dialog or Drawer)
+Edit Entity modal with pre-populated fields (Material UI Dialog + React Hook Form)
+Notification and alert components (Material UI Snackbar + Alert)
+Confirmation dialogs for critical actions (Material UI Dialog)
+Technology: React + Material UI + React Hook Form + Yup validation
+
+Data Visualization
+
+Status indicators using color coding and icons (Material UI + custom SVG)
+Performance charts showing trends over time (Recharts)
+Summary cards with key metrics (Material UI Card + custom styling)
+Progress indicators for compliance percentages (Material UI CircularProgress)
+Technology: Recharts for standard charts, D3.js for complex custom visualizations
+
+Special Considerations
+
+Focus on readability of data-dense screens
+Clear visual hierarchy for identifying critical issues
+Consistent navigation and user flow between views
+Intuitive interaction patterns for managing entities
+Performance optimization for large datasets (virtualization with react-window)
+
+Deliverables Format
+Create high-fidelity mock-ups for all primary screens and interactive components, with annotations explaining functionality where needed. Include examples of both default states and edge cases (errors, empty states, overflow). Specify component hierarchy and data flow between components.
