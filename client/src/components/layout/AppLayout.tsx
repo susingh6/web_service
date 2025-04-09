@@ -13,7 +13,7 @@ const MainContent = styled(Box)(({ theme }) => ({
   backgroundColor: theme.palette.background.default,
   minHeight: 'calc(100vh - 120px)', // Adjust for header and nav height
   width: '100%',
-  maxWidth: '100%'
+  padding: 0
 }));
 
 interface AppLayoutProps {
@@ -78,9 +78,9 @@ const AppLayout = ({ children }: AppLayoutProps) => {
         <Header />
         <Navigation />
         <MainContent>
-          <Box sx={{ p: 3, width: '100%' }}>
+          <Container maxWidth={false} sx={{ p: 3, width: '100%', maxWidth: 'none' }}>
             {children}
-          </Box>
+          </Container>
         </MainContent>
       </Box>
     </ThemeProvider>

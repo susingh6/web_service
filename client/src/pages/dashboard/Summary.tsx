@@ -117,7 +117,7 @@ const Summary = () => {
       </Box>
       
       {/* Metrics Cards */}
-      <Grid container spacing={3} mb={4} sx={{ width: '100%', margin: 0 }}>
+      <Grid container spacing={3} mb={4}>
         <Grid item xs={12} md={6} lg={3}>
           <MetricCard
             title="Overall SLA Compliance"
@@ -162,7 +162,7 @@ const Summary = () => {
       </Grid>
       
       {/* Charts */}
-      <Grid container spacing={3} mb={4} sx={{ width: '100%', margin: 0 }}>
+      <Grid container spacing={3} mb={4}>
         <Grid item xs={12} lg={6}>
           <ChartCard
             title="Compliance Trend (Last 30 Days)"
