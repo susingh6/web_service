@@ -3,11 +3,15 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertEntitySchema, insertTeamSchema, insertEntityHistorySchema, insertIssueSchema, insertUserSchema } from "@shared/schema";
 import { z } from "zod";
-import { setupAuth, hashPassword } from "./auth";
+import { setupSimpleAuth } from "./simple-auth";
+import { setupTestRoutes } from "./test-routes";
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Set up authentication
-  setupAuth(app);
+  // Set up simplified authentication (no password hashing)
+  setupSimpleAuth(app);
+  
+  // Set up test routes for development
+  setupTestRoutes(app);
   
   // Middleware to check if user is authenticated
   const isAuthenticated = (req: Request, res: Response, next: NextFunction) => {
@@ -324,10 +328,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Hash the password (use the one from auth.ts so password format is consistent)
       
-      // Create a test user
+      // Create a test user (with plain text password for testing purposes)
       const testUser = {
         username: "azure_test_user",
-        password: await hashPassword("Azure123!"),
+        password: "Azure123!",
         email: "test@example.com",
         displayName: "Azure Test User",
         team: "Data Engineering"
@@ -389,13 +393,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log("Found existing user, will recreate with new password");
       }
       
-      // Create a new test user with a directly hashed password for testing
-      const passwordHash = await hashPassword("Azure123!");
-      console.log("Created password hash:", passwordHash);
-      
+      // Create a new test user with plain text password for testing
       const testUser = {
         username: "azure_test_user",
-        password: passwordHash,
+        password: "Azure123!",
         email: "test@example.com",
         displayName: "Azure Test User",
         team: "Data Engineering"
@@ -409,8 +410,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         credentials: {
           username: "azure_test_user",
           password: "Azure123!"
-        },
-        passwordHash
+        }
       });
     } catch (error) {
       console.error("Error resetting test user:", error);
