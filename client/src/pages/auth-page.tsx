@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Eye, EyeOff } from 'lucide-react';
 
 // Login form schema
 const loginSchema = z.object({
@@ -21,6 +21,7 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 const AuthPage = () => {
   const { isAuthenticated, isLoading, loginMutation, loginWithAzure } = useAuth();
   const [, navigate] = useLocation();
+  const [showPassword, setShowPassword] = useState(false);
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -90,7 +91,7 @@ const AuthPage = () => {
                 >
                   <path d="M0 0h10.931v10.931H0zM12.069 0H23v10.931H12.069zM0 12.069h10.931V23H0zM12.069 12.069H23V23H12.069z" />
                 </svg>
-                Sign in with Microsoft Azure AD
+                Sign in with Azure AD
               </Button>
               
               <div className="relative my-6 w-full">
@@ -111,9 +112,9 @@ const AuthPage = () => {
                     name="username"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Azure Username</FormLabel>
+                        <FormLabel>Username</FormLabel>
                         <FormControl>
-                          <Input placeholder="Enter your Azure username" {...field} />
+                          <Input placeholder="Enter your username" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -126,7 +127,24 @@ const AuthPage = () => {
                       <FormItem>
                         <FormLabel>Password</FormLabel>
                         <FormControl>
-                          <Input type="password" placeholder="Enter your password" {...field} />
+                          <div className="relative">
+                            <Input 
+                              type={showPassword ? "text" : "password"} 
+                              placeholder="Enter your password" 
+                              {...field} 
+                            />
+                            <button
+                              type="button"
+                              className="absolute right-2 top-2.5 text-muted-foreground"
+                              onClick={() => setShowPassword(!showPassword)}
+                            >
+                              {showPassword ? (
+                                <EyeOff className="h-4 w-4" />
+                              ) : (
+                                <Eye className="h-4 w-4" />
+                              )}
+                            </button>
+                          </div>
                         </FormControl>
                         <FormMessage />
                       </FormItem>
