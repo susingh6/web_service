@@ -304,6 +304,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to fetch dashboard summary" });
     }
   });
+  
+  // DEVELOPMENT ONLY - Create a test user
+  // This would typically be handled by Azure AD in a production environment
+  app.get("/api/dev/create-test-user", async (req, res) => {
+    try {
+      // Check if the test user already exists
+      const existingUser = await storage.getUserByUsername("azure_test_user");
+      
+      if (existingUser) {
+        return res.json({ 
+          message: "Test user already exists", 
+          credentials: { 
+            username: "azure_test_user", 
+            password: "Azure123!" 
+          } 
+        });
+      }
+      
+      // Hash the password (this would be done by Azure AD)
+      const hashPassword = async (password: string) => {
+        const { scrypt, randomBytes } = await import('crypto');
+        const { promisify } = await import('util');
+        const scryptAsync = promisify(scrypt);
+        
+        const salt = randomBytes(16).toString("hex");
+        const buf = (await scryptAsync(password, salt, 64)) as Buffer;
+        return `${buf.toString("hex")}.${salt}`;
+      };
+      
+      // Create a test user
+      const testUser = {
+        username: "azure_test_user",
+        password: await hashPassword("Azure123!"),
+        email: "test@example.com",
+        displayName: "Azure Test User",
+        team: "Data Engineering"
+      };
+      
+      await storage.createUser(testUser);
+      
+      res.json({ 
+        message: "Test user created successfully", 
+        credentials: { 
+          username: testUser.username, 
+          password: "Azure123!" // Return the non-hashed password for testing
+        } 
+      });
+    } catch (error) {
+      console.error("Failed to create test user:", error);
+      res.status(500).json({ message: "Failed to create test user" });
+    }
+  });
 
   const httpServer = createServer(app);
   return httpServer;

@@ -70,6 +70,17 @@ export class MemStorage implements IStorage {
   }
   
   private initDemoData() {
+    // Create a test user for Azure AD login simulation
+    // In a real environment, this would be handled by Azure AD
+    this.createUser({
+      username: "azure_test_user",
+      // Pre-hashed password for "Azure123!" - for testing only
+      password: "6c71d2ab6a625c8592f05a71e6c449a8ed0939edb0a619e7543eb3c25d2eae75efb7b9bad1e91ea3432ed53cf1485725d30ad39e2e7358676b8546f8a8ca0ad5.41a5f46e90f3e89e25e5a09d3f10f899",
+      email: "test@example.com",
+      displayName: "Azure Test User",
+      team: "Data Engineering"
+    });
+    
     // Create demo teams
     const teamNames = ['Data Engineering', 'Marketing Analytics', 'Finance', 'Product Analytics'];
     teamNames.forEach(name => {
