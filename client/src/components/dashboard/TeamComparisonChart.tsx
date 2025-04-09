@@ -73,7 +73,7 @@ const TeamComparisonChart = ({
                 }} 
               />
               <Typography variant="body2" sx={{ mr: 1 }}>
-                {entry.name === 'tables' ? 'Tables' : 'DAGs'}:
+                {entry.name}:
               </Typography>
               <Typography variant="body2" fontWeight={500}>
                 {entry.value}%
