@@ -74,8 +74,8 @@ export class MemStorage implements IStorage {
     // In a real environment, this would be handled by Azure AD
     this.createUser({
       username: "azure_test_user",
-      // Pre-hashed password for "Azure123!" - for testing only
-      password: "6c71d2ab6a625c8592f05a71e6c449a8ed0939edb0a619e7543eb3c25d2eae75efb7b9bad1e91ea3432ed53cf1485725d30ad39e2e7358676b8546f8a8ca0ad5.41a5f46e90f3e89e25e5a09d3f10f899",
+      // Pre-hashed password for "Azure123!" - this is the correct format for the auth.ts comparePassword function
+      password: "fd8c4a1ca56057251afbd0fd4b308a15113651c3e557c44eb58b8284e6d7fd4c1212a99dc7784c5cbb5072a2c138185c806394074e6c5f599209185e9576ea2e.e33fe34bf418a28b",
       email: "test@example.com",
       displayName: "Azure Test User",
       team: "Data Engineering"

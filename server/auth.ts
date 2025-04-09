@@ -24,6 +24,9 @@ async function hashPassword(password: string): Promise<string> {
   return `${buf.toString("hex")}.${salt}`;
 }
 
+// Export for testing
+export { hashPassword, comparePasswords };
+
 // Compare supplied password with stored hash
 async function comparePasswords(supplied: string, stored: string): Promise<boolean> {
   const [hashed, salt] = stored.split(".");
@@ -57,13 +60,24 @@ export function setupAuth(app: Express): void {
   passport.use(
     new LocalStrategy(async (username, password, done) => {
       try {
+        console.log(`Login attempt for user: ${username}`);
         const user = await storage.getUserByUsername(username);
-        if (!user || !(await comparePasswords(password, user.password))) {
+        
+        if (!user) {
+          console.log(`User not found: ${username}`);
+          return done(null, false);
+        }
+        
+        const passwordsMatch = await comparePasswords(password, user.password);
+        console.log(`Password match result: ${passwordsMatch}`);
+        
+        if (!passwordsMatch) {
           return done(null, false);
         } else {
           return done(null, user);
         }
       } catch (error) {
+        console.error("Login error:", error);
         return done(error);
       }
     }),

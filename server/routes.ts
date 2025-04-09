@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertEntitySchema, insertTeamSchema, insertEntityHistorySchema, insertIssueSchema, insertUserSchema } from "@shared/schema";
 import { z } from "zod";
-import { setupAuth } from "./auth";
+import { setupAuth, hashPassword } from "./auth";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Set up authentication
@@ -322,16 +322,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      // Hash the password (this would be done by Azure AD)
-      const hashPassword = async (password: string) => {
-        const { scrypt, randomBytes } = await import('crypto');
-        const { promisify } = await import('util');
-        const scryptAsync = promisify(scrypt);
-        
-        const salt = randomBytes(16).toString("hex");
-        const buf = (await scryptAsync(password, salt, 64)) as Buffer;
-        return `${buf.toString("hex")}.${salt}`;
-      };
+      // Hash the password (use the one from auth.ts so password format is consistent)
       
       // Create a test user
       const testUser = {
@@ -354,6 +345,76 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Failed to create test user:", error);
       res.status(500).json({ message: "Failed to create test user" });
+    }
+  });
+  
+  // TEST ONLY - Check if test user exists (for debugging)
+  app.get("/api/test/user-check", async (req, res) => {
+    try {
+      const user = await storage.getUserByUsername("azure_test_user");
+      if (user) {
+        // For debugging, we'll actually show the password hash
+        console.log("Test user found with hash:", user.password);
+        res.status(200).json({
+          message: "Test user exists",
+          user: {
+            id: user.id,
+            username: user.username,
+            displayName: user.displayName,
+            email: user.email,
+            team: user.team,
+            passwordHash: user.password  // For debugging only
+          },
+          credentials: {
+            username: "azure_test_user",
+            password: "Azure123!"
+          }
+        });
+      } else {
+        res.status(404).json({ message: "Test user not found" });
+      }
+    } catch (error) {
+      console.error("Error checking test user:", error);
+      res.status(500).json({ message: "Error checking test user" });
+    }
+  });
+  
+  // TEST ONLY - Reset test user with direct hash
+  app.get("/api/test/reset-user", async (req, res) => {
+    try {
+      // First try to find and delete the existing user
+      const existingUser = await storage.getUserByUsername("azure_test_user");
+      if (existingUser) {
+        // If we had a deleteUser method, we'd use it here
+        console.log("Found existing user, will recreate with new password");
+      }
+      
+      // Create a new test user with a directly hashed password for testing
+      const passwordHash = await hashPassword("Azure123!");
+      console.log("Created password hash:", passwordHash);
+      
+      const testUser = {
+        username: "azure_test_user",
+        password: passwordHash,
+        email: "test@example.com",
+        displayName: "Azure Test User",
+        team: "Data Engineering"
+      };
+      
+      const user = await storage.createUser(testUser);
+      console.log("Created test user with ID:", user.id);
+      
+      res.status(200).json({
+        message: "Test user created/reset successfully",
+        credentials: {
+          username: "azure_test_user",
+          password: "Azure123!"
+        },
+        passwordHash
+      });
+    } catch (error) {
+      console.error("Error resetting test user:", error);
+      res.status(500).json({ message: "Error resetting test user" });
     }
   });
 
