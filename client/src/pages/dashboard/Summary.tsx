@@ -113,24 +113,6 @@ const Summary = () => {
         
         <Box display="flex" alignItems="center" gap={2}>
           <DateRangePicker />
-          
-          <Button
-            variant="contained"
-            color="primary"
-            startIcon={<AddIcon />}
-            onClick={handleAddEntity}
-          >
-            Add Entity
-          </Button>
-          
-          <Button
-            variant="outlined"
-            color="primary"
-            startIcon={<UploadIcon />}
-            onClick={handleBulkUpload}
-          >
-            Bulk Upload
-          </Button>
         </Box>
       </Box>
       

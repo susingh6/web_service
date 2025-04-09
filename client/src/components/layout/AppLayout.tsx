@@ -76,9 +76,9 @@ const AppLayout = ({ children }: AppLayoutProps) => {
         <Header />
         <Navigation />
         <MainContent>
-          <Container maxWidth={false} sx={{ p: 3 }}>
+          <Box sx={{ p: 3, width: '100%' }}>
             {children}
-          </Container>
+          </Box>
         </MainContent>
       </Box>
     </ThemeProvider>

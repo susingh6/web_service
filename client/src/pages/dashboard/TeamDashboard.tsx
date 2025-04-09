@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Box, Grid, Typography, Tabs, Tab, Card, CardContent, Chip, Paper } from '@mui/material';
+import { Box, Grid, Typography, Tabs, Tab, Card, CardContent, Chip, Paper, Button } from '@mui/material';
+import { Add as AddIcon, Upload as UploadIcon } from '@mui/icons-material';
 import { useParams } from 'wouter';
 import { useAppDispatch, useAppSelector } from '@/lib/store';
 import { fetchEntities, fetchTeams } from '@/features/sla/slices/entitiesSlice';
@@ -12,6 +13,8 @@ import ComplianceTrendChart from '@/components/dashboard/ComplianceTrendChart';
 import EntityPerformanceChart from '@/components/dashboard/EntityPerformanceChart';
 import EntityDetailsDrawer from '@/components/modals/EntityDetailsDrawer';
 import EditEntityModal from '@/components/modals/EditEntityModal';
+import AddEntityModal from '@/components/modals/AddEntityModal';
+import BulkUploadModal from '@/components/modals/BulkUploadModal';
 import ConfirmDialog from '@/components/modals/ConfirmDialog';
 import { useToast } from '@/hooks/use-toast';
 import { queryClient } from '@/lib/queryClient';
@@ -29,6 +32,8 @@ const TeamDashboard = () => {
   const [openDetailsDrawer, setOpenDetailsDrawer] = useState(false);
   const [openEditModal, setOpenEditModal] = useState(false);
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
+  const [openAddModal, setOpenAddModal] = useState(false);
+  const [openBulkModal, setOpenBulkModal] = useState(false);
   const [chartFilter, setChartFilter] = useState('All');
   
   // Get current team info
@@ -60,6 +65,14 @@ const TeamDashboard = () => {
   
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
+  };
+  
+  const handleAddEntity = () => {
+    setOpenAddModal(true);
+  };
+  
+  const handleBulkUpload = () => {
+    setOpenBulkModal(true);
   };
   
   const handleViewDetails = (entity: Entity) => {
@@ -154,7 +167,27 @@ const TeamDashboard = () => {
               </Box>
             </Box>
             
-            <DateRangePicker />
+            <Box display="flex" alignItems="center" gap={2}>
+              <DateRangePicker />
+              
+              <Button
+                variant="contained"
+                color="primary"
+                startIcon={<AddIcon />}
+                onClick={handleAddEntity}
+              >
+                Add Entity
+              </Button>
+              
+              <Button
+                variant="outlined"
+                color="primary"
+                startIcon={<UploadIcon />}
+                onClick={handleBulkUpload}
+              >
+                Bulk Upload
+              </Button>
+            </Box>
           </Box>
         </Paper>
         
@@ -282,6 +315,17 @@ const TeamDashboard = () => {
         onConfirm={handleConfirmDelete}
         title="Delete Entity"
         content={`Are you sure you want to delete "${selectedEntity?.name}"? This action cannot be undone.`}
+      />
+      
+      <AddEntityModal
+        open={openAddModal}
+        onClose={() => setOpenAddModal(false)}
+        teams={teams}
+      />
+      
+      <BulkUploadModal
+        open={openBulkModal}
+        onClose={() => setOpenBulkModal(false)}
       />
     </Box>
   );
