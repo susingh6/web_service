@@ -12,6 +12,8 @@ const MainContent = styled(Box)(({ theme }) => ({
   overflow: 'auto',
   backgroundColor: theme.palette.background.default,
   minHeight: 'calc(100vh - 120px)', // Adjust for header and nav height
+  width: '100%',
+  maxWidth: '100%'
 }));
 
 interface AppLayoutProps {
