@@ -5,6 +5,7 @@ import { AuthProvider } from "@/hooks/use-auth";
 import { Toaster } from "@/components/ui/toaster";
 import { ProtectedRoute } from "@/lib/protected-route";
 import AppLayout from "./components/layout/AppLayout";
+import FullWidthLayout from "./components/layout/FullWidthLayout";
 import NotFound from "@/pages/not-found";
 import AuthPage from "@/pages/auth-page";
 import Summary from "@/pages/dashboard/Summary";
@@ -30,9 +31,9 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <AppLayout>
+        <FullWidthLayout>
           <Router />
-        </AppLayout>
+        </FullWidthLayout>
         <Toaster />
       </AuthProvider>
     </QueryClientProvider>

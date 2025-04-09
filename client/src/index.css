@@ -14,4 +14,47 @@
   html {
     @apply m-0 p-0 w-full h-full overflow-x-hidden box-border;
   }
+  
+  #root {
+    @apply w-full h-full m-0 p-0 box-border overflow-hidden;
+    max-width: 100vw;
+    position: relative;
+  }
+  
+  /* Add responsive adjustments for MUI components */
+  .MuiContainer-root {
+    max-width: 100% !important;
+    width: 100% !important;
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+  
+  .MuiBox-root {
+    max-width: 100%;
+  }
+  
+  .MuiGrid-container {
+    width: 100% !important;
+    margin: 0 !important;
+  }
+  
+  /* Make sure charts resize properly */
+  .recharts-responsive-container, 
+  .recharts-wrapper {
+    width: 100% !important;
+    height: 100% !important;
+  }
+  
+  /* Change padding on smaller screens */
+  @media (max-width: 600px) {
+    .MuiContainer-root {
+      padding-left: 8px !important;
+      padding-right: 8px !important;
+    }
+  }
+  
+  /* Clear resize listener to improve re-rendering on resize */
+  .resize-triggers {
+    visibility: hidden;
+  }
 }
