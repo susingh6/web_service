@@ -58,7 +58,7 @@ const Navigation = () => {
         boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
       }}
     >
-      <Box sx={{ maxWidth: '100%', overflow: 'auto' }}>
+      <Box sx={{ width: '100%', maxWidth: '100%', overflow: 'auto' }}>
         <Tabs 
           value={value} 
           onChange={handleChange}
@@ -67,6 +67,7 @@ const Navigation = () => {
           textColor="primary"
           indicatorColor="primary"
           aria-label="dashboard navigation tabs"
+          sx={{ width: '100%' }}
         >
           <Tab 
             label="Summary" 

@@ -105,7 +105,7 @@ const Summary = () => {
   };
   
   return (
-    <Box>
+    <Box sx={{ width: '100%', maxWidth: '100%' }}>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
         <Typography variant="h4" component="h1" fontWeight={600} fontFamily="Inter, sans-serif">
           Overall SLA Performance
@@ -117,8 +117,8 @@ const Summary = () => {
       </Box>
       
       {/* Metrics Cards */}
-      <Grid container spacing={3} mb={4}>
-        <Grid item xs={12} md={6} lg={3}>
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        <Grid item xs={12} md={6} lg={3} component="div">
           <MetricCard
             title="Overall SLA Compliance"
             value={metrics?.overallCompliance || 0}
@@ -162,8 +162,8 @@ const Summary = () => {
       </Grid>
       
       {/* Charts */}
-      <Grid container spacing={3} mb={4}>
-        <Grid item xs={12} lg={6}>
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        <Grid item xs={12} lg={6} component="div">
           <ChartCard
             title="Compliance Trend (Last 30 Days)"
             filters={['All', 'Tables', 'DAGs']}
