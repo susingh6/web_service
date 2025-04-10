@@ -24,7 +24,9 @@ import {
   ToggleButton,
   ToggleButtonGroup,
   Typography,
+  Alert,
 } from '@mui/material';
+import { validateTenant, validateTeam, validateDag } from '@/lib/validationUtils';
 
 type EntityType = 'table' | 'dag';
 
@@ -200,13 +202,49 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
     }
   };
 
+  // State for validation errors
+  const [validationError, setValidationError] = useState<string | null>(null);
+  
   const onSubmit = async (data: any) => {
     console.log('Form data:', data);
-    // Process form submission (API call would happen here)
+    setValidationError(null);
     
-    // Close the modal after successful submission
-    onClose();
-    reset();
+    try {
+      // Validate custom inputs against API endpoints
+      
+      // 1. Validate tenant name
+      const tenantValidation = await validateTenant(data.tenant_name);
+      if (tenantValidation !== true) {
+        setValidationError(tenantValidation);
+        return;
+      }
+      
+      // 2. Validate team name
+      const teamValidation = await validateTeam(data.team_name);
+      if (teamValidation !== true) {
+        setValidationError(teamValidation);
+        return;
+      }
+      
+      // 3. For DAG type, validate DAG name
+      if (entityType === 'dag') {
+        const dagValidation = await validateDag(data.dag_name);
+        if (dagValidation !== true) {
+          setValidationError(dagValidation);
+          return;
+        }
+      }
+      
+      // All validations passed, proceed with submission
+      // Process form submission (API call would happen here)
+      
+      // Close the modal after successful submission
+      onClose();
+      reset();
+    } catch (error) {
+      console.error('Error during validation:', error);
+      setValidationError('An error occurred during validation. Please try again.');
+    }
   };
 
   const handleClose = () => {
@@ -236,6 +274,12 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
               </ToggleButton>
             </ToggleButtonGroup>
           </Stack>
+          
+          {validationError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {validationError}
+            </Alert>
+          )}
           
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             Fields marked with an asterisk (*) are mandatory
