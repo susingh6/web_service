@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Loader2, Eye, EyeOff } from 'lucide-react';
+import monitoringIllustration from '../assets/monitoring-illustration.svg';
 
 // Login form schema
 const loginSchema = z.object({
@@ -174,7 +175,14 @@ const AuthPage = () => {
       {/* Right panel with hero content */}
       <div className="hidden lg:flex flex-1 bg-gradient-to-br from-primary/20 to-primary/5 p-12 flex-col justify-center">
         <div className="max-w-lg">
-          <h1 className="text-4xl font-bold mb-6">Teams SLA Performance Hub</h1>
+          <div className="flex justify-center mb-8">
+            <img 
+              src={monitoringIllustration} 
+              alt="SLA Monitoring Dashboard" 
+              className="w-64 h-auto"
+            />
+          </div>
+          <h1 className="text-4xl font-bold mb-6">SLA Monitoring Tool</h1>
           <p className="text-xl mb-6">
             Track, analyze, and manage service level agreements across your teams with
             detailed insights and real-time compliance metrics.
