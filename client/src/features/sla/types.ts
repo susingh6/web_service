@@ -23,6 +23,21 @@ export interface Entity {
   ownerEmail?: string;
   createdAt: Date;
   updatedAt: Date;
+  
+  // DAG specific fields
+  tenant_name?: string;
+  team_name?: string;
+  dag_name?: string;
+  dag_description?: string;
+  dag_donemarker_location?: string;
+  dag_dependency?: any; // JSON type
+  dag_schedule?: string;
+  expected_runtime_minutes?: number;
+  notify_preference_id?: any; // JSON type
+  is_active?: boolean;
+  donemarker_lookback?: number;
+  user_name?: string;
+  user_email?: string;
 }
 
 // Interface for creating a new entity
@@ -36,6 +51,21 @@ export interface CreateEntityPayload {
   refreshFrequency: RefreshFrequency;
   owner?: string;
   ownerEmail?: string;
+  
+  // DAG specific fields
+  tenant_name?: string;
+  team_name?: string;
+  dag_name?: string;
+  dag_description?: string;
+  dag_donemarker_location?: string;
+  dag_dependency?: any; // JSON type
+  dag_schedule?: string;
+  expected_runtime_minutes?: number;
+  notify_preference_id?: any; // JSON type
+  is_active?: boolean;
+  donemarker_lookback?: number;
+  user_name?: string;
+  user_email?: string;
 }
 
 // Interface for updating an entity
