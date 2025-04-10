@@ -65,12 +65,12 @@ const Login = () => {
                 fontWeight: 600,
               }}
             >
-              SLA Monitoring Dashboard
+              SLA Monitoring Tool
             </Typography>
           </Box>
 
           <Typography variant="body1" align="center" color="text.secondary" paragraph>
-            Sign in with your Azure AD account to access the SLA monitoring dashboard.
+            Sign in with your Azure AD account to access the SLA Monitoring Tool.
           </Typography>
 
           {error && (
@@ -98,7 +98,7 @@ const Login = () => {
       </Card>
 
       <Typography variant="body2" color="text.secondary" sx={{ mt: 4 }}>
-        © {new Date().getFullYear()} SLA Monitoring System - Enterprise Edition
+        © {new Date().getFullYear()} SLA Monitoring Tool
       </Typography>
     </Box>
   );

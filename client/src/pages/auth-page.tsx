@@ -67,9 +67,9 @@ const AuthPage = () => {
       <div className="flex-1 flex items-center justify-center p-6 bg-background">
         <Card className="w-full max-w-md">
           <CardHeader>
-            <CardTitle className="text-2xl text-center">SLA Monitoring Dashboard</CardTitle>
+            <CardTitle className="text-2xl text-center">SLA Monitoring Tool</CardTitle>
             <CardDescription className="text-center">
-              Sign in to access the enterprise SLA monitoring platform
+              Sign in to access the SLA monitoring platform
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -166,7 +166,7 @@ const AuthPage = () => {
             </div>
           </CardContent>
           <CardFooter className="flex justify-center text-sm text-muted-foreground">
-            © {new Date().getFullYear()} SLA Monitoring Dashboard - Enterprise Edition
+            © {new Date().getFullYear()} SLA Monitoring Tool
           </CardFooter>
         </Card>
       </div>
@@ -174,7 +174,7 @@ const AuthPage = () => {
       {/* Right panel with hero content */}
       <div className="hidden lg:flex flex-1 bg-gradient-to-br from-primary/20 to-primary/5 p-12 flex-col justify-center">
         <div className="max-w-lg">
-          <h1 className="text-4xl font-bold mb-6">Enterprise SLA Monitoring</h1>
+          <h1 className="text-4xl font-bold mb-6">SLA Monitoring Tool</h1>
           <p className="text-xl mb-6">
             Track, analyze, and manage service level agreements across your organization with
             detailed insights and real-time compliance metrics.
