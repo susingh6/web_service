@@ -36,6 +36,7 @@ const TeamDashboard = () => {
   const [openAddModal, setOpenAddModal] = useState(false);
   const [openBulkModal, setOpenBulkModal] = useState(false);
   const [isAddButtonHovered, setIsAddButtonHovered] = useState(false);
+  const [isBulkButtonHovered, setIsBulkButtonHovered] = useState(false);
   const [chartFilter, setChartFilter] = useState('All');
   
   // Get current team info
@@ -58,13 +59,25 @@ const TeamDashboard = () => {
       const teamOptions = getFromCache('teams');
       const dagOptions = getFromCache('dags');
       
-      console.log('Preloading modal data on hover');
+      // Preload both Table and DAG related data to ensure both form types
+      // are ready, regardless of which tab the user selects first
+      console.log('Preloading modal data on hover for both Table and DAG forms');
       
       // Touch the AddEntityModal component to ensure it's preloaded
       // This approach ensures the component is ready when the user clicks
       import('@/components/modals/AddEntityModal');
     }
   }, [isAddButtonHovered]);
+
+  // Preload BulkUploadModal when Bulk Upload button is hovered
+  useEffect(() => {
+    if (isBulkButtonHovered) {
+      console.log('Preloading bulk upload modal data on hover');
+      
+      // Touch the BulkUploadModal component to ensure it's preloaded
+      import('@/components/modals/BulkUploadModal');
+    }
+  }, [isBulkButtonHovered]);
   
   // Filter entities for this team
   const teamEntities = entities.filter((entity) => entity.teamId === teamId);
@@ -205,6 +218,8 @@ const TeamDashboard = () => {
                 color="primary"
                 startIcon={<UploadIcon />}
                 onClick={handleBulkUpload}
+                onMouseEnter={() => setIsBulkButtonHovered(true)}
+                onMouseLeave={() => setIsBulkButtonHovered(false)}
               >
                 Bulk Upload
               </Button>
