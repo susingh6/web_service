@@ -87,11 +87,32 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
           throw new Error('JSON must contain an array of entities');
         }
         
-        // Basic validation of required fields
+        // Basic validation of required fields based on entity type
         const entityType = tabValue === 'tables' ? 'table' : 'dag';
-        const invalidEntities = jsonContent.filter(entity => {
-          return !entity.name || entity.type !== entityType || !entity.teamId || !entity.slaTarget;
-        });
+        
+        let invalidEntities = [];
+        if (entityType === 'table') {
+          invalidEntities = jsonContent.filter(entity => {
+            return !entity.tenant_name || 
+                   !entity.team_name || 
+                   !entity.schema_name || 
+                   !entity.table_name || 
+                   !entity.table_schedule || 
+                   !entity.expected_runtime_minutes || 
+                   !entity.user_name || 
+                   !entity.user_email;
+          });
+        } else {
+          invalidEntities = jsonContent.filter(entity => {
+            return !entity.tenant_name || 
+                   !entity.team_name || 
+                   !entity.dag_name || 
+                   !entity.dag_schedule || 
+                   !entity.expected_runtime_minutes || 
+                   !entity.user_name || 
+                   !entity.user_email;
+          });
+        }
         
         if (invalidEntities.length > 0) {
           toast({
@@ -119,30 +140,79 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
   const handleDownloadTemplate = () => {
     // Create a sample JSON template based on the selected tab
     const entityType = tabValue === 'tables' ? 'table' : 'dag';
-    const sampleData = [
-      {
-        name: `Sample ${entityType === 'table' ? 'Table' : 'DAG'} 1`,
-        type: entityType,
-        teamId: 1,
-        description: `Example ${entityType} for analytics`,
-        slaTarget: 95,
-        status: 'active',
-        refreshFrequency: 'daily',
-        owner: 'John Doe',
-        ownerEmail: 'john.doe@example.com'
-      },
-      {
-        name: `Sample ${entityType === 'table' ? 'Table' : 'DAG'} 2`,
-        type: entityType,
-        teamId: 2,
-        description: `Another example ${entityType}`,
-        slaTarget: 98,
-        status: 'active',
-        refreshFrequency: 'hourly',
-        owner: 'Jane Smith',
-        ownerEmail: 'jane.smith@example.com'
-      }
-    ];
+    
+    // Different templates for tables and dags
+    let sampleData = [];
+    
+    if (entityType === 'table') {
+      sampleData = [
+        {
+          tenant_name: "Data Engineering",
+          team_name: "PGM",
+          schema_name: "analytics",
+          table_name: "customer_data",
+          table_description: "Contains customer information with demographics",
+          table_schedule: "0 */4 * * *",  // Every 4 hours
+          expected_runtime_minutes: 45,
+          table_dependency: "analytics.products,analytics.orders",
+          notification_preference: "email",
+          donemarker_location: "s3://data-warehouse/markers/customer_data/",
+          donemarker_lookback: 1,
+          user_name: "John Doe",
+          user_email: "john.doe@example.com",
+          is_active: true
+        },
+        {
+          tenant_name: "Ad Engineering",
+          team_name: "Core",
+          schema_name: "reporting",
+          table_name: "ad_performance",
+          table_description: "Aggregated advertising performance metrics",
+          table_schedule: "0 0 * * *",  // Daily at midnight
+          expected_runtime_minutes: 120,
+          table_dependency: "reporting.campaigns,reporting.conversions",
+          notification_preference: "slack",
+          donemarker_location: "s3://ad-analytics/markers/performance/",
+          donemarker_lookback: 2,
+          user_name: "Jane Smith",
+          user_email: "jane.smith@example.com",
+          is_active: true
+        }
+      ];
+    } else {
+      sampleData = [
+        {
+          tenant_name: "Data Engineering",
+          team_name: "IOT",
+          dag_name: "device_data_etl",
+          dag_description: "Processes and transforms IoT device data",
+          dag_schedule: "0 */2 * * *",  // Every 2 hours
+          expected_runtime_minutes: 30,
+          dag_dependency: "sensor_validation,data_quality_check",
+          notification_preference: "pagerduty",
+          donemarker_location: "s3://airflow/markers/device_etl/",
+          donemarker_lookback: 0,
+          user_name: "Alex Johnson",
+          user_email: "alex.johnson@example.com",
+          is_active: true
+        },
+        {
+          tenant_name: "Ad Engineering",
+          team_name: "Viewer Product",
+          dag_name: "user_segmentation",
+          dag_description: "Creates user segments for targeted advertising",
+          dag_schedule: "0 4 * * *",  // Daily at 4 AM
+          expected_runtime_minutes: 60,
+          dag_dependency: "user_activity_collection,model_training",
+          notification_preference: "email",
+          donemarker_location: "s3://airflow/markers/segmentation/",
+          donemarker_lookback: 1,
+          user_name: "Sarah Williams",
+          user_email: "sarah.williams@example.com",
+          is_active: true
+        }
+      ];
+    }
     
     // Convert to JSON and create downloadable file
     const jsonStr = JSON.stringify(sampleData, null, 2);
@@ -310,23 +380,47 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
             borderRadius: 1,
             fontFamily: 'monospace',
             fontSize: '0.85rem',
-            maxHeight: '200px',
+            maxHeight: '300px',
             overflow: 'auto'
           }}
         >
-          <pre>{`[
+          <pre>{tabValue === 'tables' ? 
+`[
   {
-    "name": "Entity Name",
-    "type": "${tabValue === 'tables' ? 'table' : 'dag'}",
-    "teamId": 1,
-    "description": "Entity description",
-    "slaTarget": 95,
-    "status": "active",
-    "refreshFrequency": "daily",
-    "owner": "Owner Name",
-    "ownerEmail": "owner@example.com"
+    "tenant_name": "Data Engineering",
+    "team_name": "PGM",
+    "schema_name": "analytics",
+    "table_name": "customer_data",
+    "table_description": "Contains customer information with demographics",
+    "table_schedule": "0 */4 * * *",
+    "expected_runtime_minutes": 45,
+    "table_dependency": "analytics.products,analytics.orders",
+    "notification_preference": "email",
+    "donemarker_location": "s3://data-warehouse/markers/customer_data/",
+    "donemarker_lookback": 1,
+    "user_name": "John Doe",
+    "user_email": "john.doe@example.com",
+    "is_active": true
   },
-  // Additional entities...
+  // Additional tables...
+]` : 
+`[
+  {
+    "tenant_name": "Data Engineering",
+    "team_name": "IOT",
+    "dag_name": "device_data_etl",
+    "dag_description": "Processes and transforms IoT device data",
+    "dag_schedule": "0 */2 * * *",
+    "expected_runtime_minutes": 30,
+    "dag_dependency": "sensor_validation,data_quality_check",
+    "notification_preference": "pagerduty",
+    "donemarker_location": "s3://airflow/markers/device_etl/",
+    "donemarker_lookback": 0,
+    "user_name": "Alex Johnson",
+    "user_email": "alex.johnson@example.com",
+    "is_active": true
+  },
+  // Additional DAGs...
 ]`}</pre>
         </Paper>
         <Button 
@@ -358,22 +452,25 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
               <Typography variant="body2">JSON must contain an array of entity objects</Typography>
             </Box>
             <Box component="li" sx={{ mb: 0.5 }}>
-              <Typography variant="body2">Required fields: name, type, teamId, slaTarget</Typography>
+              <Typography variant="body2">For Tables: Required fields include tenant_name, team_name, schema_name, table_name, table_schedule, expected_runtime_minutes, user_name, user_email</Typography>
+            </Box>
+            <Box component="li" sx={{ mb: 0.5 }}>
+              <Typography variant="body2">For DAGs: Required fields include tenant_name, team_name, dag_name, dag_schedule, expected_runtime_minutes, user_name, user_email</Typography>
             </Box>
             <Box component="li" sx={{ mb: 0.5 }}>
               <Typography variant="body2">Entity names must be unique across the system</Typography>
             </Box>
             <Box component="li" sx={{ mb: 0.5 }}>
-              <Typography variant="body2">SLA target values should be between 0-100</Typography>
+              <Typography variant="body2">Tenant name should be either "Data Engineering" or "Ad Engineering"</Typography>
             </Box>
             <Box component="li" sx={{ mb: 0.5 }}>
-              <Typography variant="body2">Type must match the selected tab (table/dag)</Typography>
+              <Typography variant="body2">Team name should be one of: "PGM", "Core", "Viewer Product", "IOT", "CDM"</Typography>
             </Box>
             <Box component="li" sx={{ mb: 0.5 }}>
-              <Typography variant="body2">TeamId must reference an existing team ID</Typography>
+              <Typography variant="body2">Schedule format should follow cron syntax (e.g., "0 * * * *")</Typography>
             </Box>
             <Box component="li">
-              <Typography variant="body2">Status should be one of: active, inactive, deprecated</Typography>
+              <Typography variant="body2">Notification preference should be one of: "email", "slack", "pagerduty", "none"</Typography>
             </Box>
           </Box>
         </Paper>
