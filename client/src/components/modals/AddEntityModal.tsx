@@ -314,13 +314,17 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 render={({ field }) => (
                   <TextField
                     {...field}
+                    select
                     label="Tenant Name"
                     fullWidth
                     margin="normal"
                     required
                     error={!!errors.tenant_name}
                     helperText={errors.tenant_name?.message}
-                  />
+                  >
+                    <MenuItem value="Ad Engineering">Ad Engineering</MenuItem>
+                    <MenuItem value="Data Engineering">Data Engineering</MenuItem>
+                  </TextField>
                 )}
               />
               
@@ -330,13 +334,20 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 render={({ field }) => (
                   <TextField
                     {...field}
+                    select
                     label="Team Name"
                     fullWidth
                     margin="normal"
                     required
                     error={!!errors.team_name}
                     helperText={errors.team_name?.message}
-                  />
+                  >
+                    <MenuItem value="PGM">PGM</MenuItem>
+                    <MenuItem value="Core">Core</MenuItem>
+                    <MenuItem value="Viewer Product">Viewer Product</MenuItem>
+                    <MenuItem value="IOT">IOT</MenuItem>
+                    <MenuItem value="CDM">CDM</MenuItem>
+                  </TextField>
                 )}
               />
               
