@@ -50,101 +50,118 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
     }
   };
 
-  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      const selectedFile = e.target.files[0];
-      handleFile(selectedFile);
-    }
-  };
-
   const handleFile = (selectedFile: File) => {
+    // Check if the file is a JSON file
     if (selectedFile.type !== 'application/json' && !selectedFile.name.endsWith('.json')) {
       toast({
-        title: 'Invalid file type',
+        title: 'Invalid file format',
         description: 'Please upload a JSON file.',
         variant: 'destructive',
       });
       return;
     }
-    
-    if (selectedFile.size > 10 * 1024 * 1024) { // 10MB
-      toast({
-        title: 'File too large',
-        description: 'Maximum file size is 10MB.',
-        variant: 'destructive',
-      });
-      return;
-    }
-    
-    // Validate JSON format and structure
+
+    setFile(selectedFile);
+    toast({
+      title: 'File added',
+      description: `${selectedFile.name} is ready to upload.`,
+    });
+
+    // Here you would read the file and validate its format
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = (event) => {
       try {
-        const jsonContent = JSON.parse(e.target?.result as string);
+        const jsonData = JSON.parse(event.target?.result as string);
+        console.log('Parsed JSON data:', jsonData);
         
-        // Validate that it's an array of entities
-        if (!Array.isArray(jsonContent)) {
-          throw new Error('JSON must contain an array of entities');
-        }
-        
-        // Basic validation of required fields based on entity type
-        const entityType = tabValue === 'tables' ? 'table' : 'dag';
-        
-        let invalidEntities = [];
-        if (entityType === 'table') {
-          invalidEntities = jsonContent.filter(entity => {
-            return !entity.tenant_name || 
-                   !entity.team_name || 
-                   !entity.schema_name || 
-                   !entity.table_name || 
-                   !entity.table_schedule || 
-                   !entity.expected_runtime_minutes || 
-                   !entity.user_name || 
-                   !entity.user_email;
-          });
-        } else {
-          invalidEntities = jsonContent.filter(entity => {
-            return !entity.tenant_name || 
-                   !entity.team_name || 
-                   !entity.dag_name || 
-                   !entity.dag_schedule || 
-                   !entity.expected_runtime_minutes || 
-                   !entity.user_name || 
-                   !entity.user_email;
-          });
-        }
-        
-        if (invalidEntities.length > 0) {
+        // Additional validation could be added here
+        if (!Array.isArray(jsonData)) {
           toast({
-            title: 'Invalid entity data',
-            description: `${invalidEntities.length} entities are missing required fields.`,
+            title: 'Invalid JSON format',
+            description: 'The JSON file must contain an array of entities.',
             variant: 'destructive',
           });
           return;
         }
         
-        setFile(selectedFile);
+        // Check if each entity has the required fields based on type
+        const entityType = tabValue;
+        const isValid = jsonData.every((entity) => {
+          if (entityType === 'tables') {
+            return (
+              entity.tenant_name && 
+              entity.team_name && 
+              entity.schema_name && 
+              entity.table_name && 
+              entity.table_schedule && 
+              entity.expected_runtime_minutes &&
+              entity.user_name &&
+              entity.user_email
+            );
+          } else {
+            return (
+              entity.tenant_name && 
+              entity.team_name && 
+              entity.dag_name && 
+              entity.dag_schedule && 
+              entity.expected_runtime_minutes &&
+              entity.user_name &&
+              entity.user_email
+            );
+          }
+        });
         
+        if (!isValid) {
+          toast({
+            title: 'Invalid entity data',
+            description: `One or more entities are missing required fields for ${entityType}.`,
+            variant: 'destructive',
+          });
+        }
       } catch (error) {
         toast({
-          title: 'Invalid JSON format',
-          description: error instanceof Error ? error.message : 'The uploaded file contains invalid JSON.',
+          title: 'Error parsing JSON',
+          description: 'The file contains invalid JSON.',
           variant: 'destructive',
         });
       }
     };
-    
     reader.readAsText(selectedFile);
   };
 
-  const handleDownloadTemplate = () => {
-    // Create a sample JSON template based on the selected tab
-    const entityType = tabValue === 'tables' ? 'table' : 'dag';
+  const handleFileInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files && event.target.files.length > 0) {
+      handleFile(event.target.files[0]);
+    }
+  };
+
+  const handleUpload = () => {
+    if (!file) {
+      toast({
+        title: 'No file selected',
+        description: 'Please select a JSON file to upload.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Here you would implement the actual upload logic
+    // For now, we'll just simulate a successful upload
+    toast({
+      title: 'Upload successful',
+      description: `${file.name} has been uploaded and processed.`,
+    });
     
-    // Different templates for tables and dags
-    let sampleData = [];
+    // Reset the form
+    setFile(null);
+    onClose();
+  };
+
+  const downloadSampleTemplate = () => {
+    const entityType = tabValue;
+    let sampleData;
     
-    if (entityType === 'table') {
+    if (entityType === 'tables') {
       sampleData = [
         {
           tenant_name: "Data Engineering",
@@ -155,7 +172,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
           table_schedule: "0 */4 * * *",  // Every 4 hours
           expected_runtime_minutes: 45,
           table_dependency: "analytics.products,analytics.orders",
-          notification_preference: "email",
+          notification_preferences: ["email", "slack"],
           donemarker_location: "s3://data-warehouse/markers/customer_data/",
           donemarker_lookback: 1,
           user_name: "John Doe",
@@ -171,7 +188,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
           table_schedule: "0 0 * * *",  // Daily at midnight
           expected_runtime_minutes: 120,
           table_dependency: "reporting.campaigns,reporting.conversions",
-          notification_preference: "slack",
+          notification_preferences: ["slack", "pagerduty"],
           donemarker_location: "s3://ad-analytics/markers/performance/",
           donemarker_lookback: 2,
           user_name: "Jane Smith",
@@ -189,7 +206,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
           dag_schedule: "0 */2 * * *",  // Every 2 hours
           expected_runtime_minutes: 30,
           dag_dependency: "sensor_validation,data_quality_check",
-          notification_preference: "pagerduty",
+          notification_preferences: ["pagerduty", "email"],
           donemarker_location: "s3://airflow/markers/device_etl/",
           donemarker_lookback: 0,
           user_name: "Alex Johnson",
@@ -204,7 +221,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
           dag_schedule: "0 4 * * *",  // Daily at 4 AM
           expected_runtime_minutes: 60,
           dag_dependency: "user_activity_collection,model_training",
-          notification_preference: "email",
+          notification_preferences: ["email", "slack"],
           donemarker_location: "s3://airflow/markers/segmentation/",
           donemarker_lookback: 1,
           user_name: "Sarah Williams",
@@ -228,262 +245,208 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
     
     // Clean up
     setTimeout(() => {
-      document.body.removeChild(a);
       URL.revokeObjectURL(url);
+      document.body.removeChild(a);
     }, 0);
-    
-    toast({
-      title: 'Template downloaded',
-      description: `${tabValue === 'tables' ? 'Tables' : 'DAGs'} JSON template has been downloaded.`,
-      variant: 'default',
-    });
-  };
-
-  const handleUpload = () => {
-    if (!file) {
-      toast({
-        title: 'No file selected',
-        description: 'Please select a JSON file to upload.',
-        variant: 'destructive',
-      });
-      return;
-    }
-    
-    // In a real app, this would upload the file to the server and process the entities
-    // For now, we'll just simulate a successful upload
-    toast({
-      title: 'Upload successful',
-      description: `${file.name} has been processed. Entities will be added shortly.`,
-      variant: 'default',
-    });
-    
-    setFile(null);
-    onClose();
   };
 
   return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      maxWidth="md"
-      fullWidth
-      PaperProps={{
-        sx: {
-          borderRadius: 2,
-        },
-      }}
-    >
-      <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1 }}>
-        <Typography variant="h6" fontWeight={600} fontFamily="Inter, sans-serif">
-          Bulk Upload Entities
-        </Typography>
-        <IconButton edge="end" color="inherit" onClick={onClose} aria-label="close">
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+      <DialogTitle>
+        Bulk Upload Entities
+        <IconButton
+          aria-label="close"
+          onClick={onClose}
+          sx={{
+            position: 'absolute',
+            right: 8,
+            top: 8,
+            color: (theme) => theme.palette.grey[500],
+          }}
+        >
           <CloseIcon />
         </IconButton>
       </DialogTitle>
       
-      <Box sx={{ px: 3, pt: 0, pb: 2, borderBottom: 1, borderColor: 'divider' }}>
-        <Tabs value={tabValue} onChange={handleTabChange}>
-          <Tab 
-            label="Tables" 
-            value="tables"
-            sx={{ 
-              fontWeight: 500, 
-              textTransform: 'none',
-              '&.Mui-selected': { fontWeight: 600 } 
-            }} 
-          />
-          <Tab 
-            label="DAGs" 
-            value="dags"
-            sx={{ 
-              fontWeight: 500, 
-              textTransform: 'none',
-              '&.Mui-selected': { fontWeight: 600 } 
-            }} 
-          />
-        </Tabs>
-      </Box>
-      
       <DialogContent>
+        <Tabs
+          value={tabValue}
+          onChange={handleTabChange}
+          aria-label="entity type tabs"
+          sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}
+        >
+          <Tab value="tables" label="Tables" />
+          <Tab value="dags" label="DAGs" />
+        </Tabs>
+        
+        {/* Instructions */}
+        <Paper 
+          elevation={0} 
+          sx={{ 
+            p: 2, 
+            mb: 3, 
+            bgcolor: 'background.default',
+            border: 1,
+            borderColor: 'divider',
+            borderRadius: 1,
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'flex-start', mb: 1 }}>
+            <InfoIcon color="info" sx={{ mr: 1, mt: 0.5 }} />
+            <Typography variant="subtitle1" fontWeight="medium">Instructions</Typography>
+          </Box>
+          
+          <Typography variant="body2" sx={{ mb: 1 }}>
+            Upload a JSON file containing an array of {tabValue === 'tables' ? 'table' : 'DAG'} entities to add multiple records at once.
+          </Typography>
+          
+          <Typography variant="body2" sx={{ mb: 1 }}>
+            Required fields for {tabValue === 'tables' ? 'Tables' : 'DAGs'}:
+          </Typography>
+          
+          <Typography component="div" variant="body2" sx={{ pl: 2, mb: 1 }}>
+            {tabValue === 'tables' ? (
+              <ul>
+                <li>tenant_name: String (e.g., "Data Engineering")</li>
+                <li>team_name: String (e.g., "PGM", "Core", etc.)</li>
+                <li>schema_name: String</li>
+                <li>table_name: String</li>
+                <li>table_schedule: String (cron format)</li>
+                <li>expected_runtime_minutes: Number</li>
+                <li>user_name: String</li>
+                <li>user_email: String</li>
+              </ul>
+            ) : (
+              <ul>
+                <li>tenant_name: String (e.g., "Data Engineering")</li>
+                <li>team_name: String (e.g., "PGM", "Core", etc.)</li>
+                <li>dag_name: String</li>
+                <li>dag_schedule: String (cron format)</li>
+                <li>expected_runtime_minutes: Number</li>
+                <li>user_name: String</li>
+                <li>user_email: String</li>
+              </ul>
+            )}
+          </Typography>
+          
+          <Typography variant="body2" sx={{ mb: 1 }}>
+            Optional fields for both entity types:
+          </Typography>
+          
+          <Typography component="div" variant="body2" sx={{ pl: 2, mb: 1 }}>
+            <ul>
+              <li>notification_preferences: Array of strings (e.g., ["email", "slack", "pagerduty"])</li>
+              <li>donemarker_location: String</li>
+              <li>donemarker_lookback: Number</li>
+              <li>is_active: Boolean</li>
+              {tabValue === 'tables' ? (
+                <>
+                  <li>table_description: String</li>
+                  <li>table_dependency: String (comma-separated)</li>
+                </>
+              ) : (
+                <>
+                  <li>dag_description: String</li>
+                  <li>dag_dependency: String (comma-separated)</li>
+                </>
+              )}
+            </ul>
+          </Typography>
+          
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <Button
+              startIcon={<DownloadIcon />}
+              onClick={downloadSampleTemplate}
+              color="info"
+              size="small"
+            >
+              Download Sample Template
+            </Button>
+          </Box>
+        </Paper>
+        
+        {/* Drop zone */}
         <Box
           sx={{
-            p: 4,
-            bgcolor: 'grey.50',
-            border: (theme) => `2px dashed ${isDragging ? theme.palette.primary.main : theme.palette.grey[300]}`,
-            borderRadius: 2,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            mb: 3,
-            transition: 'border-color 0.2s ease',
+            border: 2,
+            borderRadius: 1,
+            borderStyle: 'dashed',
+            borderColor: isDragging ? 'primary.main' : 'divider',
+            bgcolor: isDragging ? 'action.hover' : 'background.paper',
+            p: 3,
+            textAlign: 'center',
+            transition: 'all 0.2s',
+            cursor: 'pointer',
           }}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
+          onClick={() => document.getElementById('file-input')?.click()}
         >
-          <CloudUploadIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
+          <input
+            type="file"
+            id="file-input"
+            accept=".json,application/json"
+            style={{ display: 'none' }}
+            onChange={handleFileInputChange}
+          />
           
-          {file ? (
-            <Box display="flex" flexDirection="column" alignItems="center">
-              <Typography variant="body1" fontWeight={500}>
-                {file.name}
+          <CloudUploadIcon 
+            color="primary" 
+            sx={{ 
+              fontSize: 48,
+              mb: 2,
+              opacity: 0.7,
+            }} 
+          />
+          
+          <Typography variant="h6" gutterBottom>
+            {isDragging ? 'Drop your file here' : 'Drag & drop your JSON file here'}
+          </Typography>
+          
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            or click to browse files
+          </Typography>
+          
+          {file && (
+            <Paper
+              elevation={0}
+              sx={{
+                p: 2,
+                mt: 2,
+                bgcolor: 'background.default',
+                borderRadius: 1,
+                textAlign: 'left',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <Typography variant="body2">
+                <strong>Selected file:</strong> {file.name} ({(file.size / 1024).toFixed(1)} KB)
               </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {(file.size / 1024).toFixed(1)} KB
-              </Typography>
-              <Button 
-                variant="outlined" 
-                color="secondary" 
-                sx={{ mt: 2 }}
-                onClick={() => setFile(null)}
+              <IconButton 
+                size="small" 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setFile(null);
+                }}
               >
-                Remove
-              </Button>
-            </Box>
-          ) : (
-            <>
-              <Typography variant="body1" textAlign="center" mb={2}>
-                Drag and drop your JSON file here, or
-              </Typography>
-              <Button
-                variant="contained"
-                component="label"
-                color="primary"
-              >
-                Browse Files
-                <input
-                  type="file"
-                  hidden
-                  accept=".json,application/json"
-                  onChange={handleFileInput}
-                />
-              </Button>
-              <Typography variant="caption" color="text.secondary" mt={2}>
-                Maximum file size: 10MB. Supported format: JSON
-              </Typography>
-            </>
+                <CloseIcon fontSize="small" />
+              </IconButton>
+            </Paper>
           )}
         </Box>
-        
-        <Typography variant="h6" fontWeight={500} gutterBottom>
-          JSON Structure
-        </Typography>
-        <Typography variant="body2" color="text.secondary" paragraph>
-          Upload a JSON file with an array of entities following the structure below.
-        </Typography>
-        <Paper
-          sx={{ 
-            p: 2, 
-            mb: 3, 
-            bgcolor: 'grey.50',
-            borderRadius: 1,
-            fontFamily: 'monospace',
-            fontSize: '0.85rem',
-            maxHeight: '300px',
-            overflow: 'auto'
-          }}
-        >
-          <pre>{tabValue === 'tables' ? 
-`[
-  {
-    "tenant_name": "Data Engineering",
-    "team_name": "PGM",
-    "schema_name": "analytics",
-    "table_name": "customer_data",
-    "table_description": "Contains customer information with demographics",
-    "table_schedule": "0 */4 * * *",
-    "expected_runtime_minutes": 45,
-    "table_dependency": "analytics.products,analytics.orders",
-    "notification_preference": "email",
-    "donemarker_location": "s3://data-warehouse/markers/customer_data/",
-    "donemarker_lookback": 1,
-    "user_name": "John Doe",
-    "user_email": "john.doe@example.com",
-    "is_active": true
-  },
-  // Additional tables...
-]` : 
-`[
-  {
-    "tenant_name": "Data Engineering",
-    "team_name": "IOT",
-    "dag_name": "device_data_etl",
-    "dag_description": "Processes and transforms IoT device data",
-    "dag_schedule": "0 */2 * * *",
-    "expected_runtime_minutes": 30,
-    "dag_dependency": "sensor_validation,data_quality_check",
-    "notification_preference": "pagerduty",
-    "donemarker_location": "s3://airflow/markers/device_etl/",
-    "donemarker_lookback": 0,
-    "user_name": "Alex Johnson",
-    "user_email": "alex.johnson@example.com",
-    "is_active": true
-  },
-  // Additional DAGs...
-]`}</pre>
-        </Paper>
-        <Button 
-          startIcon={<DownloadIcon />} 
-          color="primary"
-          onClick={handleDownloadTemplate}
-          sx={{ mb: 3 }}
-        >
-          Download JSON Template
-        </Button>
-        
-        <Paper 
-          elevation={0} 
-          sx={{ 
-            p: 3, 
-            bgcolor: 'info.light', 
-            color: 'info.contrastText',
-            borderRadius: 2, 
-          }}
-        >
-          <Box display="flex" alignItems="flex-start" mb={1}>
-            <InfoIcon sx={{ mr: 1, mt: 0.25 }} />
-            <Typography variant="subtitle1" fontWeight={500}>
-              Instructions
-            </Typography>
-          </Box>
-          <Box component="ul" sx={{ pl: 4, m: 0 }}>
-            <Box component="li" sx={{ mb: 0.5 }}>
-              <Typography variant="body2">JSON must contain an array of entity objects</Typography>
-            </Box>
-            <Box component="li" sx={{ mb: 0.5 }}>
-              <Typography variant="body2">For Tables: Required fields include tenant_name, team_name, schema_name, table_name, table_schedule, expected_runtime_minutes, user_name, user_email</Typography>
-            </Box>
-            <Box component="li" sx={{ mb: 0.5 }}>
-              <Typography variant="body2">For DAGs: Required fields include tenant_name, team_name, dag_name, dag_schedule, expected_runtime_minutes, user_name, user_email</Typography>
-            </Box>
-            <Box component="li" sx={{ mb: 0.5 }}>
-              <Typography variant="body2">Entity names must be unique across the system</Typography>
-            </Box>
-            <Box component="li" sx={{ mb: 0.5 }}>
-              <Typography variant="body2">Tenant name should be either "Data Engineering" or "Ad Engineering"</Typography>
-            </Box>
-            <Box component="li" sx={{ mb: 0.5 }}>
-              <Typography variant="body2">Team name should be one of: "PGM", "Core", "Viewer Product", "IOT", "CDM"</Typography>
-            </Box>
-            <Box component="li" sx={{ mb: 0.5 }}>
-              <Typography variant="body2">Schedule format should follow cron syntax (e.g., "0 * * * *")</Typography>
-            </Box>
-            <Box component="li">
-              <Typography variant="body2">Notification preference should be one of: "email", "slack", "pagerduty", "none"</Typography>
-            </Box>
-          </Box>
-        </Paper>
       </DialogContent>
       
-      <DialogActions sx={{ px: 3, py: 2 }}>
-        <Button onClick={onClose} variant="outlined" color="inherit">
+      <DialogActions>
+        <Button onClick={onClose} color="inherit">
           Cancel
         </Button>
         <Button 
+          onClick={handleUpload} 
           variant="contained" 
           color="primary"
-          onClick={handleUpload}
           disabled={!file}
         >
           Upload

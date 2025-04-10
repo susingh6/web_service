@@ -285,23 +285,71 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
               />
               
               <Controller
-                name="notification_preference"
+                name="notification_preferences"
                 control={control}
                 render={({ field }) => (
-                  <TextField
-                    {...field}
-                    select
-                    label="Notification Preference"
-                    fullWidth
+                  <FormControl 
+                    fullWidth 
                     margin="normal"
-                    error={!!errors.notification_preference}
-                    helperText={errors.notification_preference?.message}
+                    error={!!errors.notification_preferences}
                   >
-                    <MenuItem value="email">Email</MenuItem>
-                    <MenuItem value="slack">Slack</MenuItem>
-                    <MenuItem value="pagerduty">Pagerduty</MenuItem>
-                    <MenuItem value="none">None</MenuItem>
-                  </TextField>
+                    <FormLabel component="legend">Notification Preferences</FormLabel>
+                    <FormGroup>
+                      <FormControlLabel
+                        control={
+                          <Checkbox 
+                            checked={field.value?.includes('email') || false}
+                            onChange={(e) => {
+                              const currentValues = Array.isArray(field.value) ? [...field.value] : [];
+                              if (e.target.checked) {
+                                field.onChange([...currentValues, 'email']);
+                              } else {
+                                field.onChange(currentValues.filter(v => v !== 'email'));
+                              }
+                            }}
+                          />
+                        }
+                        label="Email"
+                      />
+                      <FormControlLabel
+                        control={
+                          <Checkbox 
+                            checked={field.value?.includes('slack') || false}
+                            onChange={(e) => {
+                              const currentValues = Array.isArray(field.value) ? [...field.value] : [];
+                              if (e.target.checked) {
+                                field.onChange([...currentValues, 'slack']);
+                              } else {
+                                field.onChange(currentValues.filter(v => v !== 'slack'));
+                              }
+                            }}
+                          />
+                        }
+                        label="Slack"
+                      />
+                      <FormControlLabel
+                        control={
+                          <Checkbox 
+                            checked={field.value?.includes('pagerduty') || false}
+                            onChange={(e) => {
+                              const currentValues = Array.isArray(field.value) ? [...field.value] : [];
+                              if (e.target.checked) {
+                                field.onChange([...currentValues, 'pagerduty']);
+                              } else {
+                                field.onChange(currentValues.filter(v => v !== 'pagerduty'));
+                              }
+                            }}
+                          />
+                        }
+                        label="PagerDuty"
+                      />
+                    </FormGroup>
+                    {errors.notification_preferences && (
+                      <FormHelperText error>
+                        {errors.notification_preferences.message}
+                      </FormHelperText>
+                    )}
+                  </FormControl>
                 )}
               />
               
@@ -520,23 +568,71 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
               />
               
               <Controller
-                name="notification_preference"
+                name="notification_preferences"
                 control={control}
                 render={({ field }) => (
-                  <TextField
-                    {...field}
-                    select
-                    label="Notification Preference"
-                    fullWidth
+                  <FormControl 
+                    fullWidth 
                     margin="normal"
-                    error={!!errors.notification_preference}
-                    helperText={errors.notification_preference?.message}
+                    error={!!errors.notification_preferences}
                   >
-                    <MenuItem value="email">Email</MenuItem>
-                    <MenuItem value="slack">Slack</MenuItem>
-                    <MenuItem value="pagerduty">Pagerduty</MenuItem>
-                    <MenuItem value="none">None</MenuItem>
-                  </TextField>
+                    <FormLabel component="legend">Notification Preferences</FormLabel>
+                    <FormGroup>
+                      <FormControlLabel
+                        control={
+                          <Checkbox 
+                            checked={field.value?.includes('email') || false}
+                            onChange={(e) => {
+                              const currentValues = Array.isArray(field.value) ? [...field.value] : [];
+                              if (e.target.checked) {
+                                field.onChange([...currentValues, 'email']);
+                              } else {
+                                field.onChange(currentValues.filter(v => v !== 'email'));
+                              }
+                            }}
+                          />
+                        }
+                        label="Email"
+                      />
+                      <FormControlLabel
+                        control={
+                          <Checkbox 
+                            checked={field.value?.includes('slack') || false}
+                            onChange={(e) => {
+                              const currentValues = Array.isArray(field.value) ? [...field.value] : [];
+                              if (e.target.checked) {
+                                field.onChange([...currentValues, 'slack']);
+                              } else {
+                                field.onChange(currentValues.filter(v => v !== 'slack'));
+                              }
+                            }}
+                          />
+                        }
+                        label="Slack"
+                      />
+                      <FormControlLabel
+                        control={
+                          <Checkbox 
+                            checked={field.value?.includes('pagerduty') || false}
+                            onChange={(e) => {
+                              const currentValues = Array.isArray(field.value) ? [...field.value] : [];
+                              if (e.target.checked) {
+                                field.onChange([...currentValues, 'pagerduty']);
+                              } else {
+                                field.onChange(currentValues.filter(v => v !== 'pagerduty'));
+                              }
+                            }}
+                          />
+                        }
+                        label="PagerDuty"
+                      />
+                    </FormGroup>
+                    {errors.notification_preferences && (
+                      <FormHelperText error>
+                        {errors.notification_preferences.message}
+                      </FormHelperText>
+                    )}
+                  </FormControl>
                 )}
               />
               
@@ -627,8 +723,8 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
           )}
         </DialogContent>
         
-        <DialogActions sx={{ px: 3, py: 2 }}>
-          <Button onClick={handleClose} variant="outlined" color="inherit">
+        <DialogActions>
+          <Button onClick={handleClose} color="inherit">
             Cancel
           </Button>
           <Button
@@ -636,9 +732,9 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
             variant="contained"
             color="primary"
             disabled={isSubmitting}
-            startIcon={isSubmitting && <CircularProgress size={20} color="inherit" />}
+            startIcon={isSubmitting ? <CircularProgress size={20} /> : null}
           >
-            {isSubmitting ? 'Adding...' : 'Add Entity'}
+            {isSubmitting ? 'Saving...' : 'Save'}
           </Button>
         </DialogActions>
       </form>
