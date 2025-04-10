@@ -186,19 +186,82 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
     reset,
     formState: { errors, isSubmitting },
   } = useForm({
-    resolver: yupResolver(schema),
-    defaultValues: {
+    resolver: yupResolver(schema) as any, // Type cast to fix TypeScript issues
+    defaultValues: entityType === 'table' ? {
       tenant_name: 'Data Engineering',
       team_name: 'PGM',
       notification_preferences: ['email'],
       is_active: true,
+      schema_name: '',
+      table_name: '',
+      table_description: '',
+      table_schedule: '',
+      expected_runtime_minutes: 30,
+      table_dependency: '',
+      donemarker_location: '',
+      donemarker_lookback: 0,
+      user_name: '',
+      user_email: ''
+    } : {
+      tenant_name: 'Data Engineering',
+      team_name: 'PGM',
+      notification_preferences: ['email'],
+      is_active: true,
+      dag_name: '',
+      dag_description: '',
+      dag_schedule: '',
+      expected_runtime_minutes: 30,
+      dag_dependency: '',
+      donemarker_location: '',
+      donemarker_lookback: 0,
+      user_name: '',
+      user_email: ''
     },
   });
+
+  // This effect updates the form when entity type changes
+  useEffect(() => {
+    // Reset form with appropriate default values when entity type changes
+    reset(
+      entityType === 'table' 
+        ? {
+            tenant_name: 'Data Engineering',
+            team_name: 'PGM',
+            notification_preferences: ['email'],
+            is_active: true,
+            schema_name: '',
+            table_name: '',
+            table_description: '',
+            table_schedule: '',
+            expected_runtime_minutes: 30,
+            table_dependency: '',
+            donemarker_location: '',
+            donemarker_lookback: 0,
+            user_name: '',
+            user_email: ''
+          } 
+        : {
+            tenant_name: 'Data Engineering',
+            team_name: 'PGM',
+            notification_preferences: ['email'],
+            is_active: true,
+            dag_name: '',
+            dag_description: '',
+            dag_schedule: '',
+            expected_runtime_minutes: 30,
+            dag_dependency: '',
+            donemarker_location: '',
+            donemarker_lookback: 0,
+            user_name: '',
+            user_email: ''
+          }
+    );
+  }, [entityType, reset]);
 
   const handleChangeEntityType = (_event: React.SyntheticEvent, newValue: EntityType) => {
     if (newValue !== null) {
       setEntityType(newValue);
-      reset(); // Reset form when switching entity types
+      // Form will be reset by the useEffect above
     }
   };
 
@@ -770,11 +833,25 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                     onChange={(_, newValue) => {
                       onChange(newValue);
                     }}
-                    onInputChange={(_, newInputValue, reason) => {
+                    onInputChange={async (_, newInputValue, reason) => {
                       if (reason === 'input' && newInputValue.trim() !== '') {
-                        // In real implementation, we would trigger API call for new suggestions here
-                        console.log('Custom DAG input:', newInputValue);
-                        fetchDagOptions(); // Refresh DAG options when user is typing
+                        // Clear any previous validation errors
+                        setValidationError(null);
+                        
+                        try {
+                          // Perform lightweight real-time validation against Airflow API
+                          // This is for UI feedback only - the server will validate again on submission
+                          const isValid = await validateDag(newInputValue);
+                          if (isValid !== true) {
+                            // Show warning but don't block input
+                            console.warn(`DAG validation warning: ${isValid}`);
+                          }
+                        } catch (error) {
+                          console.error('Error validating DAG name:', error);
+                        }
+                        
+                        // Refresh DAG options when user is typing
+                        fetchDagOptions();
                       }
                     }}
                     freeSolo
