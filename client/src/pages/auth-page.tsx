@@ -174,7 +174,7 @@ const AuthPage = () => {
       {/* Right panel with hero content */}
       <div className="hidden lg:flex flex-1 bg-gradient-to-br from-primary/20 to-primary/5 p-12 flex-col justify-center">
         <div className="max-w-lg">
-          <h1 className="text-4xl font-bold mb-6">SLA Monitoring Tool</h1>
+          <h1 className="text-4xl font-bold mb-6">Monitor Service Performance</h1>
           <p className="text-xl mb-6">
             Track, analyze, and manage service level agreements across your teams with
             detailed insights and real-time compliance metrics.
