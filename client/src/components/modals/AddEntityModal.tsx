@@ -840,8 +840,8 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                         setValidationError(null);
                         
                         try {
-                          // Perform lightweight real-time validation against Airflow API
-                          // This is for UI feedback only - the server will validate again on submission
+                          // Perform lightweight real-time validation via our FastAPI backend
+                          // FastAPI will check with Airflow - web UI never calls Airflow directly
                           const isValid = await validateDag(newInputValue);
                           if (isValid !== true) {
                             // Show warning but don't block input
