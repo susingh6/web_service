@@ -4,12 +4,17 @@ import * as yup from 'yup';
 import { yupResolver } from '@hookform/resolvers/yup';
 import {
   Button,
+  Checkbox,
   CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
+  FormControl,
   FormControlLabel,
+  FormGroup,
+  FormHelperText,
+  FormLabel,
   InputAdornment,
   MenuItem,
   Stack,
@@ -32,7 +37,7 @@ interface AddEntityModalProps {
 const baseSchema = yup.object().shape({
   tenant_name: yup.string().required('Tenant name is required'),
   team_name: yup.string().required('Team name is required'),
-  notification_preference: yup.string().optional(),
+  notification_preferences: yup.array().of(yup.string()).default([]),
   user_name: yup.string().required('User name is required'),
   user_email: yup.string().email('Must be a valid email').required('User email is required'),
   is_active: yup.boolean().default(true),
@@ -77,7 +82,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
     defaultValues: {
       tenant_name: 'Data Engineering',
       team_name: 'PGM',
-      notification_preference: 'email',
+      notification_preferences: ['email'],
       is_active: true,
     },
   });
