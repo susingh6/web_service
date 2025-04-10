@@ -72,12 +72,8 @@ const dagSchema = baseSchema.shape({
 // Cache time in milliseconds (6 hours)
 const CACHE_TTL = 6 * 60 * 60 * 1000;
 
-// Helper function to fetch data from API with caching
-const fetchWithCache = async (
-  url: string, 
-  cacheKey: string
-): Promise<string[]> => {
-  // Check if we have cached data and if it's still valid
+// Function to get data from cache without network requests
+const getFromCache = (cacheKey: string): string[] => {
   const cachedData = localStorage.getItem(cacheKey);
   const cachedTime = localStorage.getItem(`${cacheKey}_time`);
   
@@ -86,6 +82,20 @@ const fetchWithCache = async (
     if (Date.now() - timestamp < CACHE_TTL) {
       return JSON.parse(cachedData);
     }
+  }
+  
+  return [];
+};
+
+// Helper function to fetch data from API with improved caching
+const fetchWithCache = async (
+  url: string, 
+  cacheKey: string
+): Promise<string[]> => {
+  // First check if we have valid cached data
+  const cachedResult = getFromCache(cacheKey);
+  if (cachedResult.length > 0) {
+    return cachedResult; // Return cached data if available
   }
   
   // No valid cache, fetch from API
@@ -103,9 +113,11 @@ const fetchWithCache = async (
       mockResponse = ['agg_daily', 'agg_hourly', 'PGM_Freeview_Play_Agg_Daily', 'CHN_agg', 'CHN_billing'];
     }
     
-    // Cache the results
-    localStorage.setItem(cacheKey, JSON.stringify(mockResponse));
-    localStorage.setItem(`${cacheKey}_time`, Date.now().toString());
+    // Cache the results with a debounce to avoid excessive writes
+    setTimeout(() => {
+      localStorage.setItem(cacheKey, JSON.stringify(mockResponse));
+      localStorage.setItem(`${cacheKey}_time`, Date.now().toString());
+    }, 100);
     
     return mockResponse;
   } catch (error) {
@@ -130,15 +142,26 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
   // Use the appropriate schema based on entity type
   const schema = entityType === 'table' ? tableSchema : dagSchema;
   
-  // Effect to fetch options when modal opens
+  // Instead of fetching on modal open, we'll use lazy loading
+  // We only load cached values initially, and fetch data when user interacts with fields
   useEffect(() => {
     if (open) {
-      // Initial load of cached options
-      fetchTenantOptions();
-      fetchTeamOptions();
+      // Load from cache only - no network requests yet
+      const cachedTenants = getFromCache('tenants');
+      if (cachedTenants.length > 0) {
+        setTenantOptions(cachedTenants);
+      }
+      
+      const cachedTeams = getFromCache('teams');
+      if (cachedTeams.length > 0) {
+        setTeamOptions(cachedTeams);
+      }
       
       if (entityType === 'dag') {
-        fetchDagOptions();
+        const cachedDags = getFromCache('dags');
+        if (cachedDags.length > 0) {
+          setDagOptions(cachedDags);
+        }
       }
     }
   }, [open, entityType]);
@@ -409,6 +432,10 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                         console.log('Custom tenant input:', newInputValue);
                       }
                     }}
+                    onOpen={() => {
+                      // Lazy load - only fetch when dropdown is opened
+                      fetchTenantOptions();
+                    }}
                     freeSolo
                     options={tenantOptions}
                     loading={loadingTenants}
@@ -451,6 +478,10 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                         // In real implementation, we would trigger API call for new suggestions here
                         console.log('Custom team input:', newInputValue);
                       }
+                    }}
+                    onOpen={() => {
+                      // Lazy load - only fetch when dropdown is opened
+                      fetchTeamOptions();
                     }}
                     freeSolo
                     options={teamOptions}
