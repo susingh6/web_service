@@ -18,6 +18,7 @@ import BulkUploadModal from '@/components/modals/BulkUploadModal';
 import ConfirmDialog from '@/components/modals/ConfirmDialog';
 import { useToast } from '@/hooks/use-toast';
 import { queryClient } from '@/lib/queryClient';
+import { getFromCache } from '@/lib/cacheUtils';
 
 const TeamDashboard = () => {
   const { id } = useParams<{ id: string }>();
@@ -34,6 +35,7 @@ const TeamDashboard = () => {
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
   const [openAddModal, setOpenAddModal] = useState(false);
   const [openBulkModal, setOpenBulkModal] = useState(false);
+  const [isAddButtonHovered, setIsAddButtonHovered] = useState(false);
   const [chartFilter, setChartFilter] = useState('All');
   
   // Get current team info
@@ -46,6 +48,23 @@ const TeamDashboard = () => {
     }
     dispatch(fetchTeams());
   }, [dispatch, teamId]);
+  
+  // Preload AddEntityModal when Add Entity button is hovered
+  useEffect(() => {
+    if (isAddButtonHovered) {
+      // This will trigger the modal component to be loaded in memory
+      // before the user actually clicks the button
+      const tenantOptions = getFromCache('tenants');
+      const teamOptions = getFromCache('teams');
+      const dagOptions = getFromCache('dags');
+      
+      console.log('Preloading modal data on hover');
+      
+      // Touch the AddEntityModal component to ensure it's preloaded
+      // This approach ensures the component is ready when the user clicks
+      import('@/components/modals/AddEntityModal');
+    }
+  }, [isAddButtonHovered]);
   
   // Filter entities for this team
   const teamEntities = entities.filter((entity) => entity.teamId === teamId);
@@ -175,6 +194,8 @@ const TeamDashboard = () => {
                 color="primary"
                 startIcon={<AddIcon />}
                 onClick={handleAddEntity}
+                onMouseEnter={() => setIsAddButtonHovered(true)}
+                onMouseLeave={() => setIsAddButtonHovered(false)}
               >
                 Add Entity
               </Button>
