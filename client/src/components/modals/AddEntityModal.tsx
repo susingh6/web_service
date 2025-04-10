@@ -108,7 +108,8 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
     }
   }, [open, entityType]);
   
-  // Functions to fetch options with loading indicators
+  // These functions are kept for the refresh buttons but are no longer automatically called
+  // They will only run if the user explicitly clicks a refresh button
   const fetchTenantOptions = async () => {
     setLoadingTenants(true);
     try {
