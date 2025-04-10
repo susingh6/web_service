@@ -87,6 +87,26 @@ const getFromCache = (cacheKey: string): string[] => {
   return [];
 };
 
+// Function to update cache and notify other components
+const updateCache = (cacheKey: string, newValues: string[]): string[] => {
+  // Update the cache
+  localStorage.setItem(cacheKey, JSON.stringify(newValues));
+  localStorage.setItem(`${cacheKey}_time`, Date.now().toString());
+  
+  // Manually dispatch a storage event to notify all tabs/components
+  // This simulates the storage event that would be triggered if another tab modified localStorage
+  const event = new StorageEvent('storage', {
+    key: cacheKey,
+    newValue: JSON.stringify(newValues),
+    storageArea: localStorage
+  });
+  
+  // Dispatch the event to notify other components (like Navigation)
+  window.dispatchEvent(event);
+  
+  return newValues;
+};
+
 // Helper function to fetch data from API with improved caching
 const fetchWithCache = async (
   url: string, 
@@ -458,6 +478,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
           {entityType === 'table' ? (
             /* TABLE FIELDS */
             <>
+              {/* Tenant Name field */}
               <Controller
                 name="tenant_name"
                 control={control}
@@ -505,6 +526,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 )}
               />
               
+              {/* Team Name field */}
               <Controller
                 name="team_name"
                 control={control}
@@ -552,6 +574,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 )}
               />
               
+              {/* Schema Name field */}
               <Controller
                 name="schema_name"
                 control={control}
@@ -569,6 +592,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 )}
               />
               
+              {/* Table Name field */}
               <Controller
                 name="table_name"
                 control={control}
@@ -586,6 +610,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 )}
               />
               
+              {/* Table Description field */}
               <Controller
                 name="table_description"
                 control={control}
@@ -604,6 +629,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 )}
               />
               
+              {/* Table Schedule field */}
               <Controller
                 name="table_schedule"
                 control={control}
@@ -621,6 +647,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 )}
               />
               
+              {/* Expected Runtime field */}
               <Controller
                 name="expected_runtime_minutes"
                 control={control}
@@ -639,6 +666,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 )}
               />
               
+              {/* Table Dependency field */}
               <Controller
                 name="table_dependency"
                 control={control}
@@ -655,6 +683,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 )}
               />
               
+              {/* Notification Preferences field */}
               <Controller
                 name="notification_preferences"
                 control={control}
@@ -724,6 +753,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 )}
               />
               
+              {/* Donemarker Location field */}
               <Controller
                 name="donemarker_location"
                 control={control}
@@ -740,6 +770,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 )}
               />
               
+              {/* Donemarker Lookback field */}
               <Controller
                 name="donemarker_lookback"
                 control={control}
@@ -757,6 +788,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 )}
               />
               
+              {/* User Name field */}
               <Controller
                 name="user_name"
                 control={control}
@@ -773,6 +805,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 )}
               />
               
+              {/* User Email field */}
               <Controller
                 name="user_email"
                 control={control}
@@ -790,20 +823,21 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 )}
               />
               
+              {/* Is Active field */}
               <Controller
                 name="is_active"
                 control={control}
-                render={({ field }) => (
+                render={({ field: { value, onChange } }) => (
                   <FormControlLabel
                     control={
                       <Switch
-                        checked={Boolean(field.value)}
-                        onChange={field.onChange}
+                        checked={value}
+                        onChange={(e) => onChange(e.target.checked)}
                         color="primary"
                       />
                     }
                     label="Active"
-                    sx={{ mt: 2 }}
+                    sx={{ mt: 1 }}
                   />
                 )}
               />
@@ -811,10 +845,11 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
           ) : (
             /* DAG FIELDS */
             <>
+              {/* Tenant Name field */}
               <Controller
                 name="tenant_name"
                 control={control}
-                render={({ field: { onChange, value, onBlur } }) => (
+                render={({ field: { onChange, value, onBlur, ref } }) => (
                   <Autocomplete
                     value={value}
                     onChange={(_, newValue) => {
@@ -858,10 +893,11 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 )}
               />
               
+              {/* Team Name field */}
               <Controller
                 name="team_name"
                 control={control}
-                render={({ field: { onChange, value, onBlur } }) => (
+                render={({ field: { onChange, value, onBlur, ref } }) => (
                   <Autocomplete
                     value={value}
                     onChange={(_, newValue) => {
@@ -905,36 +941,20 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 )}
               />
               
+              {/* DAG Name field */}
               <Controller
                 name="dag_name"
                 control={control}
-                render={({ field: { onChange, value, onBlur } }) => (
+                render={({ field: { onChange, value, onBlur, ref } }) => (
                   <Autocomplete
                     value={value}
                     onChange={(_, newValue) => {
                       onChange(newValue);
                     }}
-                    onInputChange={async (_, newInputValue, reason) => {
+                    onInputChange={(_, newInputValue, reason) => {
                       if (reason === 'input' && newInputValue.trim() !== '') {
-                        // Clear any previous validation errors
-                        setValidationError(null);
-                        
-                        try {
-                          // Perform lightweight real-time validation via our FastAPI backend
-                          // FastAPI will check with Airflow - web UI never calls Airflow directly
-                          const isValid = await validateDag(newInputValue);
-                          if (isValid !== true) {
-                            // Show warning but don't block input
-                            console.warn(`DAG validation warning: ${isValid}`);
-                          }
-                        } catch (error) {
-                          console.error('Error validating DAG name:', error);
-                        }
-                        
-                        // Only fetch if user has typed enough characters (3+)
-                        if (newInputValue.length >= 3) {
-                          fetchDagOptions();
-                        }
+                        // In real implementation, we would trigger API call for new suggestions here
+                        console.log('Custom DAG input:', newInputValue);
                       }
                     }}
                     onOpen={() => {
@@ -969,6 +989,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 )}
               />
               
+              {/* DAG Description field */}
               <Controller
                 name="dag_description"
                 control={control}
@@ -979,13 +1000,15 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                     fullWidth
                     margin="normal"
                     multiline
-                    rows={2}
+                    rows={3}
                     error={!!errors.dag_description}
                     helperText={errors.dag_description?.message}
+                    placeholder="Brief description of this DAG"
                   />
                 )}
               />
               
+              {/* DAG Schedule field */}
               <Controller
                 name="dag_schedule"
                 control={control}
@@ -1003,6 +1026,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 )}
               />
               
+              {/* Expected Runtime field */}
               <Controller
                 name="expected_runtime_minutes"
                 control={control}
@@ -1021,6 +1045,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 )}
               />
               
+              {/* DAG Dependency field */}
               <Controller
                 name="dag_dependency"
                 control={control}
@@ -1037,6 +1062,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 )}
               />
               
+              {/* Notification Preferences field */}
               <Controller
                 name="notification_preferences"
                 control={control}
@@ -1106,6 +1132,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 )}
               />
               
+              {/* Donemarker Location field */}
               <Controller
                 name="donemarker_location"
                 control={control}
@@ -1122,6 +1149,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 )}
               />
               
+              {/* Donemarker Lookback field */}
               <Controller
                 name="donemarker_lookback"
                 control={control}
@@ -1139,6 +1167,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 )}
               />
               
+              {/* User Name field */}
               <Controller
                 name="user_name"
                 control={control}
@@ -1155,6 +1184,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 )}
               />
               
+              {/* User Email field */}
               <Controller
                 name="user_email"
                 control={control}
@@ -1172,20 +1202,21 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 )}
               />
               
+              {/* Is Active field */}
               <Controller
                 name="is_active"
                 control={control}
-                render={({ field }) => (
+                render={({ field: { value, onChange } }) => (
                   <FormControlLabel
                     control={
                       <Switch
-                        checked={Boolean(field.value)}
-                        onChange={field.onChange}
+                        checked={value}
+                        onChange={(e) => onChange(e.target.checked)}
                         color="primary"
                       />
                     }
                     label="Active"
-                    sx={{ mt: 2 }}
+                    sx={{ mt: 1 }}
                   />
                 )}
               />
@@ -1194,17 +1225,14 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
         </DialogContent>
         
         <DialogActions>
-          <Button onClick={handleClose} color="inherit">
-            Cancel
-          </Button>
-          <Button
-            type="submit"
-            variant="contained"
+          <Button onClick={handleClose}>Cancel</Button>
+          <Button 
+            type="submit" 
+            variant="contained" 
             color="primary"
             disabled={isSubmitting}
-            startIcon={isSubmitting ? <CircularProgress size={20} /> : null}
           >
-            Add Entity
+            {isSubmitting ? 'Submitting...' : 'Add Entity'}
           </Button>
         </DialogActions>
       </form>
