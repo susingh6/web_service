@@ -44,7 +44,7 @@ const tableSchema = baseSchema.shape({
   table_name: yup.string().required('Table name is required'),
   table_description: yup.string().optional(),
   table_schedule: yup.string().required('Table schedule is required'),
-  expected_freshness_minutes: yup.number().positive('Must be positive').required('Expected freshness is required'),
+  expected_runtime_minutes: yup.number().positive('Must be positive').required('Expected runtime is required'),
   table_dependency: yup.string().optional(),
   marker_location: yup.string().optional(),
   marker_lookback: yup.number().min(0, 'Must be non-negative').optional(),
@@ -246,18 +246,18 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
               />
               
               <Controller
-                name="expected_freshness_minutes"
+                name="expected_runtime_minutes"
                 control={control}
                 render={({ field }) => (
                   <TextField
                     {...field}
-                    label="Expected Freshness (minutes)"
+                    label="Expected Runtime (minutes)"
                     type="number"
                     fullWidth
                     margin="normal"
                     required
-                    error={!!errors.expected_freshness_minutes}
-                    helperText={errors.expected_freshness_minutes?.message}
+                    error={!!errors.expected_runtime_minutes}
+                    helperText={errors.expected_runtime_minutes?.message}
                     inputProps={{ min: 1 }}
                   />
                 )}
