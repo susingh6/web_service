@@ -143,7 +143,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
   const [loadingTeams, setLoadingTeams] = useState(false);
   const [loadingDags, setLoadingDags] = useState(false);
   
-  // State for validation errors
+  // State for validation errors (single declaration to prevent duplicates)
   const [validationError, setValidationError] = useState<string | null>(null);
   
   // Use the appropriate schema based on entity type
