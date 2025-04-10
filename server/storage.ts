@@ -78,11 +78,11 @@ export class MemStorage implements IStorage {
       password: "fd8c4a1ca56057251afbd0fd4b308a15113651c3e557c44eb58b8284e6d7fd4c1212a99dc7784c5cbb5072a2c138185c806394074e6c5f599209185e9576ea2e.e33fe34bf418a28b",
       email: "test@example.com",
       displayName: "Azure Test User",
-      team: "Data Engineering"
+      team: "Core"
     });
     
-    // Create demo teams
-    const teamNames = ['Data Engineering', 'Marketing Analytics', 'Finance', 'Product Analytics'];
+    // Create demo teams with the new team names
+    const teamNames = ['PGM', 'Core', 'Viewer Product', 'IOT', 'CDM'];
     teamNames.forEach(name => {
       this.createTeam({
         name,
