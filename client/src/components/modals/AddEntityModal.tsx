@@ -210,23 +210,24 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
     setValidationError(null);
     
     try {
-      // Validate custom inputs against API endpoints
+      // Lightweight pre-validation in UI for better UX
+      // These validations will be repeated on the server for security
       
-      // 1. Validate tenant name
+      // 1. Pre-validate tenant name
       const tenantValidation = await validateTenant(data.tenant_name);
       if (tenantValidation !== true) {
         setValidationError(tenantValidation);
         return;
       }
       
-      // 2. Validate team name
+      // 2. Pre-validate team name
       const teamValidation = await validateTeam(data.team_name);
       if (teamValidation !== true) {
         setValidationError(teamValidation);
         return;
       }
       
-      // 3. For DAG type, validate DAG name
+      // 3. For DAG type, pre-validate DAG name
       if (entityType === 'dag') {
         const dagValidation = await validateDag(data.dag_name);
         if (dagValidation !== true) {
@@ -235,15 +236,56 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
         }
       }
       
-      // All validations passed, proceed with submission
-      // Process form submission (API call would happen here)
+      // All pre-validations passed, proceed with submission to FastAPI
+      
+      // Create the entity object to submit
+      const entityData = {
+        ...data,
+        type: entityType,
+        // Add any additional fields needed by the API
+      };
+      
+      // Determine the endpoint based on entity type
+      const endpoint = entityType === 'dag' 
+        ? 'https://api.example.com/entities/dag' 
+        : 'https://api.example.com/entities/table';
+        
+      console.log(`Submitting ${entityType} to endpoint: ${endpoint}`);
+      
+      // Make the API call to create the entity
+      // FastAPI will perform full validation including Airflow API checks
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(entityData),
+      });
+      
+      if (!response.ok) {
+        // Handle server validation errors
+        const errorData = await response.json();
+        setValidationError(errorData.detail || 'Failed to create entity. Please check your input and try again.');
+        return;
+      }
+      
+      // Successful submission
+      // Add the newly created entity to cache if needed
+      if (entityType === 'dag' && !dagOptions.includes(data.dag_name)) {
+        const updatedDags = [...dagOptions, data.dag_name];
+        setDagOptions(updatedDags);
+        
+        // Update the cache with the new DAG
+        localStorage.setItem('dags', JSON.stringify(updatedDags));
+        localStorage.setItem('dags_time', Date.now().toString());
+      }
       
       // Close the modal after successful submission
       onClose();
       reset();
     } catch (error) {
-      console.error('Error during validation:', error);
-      setValidationError('An error occurred during validation. Please try again.');
+      console.error('Error during submission:', error);
+      setValidationError('An error occurred during submission. Please try again.');
     }
   };
 
