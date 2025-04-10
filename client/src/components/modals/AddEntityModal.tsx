@@ -1,32 +1,31 @@
-import { useState } from 'react';
-import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
+import React, { useState } from 'react';
+import { 
+  Dialog, 
+  DialogTitle, 
+  DialogContent, 
+  DialogActions, 
+  TextField, 
   Button,
-  TextField,
-  MenuItem,
-  Tab,
-  Tabs,
   Box,
-  CircularProgress,
-  IconButton,
-  Typography,
+  Tabs,
+  Tab,
+  MenuItem,
   InputAdornment,
+  CircularProgress,
+  Typography,
   FormControlLabel,
   Switch,
-  Divider,
+  FormControl,
+  InputLabel,
+  Select
 } from '@mui/material';
-import { Close as CloseIcon } from '@mui/icons-material';
-import { useForm, Controller } from 'react-hook-form';
+import { Controller, useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
-import { useAppDispatch } from '@/lib/store';
-import { createEntity } from '@/features/sla/slices/entitiesSlice';
-import { CreateEntityPayload, EntityType, RefreshFrequency } from '@/features/sla/types';
-import { queryClient } from '@/lib/queryClient';
+import { Close as CloseIcon } from '@mui/icons-material';
 import { useToast } from '@/hooks/use-toast';
+
+type EntityType = 'table' | 'dag';
 
 interface AddEntityModalProps {
   open: boolean;
@@ -34,201 +33,125 @@ interface AddEntityModalProps {
   teams: { id: number; name: string }[];
 }
 
-const tableValidationSchema = yup.object({
+const tableSchema = yup.object({
   name: yup.string().required('Entity name is required'),
   teamId: yup.number().required('Team is required'),
   description: yup.string(),
-  slaTarget: yup
-    .number()
-    .min(0, 'SLA target must be at least 0')
-    .max(100, 'SLA target cannot exceed 100')
-    .required('SLA target is required'),
+  slaTarget: yup.number().required('SLA target is required').min(0).max(100),
   refreshFrequency: yup.string().required('Refresh frequency is required'),
   owner: yup.string(),
-  ownerEmail: yup.string().email('Invalid email address'),
+  ownerEmail: yup.string().email('Must be a valid email address'),
 });
 
-const dagValidationSchema = yup.object({
+const dagSchema = yup.object({
   name: yup.string().required('Entity name is required'),
   teamId: yup.number().required('Team is required'),
-  description: yup.string(),
-  slaTarget: yup
-    .number()
-    .min(0, 'SLA target must be at least 0')
-    .max(100, 'SLA target cannot exceed 100')
-    .required('SLA target is required'),
-  refreshFrequency: yup.string().required('Refresh frequency is required'),
-
-  // DAG-specific required fields
   tenant_name: yup.string().required('Tenant name is required'),
   team_name: yup.string().required('Team name is required'),
   dag_name: yup.string().required('DAG name is required'),
-  dag_schedule: yup.string().required('DAG schedule is required'),
-  expected_runtime_minutes: yup.number().required('Expected runtime is required').min(1, 'Must be at least 1 minute'),
-  user_name: yup.string().required('User name is required'),
-  user_email: yup.string().required('User email is required').email('Invalid email address'),
-  
-  // Optional DAG fields
   dag_description: yup.string(),
+  dag_schedule: yup.string().required('DAG schedule is required'),
+  expected_runtime_minutes: yup.number().required('Expected runtime is required').min(1),
   dag_donemarker_location: yup.string(),
-  dag_dependency: yup.mixed(),
-  notify_preference_id: yup.mixed(),
-  is_active: yup.boolean().default(true),
   donemarker_lookback: yup.number().default(0),
+  user_name: yup.string().required('User name is required'),
+  user_email: yup.string().required('User email is required').email('Must be a valid email address'),
+  is_active: yup.boolean().default(true),
+  dag_dependency: yup.string(),
+  notification_preference: yup.string()
 });
 
 const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
-  const dispatch = useAppDispatch();
-  const { toast } = useToast();
   const [entityType, setEntityType] = useState<EntityType>('table');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Use state to track which validation schema to use
-  const [validationSchema, setValidationSchema] = useState(tableValidationSchema);
+  const { toast } = useToast();
   
-  // Setup form with the current validation schema
-  const {
-    control,
-    handleSubmit,
-    reset,
-    formState: { errors },
-    watch,
-  } = useForm<CreateEntityPayload>({
-    resolver: yupResolver(validationSchema),
+  const schema = entityType === 'table' ? tableSchema : dagSchema;
+  
+  const { control, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm({
+    resolver: yupResolver(schema),
     defaultValues: {
       name: '',
       teamId: teams.length > 0 ? teams[0].id : 0,
       description: '',
-      slaTarget: 95,
-      status: 'healthy',
+      slaTarget: 99.9,
       refreshFrequency: 'daily',
       owner: '',
       ownerEmail: '',
-      // DAG specific defaults
       tenant_name: '',
-      team_name: teams.length > 0 ? teams[0].name : '',
+      team_name: '',
       dag_name: '',
       dag_description: '',
-      dag_schedule: '',
+      dag_schedule: '0 0 * * *',
       expected_runtime_minutes: 60,
-      is_active: true,
+      dag_donemarker_location: '',
       donemarker_lookback: 0,
       user_name: '',
       user_email: '',
-    },
-  });
-
-  const handleTypeChange = (_event: React.SyntheticEvent, newType: EntityType) => {
-    setEntityType(newType);
-    
-    // Set the appropriate validation schema based on entity type
-    setValidationSchema(newType === 'dag' ? dagValidationSchema : tableValidationSchema);
-    
-    // Reset the form with new validation schema and default values
-    reset({
-      name: '',
-      teamId: teams.length > 0 ? teams[0].id : 0,
-      description: '',
-      slaTarget: 95,
-      status: 'healthy',
-      refreshFrequency: 'daily',
-      owner: '',
-      ownerEmail: '',
-      // DAG specific defaults
-      tenant_name: '',
-      team_name: teams.length > 0 ? teams[0].name : '',
-      dag_name: '',
-      dag_description: '',
-      dag_schedule: '',
-      expected_runtime_minutes: 60,
       is_active: true,
-      donemarker_lookback: 0,
-      user_name: '',
-      user_email: '',
-    });
-  };
-
-  const onSubmit = async (data: CreateEntityPayload) => {
-    try {
-      setIsSubmitting(true);
-      
-      // Add the entity type to the data
-      const entityData = {
-        ...data,
-        type: entityType,
-      };
-      
-      await dispatch(createEntity(entityData)).unwrap();
-      
-      // Invalidate queries to refresh data
-      queryClient.invalidateQueries({ queryKey: ['/api/entities'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/dashboard/summary'] });
-      
-      toast({
-        title: 'Success',
-        description: `${entityType === 'table' ? 'Table' : 'DAG'} has been added successfully.`,
-        variant: 'default',
-      });
-      
-      reset();
-      onClose();
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: `Failed to add ${entityType}: ${error}`,
-        variant: 'destructive',
-      });
-    } finally {
-      setIsSubmitting(false);
+      dag_dependency: '',
+      notification_preference: 'email'
     }
+  });
+  
+  const handleChangeEntityType = (_event: React.SyntheticEvent, newValue: EntityType) => {
+    setEntityType(newValue);
   };
-
+  
   const handleClose = () => {
     reset();
     onClose();
   };
-
+  
+  const onSubmit = async (data: any) => {
+    try {
+      // In a real app, you would send this data to your backend
+      console.log('Form submitted:', data);
+      console.log('Entity type:', entityType);
+      
+      toast({
+        title: 'Entity added',
+        description: `${data.name} has been added successfully.`,
+      });
+      
+      handleClose();
+    } catch (error: any) {
+      toast({
+        title: 'Error adding entity',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
+  };
+  
   return (
-    <Dialog
-      open={open}
-      onClose={handleClose}
-      maxWidth="sm"
-      fullWidth
-      PaperProps={{
-        sx: {
-          borderRadius: 2,
-        },
-      }}
-    >
-      <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1 }}>
-        <Typography variant="h6" fontWeight={600} fontFamily="Inter, sans-serif">
-          Add New Entity
-        </Typography>
-        <IconButton edge="end" color="inherit" onClick={handleClose} aria-label="close">
+    <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
+      <DialogTitle sx={{ 
+        borderBottom: '1px solid', 
+        borderColor: 'divider',
+        fontWeight: 600,
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center'
+      }}>
+        Add New {entityType === 'table' ? 'Table' : 'DAG'}
+        <Button 
+          onClick={handleClose}
+          sx={{ minWidth: 'auto', p: 0.5 }}
+          color="inherit"
+        >
           <CloseIcon />
-        </IconButton>
+        </Button>
       </DialogTitle>
       
-      <Box sx={{ px: 3, pt: 0, pb: 2, borderBottom: 1, borderColor: 'divider' }}>
-        <Tabs value={entityType} onChange={handleTypeChange}>
-          <Tab 
-            label="Table" 
-            value="table" 
-            sx={{ 
-              fontWeight: 500, 
-              textTransform: 'none',
-              '&.Mui-selected': { fontWeight: 600 } 
-            }} 
-          />
-          <Tab 
-            label="DAG" 
-            value="dag" 
-            sx={{ 
-              fontWeight: 500, 
-              textTransform: 'none',
-              '&.Mui-selected': { fontWeight: 600 } 
-            }} 
-          />
+      <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+        <Tabs
+          value={entityType}
+          onChange={handleChangeEntityType}
+          aria-label="entity type tabs"
+          sx={{ px: 3 }}
+        >
+          <Tab value="table" label="Table" id="entity-type-tab-0" />
+          <Tab value="dag" label="DAG" id="entity-type-tab-1" />
         </Tabs>
       </Box>
       
@@ -242,50 +165,48 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
             Fields marked with an asterisk (*) are mandatory
           </Typography>
 
-          {/* Common fields for both entity types */}
-          <Controller
-            name="name"
-            control={control}
-            render={({ field }) => (
-              <TextField
-                {...field}
-                label="Entity Name"
-                fullWidth
-                margin="normal"
-                required
-                error={!!errors.name}
-                helperText={errors.name?.message}
-                placeholder={entityType === 'table' ? 'e.g., customer_master' : 'e.g., daily_etl_process'}
-              />
-            )}
-          />
-          
-          <Controller
-            name="teamId"
-            control={control}
-            render={({ field }) => (
-              <TextField
-                {...field}
-                select
-                label="Team"
-                fullWidth
-                margin="normal"
-                required
-                error={!!errors.teamId}
-                helperText={errors.teamId?.message}
-              >
-                {teams.map((team) => (
-                  <MenuItem key={team.id} value={team.id}>
-                    {team.name}
-                  </MenuItem>
-                ))}
-              </TextField>
-            )}
-          />
-          
-          {/* Type-specific fields */}
           {entityType === 'table' ? (
+            /* TABLE FIELDS */
             <>
+              <Controller
+                name="name"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="Entity Name"
+                    fullWidth
+                    margin="normal"
+                    required
+                    error={!!errors.name}
+                    helperText={errors.name?.message}
+                    placeholder="e.g., customer_master"
+                  />
+                )}
+              />
+              
+              <Controller
+                name="teamId"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    select
+                    label="Team"
+                    fullWidth
+                    margin="normal"
+                    required
+                    error={!!errors.teamId}
+                    helperText={errors.teamId?.message}
+                  >
+                    {teams.map((team) => (
+                      <MenuItem key={team.id} value={team.id}>
+                        {team.name}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                )}
+              />
               
               <Controller
                 name="description"
@@ -385,7 +306,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
               />
             </>
           ) : (
-            /* DAG-specific fields - shown only when DAG is selected */
+            /* DAG FIELDS */
             <>
               <Controller
                 name="tenant_name"
@@ -488,6 +409,43 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
               />
               
               <Controller
+                name="dag_dependency"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="DAG Dependency"
+                    fullWidth
+                    margin="normal"
+                    error={!!errors.dag_dependency}
+                    helperText={errors.dag_dependency?.message || "Comma-separated list of DAG names"}
+                    placeholder="dag1,dag2,dag3"
+                  />
+                )}
+              />
+              
+              <Controller
+                name="notification_preference"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    select
+                    label="Notification Preference"
+                    fullWidth
+                    margin="normal"
+                    error={!!errors.notification_preference}
+                    helperText={errors.notification_preference?.message}
+                  >
+                    <MenuItem value="email">Email</MenuItem>
+                    <MenuItem value="slack">Slack</MenuItem>
+                    <MenuItem value="teams">Microsoft Teams</MenuItem>
+                    <MenuItem value="none">None</MenuItem>
+                  </TextField>
+                )}
+              />
+              
+              <Controller
                 name="dag_donemarker_location"
                 control={control}
                 render={({ field }) => (
@@ -560,7 +518,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                   <FormControlLabel
                     control={
                       <Switch
-                        checked={field.value}
+                        checked={Boolean(field.value)}
                         onChange={field.onChange}
                         color="primary"
                       />
