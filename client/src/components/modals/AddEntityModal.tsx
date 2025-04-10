@@ -866,48 +866,70 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
               <Controller
                 name="dag_name"
                 control={control}
-                render={({ field: { onChange, value, onBlur, ref } }) => (
-                  <Autocomplete
-                    value={value}
-                    onChange={(_, newValue) => {
-                      onChange(newValue);
-                    }}
-                    onInputChange={(_, newInputValue, reason) => {
-                      if (reason === 'input' && newInputValue.trim() !== '') {
-                        // In real implementation, we would trigger API call for new suggestions here
-                        console.log('Custom DAG input:', newInputValue);
+                render={({ field: { onChange, value, onBlur, ref } }) => {
+                  // Force load default DAG options when this component renders
+                  React.useEffect(() => {
+                    // Directly get DAG options from localStorage
+                    try {
+                      const cachedDags = localStorage.getItem('dags');
+                      if (cachedDags) {
+                        const parsedDags = JSON.parse(cachedDags);
+                        console.log('Direct load DAG options from cache:', parsedDags);
+                        setDagOptions(parsedDags);
+                      } else {
+                        // If no cache, set the default values directly
+                        const defaultDags = ['agg_daily', 'agg_hourly', 'PGM_Freeview_Play_Agg_Daily', 'CHN_agg', 'CHN_billing'];
+                        console.log('Setting default DAG options directly:', defaultDags);
+                        setDagOptions(defaultDags);
+                        
+                        // Also save to cache
+                        localStorage.setItem('dags', JSON.stringify(defaultDags));
+                        localStorage.setItem('dags_time', Date.now().toString());
                       }
-                    }}
-                    onOpen={() => {
-                      // Lazy load - only fetch when dropdown is opened
-                      fetchDagOptions();
-                    }}
-                    freeSolo
-                    options={dagOptions}
-                    loading={loadingDags}
-                    renderInput={(params) => (
-                      <TextField
-                        {...params}
-                        label="DAG Name"
-                        required
-                        fullWidth
-                        margin="normal"
-                        error={!!errors.dag_name}
-                        helperText={errors.dag_name?.message}
-                        onBlur={onBlur}
-                        InputProps={{
-                          ...params.InputProps,
-                          endAdornment: (
-                            <>
-                              {loadingDags ? <CircularProgress color="inherit" size={20} /> : null}
-                              {params.InputProps.endAdornment}
-                            </>
-                          ),
-                        }}
-                      />
-                    )}
-                  />
-                )}
+                    } catch (error) {
+                      console.error('Error loading DAG options:', error);
+                    }
+                  }, []);
+                  
+                  return (
+                    <Autocomplete
+                      value={value}
+                      onChange={(_, newValue) => {
+                        onChange(newValue);
+                      }}
+                      onInputChange={(_, newInputValue, reason) => {
+                        if (reason === 'input' && newInputValue.trim() !== '') {
+                          // In real implementation, we would trigger API call for new suggestions here
+                          console.log('Custom DAG input:', newInputValue);
+                        }
+                      }}
+                      freeSolo
+                      options={dagOptions}
+                      loading={loadingDags}
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          label="DAG Name"
+                          required
+                          fullWidth
+                          margin="normal"
+                          error={!!errors.dag_name}
+                          helperText={errors.dag_name?.message}
+                          onBlur={onBlur}
+                          InputProps={{
+                            ...params.InputProps,
+                            endAdornment: (
+                              <>
+                                {loadingDags ? <CircularProgress color="inherit" size={20} /> : null}
+                                {params.InputProps.endAdornment}
+                              </>
+                            ),
+                          }}
+                        />
+                      )}
+                    />
+                  );
+                }}
               />
               
               {/* DAG Description field */}
