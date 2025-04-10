@@ -315,15 +315,43 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
         return;
       }
       
-      // Successful submission
-      // Add the newly created entity to cache if needed
-      if (entityType === 'dag' && !dagOptions.includes(data.dag_name)) {
-        const updatedDags = [...dagOptions, data.dag_name];
-        setDagOptions(updatedDags);
+      // Successful submission - we got through API validation
+      try {
+        const responseData = await response.json();
         
-        // Update the cache with the new DAG
-        localStorage.setItem('dags', JSON.stringify(updatedDags));
-        localStorage.setItem('dags_time', Date.now().toString());
+        // Only update cache after successful validation from FastAPI
+        if (entityType === 'dag' && !dagOptions.includes(data.dag_name)) {
+          // Make sure the value was accepted by the backend before caching
+          const updatedDags = [...dagOptions, data.dag_name];
+          setDagOptions(updatedDags);
+          
+          // Update the cache with the validated DAG name
+          localStorage.setItem('dags', JSON.stringify(updatedDags));
+          localStorage.setItem('dags_time', Date.now().toString());
+          
+          console.log('Cache updated with validated DAG name:', data.dag_name);
+        }
+        
+        // Do similar cache updates for tenant and team if they're new values
+        if (!tenantOptions.includes(data.tenant_name)) {
+          const updatedTenants = [...tenantOptions, data.tenant_name];
+          setTenantOptions(updatedTenants);
+          localStorage.setItem('tenants', JSON.stringify(updatedTenants));
+          localStorage.setItem('tenants_time', Date.now().toString());
+          
+          console.log('Cache updated with validated tenant name:', data.tenant_name);
+        }
+        
+        if (!teamOptions.includes(data.team_name)) {
+          const updatedTeams = [...teamOptions, data.team_name];
+          setTeamOptions(updatedTeams);
+          localStorage.setItem('teams', JSON.stringify(updatedTeams));
+          localStorage.setItem('teams_time', Date.now().toString());
+          
+          console.log('Cache updated with validated team name:', data.team_name);
+        }
+      } catch (parseError) {
+        console.warn('Could not parse response JSON, but submission was successful');
       }
       
       // Close the modal after successful submission
