@@ -450,7 +450,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                   >
                     <MenuItem value="email">Email</MenuItem>
                     <MenuItem value="slack">Slack</MenuItem>
-                    <MenuItem value="teams">Microsoft Teams</MenuItem>
+                    <MenuItem value="pagerduty">Pagerduty</MenuItem>
                     <MenuItem value="none">None</MenuItem>
                   </TextField>
                 )}
