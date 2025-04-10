@@ -27,6 +27,8 @@ import {
   Alert,
 } from '@mui/material';
 import { validateTenant, validateTeam, validateDag } from '@/lib/validationUtils';
+import { getFromCache, updateCache, fetchWithCache } from '@/lib/cacheUtils';
+import { preloadDags } from '@/lib/preloadUtils';
 
 type EntityType = 'table' | 'dag';
 
@@ -69,82 +71,7 @@ const dagSchema = baseSchema.shape({
   donemarker_lookback: yup.number().min(0, 'Must be non-negative').optional(),
 });
 
-// Cache time in milliseconds (6 hours)
-const CACHE_TTL = 6 * 60 * 60 * 1000;
-
-// Function to get data from cache without network requests
-const getFromCache = (cacheKey: string): string[] => {
-  const cachedData = localStorage.getItem(cacheKey);
-  const cachedTime = localStorage.getItem(`${cacheKey}_time`);
-  
-  if (cachedData && cachedTime) {
-    const timestamp = parseInt(cachedTime);
-    if (Date.now() - timestamp < CACHE_TTL) {
-      return JSON.parse(cachedData);
-    }
-  }
-  
-  return [];
-};
-
-// Function to update cache and notify other components
-const updateCache = (cacheKey: string, newValues: string[]): string[] => {
-  // Update the cache
-  localStorage.setItem(cacheKey, JSON.stringify(newValues));
-  localStorage.setItem(`${cacheKey}_time`, Date.now().toString());
-  
-  // Manually dispatch a storage event to notify all tabs/components
-  // This simulates the storage event that would be triggered if another tab modified localStorage
-  const event = new StorageEvent('storage', {
-    key: cacheKey,
-    newValue: JSON.stringify(newValues),
-    storageArea: localStorage
-  });
-  
-  // Dispatch the event to notify other components (like Navigation)
-  window.dispatchEvent(event);
-  
-  return newValues;
-};
-
-// Helper function to fetch data from API with improved caching
-const fetchWithCache = async (
-  url: string, 
-  cacheKey: string
-): Promise<string[]> => {
-  // First check if we have valid cached data
-  const cachedResult = getFromCache(cacheKey);
-  if (cachedResult.length > 0) {
-    return cachedResult; // Return cached data if available
-  }
-  
-  // No valid cache, fetch from API
-  try {
-    // This is a placeholder for the actual API call
-    console.log(`Fetching ${cacheKey} from ${url}`);
-    
-    // Simulating API response for now
-    let mockResponse: string[] = [];
-    if (cacheKey === 'tenants') {
-      mockResponse = ['Ad Engineering', 'Data Engineering'];
-    } else if (cacheKey === 'teams') {
-      mockResponse = ['PGM', 'Core', 'Viewer Product', 'IOT', 'CDM'];
-    } else if (cacheKey === 'dags') {
-      mockResponse = ['agg_daily', 'agg_hourly', 'PGM_Freeview_Play_Agg_Daily', 'CHN_agg', 'CHN_billing'];
-    }
-    
-    // Cache the results with a debounce to avoid excessive writes
-    setTimeout(() => {
-      localStorage.setItem(cacheKey, JSON.stringify(mockResponse));
-      localStorage.setItem(`${cacheKey}_time`, Date.now().toString());
-    }, 100);
-    
-    return mockResponse;
-  } catch (error) {
-    console.error(`Error fetching ${cacheKey}:`, error);
-    return [];
-  }
-};
+// We're now using the imported utility functions from @/lib/cacheUtils
 
 const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
   const [entityType, setEntityType] = useState<EntityType>('table');
@@ -184,25 +111,18 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
         fetchTeamOptions();
       }
       
-      // DAGs are not preloaded globally since they're only needed in specific contexts
+      // Preload DAGs if we're on the DAG entity type
       if (entityType === 'dag') {
+        // First check the cache
         const cachedDags = getFromCache('dags');
         if (cachedDags.length > 0) {
           setDagOptions(cachedDags);
         } else {
-          // Set default DAG options if no cache exists
-          const defaultDags = [
-            'agg_daily',
-            'agg_hourly',
-            'PGM_Freeview_Play_Agg_Daily',
-            'CHN_agg',
-            'CHN_billing'
-          ];
-          setDagOptions(defaultDags);
-          
-          // Also cache these defaults
-          localStorage.setItem('dags', JSON.stringify(defaultDags));
-          localStorage.setItem('dags_time', Date.now().toString());
+          // If no cache exists, run our preloadDags function which sets defaults
+          preloadDags().then(dags => {
+            console.log('DAG defaults loaded from preloadDags');
+            setDagOptions(dags);
+          });
         }
       }
     }

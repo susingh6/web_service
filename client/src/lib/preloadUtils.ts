@@ -79,6 +79,37 @@ export const preloadTeams = async (): Promise<string[]> => {
 };
 
 /**
+ * Preloads DAG data into the local cache
+ * @returns Promise resolving to the array of DAG names
+ */
+export const preloadDags = async (): Promise<string[]> => {
+  // Skip if we already have fresh data
+  if (isCacheValid('dags')) {
+    const cachedData = localStorage.getItem('dags');
+    if (cachedData) {
+      return JSON.parse(cachedData);
+    }
+  }
+  
+  try {
+    // In a real implementation, this would be an API call
+    console.log('Preloading DAG data...');
+    
+    // Use the specified DAG values
+    const dags = ['agg_daily', 'agg_hourly', 'PGM_Freeview_Play_Agg_Daily', 'CHN_agg', 'CHN_billing'];
+    
+    // Cache the results
+    localStorage.setItem('dags', JSON.stringify(dags));
+    localStorage.setItem('dags_time', Date.now().toString());
+    
+    return dags;
+  } catch (error) {
+    console.error('Error preloading DAG data:', error);
+    return [];
+  }
+};
+
+/**
  * Preloads all common application data in parallel
  * @returns Promise that resolves when all data is preloaded
  */
@@ -89,7 +120,8 @@ export const preloadCommonData = async (): Promise<void> => {
     // Load all data in parallel
     await Promise.all([
       preloadTenants(),
-      preloadTeams()
+      preloadTeams(),
+      preloadDags()
     ]);
     
     console.log('Common data preloading complete');
