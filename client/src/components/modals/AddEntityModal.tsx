@@ -169,18 +169,78 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
             /* TABLE FIELDS */
             <>
               <Controller
-                name="name"
+                name="tenant_name"
                 control={control}
                 render={({ field }) => (
                   <TextField
                     {...field}
-                    label="Entity Name"
+                    select
+                    label="Tenant Name"
                     fullWidth
                     margin="normal"
                     required
-                    error={!!errors.name}
-                    helperText={errors.name?.message}
-                    placeholder="e.g., customer_master"
+                    error={!!errors.tenant_name}
+                    helperText={errors.tenant_name?.message}
+                  >
+                    <MenuItem value="Ad Engineering">Ad Engineering</MenuItem>
+                    <MenuItem value="Data Engineering">Data Engineering</MenuItem>
+                  </TextField>
+                )}
+              />
+              
+              <Controller
+                name="team_name"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    select
+                    label="Team Name"
+                    fullWidth
+                    margin="normal"
+                    required
+                    error={!!errors.team_name}
+                    helperText={errors.team_name?.message}
+                  >
+                    <MenuItem value="PGM">PGM</MenuItem>
+                    <MenuItem value="Core">Core</MenuItem>
+                    <MenuItem value="Viewer Product">Viewer Product</MenuItem>
+                    <MenuItem value="IOT">IOT</MenuItem>
+                    <MenuItem value="CDM">CDM</MenuItem>
+                  </TextField>
+                )}
+              />
+              
+              <Controller
+                name="schema_name"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="Schema Name"
+                    fullWidth
+                    margin="normal"
+                    required
+                    error={!!errors.schema_name}
+                    helperText={errors.schema_name?.message}
+                    placeholder="e.g., public, sales, marketing"
+                  />
+                )}
+              />
+              
+              <Controller
+                name="table_name"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="Table Name"
+                    fullWidth
+                    margin="normal"
+                    required
+                    error={!!errors.table_name}
+                    helperText={errors.table_name?.message}
+                    placeholder="e.g., customer_master, orders, products"
                   />
                 )}
               />
@@ -301,6 +361,94 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                     error={!!errors.ownerEmail}
                     helperText={errors.ownerEmail?.message}
                     placeholder="email@company.com"
+                  />
+                )}
+              />
+              
+              <Controller
+                name="table_dependency"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="Table Dependency"
+                    fullWidth
+                    margin="normal"
+                    error={!!errors.table_dependency}
+                    helperText={errors.table_dependency?.message || "Comma-separated list of table names"}
+                    placeholder="schema.table1,schema.table2,schema.table3"
+                  />
+                )}
+              />
+              
+              <Controller
+                name="notification_preference"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    select
+                    label="Notification Preference"
+                    fullWidth
+                    margin="normal"
+                    error={!!errors.notification_preference}
+                    helperText={errors.notification_preference?.message}
+                  >
+                    <MenuItem value="email">Email</MenuItem>
+                    <MenuItem value="slack">Slack</MenuItem>
+                    <MenuItem value="pagerduty">Pagerduty</MenuItem>
+                    <MenuItem value="none">None</MenuItem>
+                  </TextField>
+                )}
+              />
+              
+              <Controller
+                name="user_name"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="User Name"
+                    fullWidth
+                    margin="normal"
+                    required
+                    error={!!errors.user_name}
+                    helperText={errors.user_name?.message}
+                  />
+                )}
+              />
+              
+              <Controller
+                name="user_email"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="User Email"
+                    fullWidth
+                    margin="normal"
+                    required
+                    error={!!errors.user_email}
+                    helperText={errors.user_email?.message}
+                    placeholder="user@example.com"
+                  />
+                )}
+              />
+              
+              <Controller
+                name="is_active"
+                control={control}
+                render={({ field }) => (
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={Boolean(field.value)}
+                        onChange={field.onChange}
+                        color="primary"
+                      />
+                    }
+                    label="Active"
+                    sx={{ mt: 2 }}
                   />
                 )}
               />
