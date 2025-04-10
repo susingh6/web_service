@@ -46,8 +46,8 @@ const tableSchema = baseSchema.shape({
   table_schedule: yup.string().required('Table schedule is required'),
   expected_runtime_minutes: yup.number().positive('Must be positive').required('Expected runtime is required'),
   table_dependency: yup.string().optional(),
-  marker_location: yup.string().optional(),
-  marker_lookback: yup.number().min(0, 'Must be non-negative').optional(),
+  donemarker_location: yup.string().optional(),
+  donemarker_lookback: yup.number().min(0, 'Must be non-negative').optional(),
 });
 
 // Schema for DAGs
@@ -57,7 +57,7 @@ const dagSchema = baseSchema.shape({
   dag_schedule: yup.string().required('DAG schedule is required'),
   expected_runtime_minutes: yup.number().positive('Must be positive').required('Expected runtime is required'),
   dag_dependency: yup.string().optional(),
-  dag_donemarker_location: yup.string().optional(),
+  donemarker_location: yup.string().optional(),
   donemarker_lookback: yup.number().min(0, 'Must be non-negative').optional(),
 });
 
@@ -301,33 +301,33 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
               />
               
               <Controller
-                name="marker_location"
+                name="donemarker_location"
                 control={control}
                 render={({ field }) => (
                   <TextField
                     {...field}
-                    label="Marker Location"
+                    label="Donemarker Location"
                     fullWidth
                     margin="normal"
-                    error={!!errors.marker_location}
-                    helperText={errors.marker_location?.message}
+                    error={!!errors.donemarker_location}
+                    helperText={errors.donemarker_location?.message}
                     placeholder="s3://bucket/path or hdfs://path"
                   />
                 )}
               />
               
               <Controller
-                name="marker_lookback"
+                name="donemarker_lookback"
                 control={control}
                 render={({ field }) => (
                   <TextField
                     {...field}
-                    label="Marker Lookback"
+                    label="Donemarker Lookback"
                     type="number"
                     fullWidth
                     margin="normal"
-                    error={!!errors.marker_lookback}
-                    helperText={errors.marker_lookback?.message || "Default is 0"}
+                    error={!!errors.donemarker_lookback}
+                    helperText={errors.donemarker_lookback?.message || "Default is 0"}
                     inputProps={{ min: 0 }}
                   />
                 )}
@@ -536,16 +536,16 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
               />
               
               <Controller
-                name="dag_donemarker_location"
+                name="donemarker_location"
                 control={control}
                 render={({ field }) => (
                   <TextField
                     {...field}
-                    label="Done Marker Location"
+                    label="Donemarker Location"
                     fullWidth
                     margin="normal"
-                    error={!!errors.dag_donemarker_location}
-                    helperText={errors.dag_donemarker_location?.message}
+                    error={!!errors.donemarker_location}
+                    helperText={errors.donemarker_location?.message}
                     placeholder="s3://bucket/path or hdfs://path"
                   />
                 )}
@@ -557,7 +557,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 render={({ field }) => (
                   <TextField
                     {...field}
-                    label="Done Marker Lookback"
+                    label="Donemarker Lookback"
                     type="number"
                     fullWidth
                     margin="normal"
