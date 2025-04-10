@@ -242,48 +242,50 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
             Fields marked with an asterisk (*) are mandatory
           </Typography>
 
-          {/* Table form fields - shown only when Table is selected */}
+          {/* Common fields for both entity types */}
+          <Controller
+            name="name"
+            control={control}
+            render={({ field }) => (
+              <TextField
+                {...field}
+                label="Entity Name"
+                fullWidth
+                margin="normal"
+                required
+                error={!!errors.name}
+                helperText={errors.name?.message}
+                placeholder={entityType === 'table' ? 'e.g., customer_master' : 'e.g., daily_etl_process'}
+              />
+            )}
+          />
+          
+          <Controller
+            name="teamId"
+            control={control}
+            render={({ field }) => (
+              <TextField
+                {...field}
+                select
+                label="Team"
+                fullWidth
+                margin="normal"
+                required
+                error={!!errors.teamId}
+                helperText={errors.teamId?.message}
+              >
+                {teams.map((team) => (
+                  <MenuItem key={team.id} value={team.id}>
+                    {team.name}
+                  </MenuItem>
+                ))}
+              </TextField>
+            )}
+          />
+          
+          {/* Type-specific fields */}
           {entityType === 'table' ? (
             <>
-              <Controller
-                name="name"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    label="Entity Name"
-                    fullWidth
-                    margin="normal"
-                    required
-                    error={!!errors.name}
-                    helperText={errors.name?.message}
-                    placeholder="e.g., customer_master"
-                  />
-                )}
-              />
-              
-              <Controller
-                name="teamId"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    select
-                    label="Team"
-                    fullWidth
-                    margin="normal"
-                    required
-                    error={!!errors.teamId}
-                    helperText={errors.teamId?.message}
-                  >
-                    {teams.map((team) => (
-                      <MenuItem key={team.id} value={team.id}>
-                        {team.name}
-                      </MenuItem>
-                    ))}
-                  </TextField>
-                )}
-              />
               
               <Controller
                 name="description"
@@ -385,46 +387,6 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
           ) : (
             /* DAG-specific fields - shown only when DAG is selected */
             <>
-              <Controller
-                name="name"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    label="Entity Name"
-                    fullWidth
-                    margin="normal"
-                    required
-                    error={!!errors.name}
-                    helperText={errors.name?.message}
-                    placeholder="e.g., daily_etl_process"
-                  />
-                )}
-              />
-              
-              <Controller
-                name="teamId"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    select
-                    label="Team"
-                    fullWidth
-                    margin="normal"
-                    required
-                    error={!!errors.teamId}
-                    helperText={errors.teamId?.message}
-                  >
-                    {teams.map((team) => (
-                      <MenuItem key={team.id} value={team.id}>
-                        {team.name}
-                      </MenuItem>
-                    ))}
-                  </TextField>
-                )}
-              />
-              
               <Controller
                 name="tenant_name"
                 control={control}
