@@ -47,18 +47,19 @@ export const validateTeam = async (teamName: string): Promise<true | string> => 
 };
 
 /**
- * Validates a custom DAG name by checking against the Airflow API
+ * Validates a custom DAG name by checking against our FastAPI backend
+ * The backend will then validate with Airflow - web UI never calls Airflow directly
  * @param dagName The DAG name to validate
  * @returns Promise that resolves to true if valid, or error message if invalid
  */
 export const validateDag = async (dagName: string): Promise<true | string> => {
   try {
-    // Placeholder Airflow API endpoint - will be replaced with actual endpoint
-    const response = await fetch(`https://airflow.example.com/api/dags/validate?dag_id=${encodeURIComponent(dagName)}`);
+    // Our FastAPI endpoint that will internally check with Airflow
+    const response = await fetch(`https://api.example.com/validate/dag?name=${encodeURIComponent(dagName)}`);
     
     if (!response.ok) {
       const errorData = await response.json();
-      return errorData.message || 'Invalid DAG name. This DAG does not exist in Airflow.';
+      return errorData.message || 'Invalid DAG name. Please check and try again.';
     }
     
     return true;

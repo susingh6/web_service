@@ -171,7 +171,8 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
   const fetchDagOptions = async () => {
     setLoadingDags(true);
     try {
-      const options = await fetchWithCache('https://airflow.example.com/api/dags', 'dags');
+      // Use our FastAPI endpoint that will internally fetch from Airflow
+      const options = await fetchWithCache('https://api.example.com/dags', 'dags');
       setDagOptions(options);
     } catch (error) {
       console.error('Error fetching DAG options:', error);
