@@ -850,25 +850,13 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                     onChange={(_, newValue) => {
                       onChange(newValue);
                     }}
-                    onInputChange={async (_, newInputValue, reason) => {
+                    onInputChange={(_, newInputValue, reason) => {
                       if (reason === 'input' && newInputValue.trim() !== '') {
                         // Clear any previous validation errors
                         setValidationError(null);
                         
-                        try {
-                          // Perform lightweight real-time validation via our FastAPI backend
-                          // FastAPI will check with Airflow - web UI never calls Airflow directly
-                          const isValid = await validateDag(newInputValue);
-                          if (isValid !== true) {
-                            // Show warning but don't block input
-                            console.warn(`DAG validation warning: ${isValid}`);
-                          }
-                        } catch (error) {
-                          console.error('Error validating DAG name:', error);
-                        }
-                        
-                        // Refresh DAG options when user is typing
-                        fetchDagOptions();
+                        // Don't fetch options on every keystroke - we'll load them when the modal opens
+                        // and the user can use the freeSolo feature to enter custom values
                       }
                     }}
                     freeSolo
