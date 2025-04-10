@@ -142,21 +142,29 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
   // Use the appropriate schema based on entity type
   const schema = entityType === 'table' ? tableSchema : dagSchema;
   
-  // Instead of fetching on modal open, we'll use lazy loading
-  // We only load cached values initially, and fetch data when user interacts with fields
+  // Use preloaded data when modal opens
   useEffect(() => {
     if (open) {
-      // Load from cache only - no network requests yet
+      // Load from cache which should already be populated by preloading
       const cachedTenants = getFromCache('tenants');
       if (cachedTenants.length > 0) {
         setTenantOptions(cachedTenants);
+      } else {
+        // Fallback - if for some reason preloading failed
+        console.log('Tenant cache miss - fetching on demand');
+        fetchTenantOptions();
       }
       
       const cachedTeams = getFromCache('teams');
       if (cachedTeams.length > 0) {
         setTeamOptions(cachedTeams);
+      } else {
+        // Fallback - if for some reason preloading failed
+        console.log('Team cache miss - fetching on demand');
+        fetchTeamOptions();
       }
       
+      // DAGs are not preloaded globally since they're only needed in specific contexts
       if (entityType === 'dag') {
         const cachedDags = getFromCache('dags');
         if (cachedDags.length > 0) {
@@ -785,6 +793,10 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                         console.log('Custom tenant input:', newInputValue);
                       }
                     }}
+                    onOpen={() => {
+                      // Lazy load - only fetch when dropdown is opened
+                      fetchTenantOptions();
+                    }}
                     freeSolo
                     options={tenantOptions}
                     loading={loadingTenants}
@@ -827,6 +839,10 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                         // In real implementation, we would trigger API call for new suggestions here
                         console.log('Custom team input:', newInputValue);
                       }
+                    }}
+                    onOpen={() => {
+                      // Lazy load - only fetch when dropdown is opened
+                      fetchTeamOptions();
                     }}
                     freeSolo
                     options={teamOptions}
@@ -882,9 +898,15 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                           console.error('Error validating DAG name:', error);
                         }
                         
-                        // Refresh DAG options when user is typing
-                        fetchDagOptions();
+                        // Only fetch if user has typed enough characters (3+)
+                        if (newInputValue.length >= 3) {
+                          fetchDagOptions();
+                        }
                       }
+                    }}
+                    onOpen={() => {
+                      // Lazy load - only fetch when dropdown is opened
+                      fetchDagOptions();
                     }}
                     freeSolo
                     options={dagOptions}
