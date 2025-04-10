@@ -6,22 +6,47 @@ import { fetchTeams } from '@/features/sla/slices/entitiesSlice';
 import { Team } from '@/features/sla/types';
 import { useQuery } from '@tanstack/react-query';
 import { teamsApi } from '@/features/sla/api';
+import { fetchWithCache, getFromCache } from '@/lib/cacheUtils';
 
 const Navigation = () => {
   const theme = useTheme();
   const [location, setLocation] = useLocation();
   const dispatch = useAppDispatch();
   const [value, setValue] = useState(0);
+  const [cachedTeams, setCachedTeams] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
   
-  // Fetch teams data
+  // Fetch teams data from API for Redux state
   const { data: teams = [] } = useQuery({
     queryKey: ['/api/teams'],
     staleTime: 300000, // 5 minutes
   });
 
+  // Load cached team names for tabs
   useEffect(() => {
+    loadTeamCache();
+    
+    // Also dispatch the normal team fetch for Redux state
     dispatch(fetchTeams());
   }, [dispatch]);
+  
+  // Function to load teams from cache or fetch if needed
+  const loadTeamCache = async () => {
+    setLoading(true);
+    try {
+      // First try to get from cache without API call
+      const cachedValues = getFromCache('teams');
+      setCachedTeams(cachedValues);
+      
+      // Then fetch in background to refresh the cache if needed
+      const freshValues = await fetchWithCache('https://api.example.com/teams', 'teams');
+      setCachedTeams(freshValues);
+    } catch (error) {
+      console.error('Error loading team cache:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Update selected tab based on location
   useEffect(() => {
@@ -43,8 +68,17 @@ const Navigation = () => {
       setLocation('/');
     } else {
       const teamIndex = newValue - 1; // -1 because Summary is at index 0
-      if (teams[teamIndex]) {
+      
+      // If we have real team data
+      if (teams && teams.length > 0 && teams[teamIndex]) {
         setLocation(`/team/${teams[teamIndex].id}`);
+      } else {
+        // Otherwise use the cached team name for the tab
+        const teamName = cachedTeams[teamIndex];
+        if (teamName) {
+          // For cached teams without real data yet, we'll use the index as a temporary ID
+          setLocation(`/team/${teamIndex + 1}`);
+        }
       }
     }
   };
@@ -81,21 +115,41 @@ const Navigation = () => {
             }} 
           />
           
-          {teams.map((team: Team) => (
-            <Tab
-              key={team.id}
-              label={team.name}
-              sx={{ 
-                minWidth: 120,
-                fontWeight: 500,
-                textTransform: 'none',
-                fontSize: '0.9rem',
-                '&.Mui-selected': {
-                  fontWeight: 600,
-                },
-              }}
-            />
-          ))}
+          {/* First show real team data if available */}
+          {teams.length > 0 ? (
+            teams.map((team: Team) => (
+              <Tab
+                key={team.id}
+                label={team.name}
+                sx={{ 
+                  minWidth: 120,
+                  fontWeight: 500,
+                  textTransform: 'none',
+                  fontSize: '0.9rem',
+                  '&.Mui-selected': {
+                    fontWeight: 600,
+                  },
+                }}
+              />
+            ))
+          ) : (
+            /* Otherwise use cached team names */
+            cachedTeams.map((teamName, index) => (
+              <Tab
+                key={`cache-${index}`}
+                label={teamName}
+                sx={{ 
+                  minWidth: 120,
+                  fontWeight: 500,
+                  textTransform: 'none',
+                  fontSize: '0.9rem',
+                  '&.Mui-selected': {
+                    fontWeight: 600,
+                  },
+                }}
+              />
+            ))
+          )}
         </Tabs>
       </Box>
     </Box>

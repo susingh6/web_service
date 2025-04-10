@@ -94,11 +94,11 @@ const fetchWithCache = async (
     // Simulating API response for now
     let mockResponse: string[] = [];
     if (cacheKey === 'tenants') {
-      mockResponse = ['Ad Engineering', 'Data Engineering', 'Platform Engineering', 'ML Engineering'];
+      mockResponse = ['Ad Engineering', 'Data Engineering'];
     } else if (cacheKey === 'teams') {
-      mockResponse = ['PGM', 'Core', 'Viewer Product', 'IOT', 'CDM', 'Analytics', 'Infrastructure'];
+      mockResponse = ['PGM', 'Core', 'Viewer Product', 'IOT', 'CDM'];
     } else if (cacheKey === 'dags') {
-      mockResponse = ['etl_daily', 'user_processing', 'data_quality_check', 'ml_training', 'reporting'];
+      mockResponse = ['agg_daily', 'agg_hourly', 'PGM_Freeview_Play_Agg_Daily', 'CHN_agg', 'CHN_billing'];
     }
     
     // Cache the results
