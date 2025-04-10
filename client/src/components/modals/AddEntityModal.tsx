@@ -234,149 +234,196 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
       
       <form onSubmit={handleSubmit(onSubmit)}>
         <DialogContent>
-          <Controller
-            name="name"
-            control={control}
-            render={({ field }) => (
-              <TextField
-                {...field}
-                label="Entity Name"
-                fullWidth
-                margin="normal"
-                required
-                error={!!errors.name}
-                helperText={errors.name?.message}
-                placeholder={entityType === 'table' ? 'e.g., customer_master' : 'e.g., daily_etl_process'}
-              />
-            )}
-          />
-          
-          <Controller
-            name="teamId"
-            control={control}
-            render={({ field }) => (
-              <TextField
-                {...field}
-                select
-                label="Team"
-                fullWidth
-                margin="normal"
-                required
-                error={!!errors.teamId}
-                helperText={errors.teamId?.message}
-              >
-                {teams.map((team) => (
-                  <MenuItem key={team.id} value={team.id}>
-                    {team.name}
-                  </MenuItem>
-                ))}
-              </TextField>
-            )}
-          />
-          
-          <Controller
-            name="description"
-            control={control}
-            render={({ field }) => (
-              <TextField
-                {...field}
-                label="Description"
-                fullWidth
-                margin="normal"
-                multiline
-                rows={3}
-                error={!!errors.description}
-                helperText={errors.description?.message}
-                placeholder={`Brief description of this ${entityType}`}
-              />
-            )}
-          />
-          
-          <Controller
-            name="slaTarget"
-            control={control}
-            render={({ field }) => (
-              <TextField
-                {...field}
-                label="SLA Target"
-                type="number"
-                fullWidth
-                margin="normal"
-                required
-                InputProps={{
-                  endAdornment: <InputAdornment position="end">%</InputAdornment>,
-                }}
-                inputProps={{
-                  min: 0,
-                  max: 100,
-                  step: 0.1,
-                }}
-                error={!!errors.slaTarget}
-                helperText={errors.slaTarget?.message}
-              />
-            )}
-          />
-          
-          <Controller
-            name="refreshFrequency"
-            control={control}
-            render={({ field }) => (
-              <TextField
-                {...field}
-                select
-                label="Refresh Frequency"
-                fullWidth
-                margin="normal"
-                required
-                error={!!errors.refreshFrequency}
-                helperText={errors.refreshFrequency?.message}
-              >
-                <MenuItem value="hourly">Hourly</MenuItem>
-                <MenuItem value="daily">Daily</MenuItem>
-                <MenuItem value="weekly">Weekly</MenuItem>
-                <MenuItem value="monthly">Monthly</MenuItem>
-              </TextField>
-            )}
-          />
-          
-          <Controller
-            name="owner"
-            control={control}
-            render={({ field }) => (
-              <TextField
-                {...field}
-                label="Owner"
-                fullWidth
-                margin="normal"
-                error={!!errors.owner}
-                helperText={errors.owner?.message}
-                placeholder="Name of the responsible person"
-              />
-            )}
-          />
-          
-          <Controller
-            name="ownerEmail"
-            control={control}
-            render={({ field }) => (
-              <TextField
-                {...field}
-                label="Owner Email"
-                fullWidth
-                margin="normal"
-                error={!!errors.ownerEmail}
-                helperText={errors.ownerEmail?.message}
-                placeholder="email@company.com"
-              />
-            )}
-          />
+          <Typography 
+            variant="body2" 
+            color="text.secondary" 
+            sx={{ mb: 2, fontStyle: 'italic' }}
+          >
+            Fields marked with an asterisk (*) are mandatory
+          </Typography>
 
-          {/* DAG-specific fields - only shown when DAG is selected */}
-          {entityType === 'dag' && (
+          {/* Table form fields - shown only when Table is selected */}
+          {entityType === 'table' ? (
             <>
-              <Typography variant="h6" sx={{ mt: 4, mb: 2, fontSize: '1rem', fontWeight: 600 }}>
-                DAG-specific Information
-              </Typography>
+              <Controller
+                name="name"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="Entity Name"
+                    fullWidth
+                    margin="normal"
+                    required
+                    error={!!errors.name}
+                    helperText={errors.name?.message}
+                    placeholder="e.g., customer_master"
+                  />
+                )}
+              />
+              
+              <Controller
+                name="teamId"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    select
+                    label="Team"
+                    fullWidth
+                    margin="normal"
+                    required
+                    error={!!errors.teamId}
+                    helperText={errors.teamId?.message}
+                  >
+                    {teams.map((team) => (
+                      <MenuItem key={team.id} value={team.id}>
+                        {team.name}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                )}
+              />
+              
+              <Controller
+                name="description"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="Description"
+                    fullWidth
+                    margin="normal"
+                    multiline
+                    rows={3}
+                    error={!!errors.description}
+                    helperText={errors.description?.message}
+                    placeholder="Brief description of this table"
+                  />
+                )}
+              />
+              
+              <Controller
+                name="slaTarget"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="SLA Target"
+                    type="number"
+                    fullWidth
+                    margin="normal"
+                    required
+                    InputProps={{
+                      endAdornment: <InputAdornment position="end">%</InputAdornment>,
+                    }}
+                    inputProps={{
+                      min: 0,
+                      max: 100,
+                      step: 0.1,
+                    }}
+                    error={!!errors.slaTarget}
+                    helperText={errors.slaTarget?.message}
+                  />
+                )}
+              />
+              
+              <Controller
+                name="refreshFrequency"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    select
+                    label="Refresh Frequency"
+                    fullWidth
+                    margin="normal"
+                    required
+                    error={!!errors.refreshFrequency}
+                    helperText={errors.refreshFrequency?.message}
+                  >
+                    <MenuItem value="hourly">Hourly</MenuItem>
+                    <MenuItem value="daily">Daily</MenuItem>
+                    <MenuItem value="weekly">Weekly</MenuItem>
+                    <MenuItem value="monthly">Monthly</MenuItem>
+                  </TextField>
+                )}
+              />
+              
+              <Controller
+                name="owner"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="Owner"
+                    fullWidth
+                    margin="normal"
+                    error={!!errors.owner}
+                    helperText={errors.owner?.message}
+                    placeholder="Name of the responsible person"
+                  />
+                )}
+              />
+              
+              <Controller
+                name="ownerEmail"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="Owner Email"
+                    fullWidth
+                    margin="normal"
+                    error={!!errors.ownerEmail}
+                    helperText={errors.ownerEmail?.message}
+                    placeholder="email@company.com"
+                  />
+                )}
+              />
+            </>
+          ) : (
+            /* DAG-specific fields - shown only when DAG is selected */
+            <>
+              <Controller
+                name="name"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="Entity Name"
+                    fullWidth
+                    margin="normal"
+                    required
+                    error={!!errors.name}
+                    helperText={errors.name?.message}
+                    placeholder="e.g., daily_etl_process"
+                  />
+                )}
+              />
+              
+              <Controller
+                name="teamId"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    select
+                    label="Team"
+                    fullWidth
+                    margin="normal"
+                    required
+                    error={!!errors.teamId}
+                    helperText={errors.teamId?.message}
+                  >
+                    {teams.map((team) => (
+                      <MenuItem key={team.id} value={team.id}>
+                        {team.name}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                )}
+              />
               
               <Controller
                 name="tenant_name"
