@@ -58,10 +58,10 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
   };
 
   const handleFile = (selectedFile: File) => {
-    if (selectedFile.type !== 'text/csv') {
+    if (selectedFile.type !== 'application/json' && !selectedFile.name.endsWith('.json')) {
       toast({
         title: 'Invalid file type',
-        description: 'Please upload a CSV file.',
+        description: 'Please upload a JSON file.',
         variant: 'destructive',
       });
       return;
@@ -76,14 +76,95 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
       return;
     }
     
-    setFile(selectedFile);
+    // Validate JSON format and structure
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const jsonContent = JSON.parse(e.target?.result as string);
+        
+        // Validate that it's an array of entities
+        if (!Array.isArray(jsonContent)) {
+          throw new Error('JSON must contain an array of entities');
+        }
+        
+        // Basic validation of required fields
+        const entityType = tabValue === 'tables' ? 'table' : 'dag';
+        const invalidEntities = jsonContent.filter(entity => {
+          return !entity.name || entity.type !== entityType || !entity.teamId || !entity.slaTarget;
+        });
+        
+        if (invalidEntities.length > 0) {
+          toast({
+            title: 'Invalid entity data',
+            description: `${invalidEntities.length} entities are missing required fields.`,
+            variant: 'destructive',
+          });
+          return;
+        }
+        
+        setFile(selectedFile);
+        
+      } catch (error) {
+        toast({
+          title: 'Invalid JSON format',
+          description: error instanceof Error ? error.message : 'The uploaded file contains invalid JSON.',
+          variant: 'destructive',
+        });
+      }
+    };
+    
+    reader.readAsText(selectedFile);
   };
 
   const handleDownloadTemplate = () => {
-    // In a real app, this would download a template CSV file
+    // Create a sample JSON template based on the selected tab
+    const entityType = tabValue === 'tables' ? 'table' : 'dag';
+    const sampleData = [
+      {
+        name: `Sample ${entityType === 'table' ? 'Table' : 'DAG'} 1`,
+        type: entityType,
+        teamId: 1,
+        description: `Example ${entityType} for analytics`,
+        slaTarget: 95,
+        status: 'active',
+        refreshFrequency: 'daily',
+        owner: 'John Doe',
+        ownerEmail: 'john.doe@example.com'
+      },
+      {
+        name: `Sample ${entityType === 'table' ? 'Table' : 'DAG'} 2`,
+        type: entityType,
+        teamId: 2,
+        description: `Another example ${entityType}`,
+        slaTarget: 98,
+        status: 'active',
+        refreshFrequency: 'hourly',
+        owner: 'Jane Smith',
+        ownerEmail: 'jane.smith@example.com'
+      }
+    ];
+    
+    // Convert to JSON and create downloadable file
+    const jsonStr = JSON.stringify(sampleData, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    
+    // Create a temporary link and trigger download
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${entityType}_template.json`;
+    document.body.appendChild(a);
+    a.click();
+    
+    // Clean up
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 0);
+    
     toast({
       title: 'Template downloaded',
-      description: `${tabValue === 'tables' ? 'Tables' : 'DAGs'} template has been downloaded.`,
+      description: `${tabValue === 'tables' ? 'Tables' : 'DAGs'} JSON template has been downloaded.`,
       variant: 'default',
     });
   };
@@ -92,16 +173,17 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
     if (!file) {
       toast({
         title: 'No file selected',
-        description: 'Please select a CSV file to upload.',
+        description: 'Please select a JSON file to upload.',
         variant: 'destructive',
       });
       return;
     }
     
-    // In a real app, this would upload the file to the server
+    // In a real app, this would upload the file to the server and process the entities
+    // For now, we'll just simulate a successful upload
     toast({
       title: 'Upload successful',
-      description: `${file.name} has been uploaded.`,
+      description: `${file.name} has been processed. Entities will be added shortly.`,
       variant: 'default',
     });
     
@@ -192,7 +274,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
           ) : (
             <>
               <Typography variant="body1" textAlign="center" mb={2}>
-                Drag and drop your CSV file here, or
+                Drag and drop your JSON file here, or
               </Typography>
               <Button
                 variant="contained"
@@ -203,30 +285,57 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
                 <input
                   type="file"
                   hidden
-                  accept=".csv"
+                  accept=".json,application/json"
                   onChange={handleFileInput}
                 />
               </Button>
               <Typography variant="caption" color="text.secondary" mt={2}>
-                Maximum file size: 10MB. Supported format: CSV
+                Maximum file size: 10MB. Supported format: JSON
               </Typography>
             </>
           )}
         </Box>
         
         <Typography variant="h6" fontWeight={500} gutterBottom>
-          Template
+          JSON Structure
         </Typography>
         <Typography variant="body2" color="text.secondary" paragraph>
-          Download our CSV template to ensure your data is properly formatted for upload.
+          Upload a JSON file with an array of entities following the structure below.
         </Typography>
+        <Paper
+          sx={{ 
+            p: 2, 
+            mb: 3, 
+            bgcolor: 'grey.50',
+            borderRadius: 1,
+            fontFamily: 'monospace',
+            fontSize: '0.85rem',
+            maxHeight: '200px',
+            overflow: 'auto'
+          }}
+        >
+          <pre>{`[
+  {
+    "name": "Entity Name",
+    "type": "${tabValue === 'tables' ? 'table' : 'dag'}",
+    "teamId": 1,
+    "description": "Entity description",
+    "slaTarget": 95,
+    "status": "active",
+    "refreshFrequency": "daily",
+    "owner": "Owner Name",
+    "ownerEmail": "owner@example.com"
+  },
+  // Additional entities...
+]`}</pre>
+        </Paper>
         <Button 
           startIcon={<DownloadIcon />} 
           color="primary"
           onClick={handleDownloadTemplate}
           sx={{ mb: 3 }}
         >
-          Download CSV Template
+          Download JSON Template
         </Button>
         
         <Paper 
@@ -246,19 +355,25 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
           </Box>
           <Box component="ul" sx={{ pl: 4, m: 0 }}>
             <Box component="li" sx={{ mb: 0.5 }}>
-              <Typography variant="body2">Ensure all required fields are populated</Typography>
+              <Typography variant="body2">JSON must contain an array of entity objects</Typography>
             </Box>
             <Box component="li" sx={{ mb: 0.5 }}>
-              <Typography variant="body2">Entity names must be unique</Typography>
+              <Typography variant="body2">Required fields: name, type, teamId, slaTarget</Typography>
             </Box>
             <Box component="li" sx={{ mb: 0.5 }}>
-              <Typography variant="body2">SLA values should be between 0-100</Typography>
+              <Typography variant="body2">Entity names must be unique across the system</Typography>
             </Box>
             <Box component="li" sx={{ mb: 0.5 }}>
-              <Typography variant="body2">Team names must match existing teams</Typography>
+              <Typography variant="body2">SLA target values should be between 0-100</Typography>
+            </Box>
+            <Box component="li" sx={{ mb: 0.5 }}>
+              <Typography variant="body2">Type must match the selected tab (table/dag)</Typography>
+            </Box>
+            <Box component="li" sx={{ mb: 0.5 }}>
+              <Typography variant="body2">TeamId must reference an existing team ID</Typography>
             </Box>
             <Box component="li">
-              <Typography variant="body2">Owner email addresses must be valid company emails</Typography>
+              <Typography variant="body2">Status should be one of: active, inactive, deprecated</Typography>
             </Box>
           </Box>
         </Paper>
