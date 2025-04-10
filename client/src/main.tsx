@@ -12,10 +12,11 @@ import { preloadAllCacheData, refreshCacheInBackground } from "./lib/preloadCach
 // This ensures the first modal open is fast
 preloadAllCacheData().catch(err => console.error("Error preloading cache:", err));
 
-// Set up a background refresh of cache data every hour
+// Set up a background refresh of cache data every 6 hours
+// This matches our CACHE_TTL setting of 6 hours in cacheUtils.ts
 setInterval(() => {
   refreshCacheInBackground().catch(err => console.error("Error refreshing cache:", err));
-}, 60 * 60 * 1000); // 1 hour interval
+}, 6 * 60 * 60 * 1000); // 6 hour interval
 
 createRoot(document.getElementById("root")!).render(
   <Provider store={store}>
