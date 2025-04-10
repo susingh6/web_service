@@ -90,41 +90,21 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
     [entityType]
   );
   
-  // Effect to very lazily fetch options only if cache might be out of date
-  // This further improves modal opening performance
+  // Effect to update component state when cache might have changed
+  // Only runs when the modal opens to ensure we have the latest cache values
   useEffect(() => {
     if (open) {
-      // Check if the cache might need a refresh (older than 30 minutes)
-      const cachedTenantsTime = localStorage.getItem('tenants_time');
-      const cachedTeamsTime = localStorage.getItem('teams_time');
+      // Just load the latest values from cache when modal opens
+      // No API calls - we rely on the app-level 6-hour refresh cycle
+      setTenantOptions(getFromCache('tenants'));
+      setTeamOptions(getFromCache('teams'));
       
-      // Only fetch if cache is older than 30 minutes
-      const thirtyMinutesAgo = Date.now() - (30 * 60 * 1000);
-      
-      if (!cachedTenantsTime || parseInt(cachedTenantsTime) < thirtyMinutesAgo) {
-        // Background fetch to update cache without showing loading indicator
-        fetchWithCache('https://api.example.com/tenants', 'tenants')
-          .then(options => setTenantOptions(options))
-          .catch(err => console.error('Background tenant refresh error:', err));
-      }
-      
-      if (!cachedTeamsTime || parseInt(cachedTeamsTime) < thirtyMinutesAgo) {
-        // Background fetch to update cache without showing loading indicator
-        fetchWithCache('https://api.example.com/teams', 'teams')
-          .then(options => setTeamOptions(options))
-          .catch(err => console.error('Background team refresh error:', err));
-      }
-      
-      // Only load DAG options if viewing the DAG tab and cache is stale
+      // Only load DAG options if viewing the DAG tab
       if (entityType === 'dag') {
-        const cachedDagsTime = localStorage.getItem('dags_time');
-        if (!cachedDagsTime || parseInt(cachedDagsTime) < thirtyMinutesAgo) {
-          // Background fetch to update cache without showing loading indicator
-          fetchWithCache('https://api.example.com/dags', 'dags')
-            .then(options => setDagOptions(options))
-            .catch(err => console.error('Background DAG refresh error:', err));
-        }
+        setDagOptions(getFromCache('dags'));
       }
+      
+      console.log('Modal opened - using cached values without additional API calls');
     }
   }, [open, entityType]);
   
