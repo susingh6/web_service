@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import * as yup from 'yup';
 import { yupResolver } from '@hookform/resolvers/yup';
@@ -16,8 +16,6 @@ import {
   FormGroup,
   FormHelperText,
   FormLabel,
-  InputAdornment,
-  MenuItem,
   Stack,
   Switch,
   TextField,
@@ -27,6 +25,7 @@ import {
   Alert,
 } from '@mui/material';
 import { validateTenant, validateTeam, validateDag } from '@/lib/validationUtils';
+import { fetchWithCache, getFromCache } from '@/lib/cacheUtils';
 
 type EntityType = 'table' | 'dag';
 
@@ -69,58 +68,13 @@ const dagSchema = baseSchema.shape({
   donemarker_lookback: yup.number().min(0, 'Must be non-negative').optional(),
 });
 
-// Cache time in milliseconds (6 hours)
-const CACHE_TTL = 6 * 60 * 60 * 1000;
-
-// Helper function to fetch data from API with caching
-const fetchWithCache = async (
-  url: string, 
-  cacheKey: string
-): Promise<string[]> => {
-  // Check if we have cached data and if it's still valid
-  const cachedData = localStorage.getItem(cacheKey);
-  const cachedTime = localStorage.getItem(`${cacheKey}_time`);
-  
-  if (cachedData && cachedTime) {
-    const timestamp = parseInt(cachedTime);
-    if (Date.now() - timestamp < CACHE_TTL) {
-      return JSON.parse(cachedData);
-    }
-  }
-  
-  // No valid cache, fetch from API
-  try {
-    // This is a placeholder for the actual API call
-    console.log(`Fetching ${cacheKey} from ${url}`);
-    
-    // Simulating API response for now
-    let mockResponse: string[] = [];
-    if (cacheKey === 'tenants') {
-      mockResponse = ['Ad Engineering', 'Data Engineering'];
-    } else if (cacheKey === 'teams') {
-      mockResponse = ['PGM', 'Core', 'Viewer Product', 'IOT', 'CDM'];
-    } else if (cacheKey === 'dags') {
-      mockResponse = ['agg_daily', 'agg_hourly', 'PGM_Freeview_Play_Agg_Daily', 'CHN_agg', 'CHN_billing'];
-    }
-    
-    // Cache the results
-    localStorage.setItem(cacheKey, JSON.stringify(mockResponse));
-    localStorage.setItem(`${cacheKey}_time`, Date.now().toString());
-    
-    return mockResponse;
-  } catch (error) {
-    console.error(`Error fetching ${cacheKey}:`, error);
-    return [];
-  }
-};
-
 const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
   const [entityType, setEntityType] = useState<EntityType>('table');
   
-  // State for dynamic options
-  const [tenantOptions, setTenantOptions] = useState<string[]>(['Ad Engineering', 'Data Engineering']);
-  const [teamOptions, setTeamOptions] = useState<string[]>(['PGM', 'Core', 'Viewer Product', 'IOT', 'CDM']);
-  const [dagOptions, setDagOptions] = useState<string[]>([]);
+  // State for dynamic options - initialize from cache for instant load
+  const [tenantOptions, setTenantOptions] = useState<string[]>(() => getFromCache('tenants'));
+  const [teamOptions, setTeamOptions] = useState<string[]>(() => getFromCache('teams'));
+  const [dagOptions, setDagOptions] = useState<string[]>(() => getFromCache('dags'));
   
   // Loading states
   const [loadingTenants, setLoadingTenants] = useState(false);
@@ -130,24 +84,51 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
   // State for validation errors (single declaration)
   const [validationError, setValidationError] = useState<string | null>(null);
   
-  // Use the appropriate schema based on entity type
-  const schema = entityType === 'table' ? tableSchema : dagSchema;
+  // Dynamic schema selection with memoization for performance
+  const schema = React.useMemo(() => 
+    entityType === 'table' ? tableSchema : dagSchema, 
+    [entityType]
+  );
   
-  // Effect to fetch options when modal opens
+  // Effect to very lazily fetch options only if cache might be out of date
+  // This further improves modal opening performance
   useEffect(() => {
     if (open) {
-      // Initial load of cached options - do this only once when the modal opens
-      // instead of during typing for better performance
-      fetchTenantOptions();
-      fetchTeamOptions();
+      // Check if the cache might need a refresh (older than 30 minutes)
+      const cachedTenantsTime = localStorage.getItem('tenants_time');
+      const cachedTeamsTime = localStorage.getItem('teams_time');
       
+      // Only fetch if cache is older than 30 minutes
+      const thirtyMinutesAgo = Date.now() - (30 * 60 * 1000);
+      
+      if (!cachedTenantsTime || parseInt(cachedTenantsTime) < thirtyMinutesAgo) {
+        // Background fetch to update cache without showing loading indicator
+        fetchWithCache('https://api.example.com/tenants', 'tenants')
+          .then(options => setTenantOptions(options))
+          .catch(err => console.error('Background tenant refresh error:', err));
+      }
+      
+      if (!cachedTeamsTime || parseInt(cachedTeamsTime) < thirtyMinutesAgo) {
+        // Background fetch to update cache without showing loading indicator
+        fetchWithCache('https://api.example.com/teams', 'teams')
+          .then(options => setTeamOptions(options))
+          .catch(err => console.error('Background team refresh error:', err));
+      }
+      
+      // Only load DAG options if viewing the DAG tab and cache is stale
       if (entityType === 'dag') {
-        fetchDagOptions();
+        const cachedDagsTime = localStorage.getItem('dags_time');
+        if (!cachedDagsTime || parseInt(cachedDagsTime) < thirtyMinutesAgo) {
+          // Background fetch to update cache without showing loading indicator
+          fetchWithCache('https://api.example.com/dags', 'dags')
+            .then(options => setDagOptions(options))
+            .catch(err => console.error('Background DAG refresh error:', err));
+        }
       }
     }
   }, [open, entityType]);
   
-  // Functions to fetch options
+  // Functions to fetch options with loading indicators
   const fetchTenantOptions = async () => {
     setLoadingTenants(true);
     try {
