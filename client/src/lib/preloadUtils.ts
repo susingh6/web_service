@@ -33,7 +33,7 @@ export const preloadTenants = async (): Promise<string[]> => {
     // In a real implementation, this would be an API call
     console.log('Preloading tenant data...');
     
-    // Simulate API response
+    // Use the specified tenant values
     const tenants = ['Ad Engineering', 'Data Engineering'];
     
     // Cache the results

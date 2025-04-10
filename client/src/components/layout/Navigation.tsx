@@ -28,6 +28,28 @@ const Navigation = () => {
     
     // Also dispatch the normal team fetch for Redux state
     dispatch(fetchTeams());
+    
+    // Set up a storage event listener to detect cache changes from other components
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === 'teams' && event.newValue) {
+        try {
+          // Update the cached teams when the cache is modified elsewhere
+          const updatedTeams = JSON.parse(event.newValue);
+          setCachedTeams(updatedTeams);
+          console.log('Navigation detected team cache update:', updatedTeams);
+        } catch (error) {
+          console.error('Error parsing updated team cache:', error);
+        }
+      }
+    };
+    
+    // Add event listener for storage changes
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Clean up the event listener on component unmount
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
   }, [dispatch]);
   
   // Function to load teams from cache or fetch if needed

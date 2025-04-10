@@ -169,6 +169,20 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
         const cachedDags = getFromCache('dags');
         if (cachedDags.length > 0) {
           setDagOptions(cachedDags);
+        } else {
+          // Set default DAG options if no cache exists
+          const defaultDags = [
+            'agg_daily',
+            'agg_hourly',
+            'PGM_Freeview_Play_Agg_Daily',
+            'CHN_agg',
+            'CHN_billing'
+          ];
+          setDagOptions(defaultDags);
+          
+          // Also cache these defaults
+          localStorage.setItem('dags', JSON.stringify(defaultDags));
+          localStorage.setItem('dags_time', Date.now().toString());
         }
       }
     }
@@ -366,13 +380,32 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
       
       // Successful submission
       // Add the newly created entity to cache if needed
+      
+      // Update DAG cache if needed
       if (entityType === 'dag' && !dagOptions.includes(data.dag_name)) {
         const updatedDags = [...dagOptions, data.dag_name];
         setDagOptions(updatedDags);
         
-        // Update the cache with the new DAG
-        localStorage.setItem('dags', JSON.stringify(updatedDags));
-        localStorage.setItem('dags_time', Date.now().toString());
+        // Update cache with new value and trigger storage event for other components
+        updateCache('dags', updatedDags);
+      }
+      
+      // Update team cache if a new team is used
+      if (!teamOptions.includes(data.team_name)) {
+        const updatedTeams = [...teamOptions, data.team_name];
+        setTeamOptions(updatedTeams);
+        
+        // Update cache with new value and trigger storage event for other components
+        updateCache('teams', updatedTeams);
+      }
+      
+      // Update tenant cache if a new tenant is used
+      if (!tenantOptions.includes(data.tenant_name)) {
+        const updatedTenants = [...tenantOptions, data.tenant_name];
+        setTenantOptions(updatedTenants);
+        
+        // Update cache with new value and trigger storage event for other components
+        updateCache('tenants', updatedTenants);
       }
       
       // Close the modal after successful submission

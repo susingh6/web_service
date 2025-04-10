@@ -75,3 +75,28 @@ export const getFromCache = (cacheKey: string): string[] => {
   
   return [];
 };
+
+/**
+ * Update a specific cache with new values and trigger storage event
+ * @param cacheKey The key to update in localStorage
+ * @param newValues The new values to store
+ * @returns The updated values
+ */
+export const updateCache = (cacheKey: string, newValues: string[]): string[] => {
+  // Update the cache
+  localStorage.setItem(cacheKey, JSON.stringify(newValues));
+  localStorage.setItem(`${cacheKey}_time`, Date.now().toString());
+  
+  // Manually dispatch a storage event to notify all tabs/components
+  // This simulates the storage event that would be triggered if another tab modified localStorage
+  const event = new StorageEvent('storage', {
+    key: cacheKey,
+    newValue: JSON.stringify(newValues),
+    storageArea: localStorage
+  });
+  
+  // Dispatch the event
+  window.dispatchEvent(event);
+  
+  return newValues;
+};
