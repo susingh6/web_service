@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import * as yup from 'yup';
 import { yupResolver } from '@hookform/resolvers/yup';
@@ -114,6 +114,22 @@ const fetchWithCache = async (
   }
 };
 
+// Create a debounce utility function to limit API calls during typing
+const debounce = <T extends any[]>(func: (...args: T) => void, wait: number) => {
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+  
+  return (...args: T) => {
+    if (timeout) {
+      clearTimeout(timeout);
+    }
+    
+    timeout = setTimeout(() => {
+      func(...args);
+      timeout = null;
+    }, wait);
+  };
+};
+
 const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
   const [entityType, setEntityType] = useState<EntityType>('table');
   
@@ -126,6 +142,9 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
   const [loadingTenants, setLoadingTenants] = useState(false);
   const [loadingTeams, setLoadingTeams] = useState(false);
   const [loadingDags, setLoadingDags] = useState(false);
+  
+  // State for validation errors
+  const [validationError, setValidationError] = useState<string | null>(null);
   
   // Use the appropriate schema based on entity type
   const schema = entityType === 'table' ? tableSchema : dagSchema;
@@ -265,9 +284,6 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
       // Form will be reset by the useEffect above
     }
   };
-
-  // State for validation errors
-  const [validationError, setValidationError] = useState<string | null>(null);
   
   const onSubmit = async (data: any) => {
     console.log('Form data:', data);
