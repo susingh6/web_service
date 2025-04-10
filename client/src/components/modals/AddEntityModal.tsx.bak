@@ -254,9 +254,9 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                       onChange(newValue);
                     }}
                     onInputChange={(_, newInputValue, reason) => {
-                      if (reason === 'input' && newInputValue.trim() !== '') {
-                        // In real implementation, we would trigger API call for new suggestions here
-                        console.log('Custom tenant input:', newInputValue);
+                      if (reason === 'input') {
+                        // If user is typing something new, we could refresh the options
+                        // For now, we'll just use the current options
                       }
                     }}
                     freeSolo
@@ -290,43 +290,23 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
               <Controller
                 name="team_name"
                 control={control}
-                render={({ field: { onChange, value, onBlur, ref } }) => (
-                  <Autocomplete
-                    value={value}
-                    onChange={(_, newValue) => {
-                      onChange(newValue);
-                    }}
-                    onInputChange={(_, newInputValue, reason) => {
-                      if (reason === 'input' && newInputValue.trim() !== '') {
-                        // In real implementation, we would trigger API call for new suggestions here
-                        console.log('Custom team input:', newInputValue);
-                      }
-                    }}
-                    freeSolo
-                    options={teamOptions}
-                    loading={loadingTeams}
-                    renderInput={(params) => (
-                      <TextField
-                        {...params}
-                        label="Team Name"
-                        required
-                        fullWidth
-                        margin="normal"
-                        error={!!errors.team_name}
-                        helperText={errors.team_name?.message}
-                        onBlur={onBlur}
-                        InputProps={{
-                          ...params.InputProps,
-                          endAdornment: (
-                            <>
-                              {loadingTeams ? <CircularProgress color="inherit" size={20} /> : null}
-                              {params.InputProps.endAdornment}
-                            </>
-                          ),
-                        }}
-                      />
-                    )}
-                  />
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    select
+                    label="Team Name"
+                    fullWidth
+                    margin="normal"
+                    required
+                    error={!!errors.team_name}
+                    helperText={errors.team_name?.message}
+                  >
+                    <MenuItem value="PGM">PGM</MenuItem>
+                    <MenuItem value="Core">Core</MenuItem>
+                    <MenuItem value="Viewer Product">Viewer Product</MenuItem>
+                    <MenuItem value="IOT">IOT</MenuItem>
+                    <MenuItem value="CDM">CDM</MenuItem>
+                  </TextField>
                 )}
               />
               
@@ -592,129 +572,58 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
               <Controller
                 name="tenant_name"
                 control={control}
-                render={({ field: { onChange, value, onBlur } }) => (
-                  <Autocomplete
-                    value={value}
-                    onChange={(_, newValue) => {
-                      onChange(newValue);
-                    }}
-                    onInputChange={(_, newInputValue, reason) => {
-                      if (reason === 'input' && newInputValue.trim() !== '') {
-                        // In real implementation, we would trigger API call for new suggestions here
-                        console.log('Custom tenant input:', newInputValue);
-                      }
-                    }}
-                    freeSolo
-                    options={tenantOptions}
-                    loading={loadingTenants}
-                    renderInput={(params) => (
-                      <TextField
-                        {...params}
-                        label="Tenant Name"
-                        required
-                        fullWidth
-                        margin="normal"
-                        error={!!errors.tenant_name}
-                        helperText={errors.tenant_name?.message}
-                        onBlur={onBlur}
-                        InputProps={{
-                          ...params.InputProps,
-                          endAdornment: (
-                            <>
-                              {loadingTenants ? <CircularProgress color="inherit" size={20} /> : null}
-                              {params.InputProps.endAdornment}
-                            </>
-                          ),
-                        }}
-                      />
-                    )}
-                  />
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    select
+                    label="Tenant Name"
+                    fullWidth
+                    margin="normal"
+                    required
+                    error={!!errors.tenant_name}
+                    helperText={errors.tenant_name?.message}
+                  >
+                    <MenuItem value="Ad Engineering">Ad Engineering</MenuItem>
+                    <MenuItem value="Data Engineering">Data Engineering</MenuItem>
+                  </TextField>
                 )}
               />
               
               <Controller
                 name="team_name"
                 control={control}
-                render={({ field: { onChange, value, onBlur } }) => (
-                  <Autocomplete
-                    value={value}
-                    onChange={(_, newValue) => {
-                      onChange(newValue);
-                    }}
-                    onInputChange={(_, newInputValue, reason) => {
-                      if (reason === 'input' && newInputValue.trim() !== '') {
-                        // In real implementation, we would trigger API call for new suggestions here
-                        console.log('Custom team input:', newInputValue);
-                      }
-                    }}
-                    freeSolo
-                    options={teamOptions}
-                    loading={loadingTeams}
-                    renderInput={(params) => (
-                      <TextField
-                        {...params}
-                        label="Team Name"
-                        required
-                        fullWidth
-                        margin="normal"
-                        error={!!errors.team_name}
-                        helperText={errors.team_name?.message}
-                        onBlur={onBlur}
-                        InputProps={{
-                          ...params.InputProps,
-                          endAdornment: (
-                            <>
-                              {loadingTeams ? <CircularProgress color="inherit" size={20} /> : null}
-                              {params.InputProps.endAdornment}
-                            </>
-                          ),
-                        }}
-                      />
-                    )}
-                  />
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    select
+                    label="Team Name"
+                    fullWidth
+                    margin="normal"
+                    required
+                    error={!!errors.team_name}
+                    helperText={errors.team_name?.message}
+                  >
+                    <MenuItem value="PGM">PGM</MenuItem>
+                    <MenuItem value="Core">Core</MenuItem>
+                    <MenuItem value="Viewer Product">Viewer Product</MenuItem>
+                    <MenuItem value="IOT">IOT</MenuItem>
+                    <MenuItem value="CDM">CDM</MenuItem>
+                  </TextField>
                 )}
               />
               
               <Controller
                 name="dag_name"
                 control={control}
-                render={({ field: { onChange, value, onBlur } }) => (
-                  <Autocomplete
-                    value={value}
-                    onChange={(_, newValue) => {
-                      onChange(newValue);
-                    }}
-                    onInputChange={(_, newInputValue, reason) => {
-                      if (reason === 'input' && newInputValue.trim() !== '') {
-                        // In real implementation, we would trigger API call for new suggestions here
-                        console.log('Custom DAG input:', newInputValue);
-                        fetchDagOptions(); // Refresh DAG options when user is typing
-                      }
-                    }}
-                    freeSolo
-                    options={dagOptions}
-                    loading={loadingDags}
-                    renderInput={(params) => (
-                      <TextField
-                        {...params}
-                        label="DAG Name"
-                        required
-                        fullWidth
-                        margin="normal"
-                        error={!!errors.dag_name}
-                        helperText={errors.dag_name?.message}
-                        onBlur={onBlur}
-                        InputProps={{
-                          ...params.InputProps,
-                          endAdornment: (
-                            <>
-                              {loadingDags ? <CircularProgress color="inherit" size={20} /> : null}
-                              {params.InputProps.endAdornment}
-                            </>
-                          ),
-                        }}
-                      />
-                    )}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="DAG Name"
+                    fullWidth
+                    margin="normal"
+                    required
+                    error={!!errors.dag_name}
+                    helperText={errors.dag_name?.message}
                   />
                 )}
               />
@@ -954,7 +863,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
             disabled={isSubmitting}
             startIcon={isSubmitting ? <CircularProgress size={20} /> : null}
           >
-            Add Entity
+            {isSubmitting ? 'Saving...' : 'Save'}
           </Button>
         </DialogActions>
       </form>

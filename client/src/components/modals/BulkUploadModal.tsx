@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
+  Autocomplete,
+  CircularProgress,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -11,9 +13,55 @@ import {
   Tab,
   IconButton,
   Paper,
+  TextField,
 } from '@mui/material';
 import { Close as CloseIcon, CloudUpload as CloudUploadIcon, Download as DownloadIcon, Info as InfoIcon } from '@mui/icons-material';
 import { useToast } from '@/hooks/use-toast';
+
+// Cache time in milliseconds (6 hours)
+const CACHE_TTL = 6 * 60 * 60 * 1000;
+
+// Helper function to fetch data from API with caching
+const fetchWithCache = async (
+  url: string, 
+  cacheKey: string
+): Promise<string[]> => {
+  // Check if we have cached data and if it's still valid
+  const cachedData = localStorage.getItem(cacheKey);
+  const cachedTime = localStorage.getItem(`${cacheKey}_time`);
+  
+  if (cachedData && cachedTime) {
+    const timestamp = parseInt(cachedTime);
+    if (Date.now() - timestamp < CACHE_TTL) {
+      return JSON.parse(cachedData);
+    }
+  }
+  
+  // No valid cache, fetch from API
+  try {
+    // This is a placeholder for the actual API call
+    console.log(`Fetching ${cacheKey} from ${url}`);
+    
+    // Simulating API response for now
+    let mockResponse: string[] = [];
+    if (cacheKey === 'tenants') {
+      mockResponse = ['Ad Engineering', 'Data Engineering', 'Platform Engineering', 'ML Engineering'];
+    } else if (cacheKey === 'teams') {
+      mockResponse = ['PGM', 'Core', 'Viewer Product', 'IOT', 'CDM', 'Analytics', 'Infrastructure'];
+    } else if (cacheKey === 'dags') {
+      mockResponse = ['etl_daily', 'user_processing', 'data_quality_check', 'ml_training', 'reporting'];
+    }
+    
+    // Cache the results
+    localStorage.setItem(cacheKey, JSON.stringify(mockResponse));
+    localStorage.setItem(`${cacheKey}_time`, Date.now().toString());
+    
+    return mockResponse;
+  } catch (error) {
+    console.error(`Error fetching ${cacheKey}:`, error);
+    return [];
+  }
+};
 
 interface BulkUploadModalProps {
   open: boolean;
@@ -25,6 +73,66 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
   const [tabValue, setTabValue] = useState('tables');
   const [file, setFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  
+  // State for dynamic options
+  const [tenantOptions, setTenantOptions] = useState<string[]>(['Ad Engineering', 'Data Engineering']);
+  const [teamOptions, setTeamOptions] = useState<string[]>(['PGM', 'Core', 'Viewer Product', 'IOT', 'CDM']);
+  const [dagOptions, setDagOptions] = useState<string[]>([]);
+  
+  // Loading states
+  const [loadingTenants, setLoadingTenants] = useState(false);
+  const [loadingTeams, setLoadingTeams] = useState(false);
+  const [loadingDags, setLoadingDags] = useState(false);
+  
+  // Effect to fetch options when modal opens
+  useEffect(() => {
+    if (open) {
+      // Initial load of cached options
+      fetchTenantOptions();
+      fetchTeamOptions();
+      
+      if (tabValue === 'dags') {
+        fetchDagOptions();
+      }
+    }
+  }, [open, tabValue]);
+  
+  // Functions to fetch options
+  const fetchTenantOptions = async () => {
+    setLoadingTenants(true);
+    try {
+      const options = await fetchWithCache('https://api.example.com/tenants', 'tenants');
+      setTenantOptions(options);
+    } catch (error) {
+      console.error('Error fetching tenant options:', error);
+    } finally {
+      setLoadingTenants(false);
+    }
+  };
+  
+  const fetchTeamOptions = async () => {
+    setLoadingTeams(true);
+    try {
+      const options = await fetchWithCache('https://api.example.com/teams', 'teams');
+      setTeamOptions(options);
+    } catch (error) {
+      console.error('Error fetching team options:', error);
+    } finally {
+      setLoadingTeams(false);
+    }
+  };
+  
+  const fetchDagOptions = async () => {
+    setLoadingDags(true);
+    try {
+      const options = await fetchWithCache('https://airflow.example.com/api/dags', 'dags');
+      setDagOptions(options);
+    } catch (error) {
+      console.error('Error fetching DAG options:', error);
+    } finally {
+      setLoadingDags(false);
+    }
+  };
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: string) => {
     setTabValue(newValue);
