@@ -3,15 +3,18 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertEntitySchema, insertTeamSchema, insertEntityHistorySchema, insertIssueSchema, insertUserSchema } from "@shared/schema";
 import { z } from "zod";
-import { setupSimpleAuth } from "./simple-auth";
+import { setupAuth } from "./unified-auth";
 import { setupTestRoutes } from "./test-routes";
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Set up simplified authentication (no password hashing)
-  setupSimpleAuth(app);
+  // Set up authentication with unified system
+  const isDevelopment = process.env.NODE_ENV !== "production";
+  setupAuth(app, { isDevelopment });
   
   // Set up test routes for development
-  setupTestRoutes(app);
+  if (isDevelopment) {
+    setupTestRoutes(app);
+  }
   
   // Middleware to check if user is authenticated
   const isAuthenticated = (req: Request, res: Response, next: NextFunction) => {
