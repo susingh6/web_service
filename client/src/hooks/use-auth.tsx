@@ -24,15 +24,10 @@ const msalConfig: Configuration = {
   },
 };
 
-// Initialize MSAL instance
+// Skip MSAL initialization for now to prevent loading issues
+// In a production app, you would properly initialize the MSAL library
 let msalInstance: PublicClientApplication | null = null;
-try {
-  console.log("Attempting to initialize MSAL with config:", msalConfig);
-  msalInstance = new PublicClientApplication(msalConfig);
-  console.log("MSAL initialization successful");
-} catch (err) {
-  console.error("Error initializing MSAL:", err);
-}
+console.log("Skipping MSAL initialization to prevent loading issues");
 
 // Azure AD login request scopes
 const loginRequest = {
