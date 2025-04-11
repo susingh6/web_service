@@ -112,7 +112,7 @@ export function FormTextField<T extends FieldValues>({
  * Option type for select fields
  */
 interface SelectOption {
-  value: string | number | boolean;
+  value: string | number;
   label: string;
 }
 
@@ -176,12 +176,12 @@ export function FormSelect<T extends FieldValues>({
               if (multiple && Array.isArray(selected)) {
                 return (
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                    {selected.map((value) => {
+                    {selected.map((value: string | number) => {
                       const option = options.find(opt => opt.value === value);
                       return (
                         <Chip 
                           key={value.toString()} 
-                          label={option ? option.label : value} 
+                          label={option ? option.label : String(value)} 
                           size="small"
                         />
                       );
@@ -201,7 +201,10 @@ export function FormSelect<T extends FieldValues>({
             )}
             
             {options.map((option) => (
-              <MenuItem key={option.value.toString()} value={option.value}>
+              <MenuItem 
+                key={String(option.value)} 
+                value={option.value}
+              >
                 {option.label}
               </MenuItem>
             ))}

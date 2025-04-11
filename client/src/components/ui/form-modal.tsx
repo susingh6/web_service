@@ -18,7 +18,7 @@ interface FormModalProps<
   /**
    * Default values for the form
    */
-  defaultValues?: Partial<TFormValues>;
+  defaultValues?: UseFormProps<TFormValues>['defaultValues'];
   
   /**
    * Function to call when the form is submitted
