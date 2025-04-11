@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Loader2, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Eye, EyeOff, LogOut } from 'lucide-react';
 import monitoringIllustration from '../assets/monitoring-illustration.svg';
 
 // Login form schema
@@ -20,7 +20,7 @@ const loginSchema = z.object({
 type LoginFormValues = z.infer<typeof loginSchema>;
 
 const AuthPage = () => {
-  const { isAuthenticated, isLoading, loginMutation, loginWithAzure } = useAuth();
+  const { isAuthenticated, isLoading, loginMutation, loginWithAzure, logout } = useAuth();
   const [, navigate] = useLocation();
   const [showPassword, setShowPassword] = useState(false);
 
@@ -52,6 +52,12 @@ const AuthPage = () => {
     // No actual authentication happens
   };
 
+  // Handle explicit logout
+  const handleLogout = async () => {
+    await logout();
+    console.log("User logged out manually from login page");
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -61,7 +67,20 @@ const AuthPage = () => {
   }
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen relative">
+      {/* Logout button fixed at top right */}
+      <div className="absolute top-4 right-4 z-10">
+        <Button
+          variant="outline"
+          size="sm"
+          className="text-muted-foreground"
+          onClick={handleLogout}
+        >
+          <LogOut className="h-4 w-4 mr-2" />
+          Clear Session
+        </Button>
+      </div>
+      
       {/* Left panel with forms */}
       <div className="flex-1 flex items-center justify-center p-6 bg-background">
         <Card className="w-full max-w-md">
