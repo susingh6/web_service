@@ -1,20 +1,15 @@
 import React, { ReactNode } from 'react';
-import {
-  useForm,
-  UseFormProps,
-  UseFormReturn,
-  FieldValues,
-  SubmitHandler,
-  FormProvider,
-} from 'react-hook-form';
+import { useForm, FormProvider, SubmitHandler, FieldValues, UseFormProps, SubmitErrorHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Alert, Box } from '@mui/material';
-import { memo } from 'react';
+import { Alert, AlertTitle, Box, CircularProgress, Paper } from '@mui/material';
 
-interface FormWrapperProps<TFormValues extends FieldValues, Schema extends z.ZodType<any, any>> {
+interface FormWrapperProps<
+  TFormValues extends FieldValues,
+  Schema extends z.ZodType<any, any>
+> {
   /**
-   * Zod schema for validation
+   * Zod schema for form validation
    */
   schema: Schema;
   
@@ -24,22 +19,22 @@ interface FormWrapperProps<TFormValues extends FieldValues, Schema extends z.Zod
   defaultValues?: UseFormProps<TFormValues>['defaultValues'];
   
   /**
-   * Form submission handler
+   * Function to call when form is submitted successfully
    */
   onSubmit: SubmitHandler<TFormValues>;
   
   /**
-   * Children can be a render function that receives form methods
+   * Function to call when form submission has errors
    */
-  children: ((methods: UseFormReturn<TFormValues>) => ReactNode) | ReactNode;
+  onError?: SubmitErrorHandler<TFormValues>;
   
   /**
-   * Additional form props
+   * Form fields to render
    */
-  formProps?: React.FormHTMLAttributes<HTMLFormElement>;
+  children: ReactNode;
   
   /**
-   * Loading state of the form
+   * Whether the form is loading/submitting
    */
   isLoading?: boolean;
   
@@ -47,61 +42,93 @@ interface FormWrapperProps<TFormValues extends FieldValues, Schema extends z.Zod
    * Server-side error message
    */
   serverError?: string | null;
+  
+  /**
+   * Props to pass to the form element
+   */
+  formProps?: React.FormHTMLAttributes<HTMLFormElement>;
+  
+  /**
+   * Whether to display a loading indicator
+   */
+  showLoadingIndicator?: boolean;
+  
+  /**
+   * Additional class names
+   */
+  className?: string;
 }
 
 /**
- * A wrapper component that standardizes form handling with react-hook-form and zod validation
+ * A standardized form wrapper component that handles validation with Zod
+ * and form state with react-hook-form
  */
-function FormWrapperComponent<
+function FormWrapper<
   TFormValues extends FieldValues,
   Schema extends z.ZodType<any, any>
 >({
   schema,
   defaultValues,
   onSubmit,
+  onError,
   children,
-  formProps,
   isLoading = false,
   serverError,
+  formProps = {},
+  showLoadingIndicator = true,
+  className,
 }: FormWrapperProps<TFormValues, Schema>) {
-  // Initialize form with zod resolver and default values
+  // Initialize the form with schema validation
   const methods = useForm<TFormValues>({
     resolver: zodResolver(schema),
     defaultValues,
     mode: 'onBlur', // Validate on blur for better UX
   });
-
+  
   return (
     <FormProvider {...methods}>
-      <form
-        onSubmit={methods.handleSubmit(onSubmit)}
+      <Box
+        component="form"
+        noValidate
+        onSubmit={methods.handleSubmit(onSubmit, onError)}
+        className={className}
+        sx={{ position: 'relative' }}
         {...formProps}
       >
-        {/* Server error display */}
-        {serverError && (
-          <Box mb={3}>
-            <Alert severity="error">{serverError}</Alert>
+        {/* Show loading overlay when submitting */}
+        {isLoading && showLoadingIndicator && (
+          <Box
+            sx={{
+              position: 'absolute',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              inset: 0,
+              backgroundColor: 'rgba(255, 255, 255, 0.7)',
+              zIndex: 10,
+              borderRadius: 'inherit',
+            }}
+          >
+            <CircularProgress />
           </Box>
         )}
         
-        {/* Children can be a render function that receives form methods */}
-        {typeof children === 'function' ? children(methods) : children}
-      </form>
+        {/* Display server error if present */}
+        {serverError && (
+          <Alert 
+            severity="error" 
+            sx={{ mb: 3 }}
+          >
+            <AlertTitle>Error</AlertTitle>
+            {serverError}
+          </Alert>
+        )}
+        
+        {/* Render form fields */}
+        {children}
+      </Box>
     </FormProvider>
   );
 }
-
-// Use memo to prevent unnecessary re-renders
-const FormWrapper = memo(
-  FormWrapperComponent,
-  (prevProps, nextProps) => {
-    // Only re-render if any of these props change
-    return (
-      prevProps.isLoading === nextProps.isLoading &&
-      prevProps.serverError === nextProps.serverError &&
-      prevProps.defaultValues === nextProps.defaultValues
-    );
-  }
-) as typeof FormWrapperComponent;
 
 export default FormWrapper;

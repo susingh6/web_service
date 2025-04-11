@@ -1,55 +1,84 @@
-import React from 'react';
-import { Controller, useFormContext } from 'react-hook-form';
+import React, { ReactNode } from 'react';
+import { useFormContext, Controller, Path, FieldValues } from 'react-hook-form';
 import {
   TextField,
+  TextFieldProps,
+  FormControl,
+  InputLabel,
+  Select as MuiSelect,
+  MenuItem,
+  FormHelperText,
+  SelectProps as MuiSelectProps,
   Checkbox,
   FormControlLabel,
-  FormControl,
-  FormHelperText,
-  Select,
-  MenuItem,
-  InputLabel,
-  Switch,
-  Autocomplete,
   FormGroup,
-  Box,
+  FormLabel,
+  Switch,
+  SwitchProps,
   Typography,
+  Box,
+  Divider,
+  Autocomplete,
   Chip,
+  Paper,
+  Stack,
 } from '@mui/material';
-import { memo } from 'react';
 
-// ----- Text Field -----
-interface FormTextFieldProps {
-  name: string;
-  label: string;
-  placeholder?: string;
+/**
+ * Base props for all form field components
+ */
+interface BaseFieldProps {
+  label?: string;
   helperText?: string;
-  type?: string;
   required?: boolean;
   disabled?: boolean;
   fullWidth?: boolean;
-  multiline?: boolean;
-  rows?: number;
-  variant?: 'outlined' | 'filled' | 'standard';
-  size?: 'small' | 'medium';
+  className?: string;
 }
 
-export const FormTextField = memo(function FormTextField({
+/**
+ * Common props for all controlled form fields
+ */
+export interface ControlledFieldProps<T extends FieldValues> extends BaseFieldProps {
+  name: Path<T>;
+}
+
+/**
+ * Props for FormTextField component
+ */
+export interface FormTextFieldProps<T extends FieldValues> extends ControlledFieldProps<T> {
+  type?: TextFieldProps['type'];
+  multiline?: boolean;
+  rows?: number;
+  placeholder?: string;
+  variant?: TextFieldProps['variant'];
+  size?: TextFieldProps['size'];
+  InputProps?: TextFieldProps['InputProps'];
+  inputProps?: TextFieldProps['inputProps'];
+}
+
+/**
+ * A controlled text field component for use with react-hook-form
+ */
+export function FormTextField<T extends FieldValues>({
   name,
   label,
-  placeholder,
   helperText,
-  type = 'text',
   required = false,
   disabled = false,
   fullWidth = true,
+  type = 'text',
   multiline = false,
-  rows = 1,
+  rows,
+  placeholder,
   variant = 'outlined',
-  size = 'small',
-}: FormTextFieldProps) {
-  const { control, formState: { errors } } = useFormContext();
-  const error = errors[name];
+  size = 'medium',
+  InputProps,
+  inputProps,
+  className,
+}: FormTextFieldProps<T>) {
+  const { control, formState } = useFormContext<T>();
+  const error = formState.errors[name];
   
   return (
     <Controller
@@ -59,133 +88,160 @@ export const FormTextField = memo(function FormTextField({
         <TextField
           {...field}
           label={label}
-          placeholder={placeholder}
-          helperText={error ? String(error.message) : helperText}
-          error={!!error}
           type={type}
+          multiline={multiline}
+          rows={rows}
           required={required}
           disabled={disabled}
           fullWidth={fullWidth}
-          multiline={multiline}
-          rows={rows}
+          placeholder={placeholder}
           variant={variant}
           size={size}
+          InputProps={InputProps}
+          inputProps={inputProps}
+          className={className}
+          error={!!error}
+          helperText={error ? (error.message as string) : helperText}
         />
       )}
     />
   );
-});
-
-// ----- Checkbox Field -----
-interface FormCheckboxProps {
-  name: string;
-  label: string;
-  helperText?: string;
-  disabled?: boolean;
 }
 
-export const FormCheckbox = memo(function FormCheckbox({
-  name,
-  label,
-  helperText,
-  disabled = false,
-}: FormCheckboxProps) {
-  const { control, formState: { errors } } = useFormContext();
-  const error = errors[name];
-  
-  return (
-    <Controller
-      name={name}
-      control={control}
-      render={({ field: { onChange, value, ref } }) => (
-        <FormControl error={!!error} disabled={disabled}>
-          <FormControlLabel
-            control={
-              <Checkbox
-                onChange={onChange}
-                checked={!!value}
-                inputRef={ref}
-              />
-            }
-            label={label}
-          />
-          {(error || helperText) && (
-            <FormHelperText>{error ? String(error.message) : helperText}</FormHelperText>
-          )}
-        </FormControl>
-      )}
-    />
-  );
-});
-
-// ----- Switch Field -----
-interface FormSwitchProps {
-  name: string;
+/**
+ * Option type for select fields
+ */
+interface SelectOption {
+  value: string | number | boolean;
   label: string;
-  helperText?: string;
-  disabled?: boolean;
 }
 
-export const FormSwitch = memo(function FormSwitch({
-  name,
-  label,
-  helperText,
-  disabled = false,
-}: FormSwitchProps) {
-  const { control, formState: { errors } } = useFormContext();
-  const error = errors[name];
-  
-  return (
-    <Controller
-      name={name}
-      control={control}
-      render={({ field: { onChange, value, ref } }) => (
-        <FormControl error={!!error} disabled={disabled}>
-          <FormControlLabel
-            control={
-              <Switch
-                onChange={onChange}
-                checked={!!value}
-                inputRef={ref}
-              />
-            }
-            label={label}
-          />
-          {(error || helperText) && (
-            <FormHelperText>{error ? String(error.message) : helperText}</FormHelperText>
-          )}
-        </FormControl>
-      )}
-    />
-  );
-});
-
-// ----- Select Field -----
-interface FormSelectProps {
-  name: string;
-  label: string;
-  options: { value: string | number; label: string }[];
-  helperText?: string;
-  required?: boolean;
-  disabled?: boolean;
-  fullWidth?: boolean;
-  variant?: 'outlined' | 'filled' | 'standard';
-  size?: 'small' | 'medium';
+/**
+ * Props for FormSelect component
+ */
+export interface FormSelectProps<T extends FieldValues> extends ControlledFieldProps<T> {
+  options: SelectOption[];
+  placeholder?: string;
+  variant?: MuiSelectProps['variant'];
+  size?: MuiSelectProps['size'];
+  multiple?: boolean;
 }
 
-export const FormSelect = memo(function FormSelect({
+/**
+ * A controlled select field component for use with react-hook-form
+ */
+export function FormSelect<T extends FieldValues>({
   name,
   label,
-  options,
   helperText,
   required = false,
   disabled = false,
   fullWidth = true,
+  options,
+  placeholder,
   variant = 'outlined',
-  size = 'small',
-}: FormSelectProps) {
-  const { control, formState: { errors } } = useFormContext();
-  const error = errors[name];
+  size = 'medium',
+  multiple = false,
+  className,
+}: FormSelectProps<T>) {
+  const { control, formState } = useFormContext<T>();
+  const error = formState.errors[name];
+  
+  return (
+    <Controller
+      name={name}
+      control={control}
+      render={({ field }) => (
+        <FormControl 
+          fullWidth={fullWidth} 
+          error={!!error} 
+          required={required}
+          variant={variant}
+          size={size}
+          disabled={disabled}
+          className={className}
+        >
+          {label && <InputLabel>{label}</InputLabel>}
+          
+          <MuiSelect
+            {...field}
+            label={label}
+            multiple={multiple}
+            displayEmpty={!!placeholder}
+            renderValue={(selected) => {
+              if (!selected) {
+                return <Typography color="text.secondary">{placeholder}</Typography>;
+              }
+              
+              if (multiple && Array.isArray(selected)) {
+                return (
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                    {selected.map((value) => {
+                      const option = options.find(opt => opt.value === value);
+                      return (
+                        <Chip 
+                          key={value.toString()} 
+                          label={option ? option.label : value} 
+                          size="small"
+                        />
+                      );
+                    })}
+                  </Box>
+                );
+              }
+              
+              const option = options.find(opt => opt.value === selected);
+              return option ? option.label : selected;
+            }}
+          >
+            {placeholder && (
+              <MenuItem value="" disabled>
+                <Typography color="text.secondary">{placeholder}</Typography>
+              </MenuItem>
+            )}
+            
+            {options.map((option) => (
+              <MenuItem key={option.value.toString()} value={option.value}>
+                {option.label}
+              </MenuItem>
+            ))}
+          </MuiSelect>
+          
+          {(error || helperText) && (
+            <FormHelperText>
+              {error ? (error.message as string) : helperText}
+            </FormHelperText>
+          )}
+        </FormControl>
+      )}
+    />
+  );
+}
+
+/**
+ * Props for FormCheckbox component
+ */
+export interface FormCheckboxProps<T extends FieldValues> extends ControlledFieldProps<T> {
+  /**
+   * Position of the label relative to the checkbox
+   */
+  labelPlacement?: 'end' | 'start' | 'top' | 'bottom';
+}
+
+/**
+ * A controlled checkbox component for use with react-hook-form
+ */
+export function FormCheckbox<T extends FieldValues>({
+  name,
+  label,
+  helperText,
+  required = false,
+  disabled = false,
+  labelPlacement = 'end',
+  className,
+}: FormCheckboxProps<T>) {
+  const { control, formState } = useFormContext<T>();
+  const error = formState.errors[name];
   
   return (
     <Controller
@@ -193,142 +249,288 @@ export const FormSelect = memo(function FormSelect({
       control={control}
       render={({ field }) => (
         <FormControl
-          error={!!error}
           required={required}
+          error={!!error}
           disabled={disabled}
-          fullWidth={fullWidth}
-          variant={variant}
-          size={size}
+          className={className}
         >
-          <InputLabel id={`${name}-label`}>{label}</InputLabel>
-          <Select
-            {...field}
-            labelId={`${name}-label`}
-            label={label}
-          >
-            {options.map((option) => (
-              <MenuItem key={option.value} value={option.value}>
-                {option.label}
-              </MenuItem>
-            ))}
-          </Select>
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={!!field.value}
+                onChange={(e) => field.onChange(e.target.checked)}
+                inputRef={field.ref}
+                name={field.name}
+                onBlur={field.onBlur}
+              />
+            }
+            label={label || ''}
+            labelPlacement={labelPlacement}
+          />
+          
           {(error || helperText) && (
-            <FormHelperText>{error ? String(error.message) : helperText}</FormHelperText>
+            <FormHelperText>
+              {error ? (error.message as string) : helperText}
+            </FormHelperText>
           )}
         </FormControl>
       )}
     />
   );
-});
-
-// ----- Autocomplete Field -----
-interface FormAutocompleteProps {
-  name: string;
-  label: string;
-  options: { value: string | number; label: string }[];
-  helperText?: string;
-  required?: boolean;
-  disabled?: boolean;
-  fullWidth?: boolean;
-  multiple?: boolean;
-  disableClearable?: boolean;
-  size?: 'small' | 'medium';
 }
 
-export const FormAutocomplete = memo(function FormAutocomplete({
+/**
+ * Props for FormSwitch component
+ */
+export interface FormSwitchProps<T extends FieldValues> extends ControlledFieldProps<T> {
+  /**
+   * Position of the label relative to the switch
+   */
+  labelPlacement?: 'end' | 'start' | 'top' | 'bottom';
+  
+  /**
+   * Custom props for the Switch component
+   */
+  switchProps?: Partial<SwitchProps>;
+}
+
+/**
+ * A controlled switch component for use with react-hook-form
+ */
+export function FormSwitch<T extends FieldValues>({
   name,
   label,
-  options,
+  helperText,
+  required = false,
+  disabled = false,
+  labelPlacement = 'end',
+  switchProps,
+  className,
+}: FormSwitchProps<T>) {
+  const { control, formState } = useFormContext<T>();
+  const error = formState.errors[name];
+  
+  return (
+    <Controller
+      name={name}
+      control={control}
+      render={({ field }) => (
+        <FormControl
+          required={required}
+          error={!!error}
+          disabled={disabled}
+          className={className}
+        >
+          <FormControlLabel
+            control={
+              <Switch
+                checked={!!field.value}
+                onChange={(e) => field.onChange(e.target.checked)}
+                inputRef={field.ref}
+                name={field.name}
+                onBlur={field.onBlur}
+                {...switchProps}
+              />
+            }
+            label={label || ''}
+            labelPlacement={labelPlacement}
+          />
+          
+          {(error || helperText) && (
+            <FormHelperText>
+              {error ? (error.message as string) : helperText}
+            </FormHelperText>
+          )}
+        </FormControl>
+      )}
+    />
+  );
+}
+
+/**
+ * Props for FormAutocomplete component
+ */
+export interface FormAutocompleteProps<T extends FieldValues> extends ControlledFieldProps<T> {
+  /**
+   * Options for the autocomplete
+   */
+  options: SelectOption[];
+  
+  /**
+   * Whether multiple values can be selected
+   */
+  multiple?: boolean;
+  
+  /**
+   * Whether to allow creating new options
+   */
+  freeSolo?: boolean;
+  
+  /**
+   * Placeholder text
+   */
+  placeholder?: string;
+  
+  /**
+   * Variant of the input
+   */
+  variant?: TextFieldProps['variant'];
+  
+  /**
+   * Size of the input
+   */
+  size?: TextFieldProps['size'];
+}
+
+/**
+ * A controlled autocomplete component for use with react-hook-form
+ */
+export function FormAutocomplete<T extends FieldValues>({
+  name,
+  label,
   helperText,
   required = false,
   disabled = false,
   fullWidth = true,
+  options,
   multiple = false,
-  disableClearable = false,
-  size = 'small',
-}: FormAutocompleteProps) {
-  const { control, formState: { errors } } = useFormContext();
-  const error = errors[name];
+  freeSolo = false,
+  placeholder,
+  variant = 'outlined',
+  size = 'medium',
+  className,
+}: FormAutocompleteProps<T>) {
+  const { control, formState } = useFormContext<T>();
+  const error = formState.errors[name];
   
   return (
     <Controller
       name={name}
       control={control}
       render={({ field: { onChange, value, ref, ...field } }) => (
-        <FormControl 
-          error={!!error} 
-          required={required} 
+        <Autocomplete
+          {...field}
+          multiple={multiple}
+          freeSolo={freeSolo}
+          options={options.map(option => option.value)}
+          getOptionLabel={(option) => {
+            // Value can be a string/number directly from freeSolo or an option from the list
+            if (option === null) return '';
+            
+            const optionItem = options.find(item => item.value === option);
+            return optionItem ? optionItem.label : option.toString();
+          }}
+          value={value === undefined ? (multiple ? [] : null) : value}
+          onChange={(_, newValue) => {
+            onChange(newValue);
+          }}
           disabled={disabled}
           fullWidth={fullWidth}
-        >
-          <Autocomplete
-            {...field}
-            value={value}
-            onChange={(_, newValue) => {
-              onChange(newValue);
-            }}
-            options={options}
-            getOptionLabel={(option) => {
-              // Handle both string values and object values
-              if (typeof option === 'string') {
-                return option;
-              }
-              const foundOption = options.find(o => o.value === option.value);
-              return foundOption ? foundOption.label : '';
-            }}
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                label={label}
-                error={!!error}
-                inputRef={ref}
-                required={required}
-                size={size}
-              />
-            )}
-            disableClearable={disableClearable}
-            multiple={multiple}
-            renderTags={(value, getTagProps) =>
-              value.map((option, index) => (
-                <Chip
-                  label={typeof option === 'string' ? option : option.label}
-                  {...getTagProps({ index })}
-                  key={index}
-                />
-              ))
-            }
-          />
-          {(error || helperText) && (
-            <FormHelperText>{error ? String(error.message) : helperText}</FormHelperText>
+          renderInput={(params) => (
+            <TextField
+              {...params}
+              label={label}
+              placeholder={placeholder}
+              variant={variant}
+              size={size}
+              required={required}
+              error={!!error}
+              helperText={error ? (error.message as string) : helperText}
+              inputRef={ref}
+            />
           )}
-        </FormControl>
+          renderTags={(values, getTagProps) =>
+            values.map((value, index) => {
+              const optionItem = options.find(item => item.value === value);
+              const label = optionItem ? optionItem.label : value.toString();
+              return (
+                <Chip
+                  variant="filled"
+                  label={label}
+                  size="small"
+                  {...getTagProps({ index })}
+                />
+              );
+            })
+          }
+          className={className}
+        />
       )}
     />
   );
-});
-
-// ----- Form Section -----
-interface FormSectionProps {
-  title?: string;
-  children: React.ReactNode;
-  spacing?: number;
 }
 
-export const FormSection = memo(function FormSection({
+/**
+ * Props for FormSection component
+ */
+interface FormSectionProps {
+  /**
+   * Section title
+   */
+  title: string;
+  
+  /**
+   * Section description
+   */
+  description?: string;
+  
+  /**
+   * Section content
+   */
+  children: ReactNode;
+  
+  /**
+   * Whether to show a divider
+   */
+  divider?: boolean;
+  
+  /**
+   * CSS class name
+   */
+  className?: string;
+}
+
+/**
+ * A section component for grouping form fields
+ */
+export function FormSection({
   title,
+  description,
   children,
-  spacing = 2,
+  divider = true,
+  className,
 }: FormSectionProps) {
   return (
-    <Box mb={3}>
-      {title && (
-        <Typography variant="subtitle1" fontWeight={500} mb={1}>
-          {title}
+    <Box 
+      component={Paper} 
+      variant="outlined" 
+      sx={{ p: 3, mb: 3 }}
+      className={className}
+    >
+      <Typography 
+        variant="h6" 
+        fontWeight={500} 
+        color="primary" 
+        gutterBottom
+      >
+        {title}
+      </Typography>
+      
+      {description && (
+        <Typography 
+          variant="body2" 
+          color="text.secondary" 
+          sx={{ mb: 2 }}
+        >
+          {description}
         </Typography>
       )}
-      <FormGroup sx={{ gap: spacing }}>
+      
+      {divider && <Divider sx={{ my: 2 }} />}
+      
+      <Stack spacing={2.5} mt={2}>
         {children}
-      </FormGroup>
+      </Stack>
     </Box>
   );
-});
+}
