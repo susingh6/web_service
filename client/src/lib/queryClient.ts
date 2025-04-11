@@ -1,6 +1,7 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 import { cacheService, DEFAULT_CACHE_TTL } from "./cacheService";
 import { ApiErrorResponse, ApiSuccessResponse } from "@shared/api-types";
+import { extractData, formatErrorMessage, isStandardResponse } from "./apiResponseUtils";
 
 /**
  * Interface for standardized API responses
@@ -16,28 +17,16 @@ interface StandardAPIResponse<T> {
 /**
  * Validates and throws an error if the response is not successful
  * @param res Fetch Response object to validate
- * @throws Error with status code and response text if the response is not ok
+ * @throws Error with formatted error message if the response is not ok
  */
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
     try {
-      // Try to parse as JSON first (new standardized format)
-      const errorData = await res.json() as ApiErrorResponse;
+      // Try to parse as JSON first
+      const errorData = await res.json();
       
-      // Format error message including field validation errors if available
-      let errorMessage = errorData.message || res.statusText;
-      
-      if (errorData.errors) {
-        if (Array.isArray(errorData.errors)) {
-          errorMessage += ': ' + errorData.errors.join(', ');
-        } else {
-          const fieldErrors = Object.entries(errorData.errors)
-            .map(([field, msgs]) => `${field}: ${msgs.join(', ')}`)
-            .join('; ');
-          errorMessage += ': ' + fieldErrors;
-        }
-      }
-      
+      // Use our utility to format error message regardless of format
+      const errorMessage = formatErrorMessage(errorData);
       throw new Error(errorMessage);
     } catch (parseError) {
       // Fallback to plain text if JSON parsing fails
@@ -81,24 +70,14 @@ export async function apiRequest(
   const clonedRes = res.clone();
   
   // If extractData option is enabled, modify the response prototype to
-  // provide a json() method that automatically extracts standardized data
+  // provide a json() method that automatically extracts data from any response format
   if (options?.extractData) {
     const originalJson = res.json.bind(res);
     
-    // Override the json method to extract the data property
+    // Override the json method to extract data using our utility
     res.json = async function<T>() {
       const responseJson = await originalJson();
-      
-      // If response follows standard format with success and data fields
-      if (responseJson && 
-          typeof responseJson === 'object' && 
-          'success' in responseJson && 
-          responseJson.success === true &&
-          'data' in responseJson) {
-        return responseJson.data as T;
-      }
-      
-      return responseJson as T;
+      return extractData<T>(responseJson);
     };
   }
   
@@ -156,15 +135,8 @@ export const getQueryFn: <T>(options: QueryFnOptions) => QueryFunction<T> =
     // Parse the response
     const responseJson = await res.json();
     
-    // Extract data from standardized response format
-    // If the response follows the standardized format, extract the data property
-    // Otherwise, return the response as-is (for backward compatibility)
-    const data = responseJson && 
-                typeof responseJson === 'object' && 
-                'success' in responseJson && 
-                'data' in responseJson
-      ? responseJson.data
-      : responseJson;
+    // Use our utility to extract data from any response format
+    const data = extractData(responseJson);
     
     // Store in cache if enabled
     if (useCache) {
