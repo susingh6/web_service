@@ -20,17 +20,13 @@ const loginSchema = z.object({
 type LoginFormValues = z.infer<typeof loginSchema>;
 
 const AuthPage = () => {
-  console.log("AuthPage component rendering");
   const { isAuthenticated, isLoading, loginMutation, loginWithAzure, logout } = useAuth();
-  console.log("Auth states:", { isAuthenticated, isLoading });
   const [, navigate] = useLocation();
   const [showPassword, setShowPassword] = useState(false);
 
   // Redirect if already authenticated
   useEffect(() => {
-    console.log("AuthPage useEffect - auth state:", { isAuthenticated });
     if (isAuthenticated) {
-      console.log("User is authenticated, redirecting to /");
       navigate('/');
     }
   }, [isAuthenticated, navigate]);
@@ -62,18 +58,13 @@ const AuthPage = () => {
     console.log("User logged out manually from login page");
   };
 
-  // Debug workaround for Replit webview loading issue - don't return early with spinner
-  console.log("AuthPage loading state:", isLoading);
-  // if (isLoading) {
-  //   console.log("AuthPage is in loading state");
-  //   return (
-  //     <div className="flex items-center justify-center min-h-screen">
-  //       <Loader2 className="h-8 w-8 animate-spin text-primary" />
-  //     </div>
-  //   );
-  // }
-  
-  console.log("AuthPage rendering main form content");
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen relative">

@@ -25,11 +25,9 @@ const msalConfig: Configuration = {
 };
 
 // Initialize MSAL instance
-let msalInstance: PublicClientApplication | null = null;
+let msalInstance: PublicClientApplication;
 try {
-  console.log("Attempting to initialize MSAL with config:", msalConfig);
   msalInstance = new PublicClientApplication(msalConfig);
-  console.log("MSAL initialization successful");
 } catch (err) {
   console.error("Error initializing MSAL:", err);
 }
@@ -97,33 +95,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Check if user is authenticated with Azure AD on mount
   useEffect(() => {
     const initializeAzureAuth = async () => {
-      console.log("Starting Azure AD auth initialization");
-      setIsAzureLoading(true);
-      
       try {
         // Check if there are any accounts in the cache
         if (msalInstance) {
-          console.log("MSAL instance available, checking accounts");
           const accounts = msalInstance.getAllAccounts();
-          console.log("Found accounts:", accounts.length);
           
           if (accounts.length > 0) {
-            console.log("Setting active account from cache");
             msalInstance.setActiveAccount(accounts[0]);
             setAzureUser(accounts[0]);
             setAuthMethod('azure');
-          } else {
-            console.log("No accounts found in MSAL cache");
           }
-        } else {
-          console.log("MSAL instance is null, skipping Azure AD initialization");
         }
       } catch (err) {
         console.error('Azure AD authentication initialization error:', err);
-        setAzureError(`Azure initialization error: ${err}`);
-      } finally {
-        setIsAzureLoading(false);
-        console.log("Azure AD initialization complete");
       }
     };
 
@@ -241,19 +225,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Determine the current user based on auth method
   const user = authMethod === 'azure' ? azureUser : localUser;
-  console.log("Current user state:", { authMethod, azureUser, localUser, user });
   
   // Determine authentication status
   const isAuthenticated = !!user;
   
-  // Determine loading status - force to false for debugging Replit webview issue
-  // const isLoading = isLocalLoading || isAzureLoading;
-  const isLoading = false; // Temporarily force to false to debug Replit webview issue
-  console.log("Loading state:", { isLocalLoading, isAzureLoading, isLoading, forceDisabled: true });
+  // Determine loading status
+  const isLoading = isLocalLoading || isAzureLoading;
   
   // Determine error status
   const error = localError || azureError;
-  console.log("Error state:", { localError, azureError, error });
 
   // Context value
   const contextValue: AuthContextType = {
