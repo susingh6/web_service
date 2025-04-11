@@ -1,5 +1,17 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 import { cacheService, DEFAULT_CACHE_TTL } from "./cacheService";
+import { ApiErrorResponse, ApiSuccessResponse } from "@shared/api-types";
+
+/**
+ * Interface for standardized API responses
+ */
+interface StandardAPIResponse<T> {
+  success: boolean;
+  data?: T;
+  message?: string;
+  errors?: Record<string, string[]> | string[];
+  code?: string;
+}
 
 /**
  * Validates and throws an error if the response is not successful
@@ -8,8 +20,30 @@ import { cacheService, DEFAULT_CACHE_TTL } from "./cacheService";
  */
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
-    const text = (await res.text()) || res.statusText;
-    throw new Error(`${res.status}: ${text}`);
+    try {
+      // Try to parse as JSON first (new standardized format)
+      const errorData = await res.json() as ApiErrorResponse;
+      
+      // Format error message including field validation errors if available
+      let errorMessage = errorData.message || res.statusText;
+      
+      if (errorData.errors) {
+        if (Array.isArray(errorData.errors)) {
+          errorMessage += ': ' + errorData.errors.join(', ');
+        } else {
+          const fieldErrors = Object.entries(errorData.errors)
+            .map(([field, msgs]) => `${field}: ${msgs.join(', ')}`)
+            .join('; ');
+          errorMessage += ': ' + fieldErrors;
+        }
+      }
+      
+      throw new Error(errorMessage);
+    } catch (parseError) {
+      // Fallback to plain text if JSON parsing fails
+      const text = await res.text() || res.statusText;
+      throw new Error(`${res.status}: ${text}`);
+    }
   }
 }
 
@@ -18,12 +52,16 @@ async function throwIfResNotOk(res: Response) {
  * @param method HTTP method (GET, POST, PUT, DELETE, etc.)
  * @param url API endpoint URL
  * @param data Optional data to send in the request body
+ * @param options Additional options for the request
  * @returns Promise resolving to the Response object
  */
 export async function apiRequest(
   method: string,
   url: string,
   data?: unknown | undefined,
+  options?: {
+    extractData?: boolean; // Whether to extract .data from the standard response
+  }
 ): Promise<Response> {
   const res = await fetch(url, {
     method,
@@ -33,6 +71,37 @@ export async function apiRequest(
   });
 
   await throwIfResNotOk(res);
+  
+  // For methods like DELETE that might return 204 No Content
+  if (res.status === 204) {
+    return res;
+  }
+  
+  // Clone the response to avoid consuming it
+  const clonedRes = res.clone();
+  
+  // If extractData option is enabled, modify the response prototype to
+  // provide a json() method that automatically extracts standardized data
+  if (options?.extractData) {
+    const originalJson = res.json.bind(res);
+    
+    // Override the json method to extract the data property
+    res.json = async function<T>() {
+      const responseJson = await originalJson();
+      
+      // If response follows standard format with success and data fields
+      if (responseJson && 
+          typeof responseJson === 'object' && 
+          'success' in responseJson && 
+          responseJson.success === true &&
+          'data' in responseJson) {
+        return responseJson.data as T;
+      }
+      
+      return responseJson as T;
+    };
+  }
+  
   return res;
 }
 
@@ -85,7 +154,17 @@ export const getQueryFn: <T>(options: QueryFnOptions) => QueryFunction<T> =
     await throwIfResNotOk(res);
     
     // Parse the response
-    const data = await res.json();
+    const responseJson = await res.json();
+    
+    // Extract data from standardized response format
+    // If the response follows the standardized format, extract the data property
+    // Otherwise, return the response as-is (for backward compatibility)
+    const data = responseJson && 
+                typeof responseJson === 'object' && 
+                'success' in responseJson && 
+                'data' in responseJson
+      ? responseJson.data
+      : responseJson;
     
     // Store in cache if enabled
     if (useCache) {

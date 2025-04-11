@@ -1,28 +1,47 @@
 // Test script to verify API response handling
 
 import { apiRequest } from './lib/queryClient';
+import { queryClient } from './lib/queryClient';
 
 async function testAPIs() {
   console.log('=== Testing API Responses ===');
   
   try {
-    // Test get teams
-    console.log('\nFetching teams:');
+    // Test 1: Standard approach showing raw response
+    console.log('\nTest 1: Raw Response Format');
+    console.log('Fetching teams using standard approach:');
     const teamsRes = await apiRequest('GET', '/api/teams');
     const teamsData = await teamsRes.json();
+    console.log('Raw response:', teamsData);
     console.log('Success?', teamsData.success);
     console.log('Teams count:', teamsData.data.length);
     
-    // Test get dashboard summary
-    console.log('\nFetching dashboard summary:');
-    const dashboardRes = await apiRequest('GET', '/api/dashboard/summary');
+    // Test 2: Using the extractData option
+    console.log('\nTest 2: Using extractData Option');
+    console.log('Fetching dashboard summary with extractData:');
+    const dashboardRes = await apiRequest('GET', '/api/dashboard/summary', undefined, { extractData: true });
     const dashboardData = await dashboardRes.json();
-    console.log('Success?', dashboardData.success);
-    console.log('Message:', dashboardData.message);
-    console.log('Metrics:', dashboardData.data.metrics);
+    console.log('Extracted data directly:', dashboardData);
+    console.log('Metrics:', dashboardData.metrics);
     
-    // Test error handling (invalid endpoint)
-    console.log('\nTesting error response:');
+    // Test 3: Using React Query's useQuery hook (simulation)
+    console.log('\nTest 3: React Query Pattern');
+    console.log('Simulating useQuery hook behavior:');
+    
+    const queryFn = queryClient.defaultOptions.queries?.queryFn;
+    if (queryFn) {
+      const data = await queryFn({ 
+        queryKey: ['/api/teams'],
+        meta: undefined
+      });
+      console.log('Data returned from useQuery:', data);
+      // Since the queryFn automatically extracts data, we don't need to access data.data
+      console.log('Teams count from useQuery:', Array.isArray(data) ? data.length : 'Not an array');
+    }
+    
+    // Test 4: Error handling
+    console.log('\nTest 4: Error Handling');
+    console.log('Testing error response:');
     try {
       const errorRes = await apiRequest('GET', '/api/nonexistent');
       const errorData = await errorRes.json();
