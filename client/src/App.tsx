@@ -5,18 +5,23 @@ import { AuthProvider } from "@/hooks/use-auth";
 import { Toaster } from "@/components/ui/toaster";
 import { ProtectedRoute } from "@/lib/protected-route";
 import AppLayout from "./components/layout/AppLayout";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useState, useEffect } from "react";
 import { createDynamicComponent, LoadingComponent } from "./components/DynamicImport";
 
 // Only import Not Found eagerly since it's small and might be needed immediately
 import NotFound from "@/pages/not-found";
 
-// Lazy load pages to reduce initial bundle size
-const AuthPage = createDynamicComponent(() => import("@/pages/auth-page"));
+// Import Auth Page directly to avoid lazy loading issues during development
+import AuthPage from "@/pages/auth-page";
+
+// Lazy load dashboard pages
 const Summary = createDynamicComponent(() => import("@/pages/dashboard/Summary"));
 const TeamDashboard = createDynamicComponent(() => import("@/pages/dashboard/TeamDashboard"));
 
 function Router() {
+  // For debugging - log when router renders
+  console.log("Router component rendering");
+  
   return (
     <Switch>
       {/* Auth routes */}
@@ -33,6 +38,31 @@ function Router() {
 }
 
 function App() {
+  const [isInitialized, setIsInitialized] = useState(false);
+  
+  // Ensure app has time to initialize
+  useEffect(() => {
+    console.log("App component mounted");
+    
+    // Mark as initialized after a short delay
+    const timer = setTimeout(() => {
+      console.log("App initialization completed");
+      setIsInitialized(true);
+    }, 100);
+    
+    return () => clearTimeout(timer);
+  }, []);
+  
+  // Show loading indicator during initialization
+  if (!isInitialized) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+        <span className="ml-3">Loading application...</span>
+      </div>
+    );
+  }
+  
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>

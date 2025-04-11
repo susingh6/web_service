@@ -1,5 +1,6 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
+import path from "path";
 import { storage } from "./storage";
 import { insertEntitySchema, insertTeamSchema, insertEntityHistorySchema, insertIssueSchema, insertUserSchema } from "@shared/schema";
 import { z } from "zod";
@@ -22,6 +23,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Set up test routes for development
   if (isDevelopment) {
     setupTestRoutes(app);
+    
+    // Add a route to serve our test login page
+    app.get("/test-login", (req, res) => {
+      res.sendFile(path.resolve(import.meta.dirname, "public", "test-login.html"));
+    });
   }
   
   // Middleware to check if user is authenticated
