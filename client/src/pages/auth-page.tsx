@@ -45,13 +45,11 @@ const AuthPage = () => {
     loginMutation.mutate(data);
   };
 
-  // Handle Azure AD login
-  const handleAzureLogin = async () => {
-    try {
-      await loginWithAzure();
-    } catch (error) {
-      console.error("Azure login error:", error);
-    }
+  // Handle Azure AD login - currently just a dummy function
+  const handleAzureLogin = () => {
+    // Dummy function - button is kept for UI demonstration only
+    console.log("Azure AD login button clicked - no action taken");
+    // No actual authentication happens
   };
 
   if (isLoading) {
@@ -79,8 +77,9 @@ const AuthPage = () => {
                 variant="default"
                 type="button"
                 size="lg"
-                className="w-full"
+                className="w-full relative bg-blue-600 hover:bg-blue-700"
                 onClick={handleAzureLogin}
+                title="Azure AD integration is not active in this demo"
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -164,6 +163,12 @@ const AuthPage = () => {
                   </Button>
                 </form>
               </Form>
+              
+              <p className="text-xs text-muted-foreground text-center mt-4">
+                <span className="block font-medium mb-1">Demo Credentials:</span>
+                Username: <span className="font-mono">azure_test_user</span><br />
+                Password: <span className="font-mono">Azure123!</span>
+              </p>
             </div>
           </CardContent>
           <CardFooter className="flex justify-center text-sm text-muted-foreground">

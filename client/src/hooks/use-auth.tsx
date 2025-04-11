@@ -162,40 +162,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
   });
 
-  // Azure AD login function
+  // Azure AD login function (simplified to use test credentials)
   const loginWithAzure = async (): Promise<void> => {
-    if (!msalInstance) {
-      setAzureError("Azure AD authentication is not initialized");
-      toast({
-        title: "Login failed",
-        description: "Azure AD authentication is not initialized",
-        variant: "destructive",
-      });
-      return;
-    }
-    
     try {
       setIsAzureLoading(true);
       setAzureError(null);
       
-      // Redirect to Microsoft login page
-      const response: AuthenticationResult = await msalInstance.loginPopup(loginRequest);
+      // Instead of Azure authentication, use test credentials
+      const testCredentials = {
+        username: "azure_test_user",
+        password: "Azure123!",
+      };
       
-      if (response) {
-        msalInstance.setActiveAccount(response.account);
-        setAzureUser(response.account);
-        setAuthMethod('azure');
-        toast({
-          title: "Login successful",
-          description: `Welcome, ${response.account.name || response.account.username}!`,
-          variant: "default",
-        });
-      }
+      // Use the regular login mutation with test credentials
+      loginMutation.mutate(testCredentials, {
+        onSuccess: () => {
+          toast({
+            title: "Azure login simulation",
+            description: "Using test credentials instead of actual Azure AD",
+            variant: "default",
+          });
+        }
+      });
     } catch (err) {
       setAzureError(`Login failed: ${err}`);
-      console.error('Azure login error:', err);
+      console.error('Login error:', err);
       toast({
-        title: "Azure AD login failed",
+        title: "Login failed",
         description: err instanceof Error ? err.message : String(err),
         variant: "destructive",
       });
@@ -206,27 +199,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Logout function
   const logout = async (): Promise<void> => {
-    if (authMethod === 'azure' && msalInstance) {
-      try {
-        const logoutRequest = {
-          account: msalInstance.getActiveAccount(),
-        };
-        
-        msalInstance.logout(logoutRequest);
-        setAzureUser(null);
-        setAuthMethod(null);
-      } catch (err) {
-        console.error('Azure logout error:', err);
-      }
-    } else if (authMethod === 'local') {
-      try {
-        await apiRequest("POST", "/api/logout");
-        queryClient.setQueryData(["/api/user"], null);
-        queryClient.invalidateQueries({ queryKey: ["/api/user"] });
-        setAuthMethod(null);
-      } catch (err) {
-        console.error('Local logout error:', err);
-      }
+    // For both auth methods (simulated Azure or local), use the standard logout endpoint
+    try {
+      await apiRequest("POST", "/api/logout");
+      queryClient.setQueryData(["/api/user"], null);
+      queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+      setAuthMethod(null);
+      setAzureUser(null);
+      
+      // Show a toast to indicate successful logout
+      toast({
+        title: "Logged out",
+        description: "You have been successfully logged out",
+        variant: "default",
+      });
+    } catch (err) {
+      console.error('Logout error:', err);
+      toast({
+        title: "Logout error",
+        description: "An error occurred during logout",
+        variant: "destructive",
+      });
     }
   };
 
