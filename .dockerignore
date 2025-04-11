@@ -5,7 +5,8 @@ npm-debug.log
 .env
 .DS_Store
 *.pem
-dist
+# Don't ignore dist since we need it for production
+# dist
 build
 coverage
 .vscode

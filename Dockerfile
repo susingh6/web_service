@@ -14,8 +14,17 @@ COPY . .
 EXPOSE 5000
 
 # Set environment variables
-ENV NODE_ENV=development
+ENV NODE_ENV=production
 ENV SESSION_SECRET=dev-secret-change-this
+ENV VITE_APP_ENV=production
+ENV VITE_API_TIMEOUT=30000
+ENV VITE_ENABLE_TEAM_COMPARISONS=true
+ENV VITE_ENABLE_HISTORY_TRACKING=true
+ENV VITE_ENABLE_AZURE_AUTH=false
+ENV VITE_DEFAULT_LOGIN_TYPE=local
 
-# Set the command to run the development server
-CMD ["npm", "run", "dev"]
+# Build the application
+RUN NODE_ENV=production npm run build
+
+# Set the command to run the production server
+CMD ["npm", "run", "start"]
