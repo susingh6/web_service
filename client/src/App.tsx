@@ -5,10 +5,16 @@ import { AuthProvider } from "@/hooks/use-auth";
 import { Toaster } from "@/components/ui/toaster";
 import { ProtectedRoute } from "@/lib/protected-route";
 import AppLayout from "./components/layout/AppLayout";
+import { lazy, Suspense } from "react";
+import { createDynamicComponent, LoadingComponent } from "./components/DynamicImport";
+
+// Only import Not Found eagerly since it's small and might be needed immediately
 import NotFound from "@/pages/not-found";
-import AuthPage from "@/pages/auth-page";
-import Summary from "@/pages/dashboard/Summary";
-import TeamDashboard from "@/pages/dashboard/TeamDashboard";
+
+// Lazy load pages to reduce initial bundle size
+const AuthPage = createDynamicComponent(() => import("@/pages/auth-page"));
+const Summary = createDynamicComponent(() => import("@/pages/dashboard/Summary"));
+const TeamDashboard = createDynamicComponent(() => import("@/pages/dashboard/TeamDashboard"));
 
 function Router() {
   return (
