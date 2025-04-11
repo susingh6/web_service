@@ -98,6 +98,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const initializeAzureAuth = async () => {
       console.log("Starting Azure AD auth initialization");
+      setIsAzureLoading(true);
+      
       try {
         // Check if there are any accounts in the cache
         if (msalInstance) {
@@ -118,8 +120,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       } catch (err) {
         console.error('Azure AD authentication initialization error:', err);
+        setAzureError(`Azure initialization error: ${err}`);
+      } finally {
+        setIsAzureLoading(false);
+        console.log("Azure AD initialization complete");
       }
-      console.log("Azure AD initialization complete");
     };
 
     initializeAzureAuth();
@@ -236,15 +241,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Determine the current user based on auth method
   const user = authMethod === 'azure' ? azureUser : localUser;
+  console.log("Current user state:", { authMethod, azureUser, localUser, user });
   
   // Determine authentication status
   const isAuthenticated = !!user;
   
   // Determine loading status
   const isLoading = isLocalLoading || isAzureLoading;
+  console.log("Loading state:", { isLocalLoading, isAzureLoading, isLoading });
   
   // Determine error status
   const error = localError || azureError;
+  console.log("Error state:", { localError, azureError, error });
 
   // Context value
   const contextValue: AuthContextType = {
