@@ -10,29 +10,34 @@ import AuthPage from "@/pages/auth-page";
 import Summary from "@/pages/dashboard/Summary";
 import TeamDashboard from "@/pages/dashboard/TeamDashboard";
 
-function Router() {
-  return (
-    <Switch>
-      {/* Auth routes */}
-      <Route path="/auth" component={AuthPage} />
-      
-      {/* Protected Dashboard routes */}
-      <ProtectedRoute path="/" component={Summary} />
-      <ProtectedRoute path="/team/:id" component={TeamDashboard} />
-      
-      {/* Fallback to 404 */}
-      <Route component={NotFound} />
-    </Switch>
-  );
-}
-
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <AppLayout>
-          <Router />
-        </AppLayout>
+        <Switch>
+          {/* Auth routes - not wrapped in AppLayout */}
+          <Route path="/auth">
+            <AuthPage />
+          </Route>
+          
+          {/* Protected Dashboard routes - wrapped in AppLayout */}
+          <ProtectedRoute path="/">
+            <AppLayout>
+              <Summary />
+            </AppLayout>
+          </ProtectedRoute>
+          
+          <ProtectedRoute path="/team/:id">
+            <AppLayout>
+              <TeamDashboard />
+            </AppLayout>
+          </ProtectedRoute>
+          
+          {/* Fallback to 404 */}
+          <Route>
+            <NotFound />
+          </Route>
+        </Switch>
         <Toaster />
       </AuthProvider>
     </QueryClientProvider>
