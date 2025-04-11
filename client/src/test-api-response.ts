@@ -28,7 +28,8 @@ async function testAPIs() {
     console.log('\nTest 3: React Query Pattern');
     console.log('Simulating useQuery hook behavior:');
     
-    const queryFn = queryClient.defaultOptions.queries?.queryFn;
+    const defaultOptions = queryClient.getDefaultOptions();
+    const queryFn = defaultOptions.queries?.queryFn;
     if (queryFn) {
       const data = await queryFn({ 
         queryKey: ['/api/teams'],

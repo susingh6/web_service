@@ -64,37 +64,42 @@ export const preloadAllCacheData = async (): Promise<void> => {
     initializeCache();
     
     // Load teams data
-    await cacheService.fetchWithCache(
-      "/api/teams",
-      CACHE_KEYS.TEAMS,
-      [],
-      DEFAULT_CACHE_TTL
-    );
+    const teamsResponse = await fetch("/api/teams");
+    if (teamsResponse.ok) {
+      const teamsData = await teamsResponse.json();
+      // Extract data from standardized response
+      const teams = teamsData.success && teamsData.data ? teamsData.data : [];
+      cacheService.set(CACHE_KEYS.TEAMS, teams, DEFAULT_CACHE_TTL);
+    }
     
     // Load entities data
-    await cacheService.fetchWithCache(
-      "/api/entities",
-      CACHE_KEYS.ENTITIES,
-      [],
-      DEFAULT_CACHE_TTL
-    );
+    const entitiesResponse = await fetch("/api/entities");
+    if (entitiesResponse.ok) {
+      const entitiesData = await entitiesResponse.json();
+      // Extract data from standardized response
+      const entities = entitiesData.success && entitiesData.data ? entitiesData.data : [];
+      cacheService.set(CACHE_KEYS.ENTITIES, entities, DEFAULT_CACHE_TTL);
+    }
     
     // Load dashboard summary data
-    await cacheService.fetchWithCache(
-      "/api/dashboard/summary",
-      CACHE_KEYS.DASHBOARD_SUMMARY,
-      {
-        metrics: {
-          overallCompliance: 0,
-          tablesCompliance: 0,
-          dagsCompliance: 0,
-          entitiesCount: 0,
-          tablesCount: 0,
-          dagsCount: 0
-        }
-      },
-      DEFAULT_CACHE_TTL
-    );
+    const dashboardResponse = await fetch("/api/dashboard/summary");
+    if (dashboardResponse.ok) {
+      const dashboardData = await dashboardResponse.json();
+      // Extract data from standardized response
+      const summary = dashboardData.success && dashboardData.data 
+        ? dashboardData.data 
+        : {
+            metrics: {
+              overallCompliance: 0,
+              tablesCompliance: 0,
+              dagsCompliance: 0,
+              entitiesCount: 0,
+              tablesCount: 0,
+              dagsCount: 0
+            }
+          };
+      cacheService.set(CACHE_KEYS.DASHBOARD_SUMMARY, summary, DEFAULT_CACHE_TTL);
+    }
     
     console.log("Cache preloading complete");
   } catch (error) {
@@ -115,7 +120,9 @@ export const refreshCacheInBackground = async (): Promise<void> => {
     fetch("/api/teams")
       .then(res => res.json())
       .then(data => {
-        cacheService.set(CACHE_KEYS.TEAMS, data, DEFAULT_CACHE_TTL);
+        // Extract data from standardized response
+        const teams = data.success && data.data ? data.data : [];
+        cacheService.set(CACHE_KEYS.TEAMS, teams, DEFAULT_CACHE_TTL);
         console.log("Teams cache refreshed in background");
       })
       .catch(err => console.error("Failed to refresh teams cache:", err));
@@ -124,7 +131,9 @@ export const refreshCacheInBackground = async (): Promise<void> => {
     fetch("/api/entities")
       .then(res => res.json())
       .then(data => {
-        cacheService.set(CACHE_KEYS.ENTITIES, data, DEFAULT_CACHE_TTL);
+        // Extract data from standardized response
+        const entities = data.success && data.data ? data.data : [];
+        cacheService.set(CACHE_KEYS.ENTITIES, entities, DEFAULT_CACHE_TTL);
         console.log("Entities cache refreshed in background");
       })
       .catch(err => console.error("Failed to refresh entities cache:", err));
@@ -133,7 +142,18 @@ export const refreshCacheInBackground = async (): Promise<void> => {
     fetch("/api/dashboard/summary")
       .then(res => res.json())
       .then(data => {
-        cacheService.set(CACHE_KEYS.DASHBOARD_SUMMARY, data, DEFAULT_CACHE_TTL);
+        // Extract data from standardized response
+        const summary = data.success && data.data ? data.data : {
+          metrics: {
+            overallCompliance: 0,
+            tablesCompliance: 0,
+            dagsCompliance: 0,
+            entitiesCount: 0,
+            tablesCount: 0,
+            dagsCount: 0
+          }
+        };
+        cacheService.set(CACHE_KEYS.DASHBOARD_SUMMARY, summary, DEFAULT_CACHE_TTL);
         console.log("Dashboard summary cache refreshed in background");
       })
       .catch(err => console.error("Failed to refresh dashboard summary cache:", err));

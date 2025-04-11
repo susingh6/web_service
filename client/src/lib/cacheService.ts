@@ -164,7 +164,18 @@ class CacheService {
         throw new Error(`API request failed with status ${response.status}`);
       }
 
-      const data = await response.json();
+      const responseJson = await response.json();
+      
+      // Handle standardized API response format
+      // Extract data field if the response follows the standardized format
+      const data = responseJson && 
+                  typeof responseJson === 'object' && 
+                  'success' in responseJson && 
+                  responseJson.success === true &&
+                  'data' in responseJson
+        ? responseJson.data
+        : responseJson;
+        
       // Store in cache
       this.set(cacheKey, data, ttl);
       return data as T;
@@ -204,7 +215,18 @@ class CacheService {
         return;
       }
 
-      const data = await response.json();
+      const responseJson = await response.json();
+      
+      // Handle standardized API response format
+      // Extract data field if the response follows the standardized format
+      const data = responseJson && 
+                  typeof responseJson === 'object' && 
+                  'success' in responseJson && 
+                  responseJson.success === true &&
+                  'data' in responseJson
+        ? responseJson.data
+        : responseJson;
+        
       this.set(cacheKey, data, ttl);
       console.log(`Successfully refreshed cache for ${cacheKey} in background`);
     } catch (error) {
