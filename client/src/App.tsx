@@ -9,14 +9,15 @@ import NotFound from "@/pages/not-found";
 import AuthPage from "@/pages/auth-page";
 import Summary from "@/pages/dashboard/Summary";
 import TeamDashboard from "@/pages/dashboard/TeamDashboard";
+import SimpleLogin from "@/pages/simple-login";
 
 function Router() {
   console.log("Initializing Router");
   return (
     <Switch>
-      {/* Auth routes - make this the default route temporarily */}
-      <Route path="/" component={AuthPage} />
-      <Route path="/auth" component={AuthPage} />
+      {/* Auth routes - using simple login page directly */}
+      <Route path="/" component={SimpleLogin} />
+      <Route path="/auth" component={SimpleLogin} />
       
       {/* Protected Dashboard routes */}
       <ProtectedRoute path="/dashboard" component={Summary} />
@@ -32,9 +33,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <AppLayout>
-          <Router />
-        </AppLayout>
+        <Router />
         <Toaster />
       </AuthProvider>
     </QueryClientProvider>
