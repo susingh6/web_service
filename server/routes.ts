@@ -85,22 +85,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (req.query.teamId) {
         const teamId = parseInt(req.query.teamId as string);
         if (isNaN(teamId)) {
-          return res.status(400).json({ message: "Invalid team ID" });
+          return sendError(res, "Invalid team ID", 400);
         }
         entities = await storage.getEntitiesByTeam(teamId);
       } else if (req.query.type) {
         const type = req.query.type as string;
         if (type !== 'table' && type !== 'dag') {
-          return res.status(400).json({ message: "Type must be 'table' or 'dag'" });
+          return sendError(res, "Type must be 'table' or 'dag'", 400);
         }
         entities = await storage.getEntitiesByType(type);
       } else {
         entities = await storage.getEntities();
       }
       
-      res.json(entities);
+      sendSuccess(res, entities);
     } catch (error) {
-      res.status(500).json({ message: "Failed to fetch entities" });
+      sendServerError(res, error);
     }
   });
   
@@ -109,13 +109,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const result = insertEntitySchema.safeParse(req.body);
       
       if (!result.success) {
-        return res.status(400).json({ message: "Invalid entity data", errors: result.error.format() });
+        return sendValidationError(res, result.error);
       }
       
       const entity = await storage.createEntity(result.data);
-      res.status(201).json(entity);
+      sendSuccess(res, entity, "Entity created successfully", 201);
     } catch (error) {
-      res.status(500).json({ message: "Failed to create entity" });
+      sendServerError(res, error);
     }
   });
   
@@ -123,17 +123,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
-        return res.status(400).json({ message: "Invalid entity ID" });
+        return sendError(res, "Invalid entity ID", 400);
       }
       
       const entity = await storage.getEntity(id);
       if (!entity) {
-        return res.status(404).json({ message: "Entity not found" });
+        return sendNotFound(res, "Entity");
       }
       
-      res.json(entity);
+      sendSuccess(res, entity);
     } catch (error) {
-      res.status(500).json({ message: "Failed to fetch entity" });
+      sendServerError(res, error);
     }
   });
   
@@ -141,7 +141,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
-        return res.status(400).json({ message: "Invalid entity ID" });
+        return sendError(res, "Invalid entity ID", 400);
       }
       
       // Only validate the provided fields
@@ -163,17 +163,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const result = updateSchema.safeParse(req.body);
       
       if (!result.success) {
-        return res.status(400).json({ message: "Invalid entity data", errors: result.error.format() });
+        return sendValidationError(res, result.error);
       }
       
       const updatedEntity = await storage.updateEntity(id, result.data);
       if (!updatedEntity) {
-        return res.status(404).json({ message: "Entity not found" });
+        return sendNotFound(res, "Entity");
       }
       
-      res.json(updatedEntity);
+      sendSuccess(res, updatedEntity, "Entity updated successfully");
     } catch (error) {
-      res.status(500).json({ message: "Failed to update entity" });
+      sendServerError(res, error);
     }
   });
   
@@ -181,17 +181,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
-        return res.status(400).json({ message: "Invalid entity ID" });
+        return sendError(res, "Invalid entity ID", 400);
       }
       
       const success = await storage.deleteEntity(id);
       if (!success) {
-        return res.status(404).json({ message: "Entity not found" });
+        return sendNotFound(res, "Entity");
       }
       
+      // For DELETE operations, return 204 No Content with no body
       res.status(204).end();
     } catch (error) {
-      res.status(500).json({ message: "Failed to delete entity" });
+      sendServerError(res, error);
     }
   });
   
@@ -200,13 +201,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
-        return res.status(400).json({ message: "Invalid entity ID" });
+        return sendError(res, "Invalid entity ID", 400);
       }
       
       const history = await storage.getEntityHistory(id);
-      res.json(history);
+      sendSuccess(res, history);
     } catch (error) {
-      res.status(500).json({ message: "Failed to fetch entity history" });
+      sendServerError(res, error);
     }
   });
   
@@ -214,20 +215,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const entityId = parseInt(req.params.id);
       if (isNaN(entityId)) {
-        return res.status(400).json({ message: "Invalid entity ID" });
+        return sendError(res, "Invalid entity ID", 400);
       }
       
       const data = { ...req.body, entityId };
       const result = insertEntityHistorySchema.safeParse(data);
       
       if (!result.success) {
-        return res.status(400).json({ message: "Invalid history data", errors: result.error.format() });
+        return sendValidationError(res, result.error);
       }
       
       const history = await storage.addEntityHistory(result.data);
-      res.status(201).json(history);
+      sendSuccess(res, history, "History record added successfully", 201);
     } catch (error) {
-      res.status(500).json({ message: "Failed to add entity history" });
+      sendServerError(res, error);
     }
   });
   
@@ -236,13 +237,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
-        return res.status(400).json({ message: "Invalid entity ID" });
+        return sendError(res, "Invalid entity ID", 400);
       }
       
       const issues = await storage.getIssues(id);
-      res.json(issues);
+      sendSuccess(res, issues);
     } catch (error) {
-      res.status(500).json({ message: "Failed to fetch issues" });
+      sendServerError(res, error);
     }
   });
   
@@ -250,20 +251,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const entityId = parseInt(req.params.id);
       if (isNaN(entityId)) {
-        return res.status(400).json({ message: "Invalid entity ID" });
+        return sendError(res, "Invalid entity ID", 400);
       }
       
       const data = { ...req.body, entityId };
       const result = insertIssueSchema.safeParse(data);
       
       if (!result.success) {
-        return res.status(400).json({ message: "Invalid issue data", errors: result.error.format() });
+        return sendValidationError(res, result.error);
       }
       
       const issue = await storage.addIssue(result.data);
-      res.status(201).json(issue);
+      sendSuccess(res, issue, "Issue created successfully", 201);
     } catch (error) {
-      res.status(500).json({ message: "Failed to add issue" });
+      sendServerError(res, error);
     }
   });
   
@@ -271,17 +272,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
-        return res.status(400).json({ message: "Invalid issue ID" });
+        return sendError(res, "Invalid issue ID", 400);
       }
       
       const resolvedIssue = await storage.resolveIssue(id);
       if (!resolvedIssue) {
-        return res.status(404).json({ message: "Issue not found" });
+        return sendNotFound(res, "Issue");
       }
       
-      res.json(resolvedIssue);
+      sendSuccess(res, resolvedIssue, "Issue resolved successfully");
     } catch (error) {
-      res.status(500).json({ message: "Failed to resolve issue" });
+      sendServerError(res, error);
     }
   });
   
@@ -305,18 +306,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const dagsSla = calcAvgSla(dags);
       
       // Return summary data
-      res.json({
-        metrics: {
-          overallCompliance: overallSla,
-          tablesCompliance: tablesSla,
-          dagsCompliance: dagsSla,
-          entitiesCount: entities.length,
-          tablesCount: tables.length,
-          dagsCount: dags.length
-        }
-      });
+      const metrics = {
+        overallCompliance: overallSla,
+        tablesCompliance: tablesSla,
+        dagsCompliance: dagsSla,
+        entitiesCount: entities.length,
+        tablesCount: tables.length,
+        dagsCount: dags.length
+      };
+      
+      sendSuccess(res, { metrics }, "Dashboard summary fetched successfully");
     } catch (error) {
-      res.status(500).json({ message: "Failed to fetch dashboard summary" });
+      sendServerError(res, error);
     }
   });
   
@@ -328,16 +329,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const existingUser = await storage.getUserByUsername("azure_test_user");
       
       if (existingUser) {
-        return res.json({ 
-          message: "Test user already exists", 
+        return sendSuccess(res, { 
           credentials: { 
             username: "azure_test_user", 
             password: "Azure123!" 
           } 
-        });
+        }, "Test user already exists");
       }
-      
-      // Hash the password (use the one from auth.ts so password format is consistent)
       
       // Create a test user (with plain text password for testing purposes)
       const testUser = {
@@ -350,16 +348,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       await storage.createUser(testUser);
       
-      res.json({ 
-        message: "Test user created successfully", 
+      sendSuccess(res, { 
         credentials: { 
           username: testUser.username, 
           password: "Azure123!" // Return the non-hashed password for testing
         } 
-      });
+      }, "Test user created successfully", 201);
     } catch (error) {
       console.error("Failed to create test user:", error);
-      res.status(500).json({ message: "Failed to create test user" });
+      sendServerError(res, error);
     }
   });
   
@@ -370,8 +367,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (user) {
         // For debugging, we'll actually show the password hash
         console.log("Test user found with hash:", user.password);
-        res.status(200).json({
-          message: "Test user exists",
+        
+        sendSuccess(res, {
           user: {
             id: user.id,
             username: user.username,
@@ -384,13 +381,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
             username: "azure_test_user",
             password: "Azure123!"
           }
-        });
+        }, "Test user exists");
       } else {
-        res.status(404).json({ message: "Test user not found" });
+        sendNotFound(res, "Test user");
       }
     } catch (error) {
       console.error("Error checking test user:", error);
-      res.status(500).json({ message: "Error checking test user" });
+      sendServerError(res, error);
     }
   });
   
@@ -416,16 +413,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = await storage.createUser(testUser);
       console.log("Created test user with ID:", user.id);
       
-      res.status(200).json({
-        message: "Test user created/reset successfully",
+      sendSuccess(res, {
         credentials: {
           username: "azure_test_user",
           password: "Azure123!"
         }
-      });
+      }, "Test user created/reset successfully");
     } catch (error) {
       console.error("Error resetting test user:", error);
-      res.status(500).json({ message: "Error resetting test user" });
+      sendServerError(res, error);
     }
   });
 

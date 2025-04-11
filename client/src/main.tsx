@@ -8,6 +8,9 @@ import App from "./App";
 import "./index.css";
 import { preloadAllCacheData, refreshCacheInBackground } from "./lib/preloadCache";
 
+// Import API test script for debugging
+import './test-api-response';
+
 // Preload cache data immediately when the app starts
 // This ensures the first modal open is fast
 preloadAllCacheData().catch(err => console.error("Error preloading cache:", err));
