@@ -108,6 +108,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const initializeAzureAuth = async () => {
       try {
+        // Initialize MSAL if not already initialized
+        if (!msalInstance) {
+          msalInstance = initializeMsal();
+        }
+        
         // Check if there are any accounts in the cache
         if (msalInstance) {
           const accounts = msalInstance.getAllAccounts();
@@ -120,6 +125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       } catch (err) {
         console.error('Azure AD authentication initialization error:', err);
+        // Don't block authentication flow on Azure error
       }
     };
 
@@ -176,14 +182,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Azure AD login function
   const loginWithAzure = async (): Promise<void> => {
+    // Try to initialize MSAL if not already initialized
     if (!msalInstance) {
-      setAzureError("Azure AD authentication is not initialized");
-      toast({
-        title: "Login failed",
-        description: "Azure AD authentication is not initialized",
-        variant: "destructive",
-      });
-      return;
+      msalInstance = initializeMsal();
+      
+      if (!msalInstance) {
+        // Fall back to local login if Azure not available
+        setAzureError("Azure AD authentication is not available");
+        toast({
+          title: "Azure AD unavailable",
+          description: "Please use username/password login instead",
+          variant: "destructive",
+        });
+        return;
+      }
     }
     
     try {
@@ -208,7 +220,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error('Azure login error:', err);
       toast({
         title: "Azure AD login failed",
-        description: err instanceof Error ? err.message : String(err),
+        description: "Please try using username/password login instead",
         variant: "destructive",
       });
     } finally {
