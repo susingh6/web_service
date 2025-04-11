@@ -4,12 +4,12 @@ import { Redirect, Route } from 'wouter';
 import { Box, CircularProgress } from '@mui/material';
 
 interface ProtectedRouteProps {
-  children: ReactNode;
+  component: React.ComponentType;
   path: string;
 }
 
 export function ProtectedRoute({
-  children,
+  component: Component,
   path,
   ...rest
 }: ProtectedRouteProps) {
@@ -37,7 +37,7 @@ export function ProtectedRoute({
       path={path}
       {...rest}
     >
-      {isAuthenticated ? children : <Redirect to="/auth" />}
+      {isAuthenticated ? <Component /> : <Redirect to="/auth" />}
     </Route>
   );
 }
