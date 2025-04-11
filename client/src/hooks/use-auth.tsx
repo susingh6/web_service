@@ -24,12 +24,24 @@ const msalConfig: Configuration = {
   },
 };
 
-// Initialize MSAL instance
-let msalInstance: PublicClientApplication;
-try {
-  msalInstance = new PublicClientApplication(msalConfig);
-} catch (err) {
-  console.error("Error initializing MSAL:", err);
+// Initialize MSAL instance (wrapped in a function to prevent immediate execution)
+let msalInstance: PublicClientApplication | null = null;
+
+function initializeMsal() {
+  try {
+    // Only initialize if Azure client ID is properly set
+    if (import.meta.env.VITE_AZURE_CLIENT_ID && 
+        import.meta.env.VITE_AZURE_CLIENT_ID !== 'default-client-id') {
+      msalInstance = new PublicClientApplication(msalConfig);
+      return msalInstance;
+    } else {
+      console.log("Azure AD not configured with proper client ID, skipping initialization");
+      return null;
+    }
+  } catch (err) {
+    console.error("Error initializing MSAL:", err);
+    return null;
+  }
 }
 
 // Azure AD login request scopes

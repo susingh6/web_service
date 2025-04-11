@@ -29,26 +29,14 @@ const initializeDefaultCache = (): void => {
 /**
  * Preloads all cache data on application startup
  * This ensures that modals open quickly without needing to fetch data
+ * Just sets up initial local data, no API calls at first load
  */
 export const preloadAllCacheData = async (): Promise<void> => {
-  console.log('Preloading cache data for faster modal loading...');
+  console.log('Initializing cache data with default values...');
   
-  // Initialize with defaults first for instant access
+  // Initialize with defaults for instant access - no API calls on startup
   initializeDefaultCache();
-  
-  try {
-    // Then load from API in parallel to update the cache with real data if needed
-    await Promise.all([
-      fetchWithCache('https://api.example.com/tenants', 'tenants'), 
-      fetchWithCache('https://api.example.com/teams', 'teams'),
-      fetchWithCache('https://api.example.com/dags', 'dags'),
-    ]);
-    
-    console.log('Cache preloading complete');
-  } catch (error) {
-    console.error('Error preloading cache:', error);
-    // Don't block app startup if preloading fails - we already have defaults
-  }
+  console.log('Cache initialization complete');
 };
 
 // Additional function to refresh cache in background
@@ -56,9 +44,9 @@ export const refreshCacheInBackground = async (): Promise<void> => {
   try {
     // We do this silently in the background to avoid blocking UI
     await Promise.all([
-      fetchWithCache('https://api.example.com/tenants', 'tenants'),
-      fetchWithCache('https://api.example.com/teams', 'teams'),
-      fetchWithCache('https://api.example.com/dags', 'dags'),
+      fetchWithCache('/api/tenants', 'tenants'),
+      fetchWithCache('/api/teams', 'teams'),
+      fetchWithCache('/api/dags', 'dags'),
     ]);
   } catch (error) {
     console.error('Background cache refresh error:', error);
