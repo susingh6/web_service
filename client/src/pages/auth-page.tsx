@@ -30,7 +30,8 @@ const AuthPage = () => {
   // Redirect if already authenticated
   useEffect(() => {
     if (isAuthenticated) {
-      navigate('/');
+      console.log("User authenticated, redirecting to dashboard");
+      navigate('/dashboard'); // Redirect to dashboard instead of root to avoid loops
     }
   }, [isAuthenticated, navigate]);
 

@@ -64,7 +64,9 @@ const AppLayout = ({ children }: AppLayoutProps) => {
   }
   
   // Don't wrap auth pages with app layout
-  if (location.startsWith('/auth')) {
+  // Also temporarily don't wrap the root path since we're showing auth page there
+  if (location.startsWith('/auth') || location === '/') {
+    console.log("Rendering without app layout (auth page)");
     return (
       <ThemeProvider theme={theme}>
         <CssBaseline />
