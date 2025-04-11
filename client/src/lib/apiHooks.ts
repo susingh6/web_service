@@ -1,5 +1,6 @@
+import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiRequest } from './queryClient';
+import { apiRequest, queryClient } from './queryClient';
 import { handleApiResponse } from './apiResponseUtils';
 import { useToast } from '@/hooks/use-toast';
 
@@ -49,27 +50,34 @@ export function useApiQuery<TData>(
   // Use the toast hook for consistent error messages
   const { toast } = useToast();
   
-  return useQuery<TData, Error>({
-    queryKey,
-    enabled,
-    staleTime,
-    refetchInterval,
-    refetchOnWindowFocus,
-    // Custom error handling
-    onError: (error) => {
+  // Define success and error callbacks
+  const successCallback = onSuccess 
+    ? { onSuccess } 
+    : undefined;
+    
+  const errorCallback = {
+    onError: (error: Error) => {
       if (onError) {
         onError(error);
       } else {
-        // Default error handling
         toast({
           title: 'Error',
           description: error.message || 'Failed to fetch data',
           variant: 'destructive',
         });
       }
-    },
-    // Success callback if provided
-    onSuccess: onSuccess,
+    }
+  };
+  
+  // Build query options compatible with TanStack Query v5
+  return useQuery<TData, Error>({
+    queryKey,
+    enabled,
+    staleTime,
+    refetchInterval,
+    refetchOnWindowFocus,
+    ...successCallback,
+    ...errorCallback
   });
 }
 

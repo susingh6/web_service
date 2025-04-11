@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sla-monitoring-app
+    ports:
+      - "5000:5000"
+    volumes:
+      # Mount source code for hot-reloading in development
+      - ./client:/usr/src/app/client
+      - ./server:/usr/src/app/server
+      - ./shared:/usr/src/app/shared
+      # Exclude node_modules from mounting
+      - /usr/src/app/node_modules
+    environment:
+      - NODE_ENV=development
+      - SESSION_SECRET=dev-secret-change-this
+      - VITE_APP_ENV=development
+      - VITE_API_TIMEOUT=30000
+      - VITE_ENABLE_TEAM_COMPARISONS=true
+      - VITE_ENABLE_HISTORY_TRACKING=true
+      - VITE_ENABLE_AZURE_AUTH=false
+      - VITE_DEFAULT_LOGIN_TYPE=local
+      - VITE_DEBUG=true
+      - VITE_SHOW_EXPERIMENTAL=true
+    restart: unless-stopped
+    # Explicitly set the command to run the dev server
+    command: npm run dev

@@ -1,7 +1,7 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 import { cacheService, DEFAULT_CACHE_TTL } from "./cacheService";
 import { ApiErrorResponse, ApiSuccessResponse } from "@shared/api-types";
-import { extractData, formatErrorMessage, isStandardResponse } from "./apiResponseUtils";
+import { extractData, isApiErrorResponse } from "./apiResponseUtils";
 
 /**
  * Interface for standardized API responses
@@ -25,8 +25,20 @@ async function throwIfResNotOk(res: Response) {
       // Try to parse as JSON first
       const errorData = await res.json();
       
-      // Use our utility to format error message regardless of format
-      const errorMessage = formatErrorMessage(errorData);
+      // Extract the error message depending on the format
+      let errorMessage: string;
+      
+      if (isApiErrorResponse(errorData)) {
+        // Use standardized API error message
+        errorMessage = errorData.message;
+      } else if (typeof errorData === 'object' && errorData !== null && 'message' in errorData) {
+        // Handle legacy error format with message field
+        errorMessage = String(errorData.message);
+      } else {
+        // Fallback
+        errorMessage = `Error ${res.status}: ${res.statusText}`;
+      }
+      
       throw new Error(errorMessage);
     } catch (parseError) {
       // Fallback to plain text if JSON parsing fails

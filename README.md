@@ -12,13 +12,48 @@ A modern enterprise SLA monitoring tool designed to track, analyze, and manage s
 
 ## Docker Setup for Development
 
-This project includes Docker configuration for easy local development. Follow these steps to run the application in a container:
+This project includes Docker configuration for easy local development. You can use either Docker Compose (recommended) or regular Docker commands.
 
 ### Prerequisites
 
 - [Docker](https://docs.docker.com/get-docker/)
+- [Docker Compose](https://docs.docker.com/compose/install/) (recommended)
 
-### Running with Docker
+### Option 1: Running with Docker Compose (Recommended)
+
+1. **Start the application**:
+
+   ```bash
+   docker-compose up
+   ```
+
+   This will:
+   - Build the Docker image if needed
+   - Start the container in development mode
+   - Map port 5000 to your host machine
+   - Mount your local directories as volumes for real-time code updates
+
+2. **Run in background mode** (optional):
+
+   ```bash
+   docker-compose up -d
+   ```
+
+3. **View logs**:
+
+   ```bash
+   docker-compose logs -f
+   ```
+
+4. **Stop the application**:
+
+   ```bash
+   docker-compose down
+   ```
+
+### Option 2: Running with Docker Commands
+
+If you prefer to use Docker directly without Docker Compose:
 
 1. **Build the Docker image**:
 
@@ -29,13 +64,14 @@ This project includes Docker configuration for easy local development. Follow th
 2. **Run the container**:
 
    ```bash
-   docker run -p 5000:5000 -v $(pwd):/usr/src/app -v /usr/src/app/node_modules sla-monitoring-tool
+   docker run -p 5000:5000 \
+     -v $(pwd)/client:/usr/src/app/client \
+     -v $(pwd)/server:/usr/src/app/server \
+     -v $(pwd)/shared:/usr/src/app/shared \
+     -v /usr/src/app/node_modules \
+     --name sla-app \
+     sla-monitoring-tool
    ```
-
-   This will:
-   - Start the container in development mode
-   - Map port 5000 to your host machine
-   - Mount your current directory as a volume for real-time code updates
 
 3. **Access the application**:
 
@@ -52,12 +88,17 @@ This project includes Docker configuration for easy local development. Follow th
 
 - **View logs** (in a separate terminal window):
   ```bash
-  docker logs -f $(docker ps -q --filter ancestor=sla-monitoring-tool)
+  docker logs -f sla-app
   ```
 
 - **Stop the container**:
   ```bash
-  docker stop $(docker ps -q --filter ancestor=sla-monitoring-tool)
+  docker stop sla-app
+  ```
+
+- **Restart the container**:
+  ```bash
+  docker restart sla-app
   ```
 
 - **Rebuild the container** (after changing dependencies):
