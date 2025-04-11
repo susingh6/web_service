@@ -133,32 +133,29 @@ function ChartCardComponent({
   );
 };
 
-// Use a memoized version of the component with custom comparison
+// Memoize the component to prevent unnecessary re-renders
 const ChartCard = memo<ChartCardProps>(ChartCardComponent, (prevProps, nextProps) => {
-  // Custom comparison to determine if component should re-render
-  // Only re-render if these specific props have changed
-  
-  // Chart content almost always needs to cause a re-render,
-  // so we primarily check other props for stability
-  
-  // Basic prop equality checks
+  // Always memoize based on specific prop equality
   const basicPropsEqual = 
     prevProps.title === nextProps.title &&
     prevProps.height === nextProps.height &&
     prevProps.actions === nextProps.actions &&
     prevProps.loading === nextProps.loading;
   
-  // Filter equality requires array comparison
+  // Efficient array comparison for filters
   const filtersEqual = 
     (!prevProps.filters && !nextProps.filters) ||
     (prevProps.filters?.length === nextProps.filters?.length &&
      prevProps.filters?.every((f, i) => f === nextProps.filters?.[i]));
   
-  // If all checks pass, no re-render needed
-  return basicPropsEqual && filtersEqual;
+  // The chart prop is a React node which may change reference on each render
+  // We'll let parent components control when this should re-render
+  
+  // Explicit return with boolean to satisfy TypeScript
+  return Boolean(basicPropsEqual && filtersEqual);
 });
 
 // Better debugging in React DevTools
-MemoizedChartCard.displayName = 'ChartCard';
+ChartCard.displayName = 'ChartCard';
 
-export default MemoizedChartCard;
+export default ChartCard;

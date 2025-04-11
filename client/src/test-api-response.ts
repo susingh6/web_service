@@ -28,16 +28,18 @@ async function testAPIs() {
     console.log('\nTest 3: React Query Pattern');
     console.log('Simulating useQuery hook behavior:');
     
-    const defaultOptions = queryClient.getDefaultOptions();
-    const queryFn = defaultOptions.queries?.queryFn;
-    if (queryFn) {
-      const data = await queryFn({ 
-        queryKey: ['/api/teams'],
-        meta: undefined
-      });
-      console.log('Data returned from useQuery:', data);
-      // Since the queryFn automatically extracts data, we don't need to access data.data
+    try {
+      // Directly use the fetch API in a similar pattern to how queryClient fetches data
+      const response = await fetch('/api/teams');
+      const responseData = await response.json();
+      
+      // Extract data from the standardized API response format
+      const data = responseData.success ? responseData.data : null;
+      
+      console.log('Data returned from simulated useQuery:', data);
       console.log('Teams count from useQuery:', Array.isArray(data) ? data.length : 'Not an array');
+    } catch (error) {
+      console.error('Query simulation error:', error);
     }
     
     // Test 4: Error handling
