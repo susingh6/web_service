@@ -5,6 +5,14 @@ import { insertEntitySchema, insertTeamSchema, insertEntityHistorySchema, insert
 import { z } from "zod";
 import { setupAuth } from "./unified-auth";
 import { setupTestRoutes } from "./test-routes";
+import { 
+  sendSuccess, 
+  sendError, 
+  sendServerError, 
+  sendValidationError, 
+  sendNotFound, 
+  sendPaginated 
+} from './utils/api-responses';
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Set up authentication with unified system
@@ -21,7 +29,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (req.isAuthenticated()) {
       return next();
     }
-    res.status(401).json({ message: "Unauthorized" });
+    sendError(res, "Unauthorized", 401, undefined, "UNAUTHORIZED");
   };
   
   // API Routes
@@ -30,9 +38,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/teams", async (req, res) => {
     try {
       const teams = await storage.getTeams();
-      res.json(teams);
+      sendSuccess(res, teams);
     } catch (error) {
-      res.status(500).json({ message: "Failed to fetch teams" });
+      sendServerError(res, error);
     }
   });
   
@@ -41,13 +49,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const result = insertTeamSchema.safeParse(req.body);
       
       if (!result.success) {
-        return res.status(400).json({ message: "Invalid team data", errors: result.error.format() });
+        return sendValidationError(res, result.error);
       }
       
       const team = await storage.createTeam(result.data);
-      res.status(201).json(team);
+      sendSuccess(res, team, "Team created successfully", 201);
     } catch (error) {
-      res.status(500).json({ message: "Failed to create team" });
+      sendServerError(res, error);
     }
   });
   
@@ -55,17 +63,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
-        return res.status(400).json({ message: "Invalid team ID" });
+        return sendError(res, "Invalid team ID", 400);
       }
       
       const team = await storage.getTeam(id);
       if (!team) {
-        return res.status(404).json({ message: "Team not found" });
+        return sendNotFound(res, "Team");
       }
       
-      res.json(team);
+      sendSuccess(res, team);
     } catch (error) {
-      res.status(500).json({ message: "Failed to fetch team" });
+      sendServerError(res, error);
     }
   });
   
