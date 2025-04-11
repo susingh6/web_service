@@ -25,9 +25,12 @@ const msalConfig: Configuration = {
 };
 
 // Initialize MSAL instance
-let msalInstance: PublicClientApplication;
+let msalInstance: PublicClientApplication | null = null;
 try {
-  msalInstance = new PublicClientApplication(msalConfig);
+  // Only initialize in browser environments
+  if (typeof window !== 'undefined') {
+    msalInstance = new PublicClientApplication(msalConfig);
+  }
 } catch (err) {
   console.error("Error initializing MSAL:", err);
 }

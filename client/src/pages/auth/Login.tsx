@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Box, Typography, Button, Card, CardContent, CircularProgress, useTheme } from '@mui/material';
-import { useAuth } from '@/lib/authProvider';
+import { useAuth } from '@/hooks/use-auth';
 import { useLocation } from 'wouter';
 
 const Login = () => {

@@ -21,6 +21,8 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 
 const AuthPage = () => {
   const { isAuthenticated, isLoading, loginMutation, loginWithAzure, logout } = useAuth();
+  // For debugging
+  console.log("Auth page rendering, isAuthenticated:", isAuthenticated, "isLoading:", isLoading);
   const [, navigate] = useLocation();
   const [showPassword, setShowPassword] = useState(false);
 
@@ -45,11 +47,10 @@ const AuthPage = () => {
     loginMutation.mutate(data);
   };
 
-  // Handle Azure AD login - currently just a dummy function
+  // Handle Azure AD login - uses the simulated Azure login
   const handleAzureLogin = () => {
-    // Dummy function - button is kept for UI demonstration only
-    console.log("Azure AD login button clicked - no action taken");
-    // No actual authentication happens
+    console.log("Azure AD login button clicked - using simulated Azure login");
+    loginWithAzure();
   };
 
   // Handle explicit logout
