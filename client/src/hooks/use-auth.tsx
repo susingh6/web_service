@@ -25,16 +25,9 @@ const msalConfig: Configuration = {
 };
 
 // Initialize MSAL instance
-let msalInstance: PublicClientApplication | null = null;
+let msalInstance: PublicClientApplication;
 try {
-  // Only initialize MSAL if we have a valid client ID that's not the default
-  if (import.meta.env.VITE_AZURE_CLIENT_ID && 
-      import.meta.env.VITE_AZURE_CLIENT_ID !== 'default-client-id') {
-    msalInstance = new PublicClientApplication(msalConfig);
-    console.log("MSAL initialized successfully");
-  } else {
-    console.log("Skipping MSAL initialization - no valid client ID provided");
-  }
+  msalInstance = new PublicClientApplication(msalConfig);
 } catch (err) {
   console.error("Error initializing MSAL:", err);
 }

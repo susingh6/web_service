@@ -45,29 +45,21 @@ export function setupSimpleAuth(app: Express) {
     new LocalStrategy(async (username, password, done) => {
       try {
         console.log(`Login attempt for user: ${username}`);
-        
-        // EMERGENCY FIX: Auto-create any user that attempts to log in
-        // This is for demonstration only - would NEVER be done in production
-        let user = await storage.getUserByUsername(username);
+        const user = await storage.getUserByUsername(username);
         
         if (!user) {
-          console.log(`User not found: ${username}. Creating it automatically!`);
-          // Create the user with the provided credentials
-          user = await storage.createUser({
-            username,
-            password,
-            email: `${username}@example.com`,
-            displayName: username,
-            team: "Data Engineering"
-          });
-          console.log(`Auto-created user with ID: ${user.id}`);
+          console.log(`User not found: ${username}`);
+          return done(null, false);
         }
         
-        // DEBUG MODE: ALWAYS ALLOW ANY LOGIN
-        // This completely bypasses password checking
-        console.log(`DEBUG MODE: Auto-authenticating user: ${username}`);
-        return done(null, user);
+        // Debug log the password details
+        console.log(`Login attempt details:`);
+        console.log(`- Provided password: ${password}`);
+        console.log(`- Stored password in DB: ${user.password}`);
         
+        // For development with plain passwords - TEMPORARY
+        // In production, this would be proper password comparison
+        return done(null, user);
       } catch (error) {
         console.error("Login error:", error);
         return done(error);

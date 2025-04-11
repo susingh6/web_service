@@ -23,7 +23,6 @@ const AuthPage = () => {
   const { isAuthenticated, isLoading, loginMutation, loginWithAzure } = useAuth();
   const [, navigate] = useLocation();
   const [showPassword, setShowPassword] = useState(false);
-  const [isAzureLoading, setIsAzureLoading] = useState(false);
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -49,18 +48,13 @@ const AuthPage = () => {
   // Handle Azure AD login
   const handleAzureLogin = async () => {
     try {
-      setIsAzureLoading(true);
       await loginWithAzure();
     } catch (error) {
       console.error("Azure login error:", error);
-    } finally {
-      setIsAzureLoading(false);
     }
   };
 
-  // Only show loading indicator if we're actually in the middle of an API request
-  // This prevents getting stuck in an infinite loading state
-  if ((isLoading && loginMutation.isPending) || isAzureLoading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />

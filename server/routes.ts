@@ -13,11 +13,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Set up test routes for development
   setupTestRoutes(app);
   
-  // Serve standalone login page
-  app.get('/standalone-login', (req, res) => {
-    res.sendFile('public/standalone-login.html', { root: __dirname });
-  });
-  
   // Middleware to check if user is authenticated
   const isAuthenticated = (req: Request, res: Response, next: NextFunction) => {
     if (req.isAuthenticated()) {
