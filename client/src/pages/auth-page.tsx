@@ -62,14 +62,16 @@ const AuthPage = () => {
     console.log("User logged out manually from login page");
   };
 
-  if (isLoading) {
-    console.log("AuthPage is in loading state");
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
+  // Debug workaround for Replit webview loading issue - don't return early with spinner
+  console.log("AuthPage loading state:", isLoading);
+  // if (isLoading) {
+  //   console.log("AuthPage is in loading state");
+  //   return (
+  //     <div className="flex items-center justify-center min-h-screen">
+  //       <Loader2 className="h-8 w-8 animate-spin text-primary" />
+  //     </div>
+  //   );
+  // }
   
   console.log("AuthPage rendering main form content");
 

@@ -24,10 +24,15 @@ const msalConfig: Configuration = {
   },
 };
 
-// Skip MSAL initialization for now to prevent loading issues
-// In a production app, you would properly initialize the MSAL library
+// Initialize MSAL instance
 let msalInstance: PublicClientApplication | null = null;
-console.log("Skipping MSAL initialization to prevent loading issues");
+try {
+  console.log("Attempting to initialize MSAL with config:", msalConfig);
+  msalInstance = new PublicClientApplication(msalConfig);
+  console.log("MSAL initialization successful");
+} catch (err) {
+  console.error("Error initializing MSAL:", err);
+}
 
 // Azure AD login request scopes
 const loginRequest = {
@@ -241,9 +246,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Determine authentication status
   const isAuthenticated = !!user;
   
-  // Determine loading status
-  const isLoading = isLocalLoading || isAzureLoading;
-  console.log("Loading state:", { isLocalLoading, isAzureLoading, isLoading });
+  // Determine loading status - force to false for debugging Replit webview issue
+  // const isLoading = isLocalLoading || isAzureLoading;
+  const isLoading = false; // Temporarily force to false to debug Replit webview issue
+  console.log("Loading state:", { isLocalLoading, isAzureLoading, isLoading, forceDisabled: true });
   
   // Determine error status
   const error = localError || azureError;
