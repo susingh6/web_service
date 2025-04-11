@@ -89,7 +89,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isLoading: isLocalLoading,
   } = useQuery<User | null, Error>({
     queryKey: ["/api/user"],
-    queryFn: getQueryFn({ on401: "returnNull" }),
+    queryFn: async (queryFnContext) => {
+      try {
+        // Use the standard query function but handle the new response format
+        const response = await fetch(queryFnContext.queryKey[0] as string, {
+          credentials: "include",
+        });
+        
+        // Handle 401 by returning null (not authenticated)
+        if (response.status === 401) {
+          return null;
+        }
+        
+        if (!response.ok) {
+          throw new Error(`API error: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        
+        // Handle unified auth response format
+        if (result && result.success === true && result.user) {
+          return result.user;
+        }
+        
+        return result; // Return the user object directly or null
+      } catch (error) {
+        console.error("Error fetching user:", error);
+        return null;
+      }
+    },
   });
 
   // Check if user is authenticated with Azure AD on mount
@@ -118,14 +146,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loginMutation = useMutation({
     mutationFn: async (credentials: LoginData) => {
       const res = await apiRequest("POST", "/api/login", credentials);
-      return await res.json();
+      const data = await res.json();
+      
+      // Check for the new unified response format
+      if (data.success === false) {
+        throw new Error(data.message || "Login failed");
+      }
+      
+      // Handle response format from unified auth (success with user object)
+      return data.user || data;
     },
     onSuccess: (user: User) => {
       queryClient.setQueryData(["/api/user"], user);
       setAuthMethod('local');
       toast({
         title: "Login successful",
-        description: `Welcome back, ${user.username}!`,
+        description: `Welcome back, ${user.username || user.displayName}!`,
         variant: "default",
       });
     },
@@ -142,14 +178,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const registerMutation = useMutation({
     mutationFn: async (data: RegisterData) => {
       const res = await apiRequest("POST", "/api/register", data);
-      return await res.json();
+      const responseData = await res.json();
+      
+      // Check for the new unified response format
+      if (responseData.success === false) {
+        throw new Error(responseData.message || "Registration failed");
+      }
+      
+      // Handle response format from unified auth (success with user object)
+      return responseData.user || responseData;
     },
     onSuccess: (user: User) => {
       queryClient.setQueryData(["/api/user"], user);
       setAuthMethod('local');
       toast({
         title: "Registration successful",
-        description: `Welcome, ${user.username}!`,
+        description: `Welcome, ${user.username || user.displayName}!`,
         variant: "default",
       });
     },
@@ -201,7 +245,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async (): Promise<void> => {
     // For both auth methods (simulated Azure or local), use the standard logout endpoint
     try {
-      await apiRequest("POST", "/api/logout");
+      const res = await apiRequest("POST", "/api/logout");
+      const data = await res.json();
+      
+      // Check response 
+      if (data.success === false) {
+        throw new Error(data.message || "Logout failed");
+      }
+      
+      // Clear user data from cache
       queryClient.setQueryData(["/api/user"], null);
       queryClient.invalidateQueries({ queryKey: ["/api/user"] });
       setAuthMethod(null);
@@ -210,14 +262,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Show a toast to indicate successful logout
       toast({
         title: "Logged out",
-        description: "You have been successfully logged out",
+        description: data.message || "You have been successfully logged out",
         variant: "default",
       });
     } catch (err) {
       console.error('Logout error:', err);
       toast({
         title: "Logout error",
-        description: "An error occurred during logout",
+        description: err instanceof Error ? err.message : "An error occurred during logout",
         variant: "destructive",
       });
     }
