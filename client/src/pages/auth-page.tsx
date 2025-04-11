@@ -23,6 +23,7 @@ const AuthPage = () => {
   const { isAuthenticated, isLoading, loginMutation, loginWithAzure } = useAuth();
   const [, navigate] = useLocation();
   const [showPassword, setShowPassword] = useState(false);
+  const [isAzureLoading, setIsAzureLoading] = useState(false);
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -54,7 +55,9 @@ const AuthPage = () => {
     }
   };
 
-  if (isLoading) {
+  // Only show loading indicator if we're actually in the middle of an API request
+  // This prevents getting stuck in an infinite loading state
+  if (isLoading && loginMutation.isPending) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
