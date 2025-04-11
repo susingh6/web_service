@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Loader2, Eye, EyeOff, LogOut } from 'lucide-react';
+import { Loader2, Eye, EyeOff } from 'lucide-react';
 import monitoringIllustration from '../assets/monitoring-illustration.svg';
 
 // Login form schema
@@ -20,9 +20,7 @@ const loginSchema = z.object({
 type LoginFormValues = z.infer<typeof loginSchema>;
 
 const AuthPage = () => {
-  const { isAuthenticated, isLoading, loginMutation, loginWithAzure, logout } = useAuth();
-  // For debugging
-  console.log("Auth page rendering, isAuthenticated:", isAuthenticated, "isLoading:", isLoading);
+  const { isAuthenticated, isLoading, loginMutation, loginWithAzure } = useAuth();
   const [, navigate] = useLocation();
   const [showPassword, setShowPassword] = useState(false);
 
@@ -47,16 +45,13 @@ const AuthPage = () => {
     loginMutation.mutate(data);
   };
 
-  // Handle Azure AD login - uses the simulated Azure login
-  const handleAzureLogin = () => {
-    console.log("Azure AD login button clicked - using simulated Azure login");
-    loginWithAzure();
-  };
-
-  // Handle explicit logout
-  const handleLogout = async () => {
-    await logout();
-    console.log("User logged out manually from login page");
+  // Handle Azure AD login
+  const handleAzureLogin = async () => {
+    try {
+      await loginWithAzure();
+    } catch (error) {
+      console.error("Azure login error:", error);
+    }
   };
 
   if (isLoading) {
@@ -68,20 +63,7 @@ const AuthPage = () => {
   }
 
   return (
-    <div className="flex min-h-screen relative">
-      {/* Logout button fixed at top right */}
-      <div className="absolute top-4 right-4 z-10">
-        <Button
-          variant="outline"
-          size="sm"
-          className="text-muted-foreground"
-          onClick={handleLogout}
-        >
-          <LogOut className="h-4 w-4 mr-2" />
-          Clear Session
-        </Button>
-      </div>
-      
+    <div className="flex min-h-screen">
       {/* Left panel with forms */}
       <div className="flex-1 flex items-center justify-center p-6 bg-background">
         <Card className="w-full max-w-md">
@@ -97,9 +79,8 @@ const AuthPage = () => {
                 variant="default"
                 type="button"
                 size="lg"
-                className="w-full relative bg-blue-600 hover:bg-blue-700"
+                className="w-full"
                 onClick={handleAzureLogin}
-                title="Azure AD integration is not active in this demo"
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -183,12 +164,6 @@ const AuthPage = () => {
                   </Button>
                 </form>
               </Form>
-              
-              <p className="text-xs text-muted-foreground text-center mt-4">
-                <span className="block font-medium mb-1">Demo Credentials:</span>
-                Username: <span className="font-mono">azure_test_user</span><br />
-                Password: <span className="font-mono">Azure123!</span>
-              </p>
             </div>
           </CardContent>
           <CardFooter className="flex justify-center text-sm text-muted-foreground">
@@ -200,7 +175,7 @@ const AuthPage = () => {
       {/* Right panel with hero content */}
       <div className="hidden lg:flex flex-1 bg-gradient-to-br from-primary/20 to-primary/5 p-12 flex-col justify-center">
         <div className="max-w-lg">
-          <div className="flex justify-start mb-8">
+          <div className="flex justify-center mb-8">
             <img 
               src={monitoringIllustration} 
               alt="SLA Monitoring Dashboard" 

@@ -1,4 +1,4 @@
-import { useState, memo, useCallback } from 'react';
+import { useState } from 'react';
 import { Card, CardContent, Typography, Box, ToggleButton, ToggleButtonGroup, IconButton, Tooltip } from '@mui/material';
 import { FileDownload, Print } from '@mui/icons-material';
 
@@ -12,8 +12,7 @@ interface ChartCardProps {
   height?: number | string;
 }
 
-// Use function declaration for better debugging in React DevTools
-function ChartCardComponent({
+const ChartCard = ({
   title,
   chart,
   filters,
@@ -21,7 +20,7 @@ function ChartCardComponent({
   actions = false,
   loading = false,
   height = 300,
-}: ChartCardProps) {
+}: ChartCardProps) => {
   const [filter, setFilter] = useState<string>(filters && filters.length > 0 ? filters[0] : 'All');
 
   const handleFilterChange = (event: React.MouseEvent<HTMLElement>, newFilter: string) => {
@@ -132,30 +131,5 @@ function ChartCardComponent({
     </Card>
   );
 };
-
-// Memoize the component to prevent unnecessary re-renders
-const ChartCard = memo<ChartCardProps>(ChartCardComponent, (prevProps, nextProps) => {
-  // Always memoize based on specific prop equality
-  const basicPropsEqual = 
-    prevProps.title === nextProps.title &&
-    prevProps.height === nextProps.height &&
-    prevProps.actions === nextProps.actions &&
-    prevProps.loading === nextProps.loading;
-  
-  // Efficient array comparison for filters
-  const filtersEqual = 
-    (!prevProps.filters && !nextProps.filters) ||
-    (prevProps.filters?.length === nextProps.filters?.length &&
-     prevProps.filters?.every((f, i) => f === nextProps.filters?.[i]));
-  
-  // The chart prop is a React node which may change reference on each render
-  // We'll let parent components control when this should re-render
-  
-  // Explicit return with boolean to satisfy TypeScript
-  return Boolean(basicPropsEqual && filtersEqual);
-});
-
-// Better debugging in React DevTools
-ChartCard.displayName = 'ChartCard';
 
 export default ChartCard;

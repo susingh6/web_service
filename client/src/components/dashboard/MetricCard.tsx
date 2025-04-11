@@ -1,7 +1,6 @@
 import { Card, CardContent, Typography, Box, LinearProgress, Tooltip } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import { TrendingUp, TrendingDown, TrendingFlat, Info } from '@mui/icons-material';
-import { memo } from 'react';
 
 interface MetricCardProps {
   title: string;
@@ -27,8 +26,7 @@ const ProgressBar = styled(LinearProgress)(({ theme, value }) => ({
   },
 }));
 
-// Use function declaration for better debugging in React DevTools
-function MetricCardComponent({
+const MetricCard = ({
   title,
   value,
   trend = 0,
@@ -37,7 +35,7 @@ function MetricCardComponent({
   suffix = '',
   subtitle,
   loading = false,
-}: MetricCardProps) {
+}: MetricCardProps) => {
   // Determine trend icon and color
   const trendIcon = trend > 0 ? (
     <TrendingUp color="success" fontSize="small" />
@@ -126,24 +124,5 @@ function MetricCardComponent({
     </Card>
   );
 };
-
-// Memoize the component to prevent unnecessary re-renders
-// Only re-render if props change
-const MetricCard = memo<MetricCardProps>(MetricCardComponent, (prevProps, nextProps) => {
-  // Custom comparison function to determine if the component should re-render
-  // Return true if props are equal (no re-render needed)
-  // Return false if props changed (re-render needed)
-  return (
-    prevProps.title === nextProps.title &&
-    prevProps.value === nextProps.value &&
-    prevProps.trend === nextProps.trend &&
-    prevProps.progress === nextProps.progress &&
-    prevProps.loading === nextProps.loading &&
-    prevProps.suffix === nextProps.suffix
-  );
-});
-
-// For better debugging in React DevTools
-MetricCard.displayName = 'MetricCard';
 
 export default MetricCard;

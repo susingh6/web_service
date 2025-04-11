@@ -99,13 +99,14 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
       setTenantOptions(getFromCache('tenants'));
       setTeamOptions(getFromCache('teams'));
       
-      // Always preload DAG options to ensure they're ready
-      // even if the user switches tabs
-      setDagOptions(getFromCache('dags'));
+      // Only load DAG options if viewing the DAG tab
+      if (entityType === 'dag') {
+        setDagOptions(getFromCache('dags'));
+      }
       
       console.log('Modal opened - using cached values without additional API calls');
     }
-  }, [open]);
+  }, [open, entityType]);
   
   // Functions to fetch options with loading indicators
   const fetchTenantOptions = async () => {

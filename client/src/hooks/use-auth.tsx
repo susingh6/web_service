@@ -25,12 +25,9 @@ const msalConfig: Configuration = {
 };
 
 // Initialize MSAL instance
-let msalInstance: PublicClientApplication | null = null;
+let msalInstance: PublicClientApplication;
 try {
-  // Only initialize in browser environments
-  if (typeof window !== 'undefined') {
-    msalInstance = new PublicClientApplication(msalConfig);
-  }
+  msalInstance = new PublicClientApplication(msalConfig);
 } catch (err) {
   console.error("Error initializing MSAL:", err);
 }
@@ -92,35 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isLoading: isLocalLoading,
   } = useQuery<User | null, Error>({
     queryKey: ["/api/user"],
-    queryFn: async (queryFnContext) => {
-      try {
-        // Use the standard query function but handle the new response format
-        const response = await fetch(queryFnContext.queryKey[0] as string, {
-          credentials: "include",
-        });
-        
-        // Handle 401 by returning null (not authenticated)
-        if (response.status === 401) {
-          return null;
-        }
-        
-        if (!response.ok) {
-          throw new Error(`API error: ${response.status}`);
-        }
-        
-        const result = await response.json();
-        
-        // Handle unified auth response format
-        if (result && result.success === true && result.user) {
-          return result.user;
-        }
-        
-        return result; // Return the user object directly or null
-      } catch (error) {
-        console.error("Error fetching user:", error);
-        return null;
-      }
-    },
+    queryFn: getQueryFn({ on401: "returnNull" }),
   });
 
   // Check if user is authenticated with Azure AD on mount
@@ -149,22 +118,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loginMutation = useMutation({
     mutationFn: async (credentials: LoginData) => {
       const res = await apiRequest("POST", "/api/login", credentials);
-      const data = await res.json();
-      
-      // Check for the new unified response format
-      if (data.success === false) {
-        throw new Error(data.message || "Login failed");
-      }
-      
-      // Handle response format from unified auth (success with user object)
-      return data.user || data;
+      return await res.json();
     },
     onSuccess: (user: User) => {
       queryClient.setQueryData(["/api/user"], user);
       setAuthMethod('local');
       toast({
         title: "Login successful",
-        description: `Welcome back, ${user.username || user.displayName}!`,
+        description: `Welcome back, ${user.username}!`,
         variant: "default",
       });
     },
@@ -181,22 +142,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const registerMutation = useMutation({
     mutationFn: async (data: RegisterData) => {
       const res = await apiRequest("POST", "/api/register", data);
-      const responseData = await res.json();
-      
-      // Check for the new unified response format
-      if (responseData.success === false) {
-        throw new Error(responseData.message || "Registration failed");
-      }
-      
-      // Handle response format from unified auth (success with user object)
-      return responseData.user || responseData;
+      return await res.json();
     },
     onSuccess: (user: User) => {
       queryClient.setQueryData(["/api/user"], user);
       setAuthMethod('local');
       toast({
         title: "Registration successful",
-        description: `Welcome, ${user.username || user.displayName}!`,
+        description: `Welcome, ${user.username}!`,
         variant: "default",
       });
     },
@@ -209,33 +162,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
   });
 
-  // Azure AD login function (simplified to use test credentials)
+  // Azure AD login function
   const loginWithAzure = async (): Promise<void> => {
+    if (!msalInstance) {
+      setAzureError("Azure AD authentication is not initialized");
+      toast({
+        title: "Login failed",
+        description: "Azure AD authentication is not initialized",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     try {
       setIsAzureLoading(true);
       setAzureError(null);
       
-      // Instead of Azure authentication, use test credentials
-      const testCredentials = {
-        username: "azure_test_user",
-        password: "Azure123!",
-      };
+      // Redirect to Microsoft login page
+      const response: AuthenticationResult = await msalInstance.loginPopup(loginRequest);
       
-      // Use the regular login mutation with test credentials
-      loginMutation.mutate(testCredentials, {
-        onSuccess: () => {
-          toast({
-            title: "Azure login simulation",
-            description: "Using test credentials instead of actual Azure AD",
-            variant: "default",
-          });
-        }
-      });
+      if (response) {
+        msalInstance.setActiveAccount(response.account);
+        setAzureUser(response.account);
+        setAuthMethod('azure');
+        toast({
+          title: "Login successful",
+          description: `Welcome, ${response.account.name || response.account.username}!`,
+          variant: "default",
+        });
+      }
     } catch (err) {
       setAzureError(`Login failed: ${err}`);
-      console.error('Login error:', err);
+      console.error('Azure login error:', err);
       toast({
-        title: "Login failed",
+        title: "Azure AD login failed",
         description: err instanceof Error ? err.message : String(err),
         variant: "destructive",
       });
@@ -246,35 +206,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Logout function
   const logout = async (): Promise<void> => {
-    // For both auth methods (simulated Azure or local), use the standard logout endpoint
-    try {
-      const res = await apiRequest("POST", "/api/logout");
-      const data = await res.json();
-      
-      // Check response 
-      if (data.success === false) {
-        throw new Error(data.message || "Logout failed");
+    if (authMethod === 'azure' && msalInstance) {
+      try {
+        const logoutRequest = {
+          account: msalInstance.getActiveAccount(),
+        };
+        
+        msalInstance.logout(logoutRequest);
+        setAzureUser(null);
+        setAuthMethod(null);
+      } catch (err) {
+        console.error('Azure logout error:', err);
       }
-      
-      // Clear user data from cache
-      queryClient.setQueryData(["/api/user"], null);
-      queryClient.invalidateQueries({ queryKey: ["/api/user"] });
-      setAuthMethod(null);
-      setAzureUser(null);
-      
-      // Show a toast to indicate successful logout
-      toast({
-        title: "Logged out",
-        description: data.message || "You have been successfully logged out",
-        variant: "default",
-      });
-    } catch (err) {
-      console.error('Logout error:', err);
-      toast({
-        title: "Logout error",
-        description: err instanceof Error ? err.message : "An error occurred during logout",
-        variant: "destructive",
-      });
+    } else if (authMethod === 'local') {
+      try {
+        await apiRequest("POST", "/api/logout");
+        queryClient.setQueryData(["/api/user"], null);
+        queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+        setAuthMethod(null);
+      } catch (err) {
+        console.error('Local logout error:', err);
+      }
     }
   };
 
