@@ -104,11 +104,8 @@ function BaseModalComponent({
           </div>
         )}
         
-        {/* Render children with loading state passed down */}
-        {typeof children === 'function' 
-          ? children({ isLoading }) 
-          : children
-        }
+        {/* Render children */}
+        {children}
       </DialogContent>
       
       {/* Modal Actions */}
