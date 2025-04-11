@@ -25,9 +25,11 @@ const msalConfig: Configuration = {
 };
 
 // Initialize MSAL instance
-let msalInstance: PublicClientApplication;
+let msalInstance: PublicClientApplication | null = null;
 try {
+  console.log("Attempting to initialize MSAL with config:", msalConfig);
   msalInstance = new PublicClientApplication(msalConfig);
+  console.log("MSAL initialization successful");
 } catch (err) {
   console.error("Error initializing MSAL:", err);
 }
@@ -95,20 +97,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Check if user is authenticated with Azure AD on mount
   useEffect(() => {
     const initializeAzureAuth = async () => {
+      console.log("Starting Azure AD auth initialization");
       try {
         // Check if there are any accounts in the cache
         if (msalInstance) {
+          console.log("MSAL instance available, checking accounts");
           const accounts = msalInstance.getAllAccounts();
+          console.log("Found accounts:", accounts.length);
           
           if (accounts.length > 0) {
+            console.log("Setting active account from cache");
             msalInstance.setActiveAccount(accounts[0]);
             setAzureUser(accounts[0]);
             setAuthMethod('azure');
+          } else {
+            console.log("No accounts found in MSAL cache");
           }
+        } else {
+          console.log("MSAL instance is null, skipping Azure AD initialization");
         }
       } catch (err) {
         console.error('Azure AD authentication initialization error:', err);
       }
+      console.log("Azure AD initialization complete");
     };
 
     initializeAzureAuth();
