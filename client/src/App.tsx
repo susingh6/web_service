@@ -1,25 +1,27 @@
 import { Switch, Route } from "wouter";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
-import { AuthProvider } from "@/hooks/use-auth";
 import { Toaster } from "@/components/ui/toaster";
-import { ProtectedRoute } from "@/lib/protected-route";
-import AppLayout from "./components/layout/AppLayout";
+// Use simplified layout that doesn't depend on auth provider
+import SimpleAppLayout from "./components/layout/SimpleAppLayout";
 import NotFound from "@/pages/not-found";
-// Temporarily use simplified auth page while debugging
-import SimpleAuthPage from "@/pages/simple-auth";
+// Direct login that doesn't depend on the auth provider
+import DirectLoginPage from "@/pages/direct-login";
 import Summary from "@/pages/dashboard/Summary";
 import TeamDashboard from "@/pages/dashboard/TeamDashboard";
 
 function Router() {
   return (
     <Switch>
-      {/* Auth routes - using simplified auth page */}
-      <Route path="/auth" component={SimpleAuthPage} />
+      {/* Direct login route - completely bypasses auth provider */}
+      <Route path="/login" component={DirectLoginPage} />
       
-      {/* Protected Dashboard routes */}
-      <ProtectedRoute path="/" component={Summary} />
-      <ProtectedRoute path="/team/:id" component={TeamDashboard} />
+      {/* Keep the old auth route for compatibility */}
+      <Route path="/auth" component={DirectLoginPage} />
+      
+      {/* Dashboard routes - no longer protected */}
+      <Route path="/" component={Summary} />
+      <Route path="/team/:id" component={TeamDashboard} />
       
       {/* Fallback to 404 */}
       <Route component={NotFound} />
@@ -30,12 +32,10 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <AppLayout>
-          <Router />
-        </AppLayout>
-        <Toaster />
-      </AuthProvider>
+      <SimpleAppLayout>
+        <Router />
+      </SimpleAppLayout>
+      <Toaster />
     </QueryClientProvider>
   );
 }
