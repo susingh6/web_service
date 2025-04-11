@@ -6,22 +6,17 @@ import { store } from "./lib/store";
 import theme from "./lib/theme";
 import App from "./App";
 import "./index.css";
-import { preloadAllCacheData, refreshCacheInBackground } from "./lib/preloadCache";
+import { preloadAllCacheData, refreshCacheInBackground, initializeCache } from "./lib/preloadCache";
 
 // Import API test script for debugging
 import './test-api-response';
 
-// Preload cache data immediately when the app starts
-// This ensures the first modal open is fast
-preloadAllCacheData().catch(err => console.error("Error preloading cache:", err));
+// Initialize empty cache immediately to avoid UI waiting for data
+initializeCache();
 
-// Set up a background refresh of cache data every 6 hours
-// This matches our CACHE_TTL setting of 6 hours in cacheUtils.ts
-setInterval(() => {
-  refreshCacheInBackground().catch(err => console.error("Error refreshing cache:", err));
-}, 6 * 60 * 60 * 1000); // 6 hour interval
-
-createRoot(document.getElementById("root")!).render(
+// Render the app first before loading remote data
+const root = createRoot(document.getElementById("root")!);
+root.render(
   <Provider store={store}>
     <ThemeProvider theme={theme}>
       <CssBaseline />
@@ -29,3 +24,16 @@ createRoot(document.getElementById("root")!).render(
     </ThemeProvider>
   </Provider>
 );
+
+// AFTER the app is rendered, try to load cache data in the background
+// This way, if FastAPI or Airflow calls time out, the UI is still usable
+setTimeout(() => {
+  console.log("Starting background cache loading (post-render)...");
+  preloadAllCacheData().catch(err => console.error("Error preloading cache:", err));
+
+  // Set up a background refresh of cache data every 6 hours
+  // This matches our CACHE_TTL setting of 6 hours in cacheUtils.ts
+  setInterval(() => {
+    refreshCacheInBackground().catch(err => console.error("Error refreshing cache:", err));
+  }, 6 * 60 * 60 * 1000); // 6 hour interval
+}, 1000); // Start loading 1 second after initial render

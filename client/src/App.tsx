@@ -1,26 +1,47 @@
-// Minimal App.tsx for debugging
-// This is a diagnostic version to identify the issue
+import { Switch, Route } from "wouter";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { queryClient } from "./lib/queryClient";
+import { AuthProvider } from "@/hooks/use-auth";
+import { Toaster } from "@/components/ui/toaster";
+import { ProtectedRoute } from "@/lib/protected-route";
+import AppLayout from "./components/layout/AppLayout";
+import { lazy, Suspense } from "react";
+import { createDynamicComponent, LoadingComponent } from "./components/DynamicImport";
+
+// Only import Not Found eagerly since it's small and might be needed immediately
+import NotFound from "@/pages/not-found";
+
+// Lazy load pages to reduce initial bundle size
+const AuthPage = createDynamicComponent(() => import("@/pages/auth-page"));
+const Summary = createDynamicComponent(() => import("@/pages/dashboard/Summary"));
+const TeamDashboard = createDynamicComponent(() => import("@/pages/dashboard/TeamDashboard"));
+
+function Router() {
+  return (
+    <Switch>
+      {/* Auth routes */}
+      <Route path="/auth" component={AuthPage} />
+      
+      {/* Protected Dashboard routes */}
+      <ProtectedRoute path="/" component={Summary} />
+      <ProtectedRoute path="/team/:id" component={TeamDashboard} />
+      
+      {/* Fallback to 404 */}
+      <Route component={NotFound} />
+    </Switch>
+  );
+}
 
 function App() {
-  console.log("App is rendering!");
-
   return (
-    <div className="p-8">
-      <h1 className="text-3xl font-bold mb-4">SLA Monitoring Tool</h1>
-      <p className="mb-4">This is a simplified version for debugging.</p>
-      
-      <div className="p-4 bg-blue-100 rounded">
-        <h2 className="text-xl font-semibold mb-2">Test Login</h2>
-        <p className="mb-2">Username: azure_test_user</p>
-        <p className="mb-2">Password: Azure123!</p>
-        <a 
-          href="/test-login" 
-          className="inline-block px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-        >
-          Go to Test Login Page
-        </a>
-      </div>
-    </div>
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <AppLayout>
+          <Router />
+        </AppLayout>
+        <Toaster />
+      </AuthProvider>
+    </QueryClientProvider>
   );
 }
 
