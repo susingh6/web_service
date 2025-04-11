@@ -22,25 +22,26 @@ export const fetchWithCache = async (
     }
   }
   
-  // No valid cache, fetch mock data for now (will be replaced with real API call)
+  // No valid cache, fetch from API
   try {
-    console.log(`Preparing default data for ${cacheKey}`);
+    // This is a placeholder for the actual API call
+    console.log(`Fetching ${cacheKey} from ${url}`);
     
-    // Default response values
-    let defaultResponse: string[] = [];
+    // Simulating API response for now
+    let mockResponse: string[] = [];
     if (cacheKey === 'tenants') {
-      defaultResponse = ['Ad Engineering', 'Data Engineering'];
+      mockResponse = ['Ad Engineering', 'Data Engineering'];
     } else if (cacheKey === 'teams') {
-      defaultResponse = ['PGM', 'Core', 'Viewer Product', 'IOT', 'CDM'];
+      mockResponse = ['PGM', 'Core', 'Viewer Product', 'IOT', 'CDM'];
     } else if (cacheKey === 'dags') {
-      defaultResponse = ['agg_daily', 'agg_hourly', 'PGM_Freeview_Play_Agg_Daily', 'CHN_agg', 'CHN_billing'];
+      mockResponse = ['agg_daily', 'agg_hourly', 'PGM_Freeview_Play_Agg_Daily', 'CHN_agg', 'CHN_billing'];
     }
     
     // Cache the results
-    localStorage.setItem(cacheKey, JSON.stringify(defaultResponse));
+    localStorage.setItem(cacheKey, JSON.stringify(mockResponse));
     localStorage.setItem(`${cacheKey}_time`, Date.now().toString());
     
-    return defaultResponse;
+    return mockResponse;
   } catch (error) {
     console.error(`Error fetching ${cacheKey}:`, error);
     return [];

@@ -19,16 +19,12 @@ interface AppLayoutProps {
 }
 
 const AppLayout = ({ children }: AppLayoutProps) => {
-  console.log("Rendering AppLayout");
   const { isAuthenticated, isLoading } = useAuth();
   const [location, setLocation] = useLocation();
-  
-  console.log("AppLayout state:", { isAuthenticated, isLoading, location });
   
   useEffect(() => {
     // Redirect to login if not authenticated
     if (!isLoading && !isAuthenticated && !location.startsWith('/auth')) {
-      console.log("Redirecting to /auth from AppLayout");
       setLocation('/auth');
     }
   }, [isAuthenticated, isLoading, location, setLocation]);
@@ -64,9 +60,7 @@ const AppLayout = ({ children }: AppLayoutProps) => {
   }
   
   // Don't wrap auth pages with app layout
-  // Also temporarily don't wrap the root path since we're showing auth page there
-  if (location.startsWith('/auth') || location === '/') {
-    console.log("Rendering without app layout (auth page)");
+  if (location.startsWith('/auth')) {
     return (
       <ThemeProvider theme={theme}>
         <CssBaseline />

@@ -9,18 +9,15 @@ import NotFound from "@/pages/not-found";
 import AuthPage from "@/pages/auth-page";
 import Summary from "@/pages/dashboard/Summary";
 import TeamDashboard from "@/pages/dashboard/TeamDashboard";
-import SimpleLogin from "@/pages/simple-login";
 
 function Router() {
-  console.log("Initializing Router");
   return (
     <Switch>
-      {/* Auth routes - using simple login page directly */}
-      <Route path="/" component={SimpleLogin} />
-      <Route path="/auth" component={SimpleLogin} />
+      {/* Auth routes */}
+      <Route path="/auth" component={AuthPage} />
       
       {/* Protected Dashboard routes */}
-      <ProtectedRoute path="/dashboard" component={Summary} />
+      <ProtectedRoute path="/" component={Summary} />
       <ProtectedRoute path="/team/:id" component={TeamDashboard} />
       
       {/* Fallback to 404 */}
@@ -33,7 +30,9 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <Router />
+        <AppLayout>
+          <Router />
+        </AppLayout>
         <Toaster />
       </AuthProvider>
     </QueryClientProvider>

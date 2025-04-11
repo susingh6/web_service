@@ -274,17 +274,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Cache data endpoints for dropdown values
-  app.get("/api/tenants", (req, res) => {
-    // Return predefined list of tenants
-    res.json(['Ad Engineering', 'Data Engineering']);
-  });
-  
-  app.get("/api/dags", (req, res) => {
-    // Return predefined list of DAGs
-    res.json(['agg_daily', 'agg_hourly', 'PGM_Freeview_Play_Agg_Daily', 'CHN_agg', 'CHN_billing']);
-  });
-  
   // Dashboard summary endpoint
   app.get("/api/dashboard/summary", async (req, res) => {
     try {

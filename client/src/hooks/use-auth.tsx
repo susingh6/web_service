@@ -24,24 +24,12 @@ const msalConfig: Configuration = {
   },
 };
 
-// Initialize MSAL instance (wrapped in a function to prevent immediate execution)
-let msalInstance: PublicClientApplication | null = null;
-
-function initializeMsal() {
-  try {
-    // Only initialize if Azure client ID is properly set
-    if (import.meta.env.VITE_AZURE_CLIENT_ID && 
-        import.meta.env.VITE_AZURE_CLIENT_ID !== 'default-client-id') {
-      msalInstance = new PublicClientApplication(msalConfig);
-      return msalInstance;
-    } else {
-      console.log("Azure AD not configured with proper client ID, skipping initialization");
-      return null;
-    }
-  } catch (err) {
-    console.error("Error initializing MSAL:", err);
-    return null;
-  }
+// Initialize MSAL instance
+let msalInstance: PublicClientApplication;
+try {
+  msalInstance = new PublicClientApplication(msalConfig);
+} catch (err) {
+  console.error("Error initializing MSAL:", err);
 }
 
 // Azure AD login request scopes
@@ -108,11 +96,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const initializeAzureAuth = async () => {
       try {
-        // Initialize MSAL if not already initialized
-        if (!msalInstance) {
-          msalInstance = initializeMsal();
-        }
-        
         // Check if there are any accounts in the cache
         if (msalInstance) {
           const accounts = msalInstance.getAllAccounts();
@@ -125,7 +108,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       } catch (err) {
         console.error('Azure AD authentication initialization error:', err);
-        // Don't block authentication flow on Azure error
       }
     };
 
@@ -182,20 +164,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Azure AD login function
   const loginWithAzure = async (): Promise<void> => {
-    // Try to initialize MSAL if not already initialized
     if (!msalInstance) {
-      msalInstance = initializeMsal();
-      
-      if (!msalInstance) {
-        // Fall back to local login if Azure not available
-        setAzureError("Azure AD authentication is not available");
-        toast({
-          title: "Azure AD unavailable",
-          description: "Please use username/password login instead",
-          variant: "destructive",
-        });
-        return;
-      }
+      setAzureError("Azure AD authentication is not initialized");
+      toast({
+        title: "Login failed",
+        description: "Azure AD authentication is not initialized",
+        variant: "destructive",
+      });
+      return;
     }
     
     try {
@@ -220,7 +196,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error('Azure login error:', err);
       toast({
         title: "Azure AD login failed",
-        description: "Please try using username/password login instead",
+        description: err instanceof Error ? err.message : String(err),
         variant: "destructive",
       });
     } finally {
