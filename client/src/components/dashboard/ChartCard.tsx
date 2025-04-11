@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, memo, useCallback } from 'react';
 import { Card, CardContent, Typography, Box, ToggleButton, ToggleButtonGroup, IconButton, Tooltip } from '@mui/material';
 import { FileDownload, Print } from '@mui/icons-material';
 
@@ -12,7 +12,8 @@ interface ChartCardProps {
   height?: number | string;
 }
 
-const ChartCard = ({
+// Use function declaration for better debugging in React DevTools
+function ChartCardComponent({
   title,
   chart,
   filters,
@@ -20,7 +21,7 @@ const ChartCard = ({
   actions = false,
   loading = false,
   height = 300,
-}: ChartCardProps) => {
+}: ChartCardProps) {
   const [filter, setFilter] = useState<string>(filters && filters.length > 0 ? filters[0] : 'All');
 
   const handleFilterChange = (event: React.MouseEvent<HTMLElement>, newFilter: string) => {
@@ -132,4 +133,32 @@ const ChartCard = ({
   );
 };
 
-export default ChartCard;
+// Use a memoized version of the component with custom comparison
+const ChartCard = memo<ChartCardProps>(ChartCardComponent, (prevProps, nextProps) => {
+  // Custom comparison to determine if component should re-render
+  // Only re-render if these specific props have changed
+  
+  // Chart content almost always needs to cause a re-render,
+  // so we primarily check other props for stability
+  
+  // Basic prop equality checks
+  const basicPropsEqual = 
+    prevProps.title === nextProps.title &&
+    prevProps.height === nextProps.height &&
+    prevProps.actions === nextProps.actions &&
+    prevProps.loading === nextProps.loading;
+  
+  // Filter equality requires array comparison
+  const filtersEqual = 
+    (!prevProps.filters && !nextProps.filters) ||
+    (prevProps.filters?.length === nextProps.filters?.length &&
+     prevProps.filters?.every((f, i) => f === nextProps.filters?.[i]));
+  
+  // If all checks pass, no re-render needed
+  return basicPropsEqual && filtersEqual;
+});
+
+// Better debugging in React DevTools
+MemoizedChartCard.displayName = 'ChartCard';
+
+export default MemoizedChartCard;
