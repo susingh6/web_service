@@ -175,7 +175,7 @@ const AuthPage = () => {
       {/* Right panel with hero content */}
       <div className="hidden lg:flex flex-1 bg-gradient-to-br from-primary/20 to-primary/5 p-12 flex-col justify-center">
         <div className="max-w-lg">
-          <div className="flex justify-center mb-8">
+          <div className="flex justify-start mb-8">
             <img 
               src={monitoringIllustration} 
               alt="SLA Monitoring Dashboard" 
