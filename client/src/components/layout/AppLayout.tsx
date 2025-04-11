@@ -19,12 +19,16 @@ interface AppLayoutProps {
 }
 
 const AppLayout = ({ children }: AppLayoutProps) => {
+  console.log("Rendering AppLayout");
   const { isAuthenticated, isLoading } = useAuth();
   const [location, setLocation] = useLocation();
+  
+  console.log("AppLayout state:", { isAuthenticated, isLoading, location });
   
   useEffect(() => {
     // Redirect to login if not authenticated
     if (!isLoading && !isAuthenticated && !location.startsWith('/auth')) {
+      console.log("Redirecting to /auth from AppLayout");
       setLocation('/auth');
     }
   }, [isAuthenticated, isLoading, location, setLocation]);

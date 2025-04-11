@@ -20,9 +20,12 @@ const loginSchema = z.object({
 type LoginFormValues = z.infer<typeof loginSchema>;
 
 const AuthPage = () => {
+  console.log("Rendering AuthPage");
   const { isAuthenticated, isLoading, loginMutation, loginWithAzure } = useAuth();
   const [, navigate] = useLocation();
   const [showPassword, setShowPassword] = useState(false);
+  
+  console.log("Auth state:", { isAuthenticated, isLoading });
 
   // Redirect if already authenticated
   useEffect(() => {

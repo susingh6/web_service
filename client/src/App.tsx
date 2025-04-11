@@ -11,13 +11,15 @@ import Summary from "@/pages/dashboard/Summary";
 import TeamDashboard from "@/pages/dashboard/TeamDashboard";
 
 function Router() {
+  console.log("Initializing Router");
   return (
     <Switch>
-      {/* Auth routes */}
+      {/* Auth routes - make this the default route temporarily */}
+      <Route path="/" component={AuthPage} />
       <Route path="/auth" component={AuthPage} />
       
       {/* Protected Dashboard routes */}
-      <ProtectedRoute path="/" component={Summary} />
+      <ProtectedRoute path="/dashboard" component={Summary} />
       <ProtectedRoute path="/team/:id" component={TeamDashboard} />
       
       {/* Fallback to 404 */}
