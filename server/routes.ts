@@ -309,6 +309,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Get all DAGs endpoint
+  app.get("/api/dags", async (req, res) => {
+    try {
+      const dags = await storage.getEntitiesByType('dag');
+      res.json(dags);
+    } catch (error) {
+      console.error("Error fetching DAGs:", error);
+      res.status(500).json({ message: "Failed to fetch DAGs" });
+    }
+  });
+
+  // Get all Tables endpoint
+  app.get("/api/tables", async (req, res) => {
+    try {
+      const tables = await storage.getEntitiesByType('table');
+      res.json(tables);
+    } catch (error) {
+      console.error("Error fetching Tables:", error);
+      res.status(500).json({ message: "Failed to fetch Tables" });
+    }
+  });
+  
   // DEVELOPMENT ONLY - Create a test user
   // This would typically be handled by Azure AD in a production environment
   app.get("/api/dev/create-test-user", async (req, res) => {

@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, doublePrecision } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, doublePrecision, json } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -35,6 +35,24 @@ export const entities = pgTable("entities", {
   nextRefresh: timestamp("next_refresh"),
   owner: text("owner"),
   ownerEmail: text("owner_email"),
+  
+  // Additional fields for DAGs
+  tenant_name: text("tenant_name"),
+  team_name: text("team_name"),
+  dag_name: text("dag_name"),
+  dag_description: text("dag_description"),
+  dag_schedule: text("dag_schedule"),
+  expected_runtime_minutes: integer("expected_runtime_minutes"),
+  dag_dependency: json("dag_dependency").$type<string[]>(), // Array of dependencies
+  notification_preferences: json("notification_preferences").$type<string[]>(), // Array of preferences
+  donemarker_location: text("donemarker_location"),
+  donemarker_lookback: integer("donemarker_lookback"),
+  user_name: text("user_name"),
+  user_email: text("user_email"),
+  is_active: boolean("is_active"),
+  lastRun: timestamp("last_run"),
+  lastStatus: text("last_status"),
+  
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

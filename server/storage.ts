@@ -66,10 +66,14 @@ export class MemStorage implements IStorage {
     this.issueId = 1;
     
     // Initialize with some demo data
-    this.initDemoData();
+    // We need to handle async initialization differently
+    // since constructors can't be async
+    this.initDemoData().catch(err => {
+      console.error('Error initializing demo data:', err);
+    });
   }
   
-  private initDemoData() {
+  private async initDemoData() {
     // Create a test user for Azure AD login simulation
     // In a real environment, this would be handled by Azure AD
     this.createUser({
@@ -90,10 +94,23 @@ export class MemStorage implements IStorage {
       });
     });
     
-    // Import and load mock DAG data
+    // Load mock DAG data using FS instead of require
+    await this.loadMockDags();
+  }
+  
+  /**
+   * Load mock DAG data from the JSON file
+   */
+  private async loadMockDags(): Promise<void> {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const mockDags = require('./data/mock-dags.json');
+      // Use dynamic import with fs to load the JSON file
+      const fs = await import('fs/promises');
+      const path = await import('path');
+      
+      // Get the DAGs data JSON file
+      const filePath = path.join(process.cwd(), 'server', 'data', 'mock-dags.json');
+      const fileData = await fs.readFile(filePath, 'utf8');
+      const mockDags = JSON.parse(fileData) as Entity[];
       
       if (mockDags && Array.isArray(mockDags)) {
         console.log(`Loading ${mockDags.length} mock DAGs from data file...`);
@@ -107,7 +124,7 @@ export class MemStorage implements IStorage {
             ...dag,
             createdAt: new Date(dag.createdAt),
             updatedAt: new Date(dag.updatedAt),
-            lastRun: new Date(dag.lastRun)
+            lastRun: dag.lastRun ? new Date(dag.lastRun) : null
           });
         });
         
