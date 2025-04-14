@@ -1,8 +1,28 @@
-import type { Express } from "express";
+import type { Express, Request, Response } from "express";
 import { storage } from "./storage";
 import { hashPassword } from "./auth";
+import path from "path";
 
 export function setupTestRoutes(app: Express) {
+  // Routes to serve test HTML files from their new location
+  app.get("/test", (req: Request, res: Response) => {
+    res.redirect("/tests/test.html");
+  });
+  
+  app.get("/test-login", (req: Request, res: Response) => {
+    res.redirect("/tests/test-login.html");
+  });
+  
+  app.get("/standalone-login", (req: Request, res: Response) => {
+    res.redirect("/tests/standalone-login.html");
+  });
+  
+  // Explicitly handle the tests directory to ensure files are found
+  app.get("/tests/:file", (req: Request, res: Response) => {
+    const file = req.params.file;
+    const filePath = path.join(import.meta.dirname, "public", "tests", file);
+    res.sendFile(filePath);
+  });
   // Special endpoint to force-create a test user with a working password
   app.get("/api/dev/force-create-test-user", async (req, res) => {
     try {
