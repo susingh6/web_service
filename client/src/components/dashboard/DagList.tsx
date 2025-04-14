@@ -43,9 +43,10 @@ interface DagListProps {
   dags: Entity[];
   isLoading: boolean;
   error: Error | null;
+  showActions?: boolean; // Controls whether to show action buttons
 }
 
-const DagList: React.FC<DagListProps> = ({ dags, isLoading, error }) => {
+const DagList: React.FC<DagListProps> = ({ dags, isLoading, error, showActions = true }) => {
   const [selectedDag, setSelectedDag] = useState<Entity | null>(null);
   const [openTasksModal, setOpenTasksModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -364,37 +365,43 @@ const DagList: React.FC<DagListProps> = ({ dags, isLoading, error }) => {
                     </Typography>
                   </TableCell>
                   <TableCell align="right">
-                    <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
-                      <Tooltip title="Edit">
-                        <IconButton 
-                          size="small"
-                          color="primary"
-                          onClick={(e) => { e.stopPropagation(); }}
-                        >
-                          <EditIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      
-                      <Tooltip title="History">
-                        <IconButton 
-                          size="small"
-                          color="inherit"
-                          onClick={(e) => { e.stopPropagation(); }}
-                        >
-                          <HistoryIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      
-                      <Tooltip title="Delete">
-                        <IconButton 
-                          size="small"
-                          color="error"
-                          onClick={(e) => { e.stopPropagation(); }}
-                        >
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    </Box>
+                    {showActions ? (
+                      <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+                        <Tooltip title="Edit">
+                          <IconButton 
+                            size="small"
+                            color="primary"
+                            onClick={(e) => { e.stopPropagation(); }}
+                          >
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        
+                        <Tooltip title="History">
+                          <IconButton 
+                            size="small"
+                            color="inherit"
+                            onClick={(e) => { e.stopPropagation(); }}
+                          >
+                            <HistoryIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        
+                        <Tooltip title="Delete">
+                          <IconButton 
+                            size="small"
+                            color="error"
+                            onClick={(e) => { e.stopPropagation(); }}
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
+                    ) : (
+                      <Typography variant="caption" color="text.secondary">
+                        —
+                      </Typography>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
