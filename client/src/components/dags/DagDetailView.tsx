@@ -247,7 +247,19 @@ const DagDetailView: React.FC<DagDetailViewProps> = ({ entity, onBack }) => {
                 Last Run
               </Typography>
               <Typography>
-                {entity.lastRun ? format(new Date(entity.lastRun), 'MMM d, yyyy h:mm a') : 'N/A'}
+                {entity.lastRun ? 
+                  (() => {
+                    try {
+                      const date = new Date(entity.lastRun);
+                      if (isNaN(date.getTime())) {
+                        return 'Invalid date';
+                      }
+                      return format(date, 'MMM d, yyyy h:mm a');
+                    } catch (error) {
+                      return 'Invalid date';
+                    }
+                  })() 
+                  : 'N/A'}
               </Typography>
             </Box>
           </Grid>

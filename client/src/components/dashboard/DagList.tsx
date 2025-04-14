@@ -344,9 +344,21 @@ const DagList: React.FC<DagListProps> = ({ dags, isLoading, error }) => {
                   <TableCell>
                     <Typography variant="body2">
                       {dag.updatedAt 
-                        ? format(new Date(dag.updatedAt), 'HH:mm') > '12:00' 
-                          ? `Yesterday, ${format(new Date(dag.updatedAt), 'HH:mm')} PM` 
-                          : `Today, ${format(new Date(dag.updatedAt), 'HH:mm')} AM`
+                        ? (() => {
+                            try {
+                              const date = new Date(dag.updatedAt);
+                              // Check if date is valid before formatting
+                              if (isNaN(date.getTime())) {
+                                return 'Invalid date';
+                              }
+                              // Format with AM/PM based on time
+                              return format(date, 'HH:mm') > '12:00'
+                                ? `Yesterday, ${format(date, 'HH:mm')} PM`
+                                : `Today, ${format(date, 'HH:mm')} AM`;
+                            } catch (error) {
+                              return 'Invalid date';
+                            }
+                          })()
                         : 'Never'
                       }
                     </Typography>
