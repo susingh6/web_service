@@ -118,14 +118,14 @@ const TaskManagementModal: React.FC<TaskManagementModalProps> = ({
             
             <Box sx={{ mb: 3 }}>
               <Typography variant="body2" color="text.secondary">
-                Drag and drop tasks between zones to change their priority. High priority tasks are monitored more frequently and trigger alerts sooner when issues are detected.
+                Drag and drop tasks between zones to change their priority. AI Monitored Tasks are monitored more frequently and trigger alerts sooner when issues are detected.
               </Typography>
             </Box>
             
             <Grid container spacing={3}>
               <Grid item xs={12} md={6}>
                 <PriorityZone 
-                  title="High Priority"
+                  title="AI Monitored Tasks"
                   priority="high"
                   tasks={highPriorityTasks}
                   onTaskDropped={(taskId) => handleTaskDropped(taskId, 'high')}
@@ -133,7 +133,7 @@ const TaskManagementModal: React.FC<TaskManagementModalProps> = ({
               </Grid>
               <Grid item xs={12} md={6}>
                 <PriorityZone 
-                  title="Normal Priority"
+                  title="Regular Tasks"
                   priority="normal"
                   tasks={normalPriorityTasks}
                   onTaskDropped={(taskId) => handleTaskDropped(taskId, 'normal')}
