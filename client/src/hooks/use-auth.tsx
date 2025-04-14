@@ -207,62 +207,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Logout function with improved browser state/cache handling
   const logout = async (): Promise<void> => {
     try {
-      // Always try to clear all cached data regardless of login method
-      // This ensures we don't have stale data if the server session was terminated
+      // First, show a toast to indicate logout is in progress
+      toast({
+        title: "Logging out...",
+        description: "Please wait while we log you out.",
+        variant: "default",
+      });
+      
+      // Clear React Query cache to prevent stale data
       queryClient.clear();
+      queryClient.setQueryData(["/api/user"], null);
+      queryClient.removeQueries();
       
       if (authMethod === 'azure' && msalInstance) {
         try {
-          const logoutRequest = {
-            account: msalInstance.getActiveAccount(),
-            postLogoutRedirectUri: window.location.origin + '/auth',
-          };
-          
           // Clear React state before MSAL logout
           setAzureUser(null);
           setAuthMethod(null);
           
-          // MSAL logout will redirect, so do this last
-          msalInstance.logout(logoutRequest);
+          // Set up MSAL logout request
+          const logoutRequest = {
+            account: msalInstance.getActiveAccount(),
+            postLogoutRedirectUri: window.location.origin + '/auth',
+          };
+
+          // Perform a simple redirect rather than using MSAL's logout
+          // which can sometimes cause issues
+          await apiRequest("POST", "/api/logout");
+          window.location.href = '/auth';
+          
+          // The below code is commented out because it can cause issues
+          // msalInstance.logout(logoutRequest);
         } catch (err) {
           console.error('Azure logout error:', err);
-          toast({
-            title: "Logout error",
-            description: "There was a problem logging out of Azure AD. Please try again.",
-            variant: "destructive",
-          });
-          // Force redirect to login page on error
+          // Even on error, force redirect to login page
           window.location.href = '/auth';
         }
-      } else if (authMethod === 'local') {
+      } else {
         try {
           // Send logout request to server
           await apiRequest("POST", "/api/logout");
           
-          // Clear all cached queries
-          queryClient.setQueryData(["/api/user"], null);
-          queryClient.invalidateQueries();
-          
           // Update auth state
           setAuthMethod(null);
           
-          // Show success message
-          toast({
-            title: "Logged out",
-            description: "You have been successfully logged out.",
-            variant: "default",
-          });
-          
-          // Redirect to auth page to prevent any cached state issues
+          // Force page reload to clear any cached state in React components
           window.location.href = '/auth';
         } catch (err) {
-          console.error('Local logout error:', err);
-          toast({
-            title: "Logout error",
-            description: "There was a problem logging out. Please try again.",
-            variant: "destructive",
-          });
-          // Force redirect to login page on error
+          console.error('Logout error:', err);
+          // Even on error, force redirect to login page
           window.location.href = '/auth';
         }
       }
