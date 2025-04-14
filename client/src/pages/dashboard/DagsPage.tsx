@@ -63,7 +63,12 @@ const DagsPage: React.FC = () => {
         </Typography>
       </Paper>
       
-      <DagList />
+      <DagList 
+        dags={[]} 
+        isLoading={false} 
+        error={null} 
+        showActions={false} // Don't show actions in summary pages
+      />
       
       {/* Login reminder dialog */}
       <Dialog open={showLoginDialog} onClose={handleCloseLoginDialog}>

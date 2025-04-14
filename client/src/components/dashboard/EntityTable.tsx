@@ -86,6 +86,7 @@ interface EntityTableProps {
   onDeleteEntity: (id: number) => void;
   onViewHistory: (entity: Entity) => void;
   onViewDetails: (entity: Entity) => void;
+  showActions?: boolean; // Controls whether to show action buttons
 }
 
 const EntityTable = ({
@@ -96,6 +97,7 @@ const EntityTable = ({
   onDeleteEntity,
   onViewHistory,
   onViewDetails,
+  showActions = true, // Default to showing actions
 }: EntityTableProps) => {
   const dispatch = useAppDispatch();
   const [order, setOrder] = useState<'asc' | 'desc'>('asc');

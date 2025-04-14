@@ -286,6 +286,7 @@ const TeamDashboard = () => {
               dags={dags}
               isLoading={isLoading}
               error={null}
+              showActions={true} // Show actions in team tabs
             />
           )}
         </Box>
