@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Box, Tabs, Tab, useTheme } from '@mui/material';
 import { useLocation } from 'wouter';
 import { useAppDispatch } from '@/lib/store';
@@ -24,16 +24,6 @@ const Navigation = () => {
     enabled: false, // Don't fetch on component mount
   });
 
-  // Load cached team names for tabs to display the navigation
-  useEffect(() => {
-    loadTeamCache();
-    
-    // Initialize - only fetch teams data if we're not on the summary page
-    if (location !== '/' && location.startsWith('/team/')) {
-      loadTeamsData();
-    }
-  }, [dispatch]);
-  
   // Function to load teams from cache or fetch if needed
   const loadTeamCache = async () => {
     setLoading(true);
@@ -52,16 +42,25 @@ const Navigation = () => {
     }
   };
   
-  // Function to load team data when needed
-  const loadTeamsData = async () => {
+  // Memoize the loadTeamsData function to prevent dependency issues
+  const memoizedLoadTeamsData = useCallback(() => {
     if (!teamsLoaded) {
-      // Fetch team data through Redux
       dispatch(fetchTeams());
-      // Also fetch through React Query
-      await refetchTeams();
+      refetchTeams();
       setTeamsLoaded(true);
     }
-  };
+  }, [dispatch, refetchTeams, teamsLoaded]);
+  
+  // Load cached team names for tabs to display the navigation
+  useEffect(() => {
+    loadTeamCache();
+    
+    // Initialize - only fetch teams data if we're not on the summary page
+    if (location !== '/' && location.startsWith('/team/')) {
+      memoizedLoadTeamsData();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dispatch, location]);
 
   // Update selected tab based on location
   useEffect(() => {
@@ -70,7 +69,7 @@ const Navigation = () => {
     } else if (location.startsWith('/team/')) {
       // If we're navigating to a team page, ensure team data is loaded
       if (!teamsLoaded) {
-        loadTeamsData();
+        memoizedLoadTeamsData();
       }
       
       const teamId = parseInt(location.split('/')[2]);
@@ -79,7 +78,8 @@ const Navigation = () => {
         setValue(teamIndex + 1); // +1 because Summary is at index 0
       }
     }
-  }, [location, teams, teamsLoaded, loadTeamsData]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location, teams, teamsLoaded]);
 
   const handleChange = (event: React.SyntheticEvent, newValue: number) => {
     setValue(newValue);
@@ -90,7 +90,7 @@ const Navigation = () => {
     } else {
       // Going to a team tab - ensure team data is loaded
       if (!teamsLoaded) {
-        loadTeamsData();
+        memoizedLoadTeamsData();
       }
       
       const teamIndex = newValue - 1; // -1 because Summary is at index 0
@@ -143,7 +143,7 @@ const Navigation = () => {
           
           {/* First show real team data if available */}
           {teams.length > 0 ? (
-            teams.map((team: Team) => (
+            teams.map((team) => (
               <Tab
                 key={team.id}
                 label={team.name}
