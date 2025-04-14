@@ -18,7 +18,8 @@ import {
   Checkbox,
   Button,
   Tabs,
-  Tab
+  Tab,
+  Tooltip
 } from '@mui/material';
 import { format } from 'date-fns';
 import { 
@@ -30,11 +31,9 @@ import {
   ArrowDown, 
   Filter, 
   ChevronLeft, 
-  ChevronRight,
-  Edit,
-  Clock,
-  Trash2
+  ChevronRight
 } from 'lucide-react';
+import { Edit, History, Delete } from '@mui/icons-material';
 import { Entity } from '@shared/schema';
 import TaskManagementModal from '@/components/modals/TaskManagementModal';
 
@@ -350,22 +349,37 @@ const DagList: React.FC<DagListProps> = ({ dags, isLoading, error }) => {
                       }
                     </Typography>
                   </TableCell>
-                  <TableCell align="right" sx={{ pr: 3 }}>
+                  <TableCell align="right">
                     <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
-                      <IconButton 
-                        size="small" 
-                        onClick={(e) => { e.stopPropagation(); }}
-                        sx={{ padding: '2px' }}
-                      >
-                        <Edit size={16} color="#1976d2" />
-                      </IconButton>
-                      <IconButton 
-                        size="small" 
-                        onClick={(e) => { e.stopPropagation(); }}
-                        sx={{ padding: '2px' }}
-                      >
-                        <Clock size={16} color="#757575" />
-                      </IconButton>
+                      <Tooltip title="Edit">
+                        <IconButton 
+                          size="small"
+                          color="primary"
+                          onClick={(e) => { e.stopPropagation(); }}
+                        >
+                          <Edit fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      
+                      <Tooltip title="History">
+                        <IconButton 
+                          size="small"
+                          color="inherit"
+                          onClick={(e) => { e.stopPropagation(); }}
+                        >
+                          <History fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      
+                      <Tooltip title="Delete">
+                        <IconButton 
+                          size="small"
+                          color="error"
+                          onClick={(e) => { e.stopPropagation(); }}
+                        >
+                          <Delete fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
                     </Box>
                   </TableCell>
                 </TableRow>
