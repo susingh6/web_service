@@ -204,29 +204,73 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Logout function
+  // Logout function with improved browser state/cache handling
   const logout = async (): Promise<void> => {
-    if (authMethod === 'azure' && msalInstance) {
-      try {
-        const logoutRequest = {
-          account: msalInstance.getActiveAccount(),
-        };
-        
-        msalInstance.logout(logoutRequest);
-        setAzureUser(null);
-        setAuthMethod(null);
-      } catch (err) {
-        console.error('Azure logout error:', err);
+    try {
+      // Always try to clear all cached data regardless of login method
+      // This ensures we don't have stale data if the server session was terminated
+      queryClient.clear();
+      
+      if (authMethod === 'azure' && msalInstance) {
+        try {
+          const logoutRequest = {
+            account: msalInstance.getActiveAccount(),
+            postLogoutRedirectUri: window.location.origin + '/auth',
+          };
+          
+          // Clear React state before MSAL logout
+          setAzureUser(null);
+          setAuthMethod(null);
+          
+          // MSAL logout will redirect, so do this last
+          msalInstance.logout(logoutRequest);
+        } catch (err) {
+          console.error('Azure logout error:', err);
+          toast({
+            title: "Logout error",
+            description: "There was a problem logging out of Azure AD. Please try again.",
+            variant: "destructive",
+          });
+          // Force redirect to login page on error
+          window.location.href = '/auth';
+        }
+      } else if (authMethod === 'local') {
+        try {
+          // Send logout request to server
+          await apiRequest("POST", "/api/logout");
+          
+          // Clear all cached queries
+          queryClient.setQueryData(["/api/user"], null);
+          queryClient.invalidateQueries();
+          
+          // Update auth state
+          setAuthMethod(null);
+          
+          // Show success message
+          toast({
+            title: "Logged out",
+            description: "You have been successfully logged out.",
+            variant: "default",
+          });
+          
+          // Redirect to auth page to prevent any cached state issues
+          window.location.href = '/auth';
+        } catch (err) {
+          console.error('Local logout error:', err);
+          toast({
+            title: "Logout error",
+            description: "There was a problem logging out. Please try again.",
+            variant: "destructive",
+          });
+          // Force redirect to login page on error
+          window.location.href = '/auth';
+        }
       }
-    } else if (authMethod === 'local') {
-      try {
-        await apiRequest("POST", "/api/logout");
-        queryClient.setQueryData(["/api/user"], null);
-        queryClient.invalidateQueries({ queryKey: ["/api/user"] });
-        setAuthMethod(null);
-      } catch (err) {
-        console.error('Local logout error:', err);
-      }
+    } catch (error) {
+      // Catch-all for unexpected errors
+      console.error('Unexpected logout error:', error);
+      // Always redirect to auth page in case of any errors
+      window.location.href = '/auth';
     }
   };
 
