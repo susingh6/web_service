@@ -212,19 +212,27 @@ const EntityTable = ({
   };
 
   // Format date
-  const formatDate = (date: Date | undefined) => {
+  const formatDate = (date: Date | string | null | undefined) => {
     if (!date) return 'N/A';
+    
+    // Ensure we're working with a Date object
+    const dateObj = date instanceof Date ? date : new Date(date);
+    
+    // Check if dateObj is valid before proceeding
+    if (isNaN(dateObj.getTime())) {
+      return 'Invalid date';
+    }
     
     const today = new Date();
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
     
-    if (date.toDateString() === today.toDateString()) {
-      return `Today, ${format(date, 'hh:mm a')}`;
-    } else if (date.toDateString() === yesterday.toDateString()) {
-      return `Yesterday, ${format(date, 'hh:mm a')}`;
+    if (dateObj.toDateString() === today.toDateString()) {
+      return `Today, ${format(dateObj, 'hh:mm a')}`;
+    } else if (dateObj.toDateString() === yesterday.toDateString()) {
+      return `Yesterday, ${format(dateObj, 'hh:mm a')}`;
     } else {
-      return format(date, 'MMM d, yyyy');
+      return format(dateObj, 'MMM d, yyyy');
     }
   };
 
