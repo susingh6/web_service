@@ -15,19 +15,23 @@ const Navigation = () => {
   const [value, setValue] = useState(0);
   const [cachedTeams, setCachedTeams] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [teamsLoaded, setTeamsLoaded] = useState(false);
   
-  // Fetch teams data from API for Redux state
-  const { data: teams = [] } = useQuery({
+  // Fetch teams data lazily - only when needed by user interaction
+  const { data: teams = [], refetch: refetchTeams } = useQuery<Team[]>({
     queryKey: ['/api/teams'],
     staleTime: 300000, // 5 minutes
+    enabled: false, // Don't fetch on component mount
   });
 
-  // Load cached team names for tabs
+  // Load cached team names for tabs to display the navigation
   useEffect(() => {
     loadTeamCache();
     
-    // Also dispatch the normal team fetch for Redux state
-    dispatch(fetchTeams());
+    // Initialize - only fetch teams data if we're not on the summary page
+    if (location !== '/' && location.startsWith('/team/')) {
+      loadTeamsData();
+    }
   }, [dispatch]);
   
   // Function to load teams from cache or fetch if needed
@@ -47,26 +51,48 @@ const Navigation = () => {
       setLoading(false);
     }
   };
+  
+  // Function to load team data when needed
+  const loadTeamsData = async () => {
+    if (!teamsLoaded) {
+      // Fetch team data through Redux
+      dispatch(fetchTeams());
+      // Also fetch through React Query
+      await refetchTeams();
+      setTeamsLoaded(true);
+    }
+  };
 
   // Update selected tab based on location
   useEffect(() => {
     if (location === '/') {
       setValue(0); // Summary tab
     } else if (location.startsWith('/team/')) {
+      // If we're navigating to a team page, ensure team data is loaded
+      if (!teamsLoaded) {
+        loadTeamsData();
+      }
+      
       const teamId = parseInt(location.split('/')[2]);
-      const teamIndex = teams.findIndex((team: Team) => team.id === teamId);
+      const teamIndex = teams.findIndex((team) => team.id === teamId);
       if (teamIndex !== -1) {
         setValue(teamIndex + 1); // +1 because Summary is at index 0
       }
     }
-  }, [location, teams]);
+  }, [location, teams, teamsLoaded, loadTeamsData]);
 
   const handleChange = (event: React.SyntheticEvent, newValue: number) => {
     setValue(newValue);
     
     if (newValue === 0) {
+      // Going to summary tab - no need to fetch team data
       setLocation('/');
     } else {
+      // Going to a team tab - ensure team data is loaded
+      if (!teamsLoaded) {
+        loadTeamsData();
+      }
+      
       const teamIndex = newValue - 1; // -1 because Summary is at index 0
       
       // If we have real team data

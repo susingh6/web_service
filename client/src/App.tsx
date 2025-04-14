@@ -1,3 +1,4 @@
+import { Suspense, lazy } from "react";
 import { Switch, Route } from "wouter";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
@@ -8,7 +9,17 @@ import AppLayout from "./components/layout/AppLayout";
 import NotFound from "@/pages/not-found";
 import AuthPage from "@/pages/auth-page";
 import Summary from "@/pages/dashboard/Summary";
-import TeamDashboard from "@/pages/dashboard/TeamDashboard";
+import { Box, CircularProgress } from "@mui/material";
+
+// Lazy load TeamDashboard component
+const TeamDashboard = lazy(() => import("@/pages/dashboard/TeamDashboard"));
+
+// Loading fallback for lazy-loaded components
+const LazyLoadingFallback = () => (
+  <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh">
+    <CircularProgress />
+  </Box>
+);
 
 function Router() {
   return (
@@ -18,7 +29,14 @@ function Router() {
       
       {/* Protected Dashboard routes */}
       <ProtectedRoute path="/" component={Summary} />
-      <ProtectedRoute path="/team/:id" component={TeamDashboard} />
+      <ProtectedRoute 
+        path="/team/:id" 
+        component={() => (
+          <Suspense fallback={<LazyLoadingFallback />}>
+            <TeamDashboard />
+          </Suspense>
+        )} 
+      />
       
       {/* Fallback to 404 */}
       <Route component={NotFound} />
