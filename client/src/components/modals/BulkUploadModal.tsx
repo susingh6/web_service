@@ -14,54 +14,88 @@ import {
   IconButton,
   Paper,
   TextField,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Chip,
+  Alert,
+  AlertTitle,
+  Stepper,
+  Step,
+  StepLabel,
+  LinearProgress,
+  FormControl,
+  FormControlLabel,
+  Switch,
+  Tooltip,
+  Collapse
 } from '@mui/material';
-import { Close as CloseIcon, CloudUpload as CloudUploadIcon, Download as DownloadIcon, Info as InfoIcon } from '@mui/icons-material';
+import { 
+  Close as CloseIcon, 
+  CloudUpload as CloudUploadIcon, 
+  Download as DownloadIcon, 
+  Info as InfoIcon,
+  CheckCircle as CheckCircleIcon,
+  Error as ErrorIcon,
+  Warning as WarningIcon,
+  ArrowBack as ArrowBackIcon,
+  ArrowForward as ArrowForwardIcon,
+  Refresh as RefreshIcon,
+  Filter as FilterIcon,
+  FilterAlt as FilterAltIcon,
+  DeleteOutline as DeleteOutlineIcon
+} from '@mui/icons-material';
 import { useToast } from '@/hooks/use-toast';
+import { fetchWithCache, getFromCache } from '@/lib/cacheUtils';
 
-// Cache time in milliseconds (6 hours)
-const CACHE_TTL = 6 * 60 * 60 * 1000;
+// Entity types for validation
+interface BaseEntity {
+  tenant_name: string;
+  team_name: string;
+  expected_runtime_minutes: number;
+  notification_preferences?: string[];
+  donemarker_location?: string;
+  donemarker_lookback?: number;
+  user_name: string;
+  user_email: string;
+  is_active?: boolean;
+}
 
-// Helper function to fetch data from API with caching
-const fetchWithCache = async (
-  url: string, 
-  cacheKey: string
-): Promise<string[]> => {
-  // Check if we have cached data and if it's still valid
-  const cachedData = localStorage.getItem(cacheKey);
-  const cachedTime = localStorage.getItem(`${cacheKey}_time`);
-  
-  if (cachedData && cachedTime) {
-    const timestamp = parseInt(cachedTime);
-    if (Date.now() - timestamp < CACHE_TTL) {
-      return JSON.parse(cachedData);
-    }
-  }
-  
-  // No valid cache, fetch from API
-  try {
-    // This is a placeholder for the actual API call
-    console.log(`Fetching ${cacheKey} from ${url}`);
-    
-    // Simulating API response for now
-    let mockResponse: string[] = [];
-    if (cacheKey === 'tenants') {
-      mockResponse = ['Ad Engineering', 'Data Engineering'];
-    } else if (cacheKey === 'teams') {
-      mockResponse = ['PGM', 'Core', 'Viewer Product', 'IOT', 'CDM'];
-    } else if (cacheKey === 'dags') {
-      mockResponse = ['agg_daily', 'agg_hourly', 'PGM_Freeview_Play_Agg_Daily', 'CHN_agg', 'CHN_billing'];
-    }
-    
-    // Cache the results
-    localStorage.setItem(cacheKey, JSON.stringify(mockResponse));
-    localStorage.setItem(`${cacheKey}_time`, Date.now().toString());
-    
-    return mockResponse;
-  } catch (error) {
-    console.error(`Error fetching ${cacheKey}:`, error);
-    return [];
-  }
-};
+interface TableEntity extends BaseEntity {
+  schema_name: string;
+  table_name: string;
+  table_description?: string;
+  table_schedule: string;
+  table_dependency?: string;
+}
+
+interface DagEntity extends BaseEntity {
+  dag_name: string;
+  dag_description?: string;
+  dag_schedule: string;
+  dag_dependency?: string;
+}
+
+type Entity = TableEntity | DagEntity;
+
+// Validation result for an entity
+interface ValidationResult {
+  valid: boolean;
+  entity: Entity;
+  errors: {
+    field: string;
+    message: string;
+  }[];
+}
+
+// Steps in the multi-step upload process
+type UploadStep = 'upload' | 'validate' | 'submit';
+
+// Filter options for the validation table
+type ValidityFilter = 'all' | 'valid' | 'invalid';
 
 interface BulkUploadModalProps {
   open: boolean;
@@ -73,6 +107,27 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
   const [tabValue, setTabValue] = useState('tables');
   const [file, setFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  
+  // Multi-step process state
+  const [currentStep, setCurrentStep] = useState<UploadStep>('upload');
+  const [parsedEntities, setParsedEntities] = useState<Entity[]>([]);
+  const [validationResults, setValidationResults] = useState<ValidationResult[]>([]);
+  const [validityFilter, setValidityFilter] = useState<ValidityFilter>('all');
+  const [isValidating, setIsValidating] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploadSummary, setUploadSummary] = useState<{
+    totalCount: number;
+    validCount: number;
+    invalidCount: number;
+    successCount: number;
+    failedCount: number;
+  }>({
+    totalCount: 0,
+    validCount: 0,
+    invalidCount: 0,
+    successCount: 0,
+    failedCount: 0
+  });
   
   // State for dynamic options
   const [tenantOptions, setTenantOptions] = useState<string[]>(['Ad Engineering', 'Data Engineering']);
