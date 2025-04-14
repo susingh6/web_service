@@ -16,15 +16,16 @@ import {
   FormGroup,
   FormHelperText,
   FormLabel,
-  InputAdornment,
-  MenuItem,
   Stack,
   Switch,
   TextField,
   ToggleButton,
   ToggleButtonGroup,
   Typography,
+  Alert,
 } from '@mui/material';
+import { validateTenant, validateTeam, validateDag } from '@/lib/validationUtils';
+import { fetchWithCache, getFromCache } from '@/lib/cacheUtils';
 
 type EntityType = 'table' | 'dag';
 
@@ -39,8 +40,13 @@ const baseSchema = yup.object().shape({
   tenant_name: yup.string().required('Tenant name is required'),
   team_name: yup.string().required('Team name is required'),
   notification_preferences: yup.array().of(yup.string()).default([]),
-  user_name: yup.string().required('User name is required'),
-  user_email: yup.string().email('Must be a valid email').required('User email is required'),
+  user_name: yup.string().optional(),
+  user_email: yup.string()
+    .required('User email is required')
+    .matches(
+      /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
+      'Invalid email format'
+    ),
   is_active: yup.boolean().default(true),
 });
 
@@ -49,8 +55,14 @@ const tableSchema = baseSchema.shape({
   schema_name: yup.string().required('Schema name is required'),
   table_name: yup.string().required('Table name is required'),
   table_description: yup.string().optional(),
-  table_schedule: yup.string().required('Table schedule is required'),
-  expected_runtime_minutes: yup.number().positive('Must be positive').required('Expected runtime is required'),
+  table_schedule: yup.string()
+    .required('Table schedule is required')
+    .matches(/^[\d*\/ ,\-]+$/, 'Invalid cron format'),
+  expected_runtime_minutes: yup.number()
+    .required('Expected runtime is required')
+    .positive('Must be positive')
+    .min(1, 'Must be at least 1 minute')
+    .max(1440, 'Must not exceed 1440 minutes (24 hours)'),
   table_dependency: yup.string().optional(),
   donemarker_location: yup.string().optional(),
   donemarker_lookback: yup.number().min(0, 'Must be non-negative').optional(),
@@ -60,88 +72,60 @@ const tableSchema = baseSchema.shape({
 const dagSchema = baseSchema.shape({
   dag_name: yup.string().required('DAG name is required'),
   dag_description: yup.string().optional(),
-  dag_schedule: yup.string().required('DAG schedule is required'),
-  expected_runtime_minutes: yup.number().positive('Must be positive').required('Expected runtime is required'),
+  dag_schedule: yup.string()
+    .required('DAG schedule is required')
+    .matches(/^[\d*\/ ,\-]+$/, 'Invalid cron format'),
+  expected_runtime_minutes: yup.number()
+    .required('Expected runtime is required')
+    .positive('Must be positive')
+    .min(1, 'Must be at least 1 minute')
+    .max(1440, 'Must not exceed 1440 minutes (24 hours)'),
   dag_dependency: yup.string().optional(),
   donemarker_location: yup.string().optional(),
   donemarker_lookback: yup.number().min(0, 'Must be non-negative').optional(),
 });
 
-// Cache time in milliseconds (6 hours)
-const CACHE_TTL = 6 * 60 * 60 * 1000;
-
-// Helper function to fetch data from API with caching
-const fetchWithCache = async (
-  url: string, 
-  cacheKey: string
-): Promise<string[]> => {
-  // Check if we have cached data and if it's still valid
-  const cachedData = localStorage.getItem(cacheKey);
-  const cachedTime = localStorage.getItem(`${cacheKey}_time`);
-  
-  if (cachedData && cachedTime) {
-    const timestamp = parseInt(cachedTime);
-    if (Date.now() - timestamp < CACHE_TTL) {
-      return JSON.parse(cachedData);
-    }
-  }
-  
-  // No valid cache, fetch from API
-  try {
-    // This is a placeholder for the actual API call
-    console.log(`Fetching ${cacheKey} from ${url}`);
-    
-    // Simulating API response for now
-    let mockResponse: string[] = [];
-    if (cacheKey === 'tenants') {
-      mockResponse = ['Ad Engineering', 'Data Engineering', 'Platform Engineering', 'ML Engineering'];
-    } else if (cacheKey === 'teams') {
-      mockResponse = ['PGM', 'Core', 'Viewer Product', 'IOT', 'CDM', 'Analytics', 'Infrastructure'];
-    } else if (cacheKey === 'dags') {
-      mockResponse = ['etl_daily', 'user_processing', 'data_quality_check', 'ml_training', 'reporting'];
-    }
-    
-    // Cache the results
-    localStorage.setItem(cacheKey, JSON.stringify(mockResponse));
-    localStorage.setItem(`${cacheKey}_time`, Date.now().toString());
-    
-    return mockResponse;
-  } catch (error) {
-    console.error(`Error fetching ${cacheKey}:`, error);
-    return [];
-  }
-};
-
 const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
   const [entityType, setEntityType] = useState<EntityType>('table');
   
-  // State for dynamic options
-  const [tenantOptions, setTenantOptions] = useState<string[]>(['Ad Engineering', 'Data Engineering']);
-  const [teamOptions, setTeamOptions] = useState<string[]>(['PGM', 'Core', 'Viewer Product', 'IOT', 'CDM']);
-  const [dagOptions, setDagOptions] = useState<string[]>([]);
+  // State for dynamic options - initialize from cache for instant load
+  const [tenantOptions, setTenantOptions] = useState<string[]>(() => getFromCache('tenants'));
+  const [teamOptions, setTeamOptions] = useState<string[]>(() => getFromCache('teams'));
+  const [dagOptions, setDagOptions] = useState<string[]>(() => getFromCache('dags'));
   
   // Loading states
   const [loadingTenants, setLoadingTenants] = useState(false);
   const [loadingTeams, setLoadingTeams] = useState(false);
   const [loadingDags, setLoadingDags] = useState(false);
   
-  // Use the appropriate schema based on entity type
-  const schema = entityType === 'table' ? tableSchema : dagSchema;
+  // State for validation errors (single declaration)
+  const [validationError, setValidationError] = useState<string | null>(null);
   
-  // Effect to fetch options when modal opens
+  // Dynamic schema selection with memoization for performance
+  const schema = React.useMemo(() => 
+    entityType === 'table' ? tableSchema : dagSchema, 
+    [entityType]
+  );
+  
+  // Effect to update component state when cache might have changed
+  // Only runs when the modal opens to ensure we have the latest cache values
   useEffect(() => {
     if (open) {
-      // Initial load of cached options
-      fetchTenantOptions();
-      fetchTeamOptions();
+      // Just load the latest values from cache when modal opens
+      // No API calls - we rely on the app-level 6-hour refresh cycle
+      setTenantOptions(getFromCache('tenants'));
+      setTeamOptions(getFromCache('teams'));
       
+      // Only load DAG options if viewing the DAG tab
       if (entityType === 'dag') {
-        fetchDagOptions();
+        setDagOptions(getFromCache('dags'));
       }
+      
+      console.log('Modal opened - using cached values without additional API calls');
     }
   }, [open, entityType]);
   
-  // Functions to fetch options
+  // Functions to fetch options with loading indicators
   const fetchTenantOptions = async () => {
     setLoadingTenants(true);
     try {
@@ -169,7 +153,8 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
   const fetchDagOptions = async () => {
     setLoadingDags(true);
     try {
-      const options = await fetchWithCache('https://airflow.example.com/api/dags', 'dags');
+      // Use our FastAPI endpoint that will internally fetch from Airflow
+      const options = await fetchWithCache('https://api.example.com/dags', 'dags');
       setDagOptions(options);
     } catch (error) {
       console.error('Error fetching DAG options:', error);
@@ -184,29 +169,195 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
     reset,
     formState: { errors, isSubmitting },
   } = useForm({
-    resolver: yupResolver(schema),
-    defaultValues: {
+    resolver: yupResolver(schema) as any, // Type cast to fix TypeScript issues
+    defaultValues: entityType === 'table' ? {
       tenant_name: 'Data Engineering',
       team_name: 'PGM',
       notification_preferences: ['email'],
       is_active: true,
+      schema_name: '',
+      table_name: '',
+      table_description: '',
+      table_schedule: '',
+      expected_runtime_minutes: 30,
+      table_dependency: '',
+      donemarker_location: '',
+      donemarker_lookback: 0,
+      user_name: '',
+      user_email: ''
+    } : {
+      tenant_name: 'Data Engineering',
+      team_name: 'PGM',
+      notification_preferences: ['email'],
+      is_active: true,
+      dag_name: '',
+      dag_description: '',
+      dag_schedule: '',
+      expected_runtime_minutes: 30,
+      dag_dependency: '',
+      donemarker_location: '',
+      donemarker_lookback: 0,
+      user_name: '',
+      user_email: ''
     },
   });
+
+  // This effect updates the form when entity type changes
+  useEffect(() => {
+    // Reset form with appropriate default values when entity type changes
+    reset(
+      entityType === 'table' 
+        ? {
+            tenant_name: 'Data Engineering',
+            team_name: 'PGM',
+            notification_preferences: ['email'],
+            is_active: true,
+            schema_name: '',
+            table_name: '',
+            table_description: '',
+            table_schedule: '',
+            expected_runtime_minutes: 30,
+            table_dependency: '',
+            donemarker_location: '',
+            donemarker_lookback: 0,
+            user_name: '',
+            user_email: ''
+          } 
+        : {
+            tenant_name: 'Data Engineering',
+            team_name: 'PGM',
+            notification_preferences: ['email'],
+            is_active: true,
+            dag_name: '',
+            dag_description: '',
+            dag_schedule: '',
+            expected_runtime_minutes: 30,
+            dag_dependency: '',
+            donemarker_location: '',
+            donemarker_lookback: 0,
+            user_name: '',
+            user_email: ''
+          }
+    );
+  }, [entityType, reset]);
 
   const handleChangeEntityType = (_event: React.SyntheticEvent, newValue: EntityType) => {
     if (newValue !== null) {
       setEntityType(newValue);
-      reset(); // Reset form when switching entity types
+      // Form will be reset by the useEffect above
     }
   };
-
+  
   const onSubmit = async (data: any) => {
     console.log('Form data:', data);
-    // Process form submission (API call would happen here)
+    setValidationError(null);
     
-    // Close the modal after successful submission
-    onClose();
-    reset();
+    try {
+      // Lightweight pre-validation in UI for better UX
+      // These validations will be repeated on the server for security
+      
+      // 1. Pre-validate tenant name
+      const tenantValidation = await validateTenant(data.tenant_name);
+      if (tenantValidation !== true) {
+        setValidationError(tenantValidation);
+        return;
+      }
+      
+      // 2. Pre-validate team name
+      const teamValidation = await validateTeam(data.team_name);
+      if (teamValidation !== true) {
+        setValidationError(teamValidation);
+        return;
+      }
+      
+      // 3. For DAG type, pre-validate DAG name
+      if (entityType === 'dag') {
+        const dagValidation = await validateDag(data.dag_name);
+        if (dagValidation !== true) {
+          setValidationError(dagValidation);
+          return;
+        }
+      }
+      
+      // All pre-validations passed, proceed with submission to FastAPI
+      
+      // Create the entity object to submit
+      const entityData = {
+        ...data,
+        type: entityType,
+        // Add any additional fields needed by the API
+      };
+      
+      // Determine the endpoint based on entity type
+      const endpoint = entityType === 'dag' 
+        ? 'https://api.example.com/entities/dag' 
+        : 'https://api.example.com/entities/table';
+        
+      console.log(`Submitting ${entityType} to endpoint: ${endpoint}`);
+      
+      // Make the API call to create the entity
+      // FastAPI will perform full validation including Airflow API checks
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(entityData),
+      });
+      
+      if (!response.ok) {
+        // Handle server validation errors
+        const errorData = await response.json();
+        setValidationError(errorData.detail || 'Failed to create entity. Please check your input and try again.');
+        return;
+      }
+      
+      // Successful submission - we got through API validation
+      try {
+        const responseData = await response.json();
+        
+        // Only update cache after successful validation from FastAPI
+        if (entityType === 'dag' && !dagOptions.includes(data.dag_name)) {
+          // Make sure the value was accepted by the backend before caching
+          const updatedDags = [...dagOptions, data.dag_name];
+          setDagOptions(updatedDags);
+          
+          // Update the cache with the validated DAG name
+          localStorage.setItem('dags', JSON.stringify(updatedDags));
+          localStorage.setItem('dags_time', Date.now().toString());
+          
+          console.log('Cache updated with validated DAG name:', data.dag_name);
+        }
+        
+        // Do similar cache updates for tenant and team if they're new values
+        if (!tenantOptions.includes(data.tenant_name)) {
+          const updatedTenants = [...tenantOptions, data.tenant_name];
+          setTenantOptions(updatedTenants);
+          localStorage.setItem('tenants', JSON.stringify(updatedTenants));
+          localStorage.setItem('tenants_time', Date.now().toString());
+          
+          console.log('Cache updated with validated tenant name:', data.tenant_name);
+        }
+        
+        if (!teamOptions.includes(data.team_name)) {
+          const updatedTeams = [...teamOptions, data.team_name];
+          setTeamOptions(updatedTeams);
+          localStorage.setItem('teams', JSON.stringify(updatedTeams));
+          localStorage.setItem('teams_time', Date.now().toString());
+          
+          console.log('Cache updated with validated team name:', data.team_name);
+        }
+      } catch (parseError) {
+        console.warn('Could not parse response JSON, but submission was successful');
+      }
+      
+      // Close the modal after successful submission
+      onClose();
+      reset();
+    } catch (error) {
+      console.error('Error during submission:', error);
+      setValidationError('An error occurred during submission. Please try again.');
+    }
   };
 
   const handleClose = () => {
@@ -237,6 +388,12 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
             </ToggleButtonGroup>
           </Stack>
           
+          {validationError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {validationError}
+            </Alert>
+          )}
+          
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             Fields marked with an asterisk (*) are mandatory
           </Typography>
@@ -254,9 +411,9 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                       onChange(newValue);
                     }}
                     onInputChange={(_, newInputValue, reason) => {
-                      if (reason === 'input') {
-                        // If user is typing something new, we could refresh the options
-                        // For now, we'll just use the current options
+                      if (reason === 'input' && newInputValue.trim() !== '') {
+                        // Don't make API calls during typing - only when submitting
+                        // This improves performance significantly
                       }
                     }}
                     freeSolo
@@ -290,23 +447,43 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
               <Controller
                 name="team_name"
                 control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    select
-                    label="Team Name"
-                    fullWidth
-                    margin="normal"
-                    required
-                    error={!!errors.team_name}
-                    helperText={errors.team_name?.message}
-                  >
-                    <MenuItem value="PGM">PGM</MenuItem>
-                    <MenuItem value="Core">Core</MenuItem>
-                    <MenuItem value="Viewer Product">Viewer Product</MenuItem>
-                    <MenuItem value="IOT">IOT</MenuItem>
-                    <MenuItem value="CDM">CDM</MenuItem>
-                  </TextField>
+                render={({ field: { onChange, value, onBlur, ref } }) => (
+                  <Autocomplete
+                    value={value}
+                    onChange={(_, newValue) => {
+                      onChange(newValue);
+                    }}
+                    onInputChange={(_, newInputValue, reason) => {
+                      if (reason === 'input' && newInputValue.trim() !== '') {
+                        // Don't make API calls during typing - only when submitting
+                        // This improves performance significantly
+                      }
+                    }}
+                    freeSolo
+                    options={teamOptions}
+                    loading={loadingTeams}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label="Team Name"
+                        required
+                        fullWidth
+                        margin="normal"
+                        error={!!errors.team_name}
+                        helperText={errors.team_name?.message}
+                        onBlur={onBlur}
+                        InputProps={{
+                          ...params.InputProps,
+                          endAdornment: (
+                            <>
+                              {loadingTeams ? <CircularProgress color="inherit" size={20} /> : null}
+                              {params.InputProps.endAdornment}
+                            </>
+                          ),
+                        }}
+                      />
+                    )}
+                  />
                 )}
               />
               
@@ -572,58 +749,128 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
               <Controller
                 name="tenant_name"
                 control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    select
-                    label="Tenant Name"
-                    fullWidth
-                    margin="normal"
-                    required
-                    error={!!errors.tenant_name}
-                    helperText={errors.tenant_name?.message}
-                  >
-                    <MenuItem value="Ad Engineering">Ad Engineering</MenuItem>
-                    <MenuItem value="Data Engineering">Data Engineering</MenuItem>
-                  </TextField>
+                render={({ field: { onChange, value, onBlur, ref } }) => (
+                  <Autocomplete
+                    value={value}
+                    onChange={(_, newValue) => {
+                      onChange(newValue);
+                    }}
+                    onInputChange={(_, newInputValue, reason) => {
+                      if (reason === 'input' && newInputValue.trim() !== '') {
+                        // Don't make API calls during typing - only when submitting
+                        // This improves performance significantly
+                      }
+                    }}
+                    freeSolo
+                    options={tenantOptions}
+                    loading={loadingTenants}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label="Tenant Name"
+                        required
+                        fullWidth
+                        margin="normal"
+                        error={!!errors.tenant_name}
+                        helperText={errors.tenant_name?.message}
+                        onBlur={onBlur}
+                        InputProps={{
+                          ...params.InputProps,
+                          endAdornment: (
+                            <>
+                              {loadingTenants ? <CircularProgress color="inherit" size={20} /> : null}
+                              {params.InputProps.endAdornment}
+                            </>
+                          ),
+                        }}
+                      />
+                    )}
+                  />
                 )}
               />
               
               <Controller
                 name="team_name"
                 control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    select
-                    label="Team Name"
-                    fullWidth
-                    margin="normal"
-                    required
-                    error={!!errors.team_name}
-                    helperText={errors.team_name?.message}
-                  >
-                    <MenuItem value="PGM">PGM</MenuItem>
-                    <MenuItem value="Core">Core</MenuItem>
-                    <MenuItem value="Viewer Product">Viewer Product</MenuItem>
-                    <MenuItem value="IOT">IOT</MenuItem>
-                    <MenuItem value="CDM">CDM</MenuItem>
-                  </TextField>
+                render={({ field: { onChange, value, onBlur, ref } }) => (
+                  <Autocomplete
+                    value={value}
+                    onChange={(_, newValue) => {
+                      onChange(newValue);
+                    }}
+                    onInputChange={(_, newInputValue, reason) => {
+                      if (reason === 'input' && newInputValue.trim() !== '') {
+                        // Don't make API calls during typing - only when submitting
+                        // This improves performance significantly
+                      }
+                    }}
+                    freeSolo
+                    options={teamOptions}
+                    loading={loadingTeams}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label="Team Name"
+                        required
+                        fullWidth
+                        margin="normal"
+                        error={!!errors.team_name}
+                        helperText={errors.team_name?.message}
+                        onBlur={onBlur}
+                        InputProps={{
+                          ...params.InputProps,
+                          endAdornment: (
+                            <>
+                              {loadingTeams ? <CircularProgress color="inherit" size={20} /> : null}
+                              {params.InputProps.endAdornment}
+                            </>
+                          ),
+                        }}
+                      />
+                    )}
+                  />
                 )}
               />
               
               <Controller
                 name="dag_name"
                 control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    label="DAG Name"
-                    fullWidth
-                    margin="normal"
-                    required
-                    error={!!errors.dag_name}
-                    helperText={errors.dag_name?.message}
+                render={({ field: { onChange, value, onBlur } }) => (
+                  <Autocomplete
+                    value={value}
+                    onChange={(_, newValue) => {
+                      onChange(newValue);
+                    }}
+                    onInputChange={(_, newInputValue, reason) => {
+                      if (reason === 'input' && newInputValue.trim() !== '') {
+                        // Don't make API calls during typing - only when submitting
+                        // This improves performance significantly
+                      }
+                    }}
+                    freeSolo
+                    options={dagOptions}
+                    loading={loadingDags}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label="DAG Name"
+                        required
+                        fullWidth
+                        margin="normal"
+                        error={!!errors.dag_name}
+                        helperText={errors.dag_name?.message}
+                        onBlur={onBlur}
+                        InputProps={{
+                          ...params.InputProps,
+                          endAdornment: (
+                            <>
+                              {loadingDags ? <CircularProgress color="inherit" size={20} /> : null}
+                              {params.InputProps.endAdornment}
+                            </>
+                          ),
+                        }}
+                      />
+                    )}
                   />
                 )}
               />
@@ -863,7 +1110,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
             disabled={isSubmitting}
             startIcon={isSubmitting ? <CircularProgress size={20} /> : null}
           >
-            {isSubmitting ? 'Saving...' : 'Save'}
+            Add Entity
           </Button>
         </DialogActions>
       </form>
