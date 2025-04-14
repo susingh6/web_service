@@ -154,8 +154,26 @@ const DateRangePicker = () => {
                 moveRangeOnFirstSelection={false}
                 ranges={[
                   {
-                    startDate: localRange.startDate,
-                    endDate: localRange.endDate,
+                    startDate: (() => {
+                      try {
+                        if (!localRange.startDate || isNaN(new Date(localRange.startDate).getTime())) {
+                          return new Date(); // Default to today if invalid
+                        }
+                        return new Date(localRange.startDate);
+                      } catch (error) {
+                        return new Date();
+                      }
+                    })(),
+                    endDate: (() => {
+                      try {
+                        if (!localRange.endDate || isNaN(new Date(localRange.endDate).getTime())) {
+                          return new Date(); // Default to today if invalid
+                        }
+                        return new Date(localRange.endDate);
+                      } catch (error) {
+                        return new Date();
+                      }
+                    })(),
                     key: 'selection',
                   },
                 ]}
@@ -167,7 +185,16 @@ const DateRangePicker = () => {
             <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
               <TextField
                 label="Start Date"
-                value={format(localRange.startDate, 'MM/dd/yyyy')}
+                value={(() => {
+                  try {
+                    if (!localRange.startDate || isNaN(new Date(localRange.startDate).getTime())) {
+                      return 'Invalid date';
+                    }
+                    return format(new Date(localRange.startDate), 'MM/dd/yyyy');
+                  } catch (error) {
+                    return 'Invalid date';
+                  }
+                })()}
                 InputProps={{ readOnly: true }}
                 variant="outlined"
                 size="small"
@@ -175,7 +202,16 @@ const DateRangePicker = () => {
               />
               <TextField
                 label="End Date"
-                value={format(localRange.endDate, 'MM/dd/yyyy')}
+                value={(() => {
+                  try {
+                    if (!localRange.endDate || isNaN(new Date(localRange.endDate).getTime())) {
+                      return 'Invalid date';
+                    }
+                    return format(new Date(localRange.endDate), 'MM/dd/yyyy');
+                  } catch (error) {
+                    return 'Invalid date';
+                  }
+                })()}
                 InputProps={{ readOnly: true }}
                 variant="outlined"
                 size="small"

@@ -227,11 +227,21 @@ const EntityTable = ({
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
     
-    if (dateObj.toDateString() === today.toDateString()) {
-      return `Today, ${format(dateObj, 'hh:mm a')}`;
-    } else if (dateObj.toDateString() === yesterday.toDateString()) {
-      return `Yesterday, ${format(dateObj, 'hh:mm a')}`;
-    } else {
+    try {
+      // Make sure both dates have valid toDateString methods
+      const todayStr = today.toDateString();
+      const yesterdayStr = yesterday.toDateString();
+      const dateObjStr = dateObj.toDateString();
+      
+      if (dateObjStr === todayStr) {
+        return `Today, ${format(dateObj, 'hh:mm a')}`;
+      } else if (dateObjStr === yesterdayStr) {
+        return `Yesterday, ${format(dateObj, 'hh:mm a')}`;
+      } else {
+        return format(dateObj, 'MMM d, yyyy');
+      }
+    } catch (error) {
+      // In case toDateString fails
       return format(dateObj, 'MMM d, yyyy');
     }
   };
