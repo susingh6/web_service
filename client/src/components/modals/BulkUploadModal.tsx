@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
   Autocomplete,
+  Badge,
   CircularProgress,
   Dialog,
   DialogTitle,
@@ -77,6 +78,7 @@ interface DagEntity extends BaseEntity {
   dag_description?: string;
   dag_schedule: string;
   dag_dependency?: string;
+  needs_dag_validation?: boolean;  // Flag to indicate if this is a new DAG that needs backend validation
 }
 
 type Entity = TableEntity | DagEntity;
@@ -979,7 +981,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
                     {filteredValidationResults().map((result, index) => {
                       const entity = result.entity;
                       const isTable = 'table_name' in entity;
-                      const isNewDag = !isTable && entity.needs_dag_validation;
+                      const isNewDag = !isTable && (entity as DagEntity).needs_dag_validation;
                       
                       return (
                         <TableRow key={index} sx={{
