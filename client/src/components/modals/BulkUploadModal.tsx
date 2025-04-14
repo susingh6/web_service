@@ -247,8 +247,8 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
       errors.push({ field: 'expected_runtime_minutes', message: 'Expected runtime minutes is required' });
     } else if (isNaN(Number(entity.expected_runtime_minutes))) {
       errors.push({ field: 'expected_runtime_minutes', message: 'Expected runtime must be a number' });
-    } else if (Number(entity.expected_runtime_minutes) <= 0) {
-      errors.push({ field: 'expected_runtime_minutes', message: 'Expected runtime must be greater than 0' });
+    } else if (Number(entity.expected_runtime_minutes) < 1 || Number(entity.expected_runtime_minutes) > 1440) {
+      errors.push({ field: 'expected_runtime_minutes', message: 'Expected runtime must be between 1 and 1440 minutes' });
     }
     
     // User email is required with valid format
@@ -738,8 +738,8 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
                     <li>team_name: String (must match known values, e.g., "PGM", "Core", etc.)</li>
                     <li>schema_name: String</li>
                     <li>table_name: String</li>
-                    <li>table_schedule: String (cron format)</li>
-                    <li>expected_runtime_minutes: Number</li>
+                    <li>table_schedule: String (must be valid cron format)</li>
+                    <li>expected_runtime_minutes: Number (must be between 1 and 1440)</li>
                     <li>user_email: String (required)</li>
                   </ul>
                 ) : (
@@ -747,8 +747,8 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
                     <li>tenant_name: String (must match known values, e.g., "Data Engineering")</li>
                     <li>team_name: String (must match known values, e.g., "PGM", "Core", etc.)</li>
                     <li>dag_name: String (new DAG names will require backend validation)</li>
-                    <li>dag_schedule: String (cron format)</li>
-                    <li>expected_runtime_minutes: Number</li>
+                    <li>dag_schedule: String (must be valid cron format)</li>
+                    <li>expected_runtime_minutes: Number (must be between 1 and 1440)</li>
                     <li>user_email: String (required)</li>
                   </ul>
                 )}
@@ -767,12 +767,12 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
                   {tabValue === 'tables' ? (
                     <>
                       <li>table_description: String</li>
-                      <li>table_dependency: String (comma-separated) or Array of strings</li>
+                      <li>table_dependency: String or Array of strings (comma-separated)</li>
                     </>
                   ) : (
                     <>
                       <li>dag_description: String</li>
-                      <li>dag_dependency: String (comma-separated) or Array of strings</li>
+                      <li>dag_dependency: String or Array of strings (comma-separated)</li>
                     </>
                   )}
                 </ul>
