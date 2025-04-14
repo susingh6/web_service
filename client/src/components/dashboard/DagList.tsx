@@ -295,7 +295,7 @@ const DagList: React.FC<DagListProps> = ({ dags, isLoading, error, showActions =
                 <TableCell>Current SLA</TableCell>
                 <TableCell>30-Day Trend</TableCell>
                 <TableCell>Last Updated</TableCell>
-                <TableCell align="right">Actions</TableCell>
+                {showActions && <TableCell align="right">Actions</TableCell>}
               </TableRow>
             </TableHead>
             <TableBody>
@@ -364,8 +364,8 @@ const DagList: React.FC<DagListProps> = ({ dags, isLoading, error, showActions =
                       }
                     </Typography>
                   </TableCell>
-                  <TableCell align="right">
-                    {showActions ? (
+                  {showActions && (
+                    <TableCell align="right">
                       <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
                         <Tooltip title="Edit">
                           <IconButton 
@@ -397,18 +397,14 @@ const DagList: React.FC<DagListProps> = ({ dags, isLoading, error, showActions =
                           </IconButton>
                         </Tooltip>
                       </Box>
-                    ) : (
-                      <Typography variant="caption" color="text.secondary">
-                        —
-                      </Typography>
-                    )}
-                  </TableCell>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
               
               {filteredByStatus.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={8} align="center" sx={{ py: 3 }}>
+                  <TableCell colSpan={showActions ? 8 : 7} align="center" sx={{ py: 3 }}>
                     <Typography color="text.secondary">
                       No DAGs match your search criteria
                     </Typography>

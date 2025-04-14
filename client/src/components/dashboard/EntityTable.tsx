@@ -68,14 +68,14 @@ interface HeadCell {
   width?: string;
 }
 
-const headCells: HeadCell[] = [
+const getHeadCells = (showActions: boolean): HeadCell[] => [
   { id: 'name', label: 'Entity Name', numeric: false, disablePadding: true, sortable: true },
   { id: 'teamId', label: 'Team', numeric: false, disablePadding: false, sortable: true },
   { id: 'status', label: 'Status', numeric: false, disablePadding: false, sortable: true },
   { id: 'currentSla', label: 'Current SLA', numeric: true, disablePadding: false, sortable: true },
   { id: 'trend', label: '30-Day Trend', numeric: true, disablePadding: false, sortable: false },
   { id: 'lastRefreshed', label: 'Last Updated', numeric: false, disablePadding: false, sortable: true },
-  { id: 'actions', label: 'Actions', numeric: false, disablePadding: false, sortable: false, width: '120px' },
+  ...(showActions ? [{ id: 'actions', label: 'Actions', numeric: false, disablePadding: false, sortable: false, width: '120px' }] : []),
 ];
 
 interface EntityTableProps {
@@ -348,7 +348,7 @@ const EntityTable = ({
                 />
               </TableCell>
               
-              {headCells.map((headCell) => (
+              {getHeadCells(showActions).map((headCell) => (
                 <TableCell
                   key={headCell.id}
                   align={headCell.numeric ? 'right' : 'left'}
@@ -456,8 +456,8 @@ const EntityTable = ({
                       </Typography>
                     </TableCell>
                     
-                    <TableCell align="center" onClick={(e) => e.stopPropagation()}>
-                      {showActions ? (
+                    {showActions && (
+                      <TableCell align="center" onClick={(e) => e.stopPropagation()}>
                         <Box display="flex" justifyContent="center">
                           <Tooltip title="Edit">
                             <IconButton size="small" color="primary" onClick={() => onEditEntity(entity)}>
@@ -477,19 +477,15 @@ const EntityTable = ({
                             </IconButton>
                           </Tooltip>
                         </Box>
-                      ) : (
-                        <Typography variant="body2" color="text.secondary">
-                          -
-                        </Typography>
-                      )}
-                    </TableCell>
+                      </TableCell>
+                    )}
                   </TableRow>
                 );
               })}
             
             {emptyRows > 0 && (
               <TableRow style={{ height: 53 * emptyRows }}>
-                <TableCell colSpan={8} />
+                <TableCell colSpan={showActions ? 8 : 7} />
               </TableRow>
             )}
           </TableBody>
