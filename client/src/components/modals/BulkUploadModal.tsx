@@ -254,7 +254,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
     // User email is required with valid format
     if (!entity.user_email) {
       errors.push({ field: 'user_email', message: 'User email is required' });
-    } else if (!/\S+@\S+\.\S+/.test(entity.user_email)) {
+    } else if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(entity.user_email)) {
       errors.push({ field: 'user_email', message: 'Invalid email format' });
     }
     
