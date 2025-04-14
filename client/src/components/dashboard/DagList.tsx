@@ -33,7 +33,9 @@ import {
   ChevronLeft, 
   ChevronRight
 } from 'lucide-react';
-import { Edit, History, Delete } from '@mui/icons-material';
+import EditIcon from '@mui/icons-material/Edit';
+import HistoryIcon from '@mui/icons-material/History';
+import DeleteIcon from '@mui/icons-material/Delete';
 import { Entity } from '@shared/schema';
 import TaskManagementModal from '@/components/modals/TaskManagementModal';
 
@@ -357,7 +359,7 @@ const DagList: React.FC<DagListProps> = ({ dags, isLoading, error }) => {
                           color="primary"
                           onClick={(e) => { e.stopPropagation(); }}
                         >
-                          <Edit fontSize="small" />
+                          <EditIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
                       
@@ -367,7 +369,7 @@ const DagList: React.FC<DagListProps> = ({ dags, isLoading, error }) => {
                           color="inherit"
                           onClick={(e) => { e.stopPropagation(); }}
                         >
-                          <History fontSize="small" />
+                          <HistoryIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
                       
@@ -377,7 +379,7 @@ const DagList: React.FC<DagListProps> = ({ dags, isLoading, error }) => {
                           color="error"
                           onClick={(e) => { e.stopPropagation(); }}
                         >
-                          <Delete fontSize="small" />
+                          <DeleteIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
                     </Box>
