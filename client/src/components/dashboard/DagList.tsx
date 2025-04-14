@@ -174,17 +174,6 @@ const DagList: React.FC<DagListProps> = ({ dags, isLoading, error }) => {
   return (
     <>
       <Box sx={{ display: 'flex', flexDirection: 'column' }}>
-        <Tabs
-          value={0}
-          sx={{ 
-            borderBottom: 1, 
-            borderColor: 'divider'
-          }}
-        >
-          <Tab label="Tables" />
-          <Tab label="DAGs" />
-        </Tabs>
-        
         <Box sx={{ my: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 2 }}>
           <TextField
             placeholder="Search entities..."
@@ -299,7 +288,8 @@ const DagList: React.FC<DagListProps> = ({ dags, isLoading, error }) => {
                     </Typography>
                   </TableCell>
                   <TableCell>
-                    {getTrendIcon(dag.trend || (Math.random() > 0.5 ? 1 : -1) * Math.random() * 2)}
+                    {/* Simulate trend data since not available in Entity type */}
+                    {getTrendIcon(dag.id % 2 === 0 ? 1.4 : -0.7)}
                   </TableCell>
                   <TableCell>
                     <Typography variant="body2">
