@@ -89,6 +89,33 @@ export class MemStorage implements IStorage {
         description: `Team responsible for ${name.toLowerCase()} data and analytics`
       });
     });
+    
+    // Import and load mock DAG data
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const mockDags = require('./data/mock-dags.json');
+      
+      if (mockDags && Array.isArray(mockDags)) {
+        console.log(`Loading ${mockDags.length} mock DAGs from data file...`);
+        
+        // Reset entity ID if needed to accommodate the mock data IDs
+        this.entityId = Math.max(...mockDags.map(dag => dag.id), 0) + 1;
+        
+        // Load each DAG entity into our entities map
+        mockDags.forEach(dag => {
+          this.entities.set(dag.id, {
+            ...dag,
+            createdAt: new Date(dag.createdAt),
+            updatedAt: new Date(dag.updatedAt),
+            lastRun: new Date(dag.lastRun)
+          });
+        });
+        
+        console.log(`Successfully loaded ${mockDags.length} mock DAGs into storage.`);
+      }
+    } catch (error) {
+      console.error('Failed to load mock DAG data:', error);
+    }
   }
   
   // User operations
