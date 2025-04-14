@@ -42,10 +42,15 @@ interface StatusConfig {
   lightBg: string;
 }
 
-const STATUS_CONFIG: Record<EntityStatus, StatusConfig> = {
+const DEFAULT_STATUS: StatusConfig = { color: 'default', label: 'Unknown', lightBg: 'rgba(158, 158, 158, 0.1)' };
+
+const STATUS_CONFIG: Record<string, StatusConfig> = {
   healthy: { color: 'success', label: 'Healthy', lightBg: 'rgba(76, 175, 80, 0.1)' },
   warning: { color: 'warning', label: 'Warning', lightBg: 'rgba(255, 152, 0, 0.1)' },
   critical: { color: 'error', label: 'Critical', lightBg: 'rgba(244, 67, 54, 0.1)' },
+  success: { color: 'success', label: 'Success', lightBg: 'rgba(76, 175, 80, 0.1)' },
+  failed: { color: 'error', label: 'Failed', lightBg: 'rgba(244, 67, 54, 0.1)' },
+  running: { color: 'warning', label: 'Running', lightBg: 'rgba(255, 152, 0, 0.1)' },
 };
 
 interface HeadCell {
@@ -390,11 +395,11 @@ const EntityTable = ({
                     
                     <TableCell>
                       <Chip
-                        label={STATUS_CONFIG[entity.status].label}
+                        label={(STATUS_CONFIG[entity.status] || DEFAULT_STATUS).label}
                         size="small"
                         sx={{
-                          backgroundColor: STATUS_CONFIG[entity.status].lightBg,
-                          color: `${STATUS_CONFIG[entity.status].color}.dark`,
+                          backgroundColor: (STATUS_CONFIG[entity.status] || DEFAULT_STATUS).lightBg,
+                          color: `${(STATUS_CONFIG[entity.status] || DEFAULT_STATUS).color}.dark`,
                           fontWeight: 600,
                           borderRadius: '16px',
                           fontSize: '0.75rem',
