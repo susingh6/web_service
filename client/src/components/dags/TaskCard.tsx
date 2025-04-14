@@ -21,6 +21,31 @@ import {
 import { Task, TaskStatus } from '@/features/sla/types';
 import { formatDuration } from '@/lib/utils';
 
+// Fallback duration formatter if the util function doesn't work
+const fallbackFormatDuration = (seconds: number | undefined): string => {
+  if (seconds === undefined) return 'N/A';
+  
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const remainingSeconds = Math.floor(seconds % 60);
+  
+  let result = '';
+  
+  if (hours > 0) {
+    result += `${hours}h `;
+  }
+  
+  if (minutes > 0 || hours > 0) {
+    result += `${minutes}m `;
+  }
+  
+  if (remainingSeconds > 0 || (hours === 0 && minutes === 0)) {
+    result += `${remainingSeconds}s`;
+  }
+  
+  return result.trim();
+};
+
 interface TaskCardProps {
   task: Task;
 }
@@ -134,7 +159,9 @@ const TaskCard: React.FC<TaskCardProps> = ({ task }) => {
               <Box sx={{ display: 'flex', alignItems: 'center' }}>
                 <Clock size={14} />
                 <Typography variant="caption" color="text.secondary" sx={{ ml: 0.5 }}>
-                  {formatDuration(task.duration)}
+                  {task.duration !== undefined ? 
+                    fallbackFormatDuration(task.duration) : 
+                    'N/A'}
                 </Typography>
               </Box>
             </Tooltip>
