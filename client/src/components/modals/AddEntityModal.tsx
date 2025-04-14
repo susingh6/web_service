@@ -701,7 +701,6 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                     label="User Name"
                     fullWidth
                     margin="normal"
-                    required
                     error={!!errors.user_name}
                     helperText={errors.user_name?.message}
                   />
@@ -1054,7 +1053,6 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                     label="User Name"
                     fullWidth
                     margin="normal"
-                    required
                     error={!!errors.user_name}
                     helperText={errors.user_name?.message}
                   />
