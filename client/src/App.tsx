@@ -11,8 +11,9 @@ import AuthPage from "@/pages/auth-page";
 import Summary from "@/pages/dashboard/Summary";
 import { Box, CircularProgress } from "@mui/material";
 
-// Lazy load TeamDashboard component
+// Lazy load components for better performance
 const TeamDashboard = lazy(() => import("@/pages/dashboard/TeamDashboard"));
+const DagsPage = lazy(() => import("@/pages/dashboard/DagsPage"));
 
 // Loading fallback for lazy-loaded components
 const LazyLoadingFallback = () => (
@@ -34,6 +35,16 @@ function Router() {
         component={() => (
           <Suspense fallback={<LazyLoadingFallback />}>
             <TeamDashboard />
+          </Suspense>
+        )} 
+      />
+      
+      {/* SLA Entity routes */}
+      <ProtectedRoute 
+        path="/dags" 
+        component={() => (
+          <Suspense fallback={<LazyLoadingFallback />}>
+            <DagsPage />
           </Suspense>
         )} 
       />

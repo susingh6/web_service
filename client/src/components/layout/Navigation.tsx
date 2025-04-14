@@ -66,6 +66,9 @@ const Navigation = () => {
   useEffect(() => {
     if (location === '/') {
       setValue(0); // Summary tab
+    } else if (location === '/dags') {
+      // Special tabs with fixed positions
+      setValue(-1); // Set to invalid value to deselect other tabs
     } else if (location.startsWith('/team/')) {
       // If we're navigating to a team page, ensure team data is loaded
       if (!teamsLoaded) {
@@ -81,6 +84,11 @@ const Navigation = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location, teams, teamsLoaded]);
 
+  // Custom click handler for special tabs that aren't part of the main tab group
+  const handleSpecialTabClick = (path: string) => {
+    setLocation(path);
+  };
+  
   const handleChange = (event: React.SyntheticEvent, newValue: number) => {
     setValue(newValue);
     
@@ -118,65 +126,100 @@ const Navigation = () => {
         boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
       }}
     >
-      <Box sx={{ maxWidth: '100%', overflow: 'auto' }}>
-        <Tabs 
-          value={value} 
-          onChange={handleChange}
-          variant="scrollable"
-          scrollButtons="auto"
-          textColor="primary"
-          indicatorColor="primary"
-          aria-label="dashboard navigation tabs"
-        >
-          <Tab 
-            label="Summary" 
+      <Box sx={{ 
+        width: '100%', 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center',
+        px: 2
+      }}>
+        <Box sx={{ flex: 1, maxWidth: 'calc(100% - 150px)', overflow: 'auto' }}>
+          <Tabs 
+            value={value} 
+            onChange={handleChange}
+            variant="scrollable"
+            scrollButtons="auto"
+            textColor="primary"
+            indicatorColor="primary"
+            aria-label="dashboard navigation tabs"
+          >
+            <Tab 
+              label="Summary" 
+              sx={{ 
+                minWidth: 100,
+                fontWeight: 500,
+                textTransform: 'none',
+                fontSize: '0.9rem',
+                '&.Mui-selected': {
+                  fontWeight: 600,
+                },
+              }} 
+            />
+            
+            {/* First show real team data if available */}
+            {teams.length > 0 ? (
+              teams.map((team) => (
+                <Tab
+                  key={team.id}
+                  label={team.name}
+                  sx={{ 
+                    minWidth: 120,
+                    fontWeight: 500,
+                    textTransform: 'none',
+                    fontSize: '0.9rem',
+                    '&.Mui-selected': {
+                      fontWeight: 600,
+                    },
+                  }}
+                />
+              ))
+            ) : (
+              /* Otherwise use cached team names */
+              cachedTeams.map((teamName, index) => (
+                <Tab
+                  key={`cache-${index}`}
+                  label={teamName}
+                  sx={{ 
+                    minWidth: 120,
+                    fontWeight: 500,
+                    textTransform: 'none',
+                    fontSize: '0.9rem',
+                    '&.Mui-selected': {
+                      fontWeight: 600,
+                    },
+                  }}
+                />
+              ))
+            )}
+          </Tabs>
+        </Box>
+        
+        {/* Entity type buttons on the right */}
+        <Box sx={{ 
+          display: 'flex', 
+          gap: 1,
+          borderLeft: 1,
+          borderColor: 'divider',
+          pl: 2
+        }}>
+          <Box 
+            onClick={() => handleSpecialTabClick('/dags')}
             sx={{ 
-              minWidth: 100,
-              fontWeight: 500,
-              textTransform: 'none',
-              fontSize: '0.9rem',
-              '&.Mui-selected': {
-                fontWeight: 600,
-              },
-            }} 
-          />
-          
-          {/* First show real team data if available */}
-          {teams.length > 0 ? (
-            teams.map((team) => (
-              <Tab
-                key={team.id}
-                label={team.name}
-                sx={{ 
-                  minWidth: 120,
-                  fontWeight: 500,
-                  textTransform: 'none',
-                  fontSize: '0.9rem',
-                  '&.Mui-selected': {
-                    fontWeight: 600,
-                  },
-                }}
-              />
-            ))
-          ) : (
-            /* Otherwise use cached team names */
-            cachedTeams.map((teamName, index) => (
-              <Tab
-                key={`cache-${index}`}
-                label={teamName}
-                sx={{ 
-                  minWidth: 120,
-                  fontWeight: 500,
-                  textTransform: 'none',
-                  fontSize: '0.9rem',
-                  '&.Mui-selected': {
-                    fontWeight: 600,
-                  },
-                }}
-              />
-            ))
-          )}
-        </Tabs>
+              py: 1.5,
+              px: 2,
+              cursor: 'pointer',
+              borderRadius: 1,
+              fontWeight: location === '/dags' ? 600 : 500,
+              backgroundColor: location === '/dags' ? 'primary.light' : 'transparent',
+              color: location === '/dags' ? 'primary.contrastText' : 'text.primary',
+              '&:hover': {
+                backgroundColor: location === '/dags' ? 'primary.light' : 'action.hover',
+              }
+            }}
+          >
+            DAGs
+          </Box>
+        </Box>
       </Box>
     </Box>
   );
