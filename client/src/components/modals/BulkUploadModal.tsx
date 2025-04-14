@@ -734,22 +734,22 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
               <Typography component="div" variant="body2" sx={{ pl: 2, mb: 1 }}>
                 {tabValue === 'tables' ? (
                   <ul>
-                    <li>tenant_name: String (must match known values, e.g., "Data Engineering")</li>
-                    <li>team_name: String (must match known values, e.g., "PGM", "Core", etc.)</li>
+                    <li>tenant_name: String ("Data Engineering", "Ad Engineering", etc.)</li>
+                    <li>team_name: String ("PGM", "Core", etc.)</li>
                     <li>schema_name: String</li>
                     <li>table_name: String</li>
                     <li>table_schedule: String (must be valid cron format)</li>
                     <li>expected_runtime_minutes: Number (must be between 1 and 1440)</li>
-                    <li>user_email: String (required)</li>
+                    <li>user_email: String</li>
                   </ul>
                 ) : (
                   <ul>
-                    <li>tenant_name: String (must match known values, e.g., "Data Engineering")</li>
-                    <li>team_name: String (must match known values, e.g., "PGM", "Core", etc.)</li>
+                    <li>tenant_name: String ("Data Engineering", "Ad Engineering", etc.)</li>
+                    <li>team_name: String ("PGM", "Core", etc.)</li>
                     <li>dag_name: String (new DAG names will require backend validation)</li>
                     <li>dag_schedule: String (must be valid cron format)</li>
                     <li>expected_runtime_minutes: Number (must be between 1 and 1440)</li>
-                    <li>user_email: String (required)</li>
+                    <li>user_email: String</li>
                   </ul>
                 )}
               </Typography>
