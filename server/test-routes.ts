@@ -4,23 +4,43 @@ import { hashPassword } from "./auth";
 import path from "path";
 
 export function setupTestRoutes(app: Express) {
-  // Routes to serve test HTML files from their new location
+  // Routes to serve test HTML files from their categorized directories
+  // Provide a tests index page for developer convenience
+  app.get("/tests", (req: Request, res: Response) => {
+    const indexPath = path.join(import.meta.dirname, "public", "tests", "index.html");
+    res.sendFile(indexPath);
+  });
+  
+  // Legacy redirects to maintain backward compatibility
   app.get("/test", (req: Request, res: Response) => {
-    res.redirect("/tests/test.html");
+    res.redirect("/tests/api-demos/test.html");
   });
   
   app.get("/test-login", (req: Request, res: Response) => {
-    res.redirect("/tests/test-login.html");
+    res.redirect("/tests/auth/test-login.html");
   });
   
   app.get("/standalone-login", (req: Request, res: Response) => {
-    res.redirect("/tests/standalone-login.html");
+    res.redirect("/tests/auth/standalone-login.html");
   });
   
-  // Explicitly handle the tests directory to ensure files are found
-  app.get("/tests/:file", (req: Request, res: Response) => {
-    const file = req.params.file;
-    const filePath = path.join(import.meta.dirname, "public", "tests", file);
+  // Shortcut redirects for convenience 
+  app.get("/tests/test.html", (req: Request, res: Response) => {
+    res.redirect("/tests/api-demos/test.html");
+  });
+  
+  app.get("/tests/test-login.html", (req: Request, res: Response) => {
+    res.redirect("/tests/auth/test-login.html");
+  });
+  
+  app.get("/tests/standalone-login.html", (req: Request, res: Response) => {
+    res.redirect("/tests/auth/standalone-login.html");
+  });
+  
+  // Serve from subdirectories with proper nested path resolution
+  app.get("/tests/:category/:file", (req: Request, res: Response) => {
+    const { category, file } = req.params;
+    const filePath = path.join(import.meta.dirname, "public", "tests", category, file);
     res.sendFile(filePath);
   });
   // Special endpoint to force-create a test user with a working password
