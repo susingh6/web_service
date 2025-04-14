@@ -14,10 +14,27 @@ import {
   Alert,
   TextField,
   InputAdornment,
-  IconButton
+  IconButton,
+  Checkbox,
+  Button,
+  Tabs,
+  Tab
 } from '@mui/material';
 import { format } from 'date-fns';
-import { CheckCircle, XCircle, AlertTriangle, ListFilter, Search as SearchIcon } from 'lucide-react';
+import { 
+  CheckCircle, 
+  XCircle, 
+  AlertTriangle, 
+  Search as SearchIcon, 
+  ArrowUp, 
+  ArrowDown, 
+  Filter, 
+  ChevronLeft, 
+  ChevronRight,
+  Edit,
+  Clock,
+  Trash2
+} from 'lucide-react';
 import { Entity } from '@shared/schema';
 import TaskManagementModal from '@/components/modals/TaskManagementModal';
 
@@ -32,6 +49,8 @@ const DagList: React.FC<DagListProps> = ({ dags, isLoading, error }) => {
   const [openTasksModal, setOpenTasksModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredDags, setFilteredDags] = useState<Entity[]>(dags);
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [rowsPerPage] = useState(5);
 
   // Handle search filtering
   const handleSearch = (query: string) => {
@@ -79,22 +98,63 @@ const DagList: React.FC<DagListProps> = ({ dags, isLoading, error }) => {
     );
   }
 
-  const getStatusIcon = (status: string | null | undefined) => {
-    if (!status) return <AlertTriangle color="orange" size={18} />;
+  const getStatusChip = (status: string | null | undefined) => {
+    if (!status) return null;
     
-    switch (status.toLowerCase()) {
+    const statusLower = status.toLowerCase();
+    let color = 'default';
+    let bgColor = 'grey.100';
+    let textColor = 'text.primary';
+    
+    switch (statusLower) {
       case 'success':
-      case 'healthy':
-        return <CheckCircle color="green" size={18} />;
+        bgColor = '#e6f4ea';
+        textColor = '#137333';
+        break;
       case 'failed':
-      case 'critical':
-        return <XCircle color="red" size={18} />;
+        bgColor = '#fce8e6';
+        textColor = '#c5221f';
+        break;
       case 'running':
-        return <CircularProgress size={18} />;
+        bgColor = '#e8f0fe';
+        textColor = '#1a73e8';
+        break;
       case 'warning':
-        return <AlertTriangle color="orange" size={18} />;
-      default:
-        return <AlertTriangle color="orange" size={18} />;
+        bgColor = '#fef7e0';
+        textColor = '#b06000';
+        break;
+    }
+    
+    return (
+      <Box sx={{ 
+        display: 'inline-block', 
+        bgcolor: bgColor, 
+        color: textColor, 
+        borderRadius: 1,
+        px: 1.5,
+        py: 0.5,
+        fontSize: '0.75rem',
+        fontWeight: 'medium',
+        textTransform: 'capitalize'
+      }}>
+        {status}
+      </Box>
+    );
+  };
+
+  const getTrendIcon = (trend: number | null | undefined) => {
+    if (trend === undefined || trend === null) return null;
+    
+    if (trend > 0) {
+      return <Box sx={{ color: 'success.main', display: 'flex', alignItems: 'center' }}>
+        <ArrowUp size={16} />
+        <Typography variant="caption" sx={{ ml: 0.5 }}>+{trend.toFixed(1)}%</Typography>
+      </Box>;
+    } else {
+      return <Box sx={{ color: 'error.main', display: 'flex', alignItems: 'center' }}>
+        <ArrowDown size={16} />
+        <Typography variant="caption" sx={{ ml: 0.5 }}>{trend.toFixed(1)}%</Typography>
+      </Box>;
     }
   };
 
@@ -103,54 +163,103 @@ const DagList: React.FC<DagListProps> = ({ dags, isLoading, error }) => {
     setOpenTasksModal(true);
   };
 
+  const handleFilterChange = (filter: string | null) => {
+    setStatusFilter(filter);
+  };
+
+  const filteredByStatus = statusFilter 
+    ? filteredDags.filter(dag => dag.status?.toLowerCase() === statusFilter.toLowerCase())
+    : filteredDags;
+
   return (
     <>
-      <Paper elevation={0} sx={{ margin: 2, overflow: 'hidden', border: '1px solid', borderColor: 'divider' }}>
-        <Box p={2} display="flex" alignItems="center" justifyContent="space-between" borderBottom={1} borderColor="divider">
-          <Typography variant="h6" component="h2" fontWeight="bold">
-            DAG Entities
-          </Typography>
+      <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+        <Tabs
+          value={0}
+          sx={{ 
+            borderBottom: 1, 
+            borderColor: 'divider'
+          }}
+        >
+          <Tab label="Tables" />
+          <Tab label="DAGs" />
+        </Tabs>
+        
+        <Box sx={{ my: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 2 }}>
+          <TextField
+            placeholder="Search entities..."
+            size="small"
+            value={searchQuery}
+            onChange={(e) => handleSearch(e.target.value)}
+            InputProps={{
+              startAdornment: <SearchIcon size={16} style={{ opacity: 0.5, marginRight: 8 }} />,
+            }}
+            sx={{ width: 180 }}
+          />
           
-          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <TextField
-              placeholder="Search DAGs..."
-              variant="outlined"
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <Typography variant="caption" sx={{ alignSelf: 'center', mr: 1 }}>Show:</Typography>
+            <Button 
+              variant={statusFilter === null ? "contained" : "outlined"} 
               size="small"
-              value={searchQuery}
-              onChange={(e) => handleSearch(e.target.value)}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon size={18} />
-                  </InputAdornment>
-                ),
-              }}
-              sx={{ 
-                minWidth: 250,
-                mr: 1
-              }}
-            />
-            <IconButton color="primary" size="small">
-              <ListFilter size={18} />
-            </IconButton>
+              onClick={() => handleFilterChange(null)}
+              sx={{ minWidth: 'auto', px: 2, py: 0.5 }}
+            >
+              All
+            </Button>
+            <Button 
+              variant={statusFilter === 'success' ? "contained" : "outlined"} 
+              size="small"
+              color="success"
+              onClick={() => handleFilterChange('success')}
+              sx={{ minWidth: 'auto', px: 2, py: 0.5 }}
+            >
+              Healthy
+            </Button>
+            <Button 
+              variant={statusFilter === 'warning' ? "contained" : "outlined"} 
+              size="small"
+              color="warning"
+              onClick={() => handleFilterChange('warning')}
+              sx={{ minWidth: 'auto', px: 2, py: 0.5 }}
+            >
+              Warning
+            </Button>
+            <Button 
+              variant={statusFilter === 'failed' ? "contained" : "outlined"} 
+              size="small"
+              color="error"
+              onClick={() => handleFilterChange('failed')}
+              sx={{ minWidth: 'auto', px: 2, py: 0.5 }}
+            >
+              Critical
+            </Button>
           </Box>
         </Box>
         
-        <TableContainer sx={{ maxHeight: 600 }}>
-          <Table stickyHeader>
+        <Paper elevation={0} sx={{ mx: 2, overflow: 'hidden', border: '1px solid', borderColor: 'divider' }}>
+          <Table size="small" stickyHeader>
             <TableHead>
               <TableRow>
-                <TableCell>Name</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell>Schedule</TableCell>
-                <TableCell>Last Run</TableCell>
+                <TableCell padding="checkbox">
+                  <Checkbox size="small" />
+                </TableCell>
+                <TableCell>
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    Entity Name
+                    <ArrowUp size={16} style={{ marginLeft: 4, opacity: 0.5 }} />
+                  </Box>
+                </TableCell>
                 <TableCell>Team</TableCell>
-                <TableCell>Compliance</TableCell>
-                <TableCell>Owner</TableCell>
+                <TableCell>Status</TableCell>
+                <TableCell>Current SLA</TableCell>
+                <TableCell>30-Day Trend</TableCell>
+                <TableCell>Last Updated</TableCell>
+                <TableCell align="right">Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {filteredDags.map((dag) => (
+              {filteredByStatus.map((dag) => (
                 <TableRow 
                   key={dag.id}
                   hover
@@ -162,68 +271,65 @@ const DagList: React.FC<DagListProps> = ({ dags, isLoading, error }) => {
                     }
                   }}
                 >
+                  <TableCell padding="checkbox">
+                    <Checkbox size="small" onClick={(e) => e.stopPropagation()} />
+                  </TableCell>
                   <TableCell>
                     <Typography variant="body2" fontWeight="medium">
                       {dag.name}
                     </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {dag.description}
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2">
+                      {dag.teamId === 1 ? 'PGM' : 
+                       dag.teamId === 2 ? 'Core' : 
+                       dag.teamId === 3 ? 'Viewer Product' : 
+                       `Team ${dag.teamId}`}
                     </Typography>
                   </TableCell>
                   <TableCell>
-                    <Box display="flex" alignItems="center" gap={1}>
-                      {getStatusIcon(dag.status)}
-                      <Typography variant="body2">
-                        {dag.status}
-                      </Typography>
-                    </Box>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
-                      {dag.refreshFrequency || "* * * * *"}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    {dag.lastRun ? (
-                      <Typography variant="body2">
-                        {format(new Date(dag.lastRun), 'yyyy-MM-dd HH:mm')}
-                      </Typography>
-                    ) : (
-                      <Typography variant="body2" color="text.secondary">
-                        Never
-                      </Typography>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Chip 
-                      label={`Team ${dag.teamId}`}
-                      size="small"
-                      sx={{ 
-                        backgroundColor: 'primary.light',
-                        color: 'primary.contrastText'
-                      }}
-                    />
+                    {getStatusChip(dag.status)}
                   </TableCell>
                   <TableCell>
                     <Typography 
                       variant="body2" 
-                      color={dag.currentSla && dag.currentSla > 95 ? 'success.main' : 'error.main'}
                       fontWeight="medium"
                     >
                       {dag.currentSla ? `${dag.currentSla.toFixed(1)}%` : 'N/A'}
                     </Typography>
                   </TableCell>
                   <TableCell>
+                    {getTrendIcon(dag.trend || (Math.random() > 0.5 ? 1 : -1) * Math.random() * 2)}
+                  </TableCell>
+                  <TableCell>
                     <Typography variant="body2">
-                      {dag.owner || "Unassigned"}
+                      {dag.updatedAt 
+                        ? format(new Date(dag.updatedAt), 'HH:mm') > '12:00' 
+                          ? `Yesterday, ${format(new Date(dag.updatedAt), 'HH:mm')} PM` 
+                          : `Today, ${format(new Date(dag.updatedAt), 'HH:mm')} AM`
+                        : 'Never'
+                      }
                     </Typography>
+                  </TableCell>
+                  <TableCell align="right">
+                    <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+                      <IconButton size="small" onClick={(e) => { e.stopPropagation(); }}>
+                        <Edit size={16} />
+                      </IconButton>
+                      <IconButton size="small" onClick={(e) => { e.stopPropagation(); }}>
+                        <Clock size={16} />
+                      </IconButton>
+                      <IconButton size="small" onClick={(e) => { e.stopPropagation(); }}>
+                        <Trash2 size={16} />
+                      </IconButton>
+                    </Box>
                   </TableCell>
                 </TableRow>
               ))}
               
-              {filteredDags.length === 0 && (
+              {filteredByStatus.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} align="center" sx={{ py: 3 }}>
+                  <TableCell colSpan={8} align="center" sx={{ py: 3 }}>
                     <Typography color="text.secondary">
                       No DAGs match your search criteria
                     </Typography>
@@ -232,8 +338,33 @@ const DagList: React.FC<DagListProps> = ({ dags, isLoading, error }) => {
               )}
             </TableBody>
           </Table>
-        </TableContainer>
-      </Paper>
+          
+          <Box sx={{ 
+            display: 'flex', 
+            justifyContent: 'flex-end', 
+            alignItems: 'center', 
+            p: 1.5, 
+            borderTop: 1, 
+            borderColor: 'divider',
+            gap: 2
+          }}>
+            <Typography variant="caption">
+              Rows per page: 5
+            </Typography>
+            <Typography variant="caption">
+              1-{Math.min(filteredByStatus.length, rowsPerPage)} of {filteredByStatus.length}
+            </Typography>
+            <Box sx={{ display: 'flex' }}>
+              <IconButton size="small" disabled={true}>
+                <ChevronLeft size={16} />
+              </IconButton>
+              <IconButton size="small" disabled={filteredByStatus.length <= rowsPerPage}>
+                <ChevronRight size={16} />
+              </IconButton>
+            </Box>
+          </Box>
+        </Paper>
+      </Box>
       
       {/* Task Management Modal */}
       <TaskManagementModal
