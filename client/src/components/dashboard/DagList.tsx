@@ -18,7 +18,7 @@ import {
 } from '@mui/material';
 import { format } from 'date-fns';
 import { CheckCircle, XCircle, AlertTriangle, ListFilter, Search as SearchIcon } from 'lucide-react';
-import { Entity } from '@/features/sla/types';
+import { Entity } from '@shared/schema';
 import TaskManagementModal from '@/components/modals/TaskManagementModal';
 
 interface DagListProps {
@@ -237,12 +237,12 @@ const DagList: React.FC<DagListProps> = ({ dags, isLoading, error }) => {
       
       {/* Task Management Modal */}
       <TaskManagementModal
-        open={openTasksModal}
+        isOpen={openTasksModal}
         onClose={() => {
           setOpenTasksModal(false);
           setSelectedDag(null);
         }}
-        entity={selectedDag}
+        dag={selectedDag}
       />
     </>
   );
