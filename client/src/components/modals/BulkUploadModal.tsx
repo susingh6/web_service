@@ -59,7 +59,7 @@ interface BaseEntity {
   notification_preferences?: string[];
   donemarker_location?: string;
   donemarker_lookback?: number;
-  user_name: string;
+  user_name?: string;
   user_email: string;
   is_active?: boolean;
 }
@@ -217,17 +217,28 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
   const validateEntity = (entity: any, entityType: 'tables' | 'dags'): ValidationResult => {
     const errors: { field: string; message: string }[] = [];
     
+    // Flag for new DAG entries that need backend validation
+    const isNewDag = entityType === 'dags' && entity.dag_name && 
+      dagOptions.length > 0 && !dagOptions.includes(entity.dag_name);
+    
+    // Add needs_dag_validation flag to entities with new DAG names
+    if (isNewDag) {
+      entity.needs_dag_validation = true;
+    }
+    
     // Common required fields validation
+    // Tenant name must exist in the predefined list
     if (!entity.tenant_name) {
       errors.push({ field: 'tenant_name', message: 'Tenant name is required' });
     } else if (tenantOptions.length > 0 && !tenantOptions.includes(entity.tenant_name)) {
-      errors.push({ field: 'tenant_name', message: `Tenant "${entity.tenant_name}" is not in the known list` });
+      errors.push({ field: 'tenant_name', message: `Tenant "${entity.tenant_name}" is not in the known list. New tenant names are not allowed.` });
     }
     
+    // Team name must exist in the predefined list
     if (!entity.team_name) {
       errors.push({ field: 'team_name', message: 'Team name is required' });
     } else if (teamOptions.length > 0 && !teamOptions.includes(entity.team_name)) {
-      errors.push({ field: 'team_name', message: `Team "${entity.team_name}" is not in the known list` });
+      errors.push({ field: 'team_name', message: `Team "${entity.team_name}" is not in the known list. New team names are not allowed.` });
     }
     
     if (!entity.expected_runtime_minutes) {
@@ -238,10 +249,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
       errors.push({ field: 'expected_runtime_minutes', message: 'Expected runtime must be greater than 0' });
     }
     
-    if (!entity.user_name) {
-      errors.push({ field: 'user_name', message: 'User name is required' });
-    }
-    
+    // User email is required with valid format
     if (!entity.user_email) {
       errors.push({ field: 'user_email', message: 'User email is required' });
     } else if (!/\S+@\S+\.\S+/.test(entity.user_email)) {
@@ -266,8 +274,9 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
     } else { // DAGs validation
       if (!entity.dag_name) {
         errors.push({ field: 'dag_name', message: 'DAG name is required' });
-      } else if (dagOptions.length > 0 && !dagOptions.includes(entity.dag_name)) {
-        errors.push({ field: 'dag_name', message: `DAG "${entity.dag_name}" is not in the known list` });
+      } else if (isNewDag) {
+        // Only warn about new DAG names, don't treat as error since backend will validate
+        // We already set the needs_dag_validation flag above
       }
       
       if (!entity.dag_schedule) {
@@ -482,11 +491,29 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
     try {
       // Placeholder for the actual API call to bulk upload
       // In a real implementation, this would be an API call to the backend
+      // 
+      // We send the needs_dag_validation flag to let the backend know which DAGs need validation
+      // This way, the FastAPI backend can handle new DAG names appropriately
       // const response = await fetch('/api/entities/bulk', {
       //   method: 'POST',
       //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ entities: validEntities, entityType: tabValue })
+      //   body: JSON.stringify({ 
+      //     entities: validEntities, 
+      //     entityType: tabValue,
+      //     hasNewDags: validEntities.some(entity => 'needs_dag_validation' in entity && entity.needs_dag_validation)
+      //   })
       // });
+      
+      // For demonstration, log the entities that would be sent to the backend
+      const entitiesWithNewDags = validEntities.filter(entity => 
+        'needs_dag_validation' in entity && entity.needs_dag_validation
+      );
+      
+      if (entitiesWithNewDags.length > 0) {
+        console.log(`Found ${entitiesWithNewDags.length} DAGs that need backend validation:`, 
+          entitiesWithNewDags.map(e => (e as DagEntity).dag_name)
+        );
+      }
       
       // Simulate API call success with a timeout
       await new Promise(resolve => setTimeout(resolve, 1500));
@@ -669,7 +696,6 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
           onChange={handleTabChange}
           aria-label="entity type tabs"
           sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}
-          disabled={currentStep !== 'upload'}
         >
           <Tab value="tables" label="Tables" />
           <Tab value="dags" label="DAGs" />
@@ -706,24 +732,22 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
               <Typography component="div" variant="body2" sx={{ pl: 2, mb: 1 }}>
                 {tabValue === 'tables' ? (
                   <ul>
-                    <li>tenant_name: String (e.g., "Data Engineering")</li>
-                    <li>team_name: String (e.g., "PGM", "Core", etc.)</li>
+                    <li>tenant_name: String (must match known values, e.g., "Data Engineering")</li>
+                    <li>team_name: String (must match known values, e.g., "PGM", "Core", etc.)</li>
                     <li>schema_name: String</li>
                     <li>table_name: String</li>
                     <li>table_schedule: String (cron format)</li>
                     <li>expected_runtime_minutes: Number</li>
-                    <li>user_name: String</li>
-                    <li>user_email: String</li>
+                    <li>user_email: String (required)</li>
                   </ul>
                 ) : (
                   <ul>
-                    <li>tenant_name: String (e.g., "Data Engineering")</li>
-                    <li>team_name: String (e.g., "PGM", "Core", etc.)</li>
-                    <li>dag_name: String</li>
+                    <li>tenant_name: String (must match known values, e.g., "Data Engineering")</li>
+                    <li>team_name: String (must match known values, e.g., "PGM", "Core", etc.)</li>
+                    <li>dag_name: String (new DAG names will require backend validation)</li>
                     <li>dag_schedule: String (cron format)</li>
                     <li>expected_runtime_minutes: Number</li>
-                    <li>user_name: String</li>
-                    <li>user_email: String</li>
+                    <li>user_email: String (required)</li>
                   </ul>
                 )}
               </Typography>
@@ -947,7 +971,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
                       )}
                       <TableCell>Schedule</TableCell>
                       <TableCell>Runtime</TableCell>
-                      <TableCell>User</TableCell>
+                      <TableCell>Email</TableCell>
                       <TableCell width="120px">Details</TableCell>
                     </TableRow>
                   </TableHead>
@@ -955,16 +979,25 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
                     {filteredValidationResults().map((result, index) => {
                       const entity = result.entity;
                       const isTable = 'table_name' in entity;
+                      const isNewDag = !isTable && entity.needs_dag_validation;
                       
                       return (
                         <TableRow key={index} sx={{
-                          bgcolor: !result.valid ? 'error.lightest' : 'transparent'
+                          bgcolor: !result.valid ? 'error.lightest' : (isNewDag ? 'warning.lightest' : 'transparent')
                         }}>
                           <TableCell>
                             {result.valid ? (
-                              <Tooltip title="Valid">
-                                <CheckCircleIcon color="success" fontSize="small" />
-                              </Tooltip>
+                              isNewDag ? (
+                                <Tooltip title="Valid but new DAG name (requires backend validation)">
+                                  <Badge badgeContent="*" color="warning">
+                                    <CheckCircleIcon color="success" fontSize="small" />
+                                  </Badge>
+                                </Tooltip>
+                              ) : (
+                                <Tooltip title="Valid">
+                                  <CheckCircleIcon color="success" fontSize="small" />
+                                </Tooltip>
+                              )
                             ) : (
                               <Tooltip title={`${result.errors.length} error(s)`}>
                                 <ErrorIcon color="error" fontSize="small" />
@@ -979,11 +1012,21 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
                               <TableCell>{entity.table_name}</TableCell>
                             </>
                           ) : (
-                            <TableCell>{(entity as DagEntity).dag_name}</TableCell>
+                            <TableCell>
+                              {(entity as DagEntity).dag_name}
+                              {isNewDag && (
+                                <Chip 
+                                  label="New" 
+                                  size="small" 
+                                  color="warning" 
+                                  sx={{ ml: 1, height: 20, fontSize: '0.7rem' }}
+                                />
+                              )}
+                            </TableCell>
                           )}
                           <TableCell>{isTable ? entity.table_schedule : (entity as DagEntity).dag_schedule}</TableCell>
                           <TableCell>{entity.expected_runtime_minutes} min</TableCell>
-                          <TableCell>{entity.user_name}</TableCell>
+                          <TableCell>{entity.user_email}</TableCell>
                           <TableCell>
                             {!result.valid && (
                               <Tooltip title={result.errors.map(err => `${err.field}: ${err.message}`).join('\n')}>
