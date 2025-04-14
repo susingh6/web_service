@@ -214,6 +214,7 @@ const Summary = () => {
               onDeleteEntity={handleDeleteEntity}
               onViewHistory={() => {}}
               onViewDetails={handleViewDetails}
+              showActions={false} // Hide actions in summary pages
             />
           )}
         </Box>
@@ -228,6 +229,7 @@ const Summary = () => {
               onDeleteEntity={handleDeleteEntity}
               onViewHistory={() => {}}
               onViewDetails={handleViewDetails}
+              showActions={false} // Hide actions in summary pages
             />
           )}
         </Box>

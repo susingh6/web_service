@@ -276,6 +276,7 @@ const TeamDashboard = () => {
               onDeleteEntity={handleDeleteEntity}
               onViewHistory={() => {}}
               onViewDetails={handleViewDetails}
+              showActions={true} // Show actions in team tabs
             />
           )}
         </Box>

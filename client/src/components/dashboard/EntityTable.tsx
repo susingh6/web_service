@@ -457,25 +457,31 @@ const EntityTable = ({
                     </TableCell>
                     
                     <TableCell align="center" onClick={(e) => e.stopPropagation()}>
-                      <Box display="flex" justifyContent="center">
-                        <Tooltip title="Edit">
-                          <IconButton size="small" color="primary" onClick={() => onEditEntity(entity)}>
-                            <Edit fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        
-                        <Tooltip title="History">
-                          <IconButton size="small" color="inherit" onClick={() => onViewHistory(entity)}>
-                            <History fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        
-                        <Tooltip title="Delete">
-                          <IconButton size="small" color="error" onClick={() => onDeleteEntity(entity.id)}>
-                            <Delete fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      </Box>
+                      {showActions ? (
+                        <Box display="flex" justifyContent="center">
+                          <Tooltip title="Edit">
+                            <IconButton size="small" color="primary" onClick={() => onEditEntity(entity)}>
+                              <Edit fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          
+                          <Tooltip title="History">
+                            <IconButton size="small" color="inherit" onClick={() => onViewHistory(entity)}>
+                              <History fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          
+                          <Tooltip title="Delete">
+                            <IconButton size="small" color="error" onClick={() => onDeleteEntity(entity.id)}>
+                              <Delete fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </Box>
+                      ) : (
+                        <Typography variant="body2" color="text.secondary">
+                          -
+                        </Typography>
+                      )}
                     </TableCell>
                   </TableRow>
                 );
