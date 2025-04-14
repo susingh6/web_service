@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { 
   Paper, 
@@ -16,14 +16,17 @@ import {
 } from '@mui/material';
 import { format } from 'date-fns';
 import { CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
-import { dagsApi } from '@/features/sla/api';
-import { Entity } from '@shared/schema';
+import { Entity } from '@/features/sla/types';
+import DagDetailView from '@/components/dags/DagDetailView';
 
-const DagList = () => {
-  const { data: dags, isLoading, error } = useQuery<Entity[]>({
-    queryKey: ['/api/dags'],
-    queryFn: () => dagsApi.getAll(),
-  });
+interface DagListProps {
+  dags: Entity[];
+  isLoading: boolean;
+  error: Error | null;
+}
+
+const DagList: React.FC<DagListProps> = ({ dags, isLoading, error }) => {
+  const [selectedDag, setSelectedDag] = useState<Entity | null>(null);
 
   if (isLoading) {
     return (
@@ -36,7 +39,7 @@ const DagList = () => {
   if (error) {
     return (
       <Alert severity="error" sx={{ m: 2 }}>
-        Error loading DAGs: {error instanceof Error ? error.message : 'Unknown error'}
+        Error loading DAGs: {error.message || 'Unknown error'}
       </Alert>
     );
   }
@@ -46,6 +49,16 @@ const DagList = () => {
       <Alert severity="info" sx={{ m: 2 }}>
         No DAGs found in the system.
       </Alert>
+    );
+  }
+
+  // If a DAG is selected, show its detail view
+  if (selectedDag) {
+    return (
+      <DagDetailView 
+        entity={selectedDag} 
+        onBack={() => setSelectedDag(null)}
+      />
     );
   }
 
@@ -66,6 +79,10 @@ const DagList = () => {
       default:
         return <AlertTriangle color="orange" size={18} />;
     }
+  };
+
+  const handleDagClick = (dag: Entity) => {
+    setSelectedDag(dag);
   };
 
   return (
@@ -93,6 +110,7 @@ const DagList = () => {
               <TableRow 
                 key={dag.id}
                 hover
+                onClick={() => handleDagClick(dag)}
                 sx={{ 
                   '&:hover': { 
                     cursor: 'pointer',
@@ -102,23 +120,23 @@ const DagList = () => {
               >
                 <TableCell>
                   <Typography variant="body2" fontWeight="medium">
-                    {dag.dag_name || dag.name}
+                    {dag.name}
                   </Typography>
                   <Typography variant="caption" color="text.secondary">
-                    {dag.dag_description || dag.description}
+                    {dag.description}
                   </Typography>
                 </TableCell>
                 <TableCell>
                   <Box display="flex" alignItems="center" gap={1}>
-                    {getStatusIcon(dag.lastStatus || dag.status)}
+                    {getStatusIcon(dag.status)}
                     <Typography variant="body2">
-                      {dag.lastStatus || dag.status}
+                      {dag.status}
                     </Typography>
                   </Box>
                 </TableCell>
                 <TableCell>
                   <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
-                    {dag.dag_schedule || "* * * * *"}
+                    {dag.refreshFrequency || "* * * * *"}
                   </Typography>
                 </TableCell>
                 <TableCell>
@@ -134,7 +152,7 @@ const DagList = () => {
                 </TableCell>
                 <TableCell>
                   <Chip 
-                    label={dag.team_name || `Team ${dag.teamId}`}
+                    label={`Team ${dag.teamId}`}
                     size="small"
                     sx={{ 
                       backgroundColor: 'primary.light',
@@ -153,10 +171,7 @@ const DagList = () => {
                 </TableCell>
                 <TableCell>
                   <Typography variant="body2">
-                    {dag.user_name || dag.owner || "Unassigned"}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    {dag.user_email || dag.ownerEmail || "No email"}
+                    {dag.owner || "Unassigned"}
                   </Typography>
                 </TableCell>
               </TableRow>

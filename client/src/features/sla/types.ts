@@ -1,114 +1,88 @@
-import { z } from "zod";
+// Re-export types from schema
+export * from '@shared/schema';
 
-// Entity types
-export const EntityTypeEnum = z.enum(['table', 'dag']);
-export type EntityType = z.infer<typeof EntityTypeEnum>;
-
-// Entity status types
-export const EntityStatusEnum = z.enum([
-  'healthy', 
-  'warning', 
-  'critical', 
-  'running', 
-  'success', 
-  'failed',
-  'passed',
-  'unknown'
-]);
-export type EntityStatus = z.infer<typeof EntityStatusEnum>;
-
-// Task priority types
-export const TaskPriorityEnum = z.enum(['normal', 'high']);
-export type TaskPriority = z.infer<typeof TaskPriorityEnum>;
-
-// Task status types
-export const TaskStatusEnum = z.enum(['pending', 'running', 'completed', 'failed']);
-export type TaskStatus = z.infer<typeof TaskStatusEnum>;
-
-// Entity model
-export interface Entity {
+// Entity types more specific to the frontend
+export interface EntityWithDetails {
   id: number;
   name: string;
-  type: EntityType;
-  status: EntityStatus;
-  description: string | null;
-  createdAt: Date;
+  description?: string;
+  type: string;
   teamId: number;
-  slaTarget: number;
-  currentSla: number | null;
-  refreshFrequency: string;
-  tenant?: string;
-  owner?: string;
-  dataSource?: string;
-  tags?: string;
-  nextRefresh?: Date | null;
-  lastRefreshed?: Date | null;
-  avgLoadTime?: number;
-  lastRun?: Date | null;
-  lastRunDuration?: number;
-  lastStatus?: string;
-  failureCount?: number;
-  warningThreshold?: number;
-  criticalThreshold?: number;
-  updatedAt: Date;
-}
-
-// Task model
-export interface Task {
-  id: number;
-  entityId: number;
-  name: string;
-  description: string | null;
-  status: TaskStatus;
-  priority: TaskPriority;
-  duration?: number;
-  startTime?: Date | null;
-  endTime?: Date | null;
-  dependsOn?: string;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-// Team model
-export interface Team {
-  id: number;
-  name: string;
-  description: string | null;
-  createdAt: Date;
-}
-
-// Issue model
-export interface Issue {
-  id: number;
-  entityId: number;
-  type: string;
-  severity: string;
-  description: string;
-  date: Date;
-  resolved: boolean | null;
-  resolvedAt: Date | null;
-}
-
-// EntityHistory model
-export interface EntityHistory {
-  id: number;
-  entityId: number;
-  date: Date;
   status: string;
-  slaValue?: number;
-  details?: string;
-  type: string;
+  refreshFrequency?: string;
+  lastRun?: string;
+  owner?: string;
+  ownerEmail?: string;
+  currentSla?: number;
+  history: EntityHistoryItem[];
+  issues: EntityIssue[];
 }
 
-// Dashboard summary metrics
+export interface EntityHistoryItem {
+  id: number;
+  entityId: number;
+  timestamp: string;
+  status: string;
+  details?: string;
+}
+
+export interface EntityIssue {
+  id: number;
+  entityId: number;
+  title: string;
+  description: string;
+  status: string;
+  priority: string;
+  createdAt: string;
+  resolvedAt?: string;
+}
+
+export interface TeamWithStats {
+  id: number;
+  name: string;
+  description?: string;
+  entities: number;
+  avgCompliance: number;
+  criticalIssues: number;
+}
+
 export interface DashboardSummary {
   metrics: {
     overallCompliance: number;
-    tablesCount: number;
-    dagsCount: number;
-    issuesCount: number;
-    criticalEntities: number;
+    tablesCompliance: number;
+    dagsCompliance: number;
+    totalEntities: number;
+    openIssues: number;
+    criticalIssues: number;
   };
-  recentIssues: Issue[];
-  teamCompliance: { team: string; compliance: number }[];
+  recentHistory: EntityHistoryItem[];
+  topIssues: EntityIssue[];
+}
+
+export interface ChartData {
+  labels: string[];
+  datasets: ChartDataset[];
+}
+
+export interface ChartDataset {
+  label: string;
+  data: number[];
+  backgroundColor?: string;
+  borderColor?: string;
+}
+
+// Task related types for DAG details
+export type TaskStatus = 'success' | 'failed' | 'running' | 'warning' | 'retry' | 'pending';
+export type TaskPriority = 'normal' | 'high';
+
+export interface Task {
+  id: number;
+  name: string;
+  description?: string;
+  dagId: number;
+  status: TaskStatus;
+  priority: TaskPriority;
+  duration?: number;
+  lastRun?: string;
+  dependencies?: number[];
 }

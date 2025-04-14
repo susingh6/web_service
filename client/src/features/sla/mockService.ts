@@ -1,142 +1,149 @@
 import { Task, TaskPriority, TaskStatus } from './types';
 
-// Mock tasks for each DAG
-const mockTasks: Record<number, Task[]> = {};
+// Task names that will be consistent across all DAGs for demo
+const taskNames = [
+  'extract_data',
+  'transform_data',
+  'load_warehouse',
+  'validate_schema',
+  'generate_report',
+  'send_notification',
+  'update_metadata',
+  'archive_data',
+  'check_quality',
+  'publish_metrics'
+];
 
-// Create basic mock tasks for a given DAG
-export const generateMockTasksForDag = (dagId: number): Task[] => {
-  // If we already have tasks for this DAG, return them
-  if (mockTasks[dagId]) {
-    return mockTasks[dagId];
+// Descriptions for tasks
+const taskDescriptions = {
+  'extract_data': 'Extract raw data from source systems',
+  'transform_data': 'Transform and clean data for analysis',
+  'load_warehouse': 'Load data into the data warehouse',
+  'validate_schema': 'Validate data schema and structure',
+  'generate_report': 'Generate analysis reports',
+  'send_notification': 'Send notifications to stakeholders',
+  'update_metadata': 'Update metadata repository',
+  'archive_data': 'Archive processed data',
+  'check_quality': 'Perform data quality checks',
+  'publish_metrics': 'Publish performance metrics'
+};
+
+// Generate random duration in seconds
+const getRandomDuration = () => {
+  return Math.floor(Math.random() * 3600) + 1; // 1 second to 1 hour
+};
+
+// Get random status
+const getRandomStatus = (): TaskStatus => {
+  const statuses: TaskStatus[] = ['success', 'failed', 'running', 'warning', 'retry', 'pending'];
+  const weights = [0.65, 0.1, 0.1, 0.05, 0.05, 0.05]; // Success is more likely
+  
+  const random = Math.random();
+  let cumulativeWeight = 0;
+  
+  for (let i = 0; i < statuses.length; i++) {
+    cumulativeWeight += weights[i];
+    if (random < cumulativeWeight) {
+      return statuses[i];
+    }
   }
   
-  // Create basic tasks for the DAG
-  const tasks: Task[] = [
-    {
-      id: dagId * 100 + 1,
-      entityId: dagId,
-      name: 'Task1',
-      description: 'First task in the DAG',
-      status: 'completed' as TaskStatus,
-      priority: 'normal' as TaskPriority,
-      duration: 120,
-      startTime: new Date(Date.now() - 1000 * 60 * 30), // 30 mins ago
-      endTime: new Date(Date.now() - 1000 * 60 * 28), // 28 mins ago
-      dependsOn: '',
-      createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24), // 1 day ago
-      updatedAt: new Date()
-    },
-    {
-      id: dagId * 100 + 2,
-      entityId: dagId,
-      name: 'Task2',
-      description: 'Second task in the DAG',
-      status: 'running' as TaskStatus,
-      priority: 'high' as TaskPriority,
-      duration: 240,
-      startTime: new Date(Date.now() - 1000 * 60 * 28), // 28 mins ago
-      endTime: null,
-      dependsOn: `${dagId * 100 + 1}`,
-      createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24), // 1 day ago
-      updatedAt: new Date()
-    },
-    {
-      id: dagId * 100 + 3,
-      entityId: dagId,
-      name: 'Task3',
-      description: 'Third task in the DAG',
-      status: 'pending' as TaskStatus,
-      priority: 'normal' as TaskPriority,
-      duration: 180,
-      startTime: null,
-      endTime: null,
-      dependsOn: `${dagId * 100 + 2}`,
-      createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24), // 1 day ago
-      updatedAt: new Date()
-    }
-  ];
+  return 'success'; // Default
+};
+
+// Get random priority - 20% high, 80% normal
+const getRandomPriority = (): TaskPriority => {
+  return Math.random() < 0.2 ? 'high' : 'normal';
+};
+
+// Cache to store mock task data for each DAG
+const taskCache = new Map<number, Task[]>();
+
+/**
+ * Generate mock tasks for a DAG
+ */
+const generateMockTasks = (dagId: number): Task[] => {
+  const tasks: Task[] = [];
   
-  // Store the tasks for future reference
-  mockTasks[dagId] = tasks;
+  // Generate 5-10 tasks for each DAG
+  const numTasks = Math.floor(Math.random() * 6) + 5;
+  
+  for (let i = 0; i < numTasks; i++) {
+    const taskName = taskNames[i % taskNames.length];
+    
+    const task: Task = {
+      id: dagId * 100 + i,
+      name: taskName,
+      description: taskDescriptions[taskName as keyof typeof taskDescriptions],
+      dagId: dagId,
+      status: getRandomStatus(),
+      priority: getRandomPriority(),
+      duration: getRandomDuration(),
+      lastRun: new Date(Date.now() - Math.floor(Math.random() * 7 * 24 * 60 * 60 * 1000)).toISOString(),
+    };
+    
+    // Add some dependencies for the tasks
+    if (i > 0) {
+      task.dependencies = [dagId * 100 + (i - 1)];
+      
+      // Add a second dependency sometimes
+      if (i > 1 && Math.random() < 0.3) {
+        task.dependencies.push(dagId * 100 + (i - 2));
+      }
+    }
+    
+    tasks.push(task);
+  }
   
   return tasks;
 };
 
-// Get tasks for a given DAG
-export const getTasksForDag = (dagId: number): Promise<Task[]> => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve(generateMockTasksForDag(dagId));
-    }, 300);
-  });
+/**
+ * Get tasks for a specific DAG
+ */
+export const getTasksForDag = async (dagId: number): Promise<Task[]> => {
+  // Simulate API call delay
+  await new Promise(resolve => setTimeout(resolve, 800));
+  
+  // Return cached tasks if available
+  if (taskCache.has(dagId)) {
+    return taskCache.get(dagId)!;
+  }
+  
+  // Generate new tasks and cache them
+  const tasks = generateMockTasks(dagId);
+  taskCache.set(dagId, tasks);
+  
+  return tasks;
 };
 
-// Update a task's priority
-export const updateTaskPriority = (
-  taskId: number, 
-  priority: TaskPriority
-): Promise<Task> => {
-  return new Promise((resolve, reject) => {
-    setTimeout(() => {
-      // Find the task to update
-      let foundTask: Task | null = null;
-      let dagId: number | null = null;
-      
-      for (const [entityId, tasks] of Object.entries(mockTasks)) {
-        const task = tasks.find(t => t.id === taskId);
-        if (task) {
-          foundTask = task;
-          dagId = parseInt(entityId, 10);
-          break;
-        }
-      }
-      
-      if (!foundTask || !dagId) {
-        reject(new Error(`Task with ID ${taskId} not found`));
-        return;
-      }
-      
-      // Update the task priority
-      foundTask.priority = priority;
-      foundTask.updatedAt = new Date();
-      
-      // Update the tasks in our mock store
-      mockTasks[dagId] = mockTasks[dagId].map(t => 
-        t.id === taskId ? foundTask! : t
-      );
-      
-      resolve(foundTask);
-    }, 300);
-  });
-};
-
-// Add a new task to a DAG
-export const addTaskToDag = (dagId: number, taskData: Partial<Task>): Promise<Task> => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const tasks = mockTasks[dagId] || [];
-      const maxId = tasks.length > 0 
-        ? Math.max(...tasks.map(t => t.id)) 
-        : dagId * 100;
-      
-      const newTask: Task = {
-        id: maxId + 1,
-        entityId: dagId,
-        name: taskData.name || `New Task ${maxId + 1}`,
-        description: taskData.description || null,
-        status: taskData.status || 'pending',
-        priority: taskData.priority || 'normal',
-        duration: taskData.duration,
-        startTime: taskData.startTime || null,
-        endTime: taskData.endTime || null,
-        dependsOn: taskData.dependsOn || '',
-        createdAt: new Date(),
-        updatedAt: new Date()
-      };
-      
-      mockTasks[dagId] = [...tasks, newTask];
-      
-      resolve(newTask);
-    }, 300);
-  });
+/**
+ * Update a task's priority
+ */
+export const updateTaskPriority = async (taskId: number, newPriority: TaskPriority): Promise<Task> => {
+  // Simulate API call delay
+  await new Promise(resolve => setTimeout(resolve, 500));
+  
+  // Find the DAG containing this task
+  let task: Task | undefined;
+  let dagId: number | undefined;
+  
+  for (const [cachedDagId, tasks] of taskCache.entries()) {
+    const foundTask = tasks.find(t => t.id === taskId);
+    if (foundTask) {
+      task = foundTask;
+      dagId = cachedDagId;
+      break;
+    }
+  }
+  
+  if (!task || !dagId) {
+    throw new Error(`Task with ID ${taskId} not found`);
+  }
+  
+  // Update the task priority
+  task.priority = newPriority;
+  
+  // Return the updated task
+  return task;
 };
