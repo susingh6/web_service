@@ -186,43 +186,92 @@ const DagList: React.FC<DagListProps> = ({ dags, isLoading, error }) => {
             sx={{ width: 180 }}
           />
           
-          <Box sx={{ display: 'flex', gap: 1 }}>
-            <Typography variant="caption" sx={{ alignSelf: 'center', mr: 1 }}>Show:</Typography>
-            <Button 
-              variant={statusFilter === null ? "contained" : "outlined"} 
-              size="small"
-              onClick={() => handleFilterChange(null)}
-              sx={{ minWidth: 'auto', px: 2, py: 0.5 }}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Typography variant="body2" sx={{ color: 'text.secondary', mr: 1 }}>Show:</Typography>
+            <Box 
+              sx={{
+                display: 'flex',
+                borderRadius: 1,
+                overflow: 'hidden',
+                border: '1px solid',
+                borderColor: 'divider',
+              }}
             >
-              All
-            </Button>
-            <Button 
-              variant={statusFilter === 'success' ? "contained" : "outlined"} 
-              size="small"
-              color="success"
-              onClick={() => handleFilterChange('success')}
-              sx={{ minWidth: 'auto', px: 2, py: 0.5 }}
-            >
-              Healthy
-            </Button>
-            <Button 
-              variant={statusFilter === 'warning' ? "contained" : "outlined"} 
-              size="small"
-              color="warning"
-              onClick={() => handleFilterChange('warning')}
-              sx={{ minWidth: 'auto', px: 2, py: 0.5 }}
-            >
-              Warning
-            </Button>
-            <Button 
-              variant={statusFilter === 'failed' ? "contained" : "outlined"} 
-              size="small"
-              color="error"
-              onClick={() => handleFilterChange('failed')}
-              sx={{ minWidth: 'auto', px: 2, py: 0.5 }}
-            >
-              Critical
-            </Button>
+              <Button 
+                disableElevation
+                size="small"
+                onClick={() => handleFilterChange(null)}
+                sx={{ 
+                  borderRadius: 0,
+                  px: 2,
+                  py: 0.5,
+                  backgroundColor: statusFilter === null ? 'primary.main' : 'transparent',
+                  color: statusFilter === null ? 'white' : 'text.primary',
+                  '&:hover': {
+                    backgroundColor: statusFilter === null ? 'primary.dark' : 'action.hover'
+                  },
+                  borderRight: '1px solid',
+                  borderColor: 'divider'
+                }}
+              >
+                All
+              </Button>
+              <Button 
+                disableElevation
+                size="small"
+                onClick={() => handleFilterChange('success')}
+                sx={{ 
+                  borderRadius: 0,
+                  px: 2,
+                  py: 0.5,
+                  backgroundColor: statusFilter === 'success' ? '#4caf50' : 'transparent',
+                  color: statusFilter === 'success' ? 'white' : 'text.primary',
+                  '&:hover': {
+                    backgroundColor: statusFilter === 'success' ? '#43a047' : 'action.hover'
+                  },
+                  borderRight: '1px solid',
+                  borderColor: 'divider'
+                }}
+              >
+                Healthy
+              </Button>
+              <Button 
+                disableElevation
+                size="small"
+                onClick={() => handleFilterChange('warning')}
+                sx={{ 
+                  borderRadius: 0,
+                  px: 2,
+                  py: 0.5,
+                  backgroundColor: statusFilter === 'warning' ? '#ff9800' : 'transparent',
+                  color: statusFilter === 'warning' ? 'white' : 'text.primary',
+                  '&:hover': {
+                    backgroundColor: statusFilter === 'warning' ? '#f57c00' : 'action.hover'
+                  },
+                  borderRight: '1px solid',
+                  borderColor: 'divider'
+                }}
+              >
+                Warning
+              </Button>
+              <Button 
+                disableElevation
+                size="small"
+                onClick={() => handleFilterChange('failed')}
+                sx={{ 
+                  borderRadius: 0,
+                  px: 2,
+                  py: 0.5,
+                  backgroundColor: statusFilter === 'failed' ? '#f44336' : 'transparent',
+                  color: statusFilter === 'failed' ? 'white' : 'text.primary',
+                  '&:hover': {
+                    backgroundColor: statusFilter === 'failed' ? '#e53935' : 'action.hover'
+                  }
+                }}
+              >
+                Critical
+              </Button>
+            </Box>
           </Box>
         </Box>
         
