@@ -45,12 +45,18 @@ interface StatusConfig {
 const DEFAULT_STATUS: StatusConfig = { color: 'default', label: 'Unknown', lightBg: 'rgba(158, 158, 158, 0.1)' };
 
 const STATUS_CONFIG: Record<string, StatusConfig> = {
+  // Regular monitoring status terms (for tables)
   healthy: { color: 'success', label: 'Healthy', lightBg: 'rgba(76, 175, 80, 0.1)' },
   warning: { color: 'warning', label: 'Warning', lightBg: 'rgba(255, 152, 0, 0.1)' },
   critical: { color: 'error', label: 'Critical', lightBg: 'rgba(244, 67, 54, 0.1)' },
+  
+  // DAG status terms
   success: { color: 'success', label: 'Success', lightBg: 'rgba(76, 175, 80, 0.1)' },
   failed: { color: 'error', label: 'Failed', lightBg: 'rgba(244, 67, 54, 0.1)' },
   running: { color: 'warning', label: 'Running', lightBg: 'rgba(255, 152, 0, 0.1)' },
+  
+  // Add a "Passed" status as requested
+  passed: { color: 'success', label: 'Passed', lightBg: 'rgba(76, 175, 80, 0.1)' },
 };
 
 interface HeadCell {

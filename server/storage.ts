@@ -120,11 +120,27 @@ export class MemStorage implements IStorage {
         
         // Load each DAG entity into our entities map
         mockDags.forEach(dag => {
+          // Map the lastStatus to the status field for display in UI
+          const statusMap: Record<string, string> = {
+            "success": "success", 
+            "running": "running",
+            "failed": "failed"
+          };
+          
+          const statusValue = dag.lastStatus && statusMap[dag.lastStatus] 
+            ? statusMap[dag.lastStatus] 
+            : (dag.status || "unknown");
+          
           this.entities.set(dag.id, {
             ...dag,
             createdAt: new Date(dag.createdAt),
-            updatedAt: new Date(dag.updatedAt),
-            lastRun: dag.lastRun ? new Date(dag.lastRun) : null
+            updatedAt: new Date(dag.updatedAt), 
+            lastRun: dag.lastRun ? new Date(dag.lastRun) : null,
+            status: statusValue,
+            // Ensure all required properties have valid values
+            description: dag.description || null,
+            currentSla: dag.currentSla || null,
+            lastRefreshed: dag.lastRun ? new Date(dag.lastRun) : null
           });
         });
         
@@ -188,7 +204,13 @@ export class MemStorage implements IStorage {
   async createTeam(insertTeam: InsertTeam): Promise<Team> {
     const id = this.teamId++;
     const now = new Date();
-    const team: Team = { ...insertTeam, id, createdAt: now };
+    // Ensure required fields have valid values
+    const team: Team = { 
+      ...insertTeam, 
+      id, 
+      createdAt: now,
+      description: insertTeam.description || null
+    };
     this.teams.set(id, team);
     return team;
   }
@@ -221,7 +243,11 @@ export class MemStorage implements IStorage {
       ...insertEntity, 
       id, 
       createdAt: now, 
-      updatedAt: now 
+      updatedAt: now,
+      // Ensure required fields have valid values
+      description: insertEntity.description || null,
+      currentSla: insertEntity.currentSla || null,
+      lastRefreshed: insertEntity.lastRefreshed || null
     };
     this.entities.set(id, entity);
     return entity;
@@ -251,7 +277,13 @@ export class MemStorage implements IStorage {
   
   async addEntityHistory(insertHistory: InsertEntityHistory): Promise<EntityHistory> {
     const id = this.historyId++;
-    const history: EntityHistory = { ...insertHistory, id };
+    const now = new Date();
+    // Ensure date is set to a valid Date object
+    const history: EntityHistory = { 
+      ...insertHistory, 
+      id,
+      date: insertHistory.date || now
+    };
     
     const histories = this.entityHistories.get(insertHistory.entityId) || [];
     histories.push(history);
@@ -267,11 +299,14 @@ export class MemStorage implements IStorage {
   
   async addIssue(insertIssue: InsertIssue): Promise<Issue> {
     const id = this.issueId++;
+    const now = new Date();
     const issue: Issue = { 
       ...insertIssue, 
       id, 
       resolved: false,
-      resolvedAt: null
+      resolvedAt: null,
+      // Ensure date is set to a valid Date object
+      date: insertIssue.date || now
     };
     
     const issues = this.entityIssues.get(insertIssue.entityId) || [];
