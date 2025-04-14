@@ -70,14 +70,14 @@ interface TableEntity extends BaseEntity {
   table_name: string;
   table_description?: string;
   table_schedule: string;
-  table_dependency?: string;
+  table_dependency?: string | string[];  // Can be either a comma-separated string or string array
 }
 
 interface DagEntity extends BaseEntity {
   dag_name: string;
   dag_description?: string;
   dag_schedule: string;
-  dag_dependency?: string;
+  dag_dependency?: string | string[];  // Can be either a comma-separated string or string array
   needs_dag_validation?: boolean;  // Flag to indicate if this is a new DAG that needs backend validation
 }
 
@@ -582,7 +582,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
           table_description: "Contains customer information with demographics",
           table_schedule: "0 */4 * * *",  // Every 4 hours
           expected_runtime_minutes: 45,
-          table_dependency: "analytics.products,analytics.orders",
+          table_dependency: ["analytics.products", "analytics.orders"],  // Example as string array
           notification_preferences: ["email", "slack"],
           donemarker_location: "s3://data-warehouse/markers/customer_data/",
           donemarker_lookback: 1,
@@ -598,7 +598,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
           table_description: "Aggregated advertising performance metrics",
           table_schedule: "0 0 * * *",  // Daily at midnight
           expected_runtime_minutes: 120,
-          table_dependency: "reporting.campaigns,reporting.conversions",
+          table_dependency: "reporting.campaigns,reporting.conversions",  // Example as comma-separated string
           notification_preferences: ["slack", "pagerduty"],
           donemarker_location: "s3://ad-analytics/markers/performance/",
           donemarker_lookback: 2,
@@ -616,7 +616,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
           dag_description: "Processes and transforms IoT device data",
           dag_schedule: "0 */2 * * *",  // Every 2 hours
           expected_runtime_minutes: 30,
-          dag_dependency: "sensor_validation,data_quality_check",
+          dag_dependency: "sensor_validation,data_quality_check",  // Example as comma-separated string
           notification_preferences: ["pagerduty", "email"],
           donemarker_location: "s3://airflow/markers/device_etl/",
           donemarker_lookback: 0,
@@ -631,7 +631,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
           dag_description: "Creates user segments for targeted advertising",
           dag_schedule: "0 4 * * *",  // Daily at 4 AM
           expected_runtime_minutes: 60,
-          dag_dependency: "user_activity_collection,model_training",
+          dag_dependency: ["user_activity_collection", "model_training"],  // Example as string array
           notification_preferences: ["email", "slack"],
           donemarker_location: "s3://airflow/markers/segmentation/",
           donemarker_lookback: 1,
@@ -767,12 +767,12 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
                   {tabValue === 'tables' ? (
                     <>
                       <li>table_description: String</li>
-                      <li>table_dependency: String (comma-separated)</li>
+                      <li>table_dependency: String (comma-separated) or Array of strings</li>
                     </>
                   ) : (
                     <>
                       <li>dag_description: String</li>
-                      <li>dag_dependency: String (comma-separated)</li>
+                      <li>dag_dependency: String (comma-separated) or Array of strings</li>
                     </>
                   )}
                 </ul>
