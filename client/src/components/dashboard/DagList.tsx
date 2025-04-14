@@ -350,37 +350,21 @@ const DagList: React.FC<DagListProps> = ({ dags, isLoading, error }) => {
                       }
                     </Typography>
                   </TableCell>
-                  <TableCell align="right">
+                  <TableCell align="right" sx={{ pr: 3 }}>
                     <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
                       <IconButton 
                         size="small" 
                         onClick={(e) => { e.stopPropagation(); }}
-                        sx={{ 
-                          color: 'primary.main',
-                          padding: '2px'
-                        }}
+                        sx={{ padding: '2px' }}
                       >
-                        <Edit size={16} />
+                        <Edit size={16} color="#1976d2" />
                       </IconButton>
                       <IconButton 
                         size="small" 
                         onClick={(e) => { e.stopPropagation(); }}
-                        sx={{ 
-                          color: 'text.secondary',
-                          padding: '2px'
-                        }}
+                        sx={{ padding: '2px' }}
                       >
-                        <Clock size={16} />
-                      </IconButton>
-                      <IconButton 
-                        size="small" 
-                        onClick={(e) => { e.stopPropagation(); }}
-                        sx={{ 
-                          color: 'error.main',
-                          padding: '2px'
-                        }}
-                      >
-                        <Trash2 size={16} />
+                        <Clock size={16} color="#757575" />
                       </IconButton>
                     </Box>
                   </TableCell>
