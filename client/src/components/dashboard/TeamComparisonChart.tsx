@@ -15,24 +15,29 @@ import {
 // Demo data - in a real app, this would come from an API
 const generateDemoData = () => [
   {
-    name: 'Data Eng.',
+    name: 'PGM',
     tables: 94.6,
     dags: 91.8,
   },
   {
-    name: 'Marketing',
+    name: 'Core',
     tables: 87.2,
     dags: 90.5,
   },
   {
-    name: 'Finance',
+    name: 'Viewer Product',
     tables: 96.7,
     dags: 97.3,
   },
   {
-    name: 'Product',
+    name: 'IOT',
     tables: 82.9,
     dags: 78.4,
+  },
+  {
+    name: 'CDM',
+    tables: 88.5,
+    dags: 85.2,
   },
 ];
 
