@@ -4,7 +4,7 @@ import { Add as AddIcon, Upload as UploadIcon } from '@mui/icons-material';
 import { useParams } from 'wouter';
 import { useAppDispatch, useAppSelector } from '@/lib/store';
 import { fetchEntities, fetchTeams } from '@/features/sla/slices/entitiesSlice';
-import { Entity, Team } from '@/features/sla/types';
+import { Entity, Team } from '@shared/schema';
 import MetricCard from '@/components/dashboard/MetricCard';
 import ChartCard from '@/components/dashboard/ChartCard';
 import EntityTable from '@/components/dashboard/EntityTable';
@@ -193,56 +193,36 @@ const TeamDashboard = () => {
         </Paper>
         
         {/* Metrics Cards */}
-        <Grid container spacing={3} mb={4}>
-          <Grid item xs={12} md={4}>
-            <MetricCard
-              title="Overall SLA Compliance"
-              value={overallComplianceAvg}
-              trend={1.2}
-              progress={overallComplianceAvg}
-              suffix="%"
-            />
-          </Grid>
-          
-          <Grid item xs={12} md={4}>
-            <MetricCard
-              title="Tables SLA Compliance"
-              value={tablesComplianceAvg}
-              trend={0.8}
-              progress={tablesComplianceAvg}
-              suffix="%"
-            />
-          </Grid>
-          
-          <Grid item xs={12} md={4}>
-            <MetricCard
-              title="DAGs SLA Compliance"
-              value={dagsComplianceAvg}
-              trend={-0.3}
-              progress={dagsComplianceAvg}
-              suffix="%"
-            />
-          </Grid>
-        </Grid>
+        <Box display="flex" flexWrap="wrap" gap={3} mb={4}>
+          {[
+            { title: "Overall SLA Compliance", value: overallComplianceAvg, trend: 1.2, progress: overallComplianceAvg, suffix: "%" },
+            { title: "Tables SLA Compliance", value: tablesComplianceAvg, trend: 0.8, progress: tablesComplianceAvg, suffix: "%" },
+            { title: "DAGs SLA Compliance", value: dagsComplianceAvg, trend: -0.3, progress: dagsComplianceAvg, suffix: "%" }
+          ].map((card, idx) => (
+            <Box key={card.title} flex="1 1 300px" minWidth="300px">
+              <MetricCard {...card} />
+            </Box>
+          ))}
+        </Box>
         
         {/* Charts */}
-        <Grid container spacing={3} mb={4}>
-          <Grid item xs={12} lg={6}>
+        <Box display="flex" flexWrap="wrap" gap={3} mb={4}>
+          <Box flex="1 1 500px" minWidth="500px">
             <ChartCard
               title="Compliance Trend (Last 30 Days)"
               filters={['All', 'Tables', 'DAGs']}
               onFilterChange={setChartFilter}
               chart={<ComplianceTrendChart filter={chartFilter.toLowerCase() as 'all' | 'tables' | 'dags'} />}
             />
-          </Grid>
+          </Box>
           
-          <Grid item xs={12} lg={6}>
+          <Box flex="1 1 500px" minWidth="500px">
             <ChartCard
               title="Top 5 Entities Performance"
               chart={<EntityPerformanceChart entities={teamEntities.slice(0, 5)} />}
             />
-          </Grid>
-        </Grid>
+          </Box>
+        </Box>
       </Box>
       
       {/* Entities Tables */}

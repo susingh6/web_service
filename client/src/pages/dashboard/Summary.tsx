@@ -4,7 +4,7 @@ import { Add as AddIcon, Upload as UploadIcon } from '@mui/icons-material';
 import { useAppDispatch, useAppSelector } from '@/lib/store';
 import { fetchDashboardSummary } from '@/features/sla/slices/dashboardSlice';
 import { fetchEntities, fetchTeams } from '@/features/sla/slices/entitiesSlice';
-import { Entity } from '@/features/sla/types';
+import { Entity } from '@shared/schema';
 import MetricCard from '@/components/dashboard/MetricCard';
 import ChartCard from '@/components/dashboard/ChartCard';
 import ComplianceTrendChart from '@/components/dashboard/ComplianceTrendChart';
@@ -38,7 +38,7 @@ const Summary = () => {
   // Fetch dashboard data
   useEffect(() => {
     dispatch(fetchDashboardSummary());
-    dispatch(fetchEntities());
+    dispatch(fetchEntities({}));
     dispatch(fetchTeams());
   }, [dispatch]);
   
