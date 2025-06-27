@@ -30,22 +30,37 @@ const initialState: EntitiesState = {
 // Async thunks
 export const fetchEntities = createAsyncThunk(
   'entities/fetchAll',
-  async (params: { teamId?: number; type?: string } = {}) => {
-    return await entitiesApi.getAll(params);
+  async (params: { teamId?: number; type?: string } = {}, { rejectWithValue }) => {
+    try {
+      return await entitiesApi.getAll(params);
+    } catch (error) {
+      console.error('Failed to fetch entities:', error);
+      return rejectWithValue(error instanceof Error ? error.message : 'Failed to fetch entities');
+    }
   }
 );
 
 export const fetchEntity = createAsyncThunk(
   'entities/fetchOne',
-  async (id: number) => {
-    return await entitiesApi.getById(id);
+  async (id: number, { rejectWithValue }) => {
+    try {
+      return await entitiesApi.getById(id);
+    } catch (error) {
+      console.error('Failed to fetch entity:', error);
+      return rejectWithValue(error instanceof Error ? error.message : 'Failed to fetch entity');
+    }
   }
 );
 
 export const fetchTeams = createAsyncThunk(
   'entities/fetchTeams',
-  async () => {
-    return await teamsApi.getAll();
+  async (_, { rejectWithValue }) => {
+    try {
+      return await teamsApi.getAll();
+    } catch (error) {
+      console.error('Failed to fetch teams:', error);
+      return rejectWithValue(error instanceof Error ? error.message : 'Failed to fetch teams');
+    }
   }
 );
 

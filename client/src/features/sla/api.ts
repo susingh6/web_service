@@ -31,6 +31,24 @@ export const entitiesApi = {
     const res = await apiRequest('GET', buildUrl(endpoints.entities, { teamId }));
     return await res.json();
   },
+  create: async (entity: any) => {
+    const res = await apiRequest('POST', buildUrl(endpoints.entities), {
+      body: JSON.stringify(entity),
+      headers: { 'Content-Type': 'application/json' }
+    });
+    return await res.json();
+  },
+  update: async (id: number, entity: any) => {
+    const res = await apiRequest('PUT', buildUrl(`${endpoints.entities}/${id}`), {
+      body: JSON.stringify(entity),
+      headers: { 'Content-Type': 'application/json' }
+    });
+    return await res.json();
+  },
+  delete: async (id: number) => {
+    const res = await apiRequest('DELETE', buildUrl(`${endpoints.entities}/${id}`));
+    return await res.json();
+  },
 };
 
 export const dagsApi = {

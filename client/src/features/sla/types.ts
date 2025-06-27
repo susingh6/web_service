@@ -80,12 +80,12 @@ export interface TeamPerformance {
   avgResponseTime: number;
 }
 
-// Entity Types - Compatible with both SLA and shared schema
+// Entity Types - Based on actual API response structure
 export interface Entity {
   id: number;
   name: string;
   type: 'table' | 'dag';
-  status: 'healthy' | 'warning' | 'critical' | 'unknown';
+  status: 'healthy' | 'warning' | 'critical' | 'unknown' | 'success' | 'failed' | 'running';
   slaTarget: number;
   currentSla: number | null;
   team: string;
@@ -96,7 +96,22 @@ export interface Entity {
   dependencies?: number[];
   owner?: string | null;
   issues?: number;
-  // Additional properties from shared schema
+  // Additional properties from API response
+  tenant_name?: string | null;
+  team_name?: string | null;
+  dag_name?: string | null;
+  dag_description?: string | null;
+  dag_schedule?: string | null;
+  expected_runtime_minutes?: number | null;
+  dag_dependency?: string[] | null;
+  donemarker_location?: string | null;
+  donemarker_lookback?: number | null;
+  notification_preferences?: string[] | null;
+  user_name?: string | null;
+  user_email?: string | null;
+  is_active?: boolean | null;
+  lastRun?: string | Date | null;
+  lastStatus?: string | null;
   refreshFrequency?: string;
   lastRefreshed?: Date | null;
   nextRefresh?: Date | null;
@@ -127,5 +142,16 @@ export interface EntityFilter {
   type?: 'table' | 'dag' | 'all';
   status?: 'healthy' | 'warning' | 'critical' | 'unknown' | 'all';
   team?: string;
+  teamId?: number;
   search?: string;
+  sortBy?: string;
+  sortDirection?: 'asc' | 'desc';
+}
+
+// Team Types
+export interface Team {
+  id: number;
+  name: string;
+  description?: string;
+  createdAt?: Date;
 }
