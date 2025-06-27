@@ -116,8 +116,8 @@ export interface Entity {
   tags?: string[];
   dependencies?: number[];
   issues?: number;
-  lastRun?: string | Date | null;
-  lastStatus?: string | null;
+  lastRun: Date | null;
+  lastStatus: string | null;
 }
 
 export interface CreateEntityPayload {

@@ -4,7 +4,7 @@ import { Add as AddIcon, Upload as UploadIcon } from '@mui/icons-material';
 import { useParams } from 'wouter';
 import { useAppDispatch, useAppSelector } from '@/lib/store';
 import { fetchEntities, fetchTeams } from '@/features/sla/slices/entitiesSlice';
-import { Entity, Team } from '@shared/schema';
+import { Entity, Team } from '@/features/sla/types';
 import MetricCard from '@/components/dashboard/MetricCard';
 import ChartCard from '@/components/dashboard/ChartCard';
 import EntityTable from '@/components/dashboard/EntityTable';
@@ -164,10 +164,10 @@ const TeamDashboard = () => {
           <Box display="flex" justifyContent="space-between" alignItems="flex-start">
             <Box>
               <Typography variant="h4" component="h1" fontWeight={600} fontFamily="Inter, sans-serif">
-                {team.name}
+                {team?.name || 'Team Dashboard'}
               </Typography>
               <Typography variant="body1" color="text.secondary" sx={{ mt: 1 }}>
-                {team.description || `Team dashboard for ${team.name}`}
+                {team?.description || `Team dashboard for ${team?.name || 'this team'}`}
               </Typography>
               <Box display="flex" alignItems="center" mt={2}>
                 <Chip 
