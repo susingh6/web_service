@@ -1,6 +1,6 @@
 // Development environment configuration
 export const devConfig = {
-  baseUrl: 'http://localhost:3001',
+  baseUrl: 'http://localhost:5000',
   endpoints: {
     entities: '/api/entities',
     teams: '/api/teams',

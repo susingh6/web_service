@@ -43,3 +43,82 @@ export interface TaskFilterOptions {
     end: Date;
   };
 }
+
+// Date Range Interface for Dashboard
+export interface DateRange {
+  startDate: Date;
+  endDate: Date;
+  label: string;
+}
+
+// Dashboard Types
+export interface DashboardMetrics {
+  totalEntities: number;
+  slaCompliance: number;
+  criticalIssues: number;
+  avgResponseTime: number;
+  entitiesAtRisk: number;
+  // Additional metrics from API response
+  overallCompliance: number;
+  tablesCompliance: number;
+  dagsCompliance: number;
+  entitiesCount: number;
+  tablesCount: number;
+  dagsCount: number;
+  trendsData?: {
+    date: string;
+    compliance: number;
+  }[];
+}
+
+export interface TeamPerformance {
+  teamId: number;
+  teamName: string;
+  slaCompliance: number;
+  totalEntities: number;
+  criticalIssues: number;
+  avgResponseTime: number;
+}
+
+// Entity Types
+export interface Entity {
+  id: number;
+  name: string;
+  type: 'table' | 'dag';
+  status: 'healthy' | 'warning' | 'critical' | 'unknown';
+  slaTarget: number;
+  currentSla: number;
+  team: string;
+  teamId: number;
+  lastUpdated: Date;
+  description?: string;
+  tags?: string[];
+  dependencies?: number[];
+  owner?: string;
+  issues?: number;
+}
+
+export interface CreateEntityPayload {
+  name: string;
+  type: 'table' | 'dag';
+  slaTarget: number;
+  team: string;
+  teamId: number;
+  description?: string;
+  tags?: string[];
+  owner?: string;
+}
+
+export interface UpdateEntityPayload extends Partial<CreateEntityPayload> {
+  id: number;
+  status?: 'healthy' | 'warning' | 'critical' | 'unknown';
+  currentSla?: number;
+  lastUpdated?: Date;
+}
+
+export interface EntityFilter {
+  type?: 'table' | 'dag' | 'all';
+  status?: 'healthy' | 'warning' | 'critical' | 'unknown' | 'all';
+  team?: string;
+  search?: string;
+}
