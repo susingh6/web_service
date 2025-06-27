@@ -16,3 +16,4 @@ export const devConfig = {
   debug: true,
   logLevel: 'debug',
   enableMockData: true,
+};
