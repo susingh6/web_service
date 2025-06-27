@@ -36,7 +36,7 @@ import {
 import EditIcon from '@mui/icons-material/Edit';
 import HistoryIcon from '@mui/icons-material/History';
 import DeleteIcon from '@mui/icons-material/Delete';
-import { Entity } from '@shared/schema';
+import { Entity } from '@/features/sla/types';
 import TaskManagementModal from '@/components/modals/TaskManagementModal';
 
 interface DagListProps {
