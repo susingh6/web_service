@@ -1,6 +1,5 @@
 import type { Express, Request, Response } from "express";
 import { storage } from "./storage";
-import { hashPassword } from "./auth";
 import path from "path";
 
 export function setupTestRoutes(app: Express) {

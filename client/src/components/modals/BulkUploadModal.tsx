@@ -133,7 +133,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
   
   // State for dynamic options
   const [tenantOptions, setTenantOptions] = useState<string[]>(['Ad Engineering', 'Data Engineering']);
-  const [teamOptions, setTeamOptions] = useState<string[]>(['PGM', 'Core', 'Viewer Product', 'IOT', 'CDM']);
+  const [teamOptions, setTeamOptions] = useState<string[]>([]);
   const [dagOptions, setDagOptions] = useState<string[]>([]);
   
   // Loading states
@@ -170,10 +170,16 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
   const fetchTeamOptions = async () => {
     setLoadingTeams(true);
     try {
-      const options = await fetchWithCache('https://api.example.com/teams', 'teams');
-      setTeamOptions(options);
+      const response = await fetch('/api/teams');
+      if (response.ok) {
+        const teams = await response.json();
+        const teamNames = teams.map((team: any) => team.name);
+        setTeamOptions(teamNames);
+      }
     } catch (error) {
       console.error('Error fetching team options:', error);
+      // Fallback to empty array if API fails
+      setTeamOptions([]);
     } finally {
       setLoadingTeams(false);
     }
