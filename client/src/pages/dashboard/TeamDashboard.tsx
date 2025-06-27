@@ -22,7 +22,6 @@ import { queryClient } from '@/lib/queryClient';
 
 const TeamDashboard = () => {
   const { id } = useParams<{ id: string }>();
-  const teamId = parseInt(id || '0');
   const dispatch = useAppDispatch();
   const { toast } = useToast();
   
@@ -37,19 +36,31 @@ const TeamDashboard = () => {
   const [openBulkModal, setOpenBulkModal] = useState(false);
   const [chartFilter, setChartFilter] = useState('All');
   
-  // Get current team info
-  const team = teams.find((t: Team) => t.id === teamId);
+  // Get current team info - try both ID and name lookup
+  const team = teams.find((t: Team) => {
+    const teamId = parseInt(id || '0');
+    return t.id === teamId || t.name.toLowerCase() === (id || '').toLowerCase();
+  });
+  
+  // Debug logging for team lookup
+  useEffect(() => {
+    if (id && teams.length > 0) {
+      console.log('TeamDashboard: Looking for team with ID/name:', id);
+      console.log('Available teams:', teams.map(t => ({ id: t.id, name: t.name })));
+      console.log('Found team:', team);
+    }
+  }, [id, teams, team]);
   
   // Fetch data
   useEffect(() => {
-    if (teamId && !isNaN(teamId)) {
-      dispatch(fetchEntities({ teamId }));
-    }
     dispatch(fetchTeams());
-  }, [dispatch, teamId]);
+    if (team?.id) {
+      dispatch(fetchEntities({ teamId: team.id }));
+    }
+  }, [dispatch, team?.id]);
   
   // Filter entities for this team
-  const teamEntities = entities.filter((entity) => entity.teamId === teamId);
+  const teamEntities = entities.filter((entity) => entity.teamId === team?.id);
   const tables = teamEntities.filter((entity) => entity.type === 'table');
   const dags = teamEntities.filter((entity) => entity.type === 'dag');
   
@@ -129,10 +140,19 @@ const TeamDashboard = () => {
     );
   }
   
-  if (!team) {
+  if (!team && teams.length > 0) {
     return (
       <Box p={4}>
         <Typography variant="h5" color="error">Team not found</Typography>
+        <Typography variant="body2" sx={{ mt: 2 }}>
+          Looking for team: "{id}"
+        </Typography>
+        <Typography variant="body2" sx={{ mt: 1 }}>
+          Available teams: {teams.map(t => `${t.name} (ID: ${t.id})`).join(', ')}
+        </Typography>
+        <Typography variant="body2" sx={{ mt: 1, fontStyle: 'italic' }}>
+          Try visiting: /teams/1 or /teams/pgm
+        </Typography>
       </Box>
     );
   }

@@ -32,6 +32,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to fetch teams" });
     }
   });
+
+  // Debug endpoint to check team data
+  app.get("/api/debug/teams", async (req, res) => {
+    try {
+      const teams = await storage.getTeams();
+      res.json({
+        total: teams.length,
+        teams: teams.map(t => ({ id: t.id, name: t.name, description: t.description })),
+        message: "Debug: All teams with IDs"
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch teams for debug" });
+    }
+  });
   
   app.post("/api/teams", async (req, res) => {
     try {
