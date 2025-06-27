@@ -12,14 +12,14 @@ export const teamsApi = {
 export const entitiesApi = {
   getAll: async (params?: { teamId?: number; type?: string }) => {
     const queryParams: Record<string, string | number> = {};
-
+    
     if (params?.teamId) {
       queryParams.teamId = params.teamId;
     }
     if (params?.type) {
       queryParams.type = params.type;
     }
-
+    
     const res = await apiRequest('GET', buildUrl(endpoints.entities, queryParams));
     return await res.json();
   },
