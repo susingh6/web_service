@@ -66,23 +66,38 @@ export const fetchTeams = createAsyncThunk(
 
 export const createEntity = createAsyncThunk(
   'entities/createEntity',
-  async (entity: CreateEntityPayload) => {
-    return await entitiesApi.create(entity);
+  async (entity: CreateEntityPayload, { rejectWithValue }) => {
+    try {
+      return await entitiesApi.create(entity);
+    } catch (error) {
+      console.error('Failed to create entity:', error);
+      return rejectWithValue(error instanceof Error ? error.message : 'Failed to create entity');
+    }
   }
 );
 
 export const updateEntity = createAsyncThunk(
   'entities/updateEntity',
-  async (payload: UpdateEntityPayload) => {
-    return await entitiesApi.update(payload);
+  async (payload: UpdateEntityPayload, { rejectWithValue }) => {
+    try {
+      return await entitiesApi.update(payload.id, payload);
+    } catch (error) {
+      console.error('Failed to update entity:', error);
+      return rejectWithValue(error instanceof Error ? error.message : 'Failed to update entity');
+    }
   }
 );
 
 export const deleteEntity = createAsyncThunk(
   'entities/deleteEntity',
-  async (id: number) => {
-    await entitiesApi.delete(id);
-    return id;
+  async (id: number, { rejectWithValue }) => {
+    try {
+      await entitiesApi.delete(id);
+      return id;
+    } catch (error) {
+      console.error('Failed to delete entity:', error);
+      return rejectWithValue(error instanceof Error ? error.message : 'Failed to delete entity');
+    }
   }
 );
 
