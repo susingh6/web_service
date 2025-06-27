@@ -30,74 +30,44 @@ const initialState: EntitiesState = {
 // Async thunks
 export const fetchEntities = createAsyncThunk(
   'entities/fetchAll',
-  async (params: { teamId?: number; type?: string } = {}, { rejectWithValue }) => {
-    try {
-      return await entitiesApi.getAll(params);
-    } catch (error) {
-      console.error('Failed to fetch entities:', error);
-      return rejectWithValue(error instanceof Error ? error.message : 'Failed to fetch entities');
-    }
+  async (params: { teamId?: number; type?: string } = {}) => {
+    return await entitiesApi.getAll(params);
   }
 );
 
 export const fetchEntity = createAsyncThunk(
   'entities/fetchOne',
-  async (id: number, { rejectWithValue }) => {
-    try {
-      return await entitiesApi.getById(id);
-    } catch (error) {
-      console.error('Failed to fetch entity:', error);
-      return rejectWithValue(error instanceof Error ? error.message : 'Failed to fetch entity');
-    }
+  async (id: number) => {
+    return await entitiesApi.getById(id);
   }
 );
 
 export const fetchTeams = createAsyncThunk(
   'entities/fetchTeams',
-  async (_, { rejectWithValue }) => {
-    try {
-      return await teamsApi.getAll();
-    } catch (error) {
-      console.error('Failed to fetch teams:', error);
-      return rejectWithValue(error instanceof Error ? error.message : 'Failed to fetch teams');
-    }
+  async () => {
+    return await teamsApi.getAll();
   }
 );
 
 export const createEntity = createAsyncThunk(
   'entities/createEntity',
-  async (entity: CreateEntityPayload, { rejectWithValue }) => {
-    try {
-      return await entitiesApi.create(entity);
-    } catch (error) {
-      console.error('Failed to create entity:', error);
-      return rejectWithValue(error instanceof Error ? error.message : 'Failed to create entity');
-    }
+  async (entity: CreateEntityPayload) => {
+    return await entitiesApi.create(entity);
   }
 );
 
 export const updateEntity = createAsyncThunk(
   'entities/updateEntity',
-  async (payload: UpdateEntityPayload, { rejectWithValue }) => {
-    try {
-      return await entitiesApi.update(payload.id, payload);
-    } catch (error) {
-      console.error('Failed to update entity:', error);
-      return rejectWithValue(error instanceof Error ? error.message : 'Failed to update entity');
-    }
+  async (payload: UpdateEntityPayload) => {
+    return await entitiesApi.update(payload);
   }
 );
 
 export const deleteEntity = createAsyncThunk(
   'entities/deleteEntity',
-  async (id: number, { rejectWithValue }) => {
-    try {
-      await entitiesApi.delete(id);
-      return id;
-    } catch (error) {
-      console.error('Failed to delete entity:', error);
-      return rejectWithValue(error instanceof Error ? error.message : 'Failed to delete entity');
-    }
+  async (id: number) => {
+    await entitiesApi.delete(id);
+    return id;
   }
 );
 

@@ -27,13 +27,8 @@ const initialState: DashboardState = {
 // Async thunks
 export const fetchDashboardSummary = createAsyncThunk(
   'dashboard/fetchSummary',
-  async (_, { rejectWithValue }) => {
-    try {
-      return await dashboardApi.getSummary();
-    } catch (error) {
-      console.error('Failed to fetch dashboard summary:', error);
-      return rejectWithValue(error instanceof Error ? error.message : 'Failed to fetch dashboard summary');
-    }
+  async () => {
+    return await dashboardApi.getSummary();
   }
 );
 

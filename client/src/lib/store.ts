@@ -10,7 +10,11 @@ export const store = configureStore({
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
-      serializableCheck: false, // Temporarily disable to fix immediate issues
+      serializableCheck: {
+        // Ignore date objects in actions
+        ignoredActions: ['entities/updateEntity', 'entities/addEntity'],
+        ignoredPaths: ['entities.list'],
+      },
     }),
 });
 
