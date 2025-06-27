@@ -80,22 +80,29 @@ export interface TeamPerformance {
   avgResponseTime: number;
 }
 
-// Entity Types
+// Entity Types - Compatible with both SLA and shared schema
 export interface Entity {
   id: number;
   name: string;
   type: 'table' | 'dag';
   status: 'healthy' | 'warning' | 'critical' | 'unknown';
   slaTarget: number;
-  currentSla: number;
+  currentSla: number | null;
   team: string;
   teamId: number;
   lastUpdated: Date;
-  description?: string;
+  description?: string | null;
   tags?: string[];
   dependencies?: number[];
-  owner?: string;
+  owner?: string | null;
   issues?: number;
+  // Additional properties from shared schema
+  refreshFrequency?: string;
+  lastRefreshed?: Date | null;
+  nextRefresh?: Date | null;
+  ownerEmail?: string | null;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 export interface CreateEntityPayload {

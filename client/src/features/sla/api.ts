@@ -1,4 +1,4 @@
-import { Entity } from '@shared/schema';
+import { Entity } from './types';
 import { apiRequest } from '@/lib/queryClient';
 import { endpoints, buildUrl } from '@/config';
 
