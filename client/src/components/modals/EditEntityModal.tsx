@@ -214,15 +214,15 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
     },
   });
 
-  // Use separate form controls to avoid TypeScript union type issues
-  const tableControl = tableForm.control;
-  const dagControl = dagForm.control;
-  const control = entityType === 'table' ? tableControl : dagControl;
+  // Use type-safe form handling to avoid TypeScript union type issues
+  const isTable = entityType === 'table';
   
-  const handleSubmit = entityType === 'table' ? tableForm.handleSubmit : dagForm.handleSubmit;
-  const reset = entityType === 'table' ? tableForm.reset : dagForm.reset;
-  const watch = entityType === 'table' ? tableForm.watch : dagForm.watch;
-  const errors = entityType === 'table' ? tableForm.formState.errors : dagForm.formState.errors;
+  // Use type assertion to handle form union types
+  const control = (isTable ? tableForm.control : dagForm.control) as any;
+  const handleSubmit = isTable ? tableForm.handleSubmit : dagForm.handleSubmit;
+  const reset = isTable ? tableForm.reset : dagForm.reset;
+  const watch = isTable ? tableForm.watch : dagForm.watch;
+  const errors = (isTable ? tableForm.formState.errors : dagForm.formState.errors) as any;
   
   // Reset form when entity details are loaded
   useEffect(() => {
@@ -381,7 +381,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
             <>
               <Controller
                 name="tenant_name"
-                control={tableControl}
+                control={control}
                 render={({ field: { onChange, value, onBlur, ref } }) => (
                   <Autocomplete
                     value={value}
@@ -455,7 +455,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
               
               <Controller
                 name="schema_name"
-                control={tableControl}
+                control={control}
                 render={({ field }) => (
                   <TextField
                     {...field}
