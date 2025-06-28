@@ -599,68 +599,21 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 name="notification_preferences"
                 control={control}
                 render={({ field }) => (
-                  <FormControl 
-                    fullWidth 
-                    margin="normal"
-                    error={!!errors.notification_preferences}
-                  >
-                    <FormLabel component="legend">Notification Preferences</FormLabel>
-                    <FormGroup>
-                      <FormControlLabel
-                        control={
-                          <Checkbox 
-                            checked={field.value?.includes('email') || false}
-                            onChange={(e) => {
-                              const currentValues = Array.isArray(field.value) ? [...field.value] : [];
-                              if (e.target.checked) {
-                                field.onChange([...currentValues, 'email']);
-                              } else {
-                                field.onChange(currentValues.filter(v => v !== 'email'));
-                              }
-                            }}
-                          />
-                        }
-                        label="Email"
-                      />
-                      <FormControlLabel
-                        control={
-                          <Checkbox 
-                            checked={field.value?.includes('slack') || false}
-                            onChange={(e) => {
-                              const currentValues = Array.isArray(field.value) ? [...field.value] : [];
-                              if (e.target.checked) {
-                                field.onChange([...currentValues, 'slack']);
-                              } else {
-                                field.onChange(currentValues.filter(v => v !== 'slack'));
-                              }
-                            }}
-                          />
-                        }
-                        label="Slack"
-                      />
-                      <FormControlLabel
-                        control={
-                          <Checkbox 
-                            checked={field.value?.includes('pagerduty') || false}
-                            onChange={(e) => {
-                              const currentValues = Array.isArray(field.value) ? [...field.value] : [];
-                              if (e.target.checked) {
-                                field.onChange([...currentValues, 'pagerduty']);
-                              } else {
-                                field.onChange(currentValues.filter(v => v !== 'pagerduty'));
-                              }
-                            }}
-                          />
-                        }
-                        label="PagerDuty"
-                      />
-                    </FormGroup>
+                  <div style={{ margin: '16px 0' }}>
+                    <NotificationConfigManager
+                      value={field.value || []}
+                      onChange={(enabledTypes, settings) => {
+                        field.onChange(enabledTypes);
+                        setNotificationSettings(settings);
+                      }}
+                      teamName={watch('team_name')}
+                    />
                     {errors.notification_preferences && (
-                      <FormHelperText error>
+                      <FormHelperText error sx={{ mt: 1 }}>
                         {errors.notification_preferences.message}
                       </FormHelperText>
                     )}
-                  </FormControl>
+                  </div>
                 )}
               />
               
@@ -951,68 +904,21 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 name="notification_preferences"
                 control={control}
                 render={({ field }) => (
-                  <FormControl 
-                    fullWidth 
-                    margin="normal"
-                    error={!!errors.notification_preferences}
-                  >
-                    <FormLabel component="legend">Notification Preferences</FormLabel>
-                    <FormGroup>
-                      <FormControlLabel
-                        control={
-                          <Checkbox 
-                            checked={field.value?.includes('email') || false}
-                            onChange={(e) => {
-                              const currentValues = Array.isArray(field.value) ? [...field.value] : [];
-                              if (e.target.checked) {
-                                field.onChange([...currentValues, 'email']);
-                              } else {
-                                field.onChange(currentValues.filter(v => v !== 'email'));
-                              }
-                            }}
-                          />
-                        }
-                        label="Email"
-                      />
-                      <FormControlLabel
-                        control={
-                          <Checkbox 
-                            checked={field.value?.includes('slack') || false}
-                            onChange={(e) => {
-                              const currentValues = Array.isArray(field.value) ? [...field.value] : [];
-                              if (e.target.checked) {
-                                field.onChange([...currentValues, 'slack']);
-                              } else {
-                                field.onChange(currentValues.filter(v => v !== 'slack'));
-                              }
-                            }}
-                          />
-                        }
-                        label="Slack"
-                      />
-                      <FormControlLabel
-                        control={
-                          <Checkbox 
-                            checked={field.value?.includes('pagerduty') || false}
-                            onChange={(e) => {
-                              const currentValues = Array.isArray(field.value) ? [...field.value] : [];
-                              if (e.target.checked) {
-                                field.onChange([...currentValues, 'pagerduty']);
-                              } else {
-                                field.onChange(currentValues.filter(v => v !== 'pagerduty'));
-                              }
-                            }}
-                          />
-                        }
-                        label="PagerDuty"
-                      />
-                    </FormGroup>
+                  <div style={{ margin: '16px 0' }}>
+                    <NotificationConfigManager
+                      value={field.value || []}
+                      onChange={(enabledTypes, settings) => {
+                        field.onChange(enabledTypes);
+                        setNotificationSettings(settings);
+                      }}
+                      teamName={watch('team_name')}
+                    />
                     {errors.notification_preferences && (
-                      <FormHelperText error>
+                      <FormHelperText error sx={{ mt: 1 }}>
                         {errors.notification_preferences.message}
                       </FormHelperText>
                     )}
-                  </FormControl>
+                  </div>
                 )}
               />
               
