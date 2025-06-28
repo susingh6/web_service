@@ -117,9 +117,6 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
   // State for validation errors
   const [validationError, setValidationError] = useState<string | null>(null);
   
-  // State for notification settings
-  const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({});
-  
   // Dynamic schema selection
   const schema = React.useMemo(() => 
     entityType === 'table' ? tableSchema : dagSchema, 

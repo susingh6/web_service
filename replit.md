@@ -113,6 +113,13 @@ Preferred communication style: Simple, everyday language.
 
 ## Changelog
 
+- June 28, 2025: Completed removal of notification configuration from entity modals
+  - Removed NotificationConfigManager from both AddEntityModal and EditEntityModal
+  - Eliminated notification configuration section from entity creation and editing workflows
+  - Notification configuration now isolated exclusively to notification timelines
+  - Cleaned up unused NotificationSettings state and imports
+  - Maintained all other form fields and functionality unchanged
+  - Modal interfaces now focused solely on entity properties without notification clutter
 - June 28, 2025: Completed comprehensive codebase-wide centralized API configuration migration
   - Eliminated all remaining hard-coded API URLs across the entire application
   - Updated notification cache utilities to use centralized endpoint configuration
