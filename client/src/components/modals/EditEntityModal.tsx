@@ -1,30 +1,39 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useForm, Controller } from 'react-hook-form';
+import * as yup from 'yup';
+import { yupResolver } from '@hookform/resolvers/yup';
 import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
+  Autocomplete,
   Button,
-  TextField,
-  MenuItem,
-  Box,
+  Checkbox,
   CircularProgress,
-  IconButton,
-  Typography,
-  InputAdornment,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   FormControl,
-  InputLabel,
-  Select,
+  FormControlLabel,
+  FormGroup,
+  FormHelperText,
+  FormLabel,
+  Stack,
+  Switch,
+  TextField,
+  Typography,
+  Alert,
+  IconButton,
+  Box,
 } from '@mui/material';
 import { Close as CloseIcon } from '@mui/icons-material';
-import { useForm, Controller } from 'react-hook-form';
-import { yupResolver } from '@hookform/resolvers/yup';
-import * as yup from 'yup';
+import { validateTenant, validateTeam, validateDag } from '@/lib/validationUtils';
+import { fetchWithCache, getFromCache } from '@/lib/cacheUtils';
 import { useAppDispatch } from '@/lib/store';
 import { updateEntity } from '@/features/sla/slices/entitiesSlice';
-import { Entity, EntityStatus, RefreshFrequency } from '@/features/sla/types';
 import { queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
+import { Entity } from '@shared/schema';
+
+type EntityType = 'table' | 'dag';
 
 interface EditEntityModalProps {
   open: boolean;
@@ -33,82 +42,196 @@ interface EditEntityModalProps {
   teams: { id: number; name: string }[];
 }
 
-const validationSchema = yup.object({
-  name: yup.string().required('Entity name is required'),
-  teamId: yup.number().required('Team is required'),
-  description: yup.string(),
-  slaTarget: yup
-    .number()
-    .min(0, 'SLA target must be at least 0')
-    .max(100, 'SLA target cannot exceed 100')
-    .required('SLA target is required'),
-  status: yup.string().required('Status is required'),
-  refreshFrequency: yup.string().required('Refresh frequency is required'),
-  owner: yup.string(),
-  ownerEmail: yup.string().email('Invalid email address'),
+// Common schema fields shared between both forms
+const baseSchema = yup.object().shape({
+  tenant_name: yup.string().required('Tenant name is required'),
+  team_name: yup.string().required('Team name is required'),
+  notification_preferences: yup.array().of(yup.string()).default([]),
+  user_name: yup.string().optional(),
+  user_email: yup.string()
+    .required('User email is required')
+    .matches(
+      /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
+      'Invalid email format'
+    ),
+  is_active: yup.boolean().default(true),
 });
 
-type FormValues = {
-  name: string;
-  teamId: number;
-  description?: string;
-  slaTarget: number;
-  status: EntityStatus;
-  refreshFrequency: RefreshFrequency;
-  owner?: string;
-  ownerEmail?: string;
-};
+// Schema for Tables
+const tableSchema = baseSchema.shape({
+  schema_name: yup.string().required('Schema name is required'),
+  table_name: yup.string().required('Table name is required'),
+  table_description: yup.string().optional(),
+  table_schedule: yup.string()
+    .required('Table schedule is required')
+    .matches(/^[\d*\/ ,\-]+$/, 'Invalid cron format'),
+  expected_runtime_minutes: yup.number()
+    .required('Expected runtime is required')
+    .positive('Must be positive')
+    .min(1, 'Must be at least 1 minute')
+    .max(1440, 'Must not exceed 1440 minutes (24 hours)'),
+  table_dependency: yup.string().optional(),
+  donemarker_location: yup.string().optional(),
+  donemarker_lookback: yup.number().min(0, 'Must be non-negative').optional(),
+});
+
+// Schema for DAGs
+const dagSchema = baseSchema.shape({
+  dag_name: yup.string().required('DAG name is required'),
+  dag_description: yup.string().optional(),
+  dag_schedule: yup.string()
+    .required('DAG schedule is required')
+    .matches(/^[\d*\/ ,\-]+$/, 'Invalid cron format'),
+  expected_runtime_minutes: yup.number()
+    .required('Expected runtime is required')
+    .positive('Must be positive')
+    .min(1, 'Must be at least 1 minute')
+    .max(1440, 'Must not exceed 1440 minutes (24 hours)'),
+  dag_dependency: yup.string().optional(),
+  donemarker_location: yup.string().optional(),
+  donemarker_lookback: yup.number().min(0, 'Must be non-negative').optional(),
+});
 
 const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps) => {
   const dispatch = useAppDispatch();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   
+  // Determine entity type from the entity
+  const entityType: EntityType = entity?.type === 'dag' ? 'dag' : 'table';
+  
+  // State for dynamic options - initialize from cache for instant load
+  const [tenantOptions, setTenantOptions] = useState<string[]>(() => getFromCache('tenants'));
+  const [teamOptions, setTeamOptions] = useState<string[]>(() => getFromCache('teams'));
+  const [dagOptions, setDagOptions] = useState<string[]>(() => getFromCache('dags'));
+  
+  // Loading states
+  const [loadingTenants, setLoadingTenants] = useState(false);
+  const [loadingTeams, setLoadingTeams] = useState(false);
+  const [loadingDags, setLoadingDags] = useState(false);
+  
+  // State for validation errors
+  const [validationError, setValidationError] = useState<string | null>(null);
+  
+  // Dynamic schema selection
+  const schema = React.useMemo(() => 
+    entityType === 'table' ? tableSchema : dagSchema, 
+    [entityType]
+  );
+  
   const {
     control,
     handleSubmit,
     reset,
     formState: { errors },
-  } = useForm<FormValues>({
-    resolver: yupResolver(validationSchema),
+  } = useForm({
+    resolver: yupResolver(schema),
     defaultValues: {
-      name: '',
-      teamId: 0,
-      description: '',
-      slaTarget: 95,
-      status: 'healthy',
-      refreshFrequency: 'daily',
-      owner: '',
-      ownerEmail: '',
+      tenant_name: '',
+      team_name: '',
+      notification_preferences: [],
+      user_name: '',
+      user_email: '',
+      is_active: true,
+      // Table fields
+      schema_name: '',
+      table_name: '',
+      table_description: '',
+      table_schedule: '',
+      table_dependency: '',
+      // DAG fields
+      dag_name: '',
+      dag_description: '',
+      dag_schedule: '',
+      dag_dependency: '',
+      // Common fields
+      expected_runtime_minutes: 60,
+      donemarker_location: '',
+      donemarker_lookback: 0,
     },
   });
   
   // Reset form when entity changes
   useEffect(() => {
-    if (entity) {
-      reset({
-        name: entity.name,
-        teamId: entity.teamId,
-        description: entity.description || '',
-        slaTarget: entity.slaTarget,
-        status: entity.status,
-        refreshFrequency: entity.refreshFrequency,
-        owner: entity.owner || '',
-        ownerEmail: entity.ownerEmail || '',
-      });
+    if (entity && open) {
+      // Map entity data to form fields
+      const formData = {
+        tenant_name: entity.tenant_name || '',
+        team_name: entity.team_name || '',
+        notification_preferences: entity.notification_preferences || [],
+        user_name: entity.user_name || '',
+        user_email: entity.user_email || '',
+        is_active: entity.is_active ?? true,
+        expected_runtime_minutes: entity.expected_runtime_minutes || 60,
+        donemarker_location: entity.donemarker_location || '',
+        donemarker_lookback: entity.donemarker_lookback || 0,
+      };
+
+      if (entity.type === 'table') {
+        Object.assign(formData, {
+          schema_name: entity.schema_name || '',
+          table_name: entity.table_name || entity.name || '',
+          table_description: entity.table_description || entity.description || '',
+          table_schedule: entity.table_schedule || '',
+          table_dependency: entity.table_dependency || '',
+        });
+      } else {
+        Object.assign(formData, {
+          dag_name: entity.dag_name || entity.name || '',
+          dag_description: entity.dag_description || entity.description || '',
+          dag_schedule: entity.dag_schedule || '',
+          dag_dependency: entity.dag_dependency || '',
+        });
+      }
+
+      reset(formData);
+      
+      // Load cache data when modal opens
+      setTenantOptions(getFromCache('tenants'));
+      setTeamOptions(getFromCache('teams'));
+      if (entityType === 'dag') {
+        setDagOptions(getFromCache('dags'));
+      }
     }
-  }, [entity, reset]);
+  }, [entity, reset, open, entityType]);
   
-  const onSubmit = async (data: FormValues) => {
+  const onSubmit = async (data: any) => {
     if (!entity) return;
     
     try {
       setIsSubmitting(true);
+      setValidationError(null);
+      
+      // Basic validation
+      if (entityType === 'table') {
+        if (!validateTenant(data.tenant_name)) {
+          setValidationError('Invalid tenant name format');
+          return;
+        }
+        if (!validateTeam(data.team_name)) {
+          setValidationError('Invalid team name format');
+          return;
+        }
+      } else {
+        if (!validateDag(data.dag_name)) {
+          setValidationError('Invalid DAG name format');
+          return;
+        }
+      }
+      
+      // Convert form data to entity format
+      const entityData = {
+        name: entityType === 'table' ? data.table_name : data.dag_name,
+        description: entityType === 'table' ? data.table_description : data.dag_description,
+        type: entityType,
+        teamId: entity.teamId, // Keep existing team
+        ...data,
+      };
       
       await dispatch(
         updateEntity({
           id: entity.id,
-          updates: data,
+          updates: entityData,
         })
       ).unwrap();
       
@@ -133,26 +256,22 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
       setIsSubmitting(false);
     }
   };
+
+  const handleClose = () => {
+    reset();
+    setValidationError(null);
+    onClose();
+  };
   
   if (!entity) {
     return null;
   }
   
   return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      maxWidth="sm"
-      fullWidth
-      PaperProps={{
-        sx: {
-          borderRadius: 2,
-        },
-      }}
-    >
+    <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1 }}>
         <Typography variant="h6" fontWeight={600} fontFamily="Inter, sans-serif">
-          Edit Entity
+          Edit {entityType.toUpperCase()} Entity
         </Typography>
         <IconButton edge="end" color="inherit" onClick={onClose} aria-label="close">
           <CloseIcon />
@@ -167,152 +286,512 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
             </Typography>
           </Box>
           
+          {validationError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {validationError}
+            </Alert>
+          )}
+          
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Fields marked with an asterisk (*) are mandatory
+          </Typography>
+
+          {entityType === 'table' ? (
+            /* TABLE FIELDS */
+            <>
+              <Controller
+                name="tenant_name"
+                control={control}
+                render={({ field: { onChange, value, onBlur, ref } }) => (
+                  <Autocomplete
+                    value={value}
+                    onChange={(_, newValue) => {
+                      onChange(newValue);
+                    }}
+                    freeSolo
+                    options={tenantOptions}
+                    loading={loadingTenants}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label="Tenant Name *"
+                        required
+                        fullWidth
+                        margin="normal"
+                        error={!!errors.tenant_name}
+                        helperText={errors.tenant_name?.message}
+                        onBlur={onBlur}
+                        InputProps={{
+                          ...params.InputProps,
+                          endAdornment: (
+                            <>
+                              {loadingTenants ? <CircularProgress color="inherit" size={20} /> : null}
+                              {params.InputProps.endAdornment}
+                            </>
+                          ),
+                        }}
+                      />
+                    )}
+                  />
+                )}
+              />
+              
+              <Controller
+                name="team_name"
+                control={control}
+                render={({ field: { onChange, value, onBlur, ref } }) => (
+                  <Autocomplete
+                    value={value}
+                    onChange={(_, newValue) => {
+                      onChange(newValue);
+                    }}
+                    freeSolo
+                    options={teamOptions}
+                    loading={loadingTeams}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label="Team Name *"
+                        required
+                        fullWidth
+                        margin="normal"
+                        error={!!errors.team_name}
+                        helperText={errors.team_name?.message}
+                        onBlur={onBlur}
+                        InputProps={{
+                          ...params.InputProps,
+                          endAdornment: (
+                            <>
+                              {loadingTeams ? <CircularProgress color="inherit" size={20} /> : null}
+                              {params.InputProps.endAdornment}
+                            </>
+                          ),
+                        }}
+                      />
+                    )}
+                  />
+                )}
+              />
+              
+              <Controller
+                name="schema_name"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="Schema Name *"
+                    fullWidth
+                    margin="normal"
+                    required
+                    error={!!errors.schema_name}
+                    helperText={errors.schema_name?.message}
+                  />
+                )}
+              />
+              
+              <Controller
+                name="table_name"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="Table Name *"
+                    fullWidth
+                    margin="normal"
+                    required
+                    error={!!errors.table_name}
+                    helperText={errors.table_name?.message}
+                  />
+                )}
+              />
+              
+              <Controller
+                name="table_description"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="Table Description"
+                    fullWidth
+                    margin="normal"
+                    multiline
+                    rows={3}
+                    error={!!errors.table_description}
+                    helperText={errors.table_description?.message}
+                  />
+                )}
+              />
+              
+              <Controller
+                name="table_schedule"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="Table Schedule (Cron) *"
+                    fullWidth
+                    margin="normal"
+                    required
+                    placeholder="e.g., 0 2 * * * (daily at 2 AM)"
+                    error={!!errors.table_schedule}
+                    helperText={errors.table_schedule?.message || "Use cron format: minute hour day month day-of-week"}
+                  />
+                )}
+              />
+              
+              <Controller
+                name="table_dependency"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="Table Dependency"
+                    fullWidth
+                    margin="normal"
+                    placeholder="e.g., upstream_table1, upstream_table2"
+                    error={!!errors.table_dependency}
+                    helperText={errors.table_dependency?.message}
+                  />
+                )}
+              />
+            </>
+          ) : (
+            /* DAG FIELDS */
+            <>
+              <Controller
+                name="tenant_name"
+                control={control}
+                render={({ field: { onChange, value, onBlur, ref } }) => (
+                  <Autocomplete
+                    value={value}
+                    onChange={(_, newValue) => {
+                      onChange(newValue);
+                    }}
+                    freeSolo
+                    options={tenantOptions}
+                    loading={loadingTenants}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label="Tenant Name *"
+                        required
+                        fullWidth
+                        margin="normal"
+                        error={!!errors.tenant_name}
+                        helperText={errors.tenant_name?.message}
+                        onBlur={onBlur}
+                        InputProps={{
+                          ...params.InputProps,
+                          endAdornment: (
+                            <>
+                              {loadingTenants ? <CircularProgress color="inherit" size={20} /> : null}
+                              {params.InputProps.endAdornment}
+                            </>
+                          ),
+                        }}
+                      />
+                    )}
+                  />
+                )}
+              />
+              
+              <Controller
+                name="team_name"
+                control={control}
+                render={({ field: { onChange, value, onBlur, ref } }) => (
+                  <Autocomplete
+                    value={value}
+                    onChange={(_, newValue) => {
+                      onChange(newValue);
+                    }}
+                    freeSolo
+                    options={teamOptions}
+                    loading={loadingTeams}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label="Team Name *"
+                        required
+                        fullWidth
+                        margin="normal"
+                        error={!!errors.team_name}
+                        helperText={errors.team_name?.message}
+                        onBlur={onBlur}
+                        InputProps={{
+                          ...params.InputProps,
+                          endAdornment: (
+                            <>
+                              {loadingTeams ? <CircularProgress color="inherit" size={20} /> : null}
+                              {params.InputProps.endAdornment}
+                            </>
+                          ),
+                        }}
+                      />
+                    )}
+                  />
+                )}
+              />
+              
+              <Controller
+                name="dag_name"
+                control={control}
+                render={({ field: { onChange, value, onBlur, ref } }) => (
+                  <Autocomplete
+                    value={value}
+                    onChange={(_, newValue) => {
+                      onChange(newValue);
+                    }}
+                    freeSolo
+                    options={dagOptions}
+                    loading={loadingDags}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label="DAG Name *"
+                        required
+                        fullWidth
+                        margin="normal"
+                        error={!!errors.dag_name}
+                        helperText={errors.dag_name?.message}
+                        onBlur={onBlur}
+                        InputProps={{
+                          ...params.InputProps,
+                          endAdornment: (
+                            <>
+                              {loadingDags ? <CircularProgress color="inherit" size={20} /> : null}
+                              {params.InputProps.endAdornment}
+                            </>
+                          ),
+                        }}
+                      />
+                    )}
+                  />
+                )}
+              />
+              
+              <Controller
+                name="dag_description"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="DAG Description"
+                    fullWidth
+                    margin="normal"
+                    multiline
+                    rows={3}
+                    error={!!errors.dag_description}
+                    helperText={errors.dag_description?.message}
+                  />
+                )}
+              />
+              
+              <Controller
+                name="dag_schedule"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="DAG Schedule (Cron) *"
+                    fullWidth
+                    margin="normal"
+                    required
+                    placeholder="e.g., 0 2 * * * (daily at 2 AM)"
+                    error={!!errors.dag_schedule}
+                    helperText={errors.dag_schedule?.message || "Use cron format: minute hour day month day-of-week"}
+                  />
+                )}
+              />
+              
+              <Controller
+                name="dag_dependency"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="DAG Dependency"
+                    fullWidth
+                    margin="normal"
+                    placeholder="e.g., upstream_dag1, upstream_dag2"
+                    error={!!errors.dag_dependency}
+                    helperText={errors.dag_dependency?.message}
+                  />
+                )}
+              />
+            </>
+          )}
+          
+          {/* COMMON FIELDS FOR BOTH TYPES */}
           <Controller
-            name="name"
+            name="user_name"
             control={control}
             render={({ field }) => (
               <TextField
                 {...field}
-                label="Entity Name"
+                label="User Name"
                 fullWidth
                 margin="normal"
-                required
-                error={!!errors.name}
-                helperText={errors.name?.message}
+                error={!!errors.user_name}
+                helperText={errors.user_name?.message}
               />
             )}
           />
           
           <Controller
-            name="teamId"
+            name="user_email"
             control={control}
             render={({ field }) => (
               <TextField
                 {...field}
-                select
-                label="Team"
+                label="User Email *"
                 fullWidth
                 margin="normal"
                 required
-                error={!!errors.teamId}
-                helperText={errors.teamId?.message}
-              >
-                {teams.map((team) => (
-                  <MenuItem key={team.id} value={team.id}>
-                    {team.name}
-                  </MenuItem>
-                ))}
-              </TextField>
-            )}
-          />
-          
-          <Controller
-            name="description"
-            control={control}
-            render={({ field }) => (
-              <TextField
-                {...field}
-                label="Description"
-                fullWidth
-                margin="normal"
-                multiline
-                rows={3}
-                error={!!errors.description}
-                helperText={errors.description?.message}
+                type="email"
+                error={!!errors.user_email}
+                helperText={errors.user_email?.message}
               />
             )}
           />
           
           <Controller
-            name="slaTarget"
+            name="expected_runtime_minutes"
             control={control}
             render={({ field }) => (
               <TextField
                 {...field}
-                label="SLA Target"
+                label="Expected Runtime (Minutes) *"
                 type="number"
                 fullWidth
                 margin="normal"
                 required
-                InputProps={{
-                  endAdornment: <InputAdornment position="end">%</InputAdornment>,
+                inputProps={{
+                  min: 1,
+                  max: 1440,
                 }}
+                error={!!errors.expected_runtime_minutes}
+                helperText={errors.expected_runtime_minutes?.message}
+              />
+            )}
+          />
+          
+          <Controller
+            name="donemarker_location"
+            control={control}
+            render={({ field }) => (
+              <TextField
+                {...field}
+                label="Done Marker Location"
+                fullWidth
+                margin="normal"
+                placeholder="e.g., s3://bucket/path/done.txt"
+                error={!!errors.donemarker_location}
+                helperText={errors.donemarker_location?.message}
+              />
+            )}
+          />
+          
+          <Controller
+            name="donemarker_lookback"
+            control={control}
+            render={({ field }) => (
+              <TextField
+                {...field}
+                label="Done Marker Lookback (Hours)"
+                type="number"
+                fullWidth
+                margin="normal"
                 inputProps={{
                   min: 0,
-                  max: 100,
-                  step: 0.1,
                 }}
-                error={!!errors.slaTarget}
-                helperText={errors.slaTarget?.message}
+                error={!!errors.donemarker_lookback}
+                helperText={errors.donemarker_lookback?.message}
               />
             )}
           />
           
           <Controller
-            name="status"
+            name="notification_preferences"
             control={control}
-            render={({ field }) => (
-              <FormControl fullWidth margin="normal" error={!!errors.status}>
-                <InputLabel id="status-label">Status</InputLabel>
-                <Select
-                  {...field}
-                  labelId="status-label"
-                  label="Status"
-                >
-                  <MenuItem value="healthy">Healthy</MenuItem>
-                  <MenuItem value="warning">Warning</MenuItem>
-                  <MenuItem value="critical">Critical</MenuItem>
-                </Select>
+            render={({ field: { onChange, value } }) => (
+              <FormControl component="fieldset" margin="normal">
+                <FormLabel component="legend">Notification Preferences</FormLabel>
+                <FormGroup>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={value?.includes('email') || false}
+                        onChange={(e) => {
+                          const currentValue = value || [];
+                          if (e.target.checked) {
+                            onChange([...currentValue, 'email']);
+                          } else {
+                            onChange(currentValue.filter((item: string) => item !== 'email'));
+                          }
+                        }}
+                        name="email"
+                      />
+                    }
+                    label="Email"
+                  />
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={value?.includes('slack') || false}
+                        onChange={(e) => {
+                          const currentValue = value || [];
+                          if (e.target.checked) {
+                            onChange([...currentValue, 'slack']);
+                          } else {
+                            onChange(currentValue.filter((item: string) => item !== 'slack'));
+                          }
+                        }}
+                        name="slack"
+                      />
+                    }
+                    label="Slack"
+                  />
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={value?.includes('sms') || false}
+                        onChange={(e) => {
+                          const currentValue = value || [];
+                          if (e.target.checked) {
+                            onChange([...currentValue, 'sms']);
+                          } else {
+                            onChange(currentValue.filter((item: string) => item !== 'sms'));
+                          }
+                        }}
+                        name="sms"
+                      />
+                    }
+                    label="SMS"
+                  />
+                </FormGroup>
+                {errors.notification_preferences && (
+                  <FormHelperText error>
+                    {errors.notification_preferences?.message}
+                  </FormHelperText>
+                )}
               </FormControl>
             )}
           />
           
           <Controller
-            name="refreshFrequency"
+            name="is_active"
             control={control}
-            render={({ field }) => (
-              <FormControl fullWidth margin="normal" error={!!errors.refreshFrequency}>
-                <InputLabel id="refresh-frequency-label">Refresh Frequency</InputLabel>
-                <Select
-                  {...field}
-                  labelId="refresh-frequency-label"
-                  label="Refresh Frequency"
-                >
-                  <MenuItem value="hourly">Hourly</MenuItem>
-                  <MenuItem value="daily">Daily</MenuItem>
-                  <MenuItem value="weekly">Weekly</MenuItem>
-                  <MenuItem value="monthly">Monthly</MenuItem>
-                </Select>
-              </FormControl>
-            )}
-          />
-          
-          <Controller
-            name="owner"
-            control={control}
-            render={({ field }) => (
-              <TextField
-                {...field}
-                label="Owner"
-                fullWidth
-                margin="normal"
-                error={!!errors.owner}
-                helperText={errors.owner?.message}
-              />
-            )}
-          />
-          
-          <Controller
-            name="ownerEmail"
-            control={control}
-            render={({ field }) => (
-              <TextField
-                {...field}
-                label="Owner Email"
-                fullWidth
-                margin="normal"
-                error={!!errors.ownerEmail}
-                helperText={errors.ownerEmail?.message}
+            render={({ field: { onChange, value } }) => (
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={value}
+                    onChange={(e) => onChange(e.target.checked)}
+                    name="is_active"
+                  />
+                }
+                label="Is Active"
+                sx={{ mt: 2 }}
               />
             )}
           />
