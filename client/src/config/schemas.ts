@@ -257,6 +257,7 @@ const buildBaseSchema = () => {
     tenant_name: fieldDefinitions.tenant_name.validation,
     team_name: fieldDefinitions.team_name.validation,
     notification_preferences: fieldDefinitions.notification_preferences.validation,
+    owner_email: fieldDefinitions.owner_email.validation,
     user_email: fieldDefinitions.user_email.validation,
     is_active: fieldDefinitions.is_active.validation,
   });
@@ -362,7 +363,7 @@ export const getFieldsForEntityType = (entityType: 'table' | 'dag') => {
   const commonFields = [
     'tenant_name',
     'team_name',
-    'user_name', 
+    'owner_email', 
     'user_email',
     'expected_runtime_minutes',
     'donemarker_location',
