@@ -314,7 +314,7 @@ const TeamDashboard = () => {
       </Box>
       
       {/* Modals */}
-      <EntityDetailsDrawer
+      <EntityDetailsModal
         open={openDetailsDrawer}
         onClose={() => setOpenDetailsDrawer(false)}
         entity={selectedEntity}

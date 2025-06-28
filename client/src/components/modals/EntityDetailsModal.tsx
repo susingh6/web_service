@@ -242,7 +242,9 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
             <Typography variant="h6" fontWeight={600} mb={2}>
               Performance Trend
             </Typography>
-            <EntityPerformanceChart entityId={entity.id} />
+            <Box sx={{ height: 300 }}>
+              <EntityPerformanceChart entities={[entity]} />
+            </Box>
           </Paper>
           
           {/* Issues */}
