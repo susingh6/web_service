@@ -2,6 +2,7 @@
 import { devConfig } from './dev';
 import { stagingConfig } from './staging';
 import { prodConfig } from './prod';
+import { fieldDefinitions } from './schemas';
 
 const env = import.meta.env.MODE || 'development';
 
@@ -105,4 +106,7 @@ export const endpoints = config.endpoints;
 // Export environment info
 export const isDevelopment = env === 'development';
 export const isStaging = env === 'staging';
-export const isProduction = env === 'production'; 
+export const isProduction = env === 'production';
+
+// Export field definitions for centralized configuration
+export { fieldDefinitions }; 

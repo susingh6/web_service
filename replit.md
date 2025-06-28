@@ -267,6 +267,13 @@ Preferred communication style: Simple, everyday language.
   - Updated validation error messages to dynamically reference field labels from centralized configuration
   - Maintained same rendering structure while achieving consistent field terminology
   - Bulk upload system now fully integrated with centralized configuration schema
+- June 28, 2025: Completed centralized field definitions migration across all four action modals
+  - Updated NotificationTimelineModal to use centralized fieldDefinitions for Timeline Name and Description labels
+  - All action modals (EditEntityModal, AddEntityModal, BulkUploadModal, NotificationTimelineModal) now use centralized configuration
+  - Eliminated all hard-coded field labels and validation messages across modal interfaces
+  - Achieved 100% centralized API configuration for field definitions, labels, and validation throughout application
+  - System now has unified field terminology and validation messaging across all development environments
+  - Centralized configuration ensures consistent user experience and simplified maintenance
 - June 28, 2025: Updated Add Entity modal to use centralized field definitions for both Table and DAG tabs
   - Replaced hard-coded labels with centralized fieldDefinitions for user_name and user_email fields in both tabs
   - "User Name" field now shows as "Owner Email" with mandatory validation from centralized config

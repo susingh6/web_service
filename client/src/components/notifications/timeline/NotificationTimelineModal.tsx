@@ -289,7 +289,7 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
           {tabValue === 'update' && (
             <Box sx={{ mb: 3 }}>
               <FormControl fullWidth required>
-                <FormLabel sx={{ mb: 1 }}>Timeline Name</FormLabel>
+                <FormLabel sx={{ mb: 1 }}>{fieldDefinitions.timeline_name?.label || "Timeline Name"}</FormLabel>
                 <Select
                   value={selectedTimelineId}
                   onChange={(e) => setSelectedTimelineId(e.target.value)}
@@ -333,7 +333,7 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
                     render={({ field }) => (
                       <TextField
                         {...field}
-                        label="Timeline Name"
+                        label={fieldDefinitions.timeline_name?.label || "Timeline Name"}
                         fullWidth
                         required
                         error={!!errors.name}
@@ -350,7 +350,7 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
                   render={({ field }) => (
                     <TextField
                       {...field}
-                      label="Description (Optional)"
+                      label={fieldDefinitions.description?.label || "Description (Optional)"}
                       fullWidth
                       multiline
                       rows={2}
