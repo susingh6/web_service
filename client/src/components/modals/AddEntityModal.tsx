@@ -535,8 +535,6 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
               />
               
               <Controller
-              
-              <Controller
                 name="user_email"
                 control={control}
                 render={({ field }) => (
@@ -806,8 +804,6 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                   />
                 )}
               />
-              
-              <Controller
               
               <Controller
                 name="user_email"
