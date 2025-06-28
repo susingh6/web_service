@@ -49,10 +49,10 @@ export const fieldDefinitions = {
   user_email: {
     type: 'email',
     required: true,
-    label: 'User Email',
-    placeholder: 'user@company.com',
+    label: 'Owner Email',
+    placeholder: 'owner@company.com',
     validation: yup.string()
-      .required('User email is required')
+      .required('Owner email is required')
       .matches(
         /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
         'Invalid email format'

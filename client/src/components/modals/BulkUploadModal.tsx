@@ -592,8 +592,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
           table_dependency: ["analytics.products", "analytics.orders"],  // Example as string array
           donemarker_location: "s3://data-warehouse/markers/customer_data/",
           donemarker_lookback: 1,
-          user_name: "John Doe",
-          user_email: "john.doe@example.com",
+          owner_email: "john.doe@example.com",
           is_active: true
         },
         {
@@ -607,8 +606,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
           table_dependency: "reporting.campaigns,reporting.conversions",  // Example as comma-separated string
           donemarker_location: "s3://ad-analytics/markers/performance/",
           donemarker_lookback: 2,
-          user_name: "Jane Smith",
-          user_email: "jane.smith@example.com",
+          owner_email: "jane.smith@example.com",
           is_active: true
         }
       ];
@@ -624,8 +622,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
           dag_dependency: "sensor_validation,data_quality_check",  // Example as comma-separated string
           donemarker_location: "s3://airflow/markers/device_etl/",
           donemarker_lookback: 0,
-          user_name: "Alex Johnson",
-          user_email: "alex.johnson@example.com",
+          owner_email: "alex.johnson@example.com",
           is_active: true
         },
         {
@@ -638,8 +635,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
           dag_dependency: ["user_activity_collection", "model_training"],  // Example as string array
           donemarker_location: "s3://airflow/markers/segmentation/",
           donemarker_lookback: 1,
-          user_name: "Sarah Williams",
-          user_email: "sarah.williams@example.com",
+          owner_email: "sarah.williams@example.com",
           is_active: true
         }
       ];
@@ -743,7 +739,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
                     <li>table_name: String</li>
                     <li>table_schedule: String (must be valid cron format)</li>
                     <li>expected_runtime_minutes: Number (must be between 1 and 1440)</li>
-                    <li>user_email: String</li>
+                    <li>owner_email: String</li>
                     <li>donemarker_location: String (single location or comma-separated multiple locations)</li>
                   </ul>
                 ) : (
@@ -753,7 +749,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
                     <li>dag_name: String (new DAG names will require backend validation)</li>
                     <li>dag_schedule: String (must be valid cron format)</li>
                     <li>expected_runtime_minutes: Number (must be between 1 and 1440)</li>
-                    <li>user_email: String</li>
+                    <li>owner_email: String</li>
                     <li>donemarker_location: String (single location or comma-separated multiple locations)</li>
                   </ul>
                 )}
