@@ -537,6 +537,20 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 )}
               />
               
+              <Controller
+                name="user_name"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="User Name (optional)"
+                    fullWidth
+                    margin="normal"
+                    error={!!errors.user_name}
+                    helperText={errors.user_name?.message}
+                  />
+                )}
+              />
               
               <Controller
                 name="user_email"
@@ -812,6 +826,20 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 render={({ field }) => (
                   <TextField
                     {...field}
+                    label="User Name (optional)"
+                    fullWidth
+                    margin="normal"
+                    error={!!errors.user_name}
+                    helperText={errors.user_name?.message}
+                  />
+                )}
+              />
+              
+              <Controller
+                name="user_email"
+                control={control}
+                render={({ field }) => (
+                  <TextField
                     {...field}
                     label="Owner Email *"
                     fullWidth
