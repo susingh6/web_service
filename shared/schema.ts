@@ -36,18 +36,29 @@ export const entities = pgTable("entities", {
   owner: text("owner"),
   ownerEmail: text("owner_email"),
   
-  // Additional fields for DAGs
+  // Additional fields for both Tables and DAGs
   tenant_name: text("tenant_name"),
   team_name: text("team_name"),
+  
+  // Table-specific fields
+  schema_name: text("schema_name"),
+  table_name: text("table_name"),
+  table_description: text("table_description"),
+  table_schedule: text("table_schedule"),
+  table_dependency: json("table_dependency").$type<string[]>(), // Array of dependencies
+  
+  // DAG-specific fields
   dag_name: text("dag_name"),
   dag_description: text("dag_description"),
   dag_schedule: text("dag_schedule"),
-  expected_runtime_minutes: integer("expected_runtime_minutes"),
   dag_dependency: json("dag_dependency").$type<string[]>(), // Array of dependencies
+  
+  // Common fields
+  expected_runtime_minutes: integer("expected_runtime_minutes"),
   notification_preferences: json("notification_preferences").$type<string[]>(), // Array of preferences
   donemarker_location: text("donemarker_location"),
   donemarker_lookback: integer("donemarker_lookback"),
-  user_name: text("user_name"),
+  owner_email: text("owner_email"),
   user_email: text("user_email"),
   is_active: boolean("is_active"),
   lastRun: timestamp("last_run"),

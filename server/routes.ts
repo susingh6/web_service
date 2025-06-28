@@ -179,7 +179,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         tenant_name: entity.tenant_name || (entity.type === 'table' ? 'Data Engineering' : 'Analytics'),
         team_name: entity.team_name || 'PGM',
         notification_preferences: entity.notification_preferences || ['email', 'slack'],
-        user_name: entity.user_name || 'john.smith',
+        owner_email: entity.owner_email || 'john.smith@example.com',
         user_email: entity.user_email || 'john.smith@example.com',
         is_active: entity.is_active !== undefined ? entity.is_active : true,
         expected_runtime_minutes: entity.expected_runtime_minutes || (entity.type === 'table' ? 30 : 45),

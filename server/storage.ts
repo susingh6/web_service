@@ -235,19 +235,23 @@ export class MemStorage implements IStorage {
         // Set null for optional fields
         tenant_name: null,
         team_name: null,
-        user_name: null,
-        user_email: null,
-        expected_runtime_minutes: null,
+        schema_name: null,
+        table_name: null,
+        table_description: null,
+        table_schedule: null,
+        table_dependency: null,
         dag_name: null,
         dag_description: null,
         dag_schedule: null,
         dag_dependency: null,
+        expected_runtime_minutes: null,
         donemarker_location: null,
         donemarker_lookback: null,
+        owner_email: null,
+        user_email: null,
+        is_active: true,
         lastRun: entity.lastRefreshed,
         lastStatus: entity.status,
-        avgRuntime: null,
-        successRate: entity.currentSla,
         notification_preferences: []
       };
       this.entities.set(id, fullEntity);
