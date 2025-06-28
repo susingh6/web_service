@@ -759,7 +759,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
                     <li>{fieldDefinitions.table_schedule.label}: String (must be valid cron format)</li>
                     <li>{fieldDefinitions.expected_runtime_minutes.label}: Number (must be between 1 and 1440)</li>
                     <li>{fieldDefinitions.user_email.label}: String</li>
-                    <li>{fieldDefinitions.owner_email.label}: String</li>
+                    <li>{fieldDefinitions.owner_email.label}: String (single email or comma-separated multiple emails)</li>
                     <li>{fieldDefinitions.donemarker_location.label}: String (single location or comma-separated multiple locations)</li>
                   </ul>
                 ) : (
@@ -770,7 +770,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
                     <li>{fieldDefinitions.dag_schedule.label}: String (must be valid cron format)</li>
                     <li>{fieldDefinitions.expected_runtime_minutes.label}: Number (must be between 1 and 1440)</li>
                     <li>{fieldDefinitions.user_email.label}: String</li>
-                    <li>{fieldDefinitions.owner_email.label}: String</li>
+                    <li>{fieldDefinitions.owner_email.label}: String (single email or comma-separated multiple emails)</li>
                     <li>{fieldDefinitions.donemarker_location.label}: String (single location or comma-separated multiple locations)</li>
                   </ul>
                 )}

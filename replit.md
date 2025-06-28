@@ -118,6 +118,7 @@ Preferred communication style: Simple, everyday language.
   - Added owner_email field with comma-separated email validation support
   - Updated table headers and body rows to display owner_email instead of user_name
   - Fixed TypeScript errors with proper type annotations for email validation
+  - Updated field descriptions to show "String (single email or comma-separated multiple emails)" for both Tables and DAGs
   - Bulk upload modal now uses only owner_email and user_email fields as intended
   - All validation and display logic updated to match centralized field definitions
 - June 28, 2025: Updated header title from "SLA Monitoring Dashboard" to "SLA Dashboard"
