@@ -307,8 +307,8 @@ export const buildRegisterSchema = () => {
 
 export const defaultValues = {
   common: {
-    tenant_name: '',
-    team_name: '',
+    tenant_name: 'Data Engineering',
+    team_name: 'PGM',
     notification_preferences: [],
     user_name: '',
     user_email: '',
@@ -322,14 +322,14 @@ export const defaultValues = {
     schema_name: '',
     table_name: '',
     table_description: '',
-    table_schedule: '',
+    table_schedule: '0 2 * * *',
     table_dependency: '',
   },
   
   dag: {
     dag_name: '',
     dag_description: '',
-    dag_schedule: '',
+    dag_schedule: '0 2 * * *',
     dag_dependency: '',
   },
   

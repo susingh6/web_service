@@ -33,6 +33,13 @@ import {
 } from '@mui/material';
 import { validateTenant, validateTeam, validateDag } from '@/lib/validationUtils';
 import { fetchWithCache, getFromCache } from '@/lib/cacheUtils';
+import { 
+  buildTableSchema as tableSchemaBuilder, 
+  buildDagSchema as dagSchemaBuilder, 
+  defaultValues as configDefaultValues,
+  getFieldsForEntityType,
+  mapFormDataToApi 
+} from '@/config/schemas';
 
 type EntityType = 'table' | 'dag';
 
@@ -44,7 +51,7 @@ interface AddEntityModalProps {
 
 // Use centralized schemas from config
 const getSchemaForType = (entityType: EntityType) => {
-  return entityType === 'table' ? buildTableSchema() : buildDagSchema();
+  return entityType === 'table' ? tableSchemaBuilder() : dagSchemaBuilder();
 };
 
 const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
@@ -67,7 +74,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
   
   // Dynamic schema selection with memoization for performance
   const schema = React.useMemo(() => 
-    entityType === 'table' ? tableSchema : dagSchema, 
+    getSchemaForType(entityType), 
     [entityType]
   );
   
@@ -135,35 +142,9 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
     formState: { errors, isSubmitting },
   } = useForm({
     resolver: yupResolver(schema) as any, // Type cast to fix TypeScript issues
-    defaultValues: entityType === 'table' ? {
-      tenant_name: 'Data Engineering',
-      team_name: 'PGM',
-      notification_preferences: [],
-      is_active: true,
-      schema_name: '',
-      table_name: '',
-      table_description: '',
-      table_schedule: '',
-      expected_runtime_minutes: 30,
-      table_dependency: '',
-      donemarker_location: '',
-      donemarker_lookback: 0,
-      user_name: '',
-      user_email: ''
-    } : {
-      tenant_name: 'Data Engineering',
-      team_name: 'PGM',
-      notification_preferences: [],
-      is_active: true,
-      dag_name: '',
-      dag_description: '',
-      dag_schedule: '',
-      expected_runtime_minutes: 30,
-      dag_dependency: '',
-      donemarker_location: '',
-      donemarker_lookback: 0,
-      user_name: '',
-      user_email: ''
+    defaultValues: {
+      ...configDefaultValues.common,
+      ...(entityType === 'table' ? configDefaultValues.table : configDefaultValues.dag)
     },
   });
 
