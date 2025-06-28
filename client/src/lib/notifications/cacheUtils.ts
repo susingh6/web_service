@@ -50,28 +50,42 @@ export const fetchUserRoles = async (): Promise<UserRole[]> => {
  * Get cached users or fetch from API
  */
 export const getCachedUsers = async (): Promise<SystemUser[]> => {
-  return await fetchWithCache('/api/users', CACHE_KEYS.USERS);
+  try {
+    const result = await fetchWithCache('/api/users', CACHE_KEYS.USERS);
+    return Array.isArray(result) ? result : [];
+  } catch (error) {
+    console.error('Error fetching cached users:', error);
+    return [];
+  }
 };
 
 /**
  * Get cached roles or fetch from API
  */
 export const getCachedRoles = async (): Promise<UserRole[]> => {
-  return await fetchWithCache('/api/users/roles', CACHE_KEYS.ROLES);
+  try {
+    const result = await fetchWithCache('/api/users/roles', CACHE_KEYS.ROLES);
+    return Array.isArray(result) ? result : getDefaultRoles();
+  } catch (error) {
+    console.error('Error fetching cached roles:', error);
+    return getDefaultRoles();
+  }
 };
 
 /**
  * Get users from cache without API call
  */
 export const getUsersFromCache = (): SystemUser[] => {
-  return getFromCache(CACHE_KEYS.USERS);
+  const cached = getFromCache(CACHE_KEYS.USERS);
+  return Array.isArray(cached) ? cached : [];
 };
 
 /**
  * Get roles from cache without API call
  */
 export const getRolesFromCache = (): UserRole[] => {
-  return getFromCache(CACHE_KEYS.ROLES);
+  const cached = getFromCache(CACHE_KEYS.ROLES);
+  return Array.isArray(cached) ? cached : getDefaultRoles();
 };
 
 /**

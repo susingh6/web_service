@@ -113,6 +113,15 @@ Preferred communication style: Simple, everyday language.
 
 ## Changelog
 
+- June 28, 2025: Completed comprehensive codebase-wide centralized API configuration migration
+  - Eliminated all remaining hard-coded API URLs across the entire application
+  - Updated notification cache utilities to use centralized endpoint configuration
+  - Fixed dashboard endpoint type configuration to support function parameters
+  - Added proper error handling for cache utilities with type-safe array returns
+  - Updated BulkUploadModal and AddEntityModal to use centralized endpoints
+  - Configured PagerDuty and Slack notification components with centralized API structure
+  - Achieved 100% centralized API configuration - no hard-coded URLs remain in codebase
+  - System now has unified API endpoint management across all development environments
 - June 28, 2025: Implemented centralized API system for task drag and drop functionality
   - Added task endpoints to centralized API configuration (dev.ts, index.ts)
   - Updated task service to use centralized endpoints instead of hard-coded URLs

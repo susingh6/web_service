@@ -16,7 +16,7 @@ export const devConfig = {
     // Dashboard
     dashboard: {
       summary: '/api/dashboard/summary',
-      teamPerformance: '/api/dashboard/team',
+      teamPerformance: (teamId: number) => `/api/dashboard/team/${teamId}`,
       complianceTrend: '/api/dashboard/compliance-trend',
     },
     

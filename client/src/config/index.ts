@@ -18,7 +18,7 @@ interface ApiConfig {
     teams: string;
     dashboard: {
       summary: string;
-      teamPerformance: string;
+      teamPerformance: (teamId: number) => string;
       complianceTrend: string;
     };
     entity: {
