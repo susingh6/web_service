@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import {
   Drawer,
   Box,
@@ -7,7 +6,6 @@ import {
   Divider,
   Grid,
   Chip,
-  Button,
   Paper,
   Avatar,
   List,
@@ -17,18 +15,12 @@ import {
 } from '@mui/material';
 import {
   Close as CloseIcon,
-  Edit as EditIcon,
-  Delete as DeleteIcon,
-  History as HistoryIcon,
   Warning as WarningIcon,
   Error as ErrorIcon,
 } from '@mui/icons-material';
 import { format } from 'date-fns';
-import { Entity, Issue } from '@/features/sla/types';
+import { Entity } from '@shared/schema';
 import EntityPerformanceChart from '@/components/dashboard/EntityPerformanceChart';
-import ConfirmDialog from './ConfirmDialog';
-import { useToast } from '@/hooks/use-toast';
-import { queryClient } from '@/lib/queryClient';
 
 interface EntityDetailsDrawerProps {
   open: boolean;
@@ -52,7 +44,7 @@ const getStatusColor = (status: string) => {
 };
 
 // Mock issues data - in a real app, this would come from an API
-const mockIssues: Issue[] = [
+const mockIssues = [
   {
     id: 1,
     entityId: 1,
@@ -76,8 +68,6 @@ const mockIssues: Issue[] = [
 ];
 
 const EntityDetailsDrawer = ({ open, onClose, entity, teams }: EntityDetailsDrawerProps) => {
-  const { toast } = useToast();
-  const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
   
   if (!entity) {
     return null;
@@ -90,34 +80,7 @@ const EntityDetailsDrawer = ({ open, onClose, entity, teams }: EntityDetailsDraw
     return format(date, 'MMM d, yyyy • h:mm a');
   };
   
-  const handleDelete = () => {
-    setOpenDeleteDialog(true);
-  };
-  
-  const handleConfirmDelete = async () => {
-    try {
-      // This would be a real API call in production
-      // await deleteEntity(entity.id);
-      
-      toast({
-        title: 'Success',
-        description: `${entity.name} has been deleted.`,
-        variant: 'default',
-      });
-      
-      // Refresh data
-      queryClient.invalidateQueries({ queryKey: ['/api/entities'] });
-      
-      setOpenDeleteDialog(false);
-      onClose();
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: `Failed to delete: ${error}`,
-        variant: 'destructive',
-      });
-    }
-  };
+
   
   // Get user initials for avatar
   const getUserInitials = () => {
@@ -356,43 +319,7 @@ const EntityDetailsDrawer = ({ open, onClose, entity, teams }: EntityDetailsDraw
             </Box>
           </Box>
           
-          {/* Footer actions */}
-          <Box sx={{ p: 3, borderTop: 1, borderColor: 'divider' }}>
-            <Grid container spacing={2}>
-              <Grid item xs={6} sm={4}>
-                <Button
-                  fullWidth
-                  variant="outlined"
-                  color="inherit"
-                  startIcon={<HistoryIcon />}
-                >
-                  View History
-                </Button>
-              </Grid>
-              <Grid item xs={6} sm={4}>
-                <Button
-                  fullWidth
-                  variant="outlined"
-                  color="primary"
-                  startIcon={<EditIcon />}
-                  onClick={onClose}
-                >
-                  Edit Entity
-                </Button>
-              </Grid>
-              <Grid item xs={12} sm={4}>
-                <Button
-                  fullWidth
-                  variant="contained"
-                  color="error"
-                  startIcon={<DeleteIcon />}
-                  onClick={handleDelete}
-                >
-                  Delete
-                </Button>
-              </Grid>
-            </Grid>
-          </Box>
+
         </Box>
       </Drawer>
       
