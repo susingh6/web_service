@@ -227,7 +227,7 @@ const DagDetailView: React.FC<DagDetailViewProps> = ({ entity, onBack }) => {
               <Box sx={{ display: 'flex', alignItems: 'center' }}>
                 {statusIconMap[entity.status] || statusIconMap.unknown}
                 <Chip 
-                  label={entity.status.charAt(0).toUpperCase() + entity.status.slice(1)} 
+                  label={entity.status ? entity.status.charAt(0).toUpperCase() + entity.status.slice(1) : 'Unknown'} 
                   size="small" 
                   color={
                     entity.status === 'success' || entity.status === 'healthy' ? 'success' :

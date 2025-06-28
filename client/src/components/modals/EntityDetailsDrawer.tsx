@@ -266,7 +266,7 @@ const EntityDetailsDrawer = ({ open, onClose, entity, teams }: EntityDetailsDraw
                       Frequency
                     </Typography>
                     <Typography variant="body1" fontWeight={500}>
-                      {entity.refreshFrequency.charAt(0).toUpperCase() + entity.refreshFrequency.slice(1)}
+                      {entity.refreshFrequency ? entity.refreshFrequency.charAt(0).toUpperCase() + entity.refreshFrequency.slice(1) : 'N/A'}
                     </Typography>
                   </Paper>
                 </Grid>
