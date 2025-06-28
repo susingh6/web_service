@@ -592,6 +592,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
           table_dependency: ["analytics.products", "analytics.orders"],  // Example as string array
           donemarker_location: "s3://data-warehouse/markers/customer_data/",
           donemarker_lookback: 1,
+          user_email: "john.doe@example.com",
           owner_email: "john.doe@example.com",
           is_active: true
         },
@@ -739,6 +740,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
                     <li>table_name: String</li>
                     <li>table_schedule: String (must be valid cron format)</li>
                     <li>expected_runtime_minutes: Number (must be between 1 and 1440)</li>
+                    <li>user_email: String</li>
                     <li>owner_email: String</li>
                     <li>donemarker_location: String (single location or comma-separated multiple locations)</li>
                   </ul>
@@ -749,6 +751,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
                     <li>dag_name: String (new DAG names will require backend validation)</li>
                     <li>dag_schedule: String (must be valid cron format)</li>
                     <li>expected_runtime_minutes: Number (must be between 1 and 1440)</li>
+                    <li>user_email: String</li>
                     <li>owner_email: String</li>
                     <li>donemarker_location: String (single location or comma-separated multiple locations)</li>
                   </ul>
