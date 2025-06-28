@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import {
-  Drawer,
+  Dialog,
+  DialogTitle,
+  DialogContent,
   Box,
   Typography,
   IconButton,
@@ -132,27 +134,29 @@ const EntityDetailsDrawer = ({ open, onClose, entity, teams }: EntityDetailsDraw
   
   return (
     <>
-      <Drawer
-        anchor="right"
+      <Dialog
         open={open}
         onClose={onClose}
+        maxWidth="md"
+        fullWidth
         PaperProps={{
           sx: {
-            width: { xs: '100%', sm: 480 },
-            maxWidth: '100%',
+            borderRadius: 2,
+            maxHeight: '90vh',
           },
         }}
       >
-        <Box display="flex" flexDirection="column" height="100%">
-          {/* Header */}
-          <Box sx={{ p: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: 1, borderColor: 'divider' }}>
-            <Typography variant="h6" fontWeight={600} fontFamily="Inter, sans-serif">
-              Entity Details
-            </Typography>
-            <IconButton edge="end" color="inherit" onClick={onClose} aria-label="close">
-              <CloseIcon />
-            </IconButton>
-          </Box>
+        <DialogTitle sx={{ m: 0, p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="h6" fontWeight={600} fontFamily="Inter, sans-serif">
+            Entity Details
+          </Typography>
+          <IconButton edge="end" color="inherit" onClick={onClose} aria-label="close">
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        
+        <DialogContent sx={{ p: 0 }}>
+          <Box sx={{ p: 3 }}>
           
           {/* Content */}
           <Box sx={{ flexGrow: 1, overflow: 'auto', p: 3 }}>
