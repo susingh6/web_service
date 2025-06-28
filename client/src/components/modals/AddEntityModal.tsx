@@ -607,7 +607,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                         field.onChange(enabledTypes);
                         setNotificationSettings(settings);
                       }}
-                      teamName={watch('team_name')}
+                      teamName={watch('team_name') || ''}
                     />
                     {errors.notification_preferences && (
                       <FormHelperText error sx={{ mt: 1 }}>
@@ -912,7 +912,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                         field.onChange(enabledTypes);
                         setNotificationSettings(settings);
                       }}
-                      teamName={watch('team_name')}
+                      teamName={watch('team_name') || ''}
                     />
                     {errors.notification_preferences && (
                       <FormHelperText error sx={{ mt: 1 }}>
