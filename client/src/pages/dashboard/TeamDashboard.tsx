@@ -17,6 +17,7 @@ import AddEntityModal from '@/components/modals/AddEntityModal';
 import BulkUploadModal from '@/components/modals/BulkUploadModal';
 import ConfirmDialog from '@/components/modals/ConfirmDialog';
 import TaskManagementModal from '@/components/modals/TaskManagementModal';
+import NotificationTimelineModal from '@/components/notifications/timeline/NotificationTimelineModal';
 import { useToast } from '@/hooks/use-toast';
 import { queryClient } from '@/lib/queryClient';
 
