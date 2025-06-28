@@ -195,7 +195,7 @@ const EntityDetailsDrawer = ({ open, onClose, entity, teams }: EntityDetailsDraw
                     Current SLA
                   </Typography>
                   <Typography variant="h5" fontWeight={600}>
-                    {entity.currentSla?.toFixed(1)}%
+                    {entity.currentSla ? entity.currentSla.toFixed(1) : 'N/A'}%
                   </Typography>
                 </Paper>
               </Grid>
@@ -205,7 +205,7 @@ const EntityDetailsDrawer = ({ open, onClose, entity, teams }: EntityDetailsDraw
                     Target SLA
                   </Typography>
                   <Typography variant="h5" fontWeight={600}>
-                    {entity.slaTarget.toFixed(1)}%
+                    {entity.slaTarget ? entity.slaTarget.toFixed(1) : 'N/A'}%
                   </Typography>
                 </Paper>
               </Grid>
@@ -215,7 +215,7 @@ const EntityDetailsDrawer = ({ open, onClose, entity, teams }: EntityDetailsDraw
                     30-Day Average
                   </Typography>
                   <Typography variant="h5" fontWeight={600}>
-                    {(entity.currentSla ? entity.currentSla - 1.2 : 0).toFixed(1)}%
+                    {entity.currentSla ? (entity.currentSla - 1.2).toFixed(1) : 'N/A'}%
                   </Typography>
                 </Paper>
               </Grid>
@@ -240,7 +240,7 @@ const EntityDetailsDrawer = ({ open, onClose, entity, teams }: EntityDetailsDraw
               </Typography>
               <Typography variant="body2" color="text.secondary">
                 {entity.description || 
-                  `This ${entity.type} contains important data for the ${teamName} team. It is refreshed ${entity.refreshFrequency} and has a target SLA of ${entity.slaTarget}%.`}
+                  `This ${entity.type} contains important data for the ${teamName} team. It is refreshed ${entity.refreshFrequency} and has a target SLA of ${entity.slaTarget ? entity.slaTarget + '%' : 'N/A'}.`}
               </Typography>
             </Box>
             
