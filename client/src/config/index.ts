@@ -1,7 +1,7 @@
 // Environment-based configuration
-import { devConfig } from './dev.js';
-import { stagingConfig } from './staging.js';
-import { prodConfig } from './prod.js';
+import { devConfig } from './dev';
+import { stagingConfig } from './staging';
+import { prodConfig } from './prod';
 
 const env = import.meta.env.MODE || 'development';
 

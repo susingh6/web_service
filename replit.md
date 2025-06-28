@@ -113,5 +113,10 @@ Preferred communication style: Simple, everyday language.
 
 ## Changelog
 
-Changelog:
-- June 27, 2025. Initial setup
+- June 28, 2025: Fixed critical DAG entry click errors
+  - Resolved .toFixed() and .charAt() errors on undefined entity properties
+  - Added comprehensive null checks with fallback values
+  - Fixed import extensions in config system
+  - Centralized API configuration system implemented
+  - Team dashboard navigation fully functional
+- June 27, 2025: Initial setup
