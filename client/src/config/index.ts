@@ -8,14 +8,30 @@ const env = import.meta.env.MODE || 'development';
 interface ApiConfig {
   baseUrl: string;
   endpoints: {
+    auth: {
+      login: string;
+      logout: string;
+      register: string;
+      user: string;
+    };
     entities: string;
     teams: string;
-    dags: string;
-    tables: string;
     dashboard: {
       summary: string;
       teamPerformance: string;
       complianceTrend: string;
+    };
+    entity: {
+      byId: (id: number) => string;
+      byTeam: (teamId: number) => string;
+      history: (entityId: number) => string;
+      issues: (entityId: number) => string;
+    };
+    issues: {
+      resolve: (issueId: number) => string;
+    };
+    debug: {
+      teams: string;
     };
   };
   debug: boolean;
@@ -33,17 +49,37 @@ const configs: Record<string, ApiConfig> = {
 export const config = configs[env] || configs.development;
 
 // Helper function to build full URL
-export const buildUrl = (endpoint: string, params?: Record<string, string | number>): string => {
-  let url = `${config.baseUrl}${endpoint}`;
+export const buildUrl = (
+  endpoint: string | ((...args: any[]) => string), 
+  ...params: any[]
+): string => {
+  let path: string;
+  
+  if (typeof endpoint === 'function') {
+    path = endpoint(...params);
+  } else {
+    path = endpoint;
+  }
+  
+  return `${config.baseUrl}${path}`;
+};
 
-  if (params && Object.keys(params).length > 0) {
-    const queryParams = new URLSearchParams();
-    Object.entries(params).forEach(([key, value]) => {
+// Helper function for query parameters
+export const buildUrlWithParams = (
+  endpoint: string | ((...args: any[]) => string),
+  queryParams?: Record<string, string | number>,
+  ...pathParams: any[]
+): string => {
+  let url = buildUrl(endpoint, ...pathParams);
+
+  if (queryParams && Object.keys(queryParams).length > 0) {
+    const searchParams = new URLSearchParams();
+    Object.entries(queryParams).forEach(([key, value]) => {
       if (value !== undefined && value !== null) {
-        queryParams.append(key, value.toString());
+        searchParams.append(key, value.toString());
       }
     });
-    url += `?${queryParams.toString()}`;
+    url += `?${searchParams.toString()}`;
   }
 
   return url;

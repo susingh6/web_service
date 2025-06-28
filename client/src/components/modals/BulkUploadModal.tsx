@@ -51,6 +51,7 @@ import {
 } from '@mui/icons-material';
 import { useToast } from '@/hooks/use-toast';
 import { fetchWithCache, getFromCache } from '@/lib/cacheUtils';
+import { apiClient } from '@/config/api';
 
 // Entity types for validation
 interface BaseEntity {
@@ -170,15 +171,12 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
   const fetchTeamOptions = async () => {
     setLoadingTeams(true);
     try {
-      const response = await fetch('/api/teams');
-      if (response.ok) {
-        const teams = await response.json();
-        const teamNames = teams.map((team: any) => team.name);
-        setTeamOptions(teamNames);
-      }
+      const response = await apiClient.teams.getAll();
+      const teams = await response.json();
+      const teamNames = teams.map((team: any) => team.name);
+      setTeamOptions(teamNames);
     } catch (error) {
       console.error('Error fetching team options:', error);
-      // Fallback to empty array if API fails
       setTeamOptions([]);
     } finally {
       setLoadingTeams(false);
