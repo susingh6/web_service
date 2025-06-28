@@ -36,15 +36,13 @@ export const fieldDefinitions = {
     type: 'email',
     required: true,
     label: 'Owner Email',
-    placeholder: 'owner@company.com or owner1@company.com,owner2@company.com',
+    placeholder: 'owner@company.com',
     validation: yup.string()
       .required('Owner email is required')
-      .test('email-format', 'Invalid email format', function(value) {
-        if (!value) return false;
-        const emails = value.split(',').map(email => email.trim());
-        const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-        return emails.every(email => emailRegex.test(email));
-      }),
+      .matches(
+        /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
+        'Invalid email format'
+      ),
     apiField: 'user_name'
   },
   
