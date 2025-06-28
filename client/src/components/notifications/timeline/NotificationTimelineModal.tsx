@@ -64,11 +64,8 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
   
   const [triggers, setTriggers] = useState<NotificationTrigger[]>([]);
   const [availableAiTasks, setAvailableAiTasks] = useState<string[]>([]);
-  const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({
-    email: { enabled: false, additionalRecipients: [] },
-    slack: { enabled: false, channelId: '', message: '' },
-    pagerduty: { enabled: false, type: 'service', serviceKey: '', escalationPolicy: '' }
-  });
+  const [enabledChannels, setEnabledChannels] = useState<string[]>([]);
+  const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({});
 
   const {
     control,
@@ -187,9 +184,7 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
       name: data.name,
       description: data.description,
       triggers,
-      channels: Object.entries(notificationSettings)
-        .filter(([_, config]) => config.enabled)
-        .map(([channel]) => channel),
+      channels: enabledChannels,
       isActive: data.isActive
     };
 
@@ -199,11 +194,8 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
   const handleClose = () => {
     reset();
     setTriggers([]);
-    setNotificationSettings({
-      email: { enabled: false, additionalRecipients: [] },
-      slack: { enabled: false, channelId: '', message: '' },
-      pagerduty: { enabled: false, type: 'service', serviceKey: '', escalationPolicy: '' }
-    });
+    setEnabledChannels([]);
+    setNotificationSettings({});
     onClose();
   };
 
@@ -318,8 +310,11 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
                 Notification Channels
               </Typography>
               <NotificationConfigManager
-                value={notificationSettings}
-                onChange={setNotificationSettings}
+                value={enabledChannels}
+                onChange={(channels: string[], settings: NotificationSettings) => {
+                  setEnabledChannels(channels);
+                  setNotificationSettings(settings);
+                }}
               />
             </Box>
 
