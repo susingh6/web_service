@@ -40,9 +40,9 @@ interface ApiConfig {
 }
 
 const configs: Record<string, ApiConfig> = {
-  development: devConfig,
-  staging: stagingConfig,
-  production: prodConfig,
+  development: devConfig as ApiConfig,
+  staging: stagingConfig as ApiConfig,
+  production: prodConfig as ApiConfig,
 };
 
 // Get current config based on environment
