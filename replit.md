@@ -115,6 +115,8 @@ Preferred communication style: Simple, everyday language.
 
 - June 28, 2025: Updated header title from "SLA Monitoring Dashboard" to "SLA Dashboard"
   - Changed application title in Header component to match user requirements
+  - Updated notification dropdown examples to show realistic SLA-related alerts
+  - Replaced generic notifications with SLA compliance alerts, performance warnings, and entity status updates
   - Explained bell notification system functionality and integration capabilities
 - June 28, 2025: Removed blue info icons from all dashboard charts in Summary and Teams sections
   - Eliminated Info icon imports from MetricCard component

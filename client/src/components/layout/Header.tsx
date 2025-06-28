@@ -156,25 +156,25 @@ const Header = () => {
         >
           <MenuItem onClick={handleNotificationsClose}>
             <Box>
-              <Typography variant="subtitle2">Critical SLA breach</Typography>
+              <Typography variant="subtitle2">SLA Compliance Alert</Typography>
               <Typography variant="body2" color="text.secondary">
-                sales_transactions table is below threshold
+                customer_data_dag missed 95% SLA target - currently at 87%
               </Typography>
             </Box>
           </MenuItem>
           <MenuItem onClick={handleNotificationsClose}>
             <Box>
-              <Typography variant="subtitle2">Warning alert</Typography>
+              <Typography variant="subtitle2">Performance Warning</Typography>
               <Typography variant="body2" color="text.secondary">
-                product_inventory has degraded performance
+                sales_summary table refresh time increased by 40%
               </Typography>
             </Box>
           </MenuItem>
           <MenuItem onClick={handleNotificationsClose}>
             <Box>
-              <Typography variant="subtitle2">New team added</Typography>
+              <Typography variant="subtitle2">Entity Status Update</Typography>
               <Typography variant="body2" color="text.secondary">
-                You've been added to Product Analytics team
+                product_analytics_dag has been restored and passed SLA
               </Typography>
             </Box>
           </MenuItem>
