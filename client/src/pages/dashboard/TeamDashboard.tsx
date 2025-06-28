@@ -17,7 +17,7 @@ import AddEntityModal from '@/components/modals/AddEntityModal';
 import BulkUploadModal from '@/components/modals/BulkUploadModal';
 import ConfirmDialog from '@/components/modals/ConfirmDialog';
 import TaskManagementModal from '@/components/modals/TaskManagementModal';
-import NotificationTimelineModal from '@/components/notifications/timeline/NotificationTimelineModal';
+import { NotificationTimelineModal } from '@/components/notifications/timeline/NotificationTimelineModal';
 import { useToast } from '@/hooks/use-toast';
 import { queryClient } from '@/lib/queryClient';
 
@@ -36,6 +36,7 @@ const TeamDashboard = () => {
   const [openAddModal, setOpenAddModal] = useState(false);
   const [openBulkModal, setOpenBulkModal] = useState(false);
   const [openTasksModal, setOpenTasksModal] = useState(false);
+  const [openNotificationTimelineModal, setOpenNotificationTimelineModal] = useState(false);
   const [chartFilter, setChartFilter] = useState('All');
   
   // Get current team info - try both ID and name lookup
@@ -110,6 +111,11 @@ const TeamDashboard = () => {
   const handleViewTasks = (entity: Entity) => {
     setSelectedEntity(entity);
     setOpenTasksModal(true);
+  };
+
+  const handleSetNotificationTimeline = (entity: Entity) => {
+    setSelectedEntity(entity);
+    setOpenNotificationTimelineModal(true);
   };
   
   const handleConfirmDelete = async () => {
@@ -283,6 +289,7 @@ const TeamDashboard = () => {
               onDeleteEntity={handleDeleteEntity}
               onViewHistory={handleViewDetails}
               onViewDetails={handleViewDetails}
+              onSetNotificationTimeline={handleSetNotificationTimeline}
               showActions={true} // Show actions in team tabs
             />
           )}
@@ -299,6 +306,7 @@ const TeamDashboard = () => {
               onViewHistory={handleViewDetails}
               onViewDetails={handleViewDetails}
               onViewTasks={handleViewTasks}
+              onSetNotificationTimeline={handleSetNotificationTimeline}
               showActions={true} // Show actions in team tabs
             />
           )}
@@ -346,6 +354,15 @@ const TeamDashboard = () => {
           setSelectedEntity(null);
         }}
         dag={selectedEntity}
+      />
+      
+      <NotificationTimelineModal
+        open={openNotificationTimelineModal}
+        onClose={() => {
+          setOpenNotificationTimelineModal(false);
+          setSelectedEntity(null);
+        }}
+        entity={selectedEntity}
       />
     </Box>
   );
