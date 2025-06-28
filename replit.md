@@ -113,6 +113,13 @@ Preferred communication style: Simple, everyday language.
 
 ## Changelog
 
+- June 28, 2025: Completed removal of user_name field from bulk upload modal system
+  - Removed user_name field completely from BaseEntity interface in BulkUploadModal
+  - Added owner_email field with comma-separated email validation support
+  - Updated table headers and body rows to display owner_email instead of user_name
+  - Fixed TypeScript errors with proper type annotations for email validation
+  - Bulk upload modal now uses only owner_email and user_email fields as intended
+  - All validation and display logic updated to match centralized field definitions
 - June 28, 2025: Updated header title from "SLA Monitoring Dashboard" to "SLA Dashboard"
   - Changed application title in Header component to match user requirements
   - Updated notification dropdown examples to show realistic SLA-related alerts
