@@ -28,7 +28,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
-import { endpoints } from '@/config';
+import { endpoints, fieldDefinitions } from '@/config';
 import {
   NotificationTimeline,
   InsertNotificationTimeline,

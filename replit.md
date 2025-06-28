@@ -260,6 +260,13 @@ Preferred communication style: Simple, everyday language.
   - Updated common field labels (Expected Runtime, Donemarker Location, Donemarker Lookback) with centralized config
   - Maintained identical rendering structure and functionality with no visual changes
   - Add Entity modal now fully integrated with centralized API configuration system
+- June 28, 2025: Updated Bulk Upload modal to use centralized field definitions for labels and validation
+  - Replaced hard-coded validation messages with centralized fieldDefinitions throughout validation function
+  - Updated table headers to use centralized field labels instead of hard-coded values
+  - Updated required/optional fields display lists to show centralized field labels
+  - Updated validation error messages to dynamically reference field labels from centralized configuration
+  - Maintained same rendering structure while achieving consistent field terminology
+  - Bulk upload system now fully integrated with centralized configuration schema
 - June 28, 2025: Updated Add Entity modal to use centralized field definitions for both Table and DAG tabs
   - Replaced hard-coded labels with centralized fieldDefinitions for user_name and user_email fields in both tabs
   - "User Name" field now shows as "Owner Email" with mandatory validation from centralized config

@@ -737,26 +737,26 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
               <Typography component="div" variant="body2" sx={{ pl: 2, mb: 1 }}>
                 {tabValue === 'tables' ? (
                   <ul>
-                    <li>tenant_name: String ("Data Engineering", "Ad Engineering", etc.)</li>
-                    <li>team_name: String ("PGM", "Core", etc.)</li>
-                    <li>schema_name: String</li>
-                    <li>table_name: String</li>
-                    <li>table_schedule: String (must be valid cron format)</li>
-                    <li>expected_runtime_minutes: Number (must be between 1 and 1440)</li>
-                    <li>user_email: String</li>
-                    <li>owner_email: String</li>
-                    <li>donemarker_location: String (single location or comma-separated multiple locations)</li>
+                    <li>{fieldDefinitions.tenant_name.label}: String ("Data Engineering", "Ad Engineering", etc.)</li>
+                    <li>{fieldDefinitions.team_name.label}: String ("PGM", "Core", etc.)</li>
+                    <li>{fieldDefinitions.schema_name.label}: String</li>
+                    <li>{fieldDefinitions.table_name.label}: String</li>
+                    <li>{fieldDefinitions.table_schedule.label}: String (must be valid cron format)</li>
+                    <li>{fieldDefinitions.expected_runtime_minutes.label}: Number (must be between 1 and 1440)</li>
+                    <li>{fieldDefinitions.user_email.label}: String</li>
+                    <li>{fieldDefinitions.owner_email.label}: String</li>
+                    <li>{fieldDefinitions.donemarker_location.label}: String (single location or comma-separated multiple locations)</li>
                   </ul>
                 ) : (
                   <ul>
-                    <li>tenant_name: String ("Data Engineering", "Ad Engineering", etc.)</li>
-                    <li>team_name: String ("PGM", "Core", etc.)</li>
-                    <li>dag_name: String (new DAG names will require backend validation)</li>
-                    <li>dag_schedule: String (must be valid cron format)</li>
-                    <li>expected_runtime_minutes: Number (must be between 1 and 1440)</li>
-                    <li>user_email: String</li>
-                    <li>owner_email: String</li>
-                    <li>donemarker_location: String (single location or comma-separated multiple locations)</li>
+                    <li>{fieldDefinitions.tenant_name.label}: String ("Data Engineering", "Ad Engineering", etc.)</li>
+                    <li>{fieldDefinitions.team_name.label}: String ("PGM", "Core", etc.)</li>
+                    <li>{fieldDefinitions.dag_name.label}: String (new DAG names will require backend validation)</li>
+                    <li>{fieldDefinitions.dag_schedule.label}: String (must be valid cron format)</li>
+                    <li>{fieldDefinitions.expected_runtime_minutes.label}: Number (must be between 1 and 1440)</li>
+                    <li>{fieldDefinitions.user_email.label}: String</li>
+                    <li>{fieldDefinitions.owner_email.label}: String</li>
+                    <li>{fieldDefinitions.donemarker_location.label}: String (single location or comma-separated multiple locations)</li>
                   </ul>
                 )}
               </Typography>
@@ -767,17 +767,17 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
               
               <Typography component="div" variant="body2" sx={{ pl: 2, mb: 1 }}>
                 <ul>
-                  <li>donemarker_lookback: Number</li>
-                  <li>is_active: Boolean</li>
+                  <li>{fieldDefinitions.donemarker_lookback.label}: Number</li>
+                  <li>{fieldDefinitions.is_active.label}: Boolean</li>
                   {tabValue === 'tables' ? (
                     <>
-                      <li>table_description: String</li>
-                      <li>table_dependency: String or Array of strings (comma-separated)</li>
+                      <li>{fieldDefinitions.table_description.label}: String</li>
+                      <li>{fieldDefinitions.table_dependency.label}: String or Array of strings (comma-separated)</li>
                     </>
                   ) : (
                     <>
-                      <li>dag_description: String</li>
-                      <li>dag_dependency: String or Array of strings (comma-separated)</li>
+                      <li>{fieldDefinitions.dag_description.label}: String</li>
+                      <li>{fieldDefinitions.dag_dependency.label}: String or Array of strings (comma-separated)</li>
                     </>
                   )}
                 </ul>
@@ -976,7 +976,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
                       ) : (
                         <TableCell>{fieldDefinitions.dag_name.label}</TableCell>
                       )}
-                      <TableCell>Schedule</TableCell>
+                      <TableCell>{tabValue === 'tables' ? fieldDefinitions.table_schedule.label : fieldDefinitions.dag_schedule.label}</TableCell>
                       <TableCell>{fieldDefinitions.expected_runtime_minutes.label}</TableCell>
                       <TableCell>{fieldDefinitions.user_email.label}</TableCell>
                       <TableCell width="120px">Details</TableCell>
