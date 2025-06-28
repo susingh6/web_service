@@ -149,6 +149,8 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
           return { type: 'sla_threshold_breached', threshold: 95 };
         case 'entity_success':
           return { type: 'entity_success' };
+        case 'entity_failure':
+          return { type: 'entity_failure' };
         case 'ai_tasks_status':
           return { type: 'ai_tasks_status', condition: 'all_passed', taskNames: [] };
         default:
