@@ -538,7 +538,10 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 render={({ field }) => (
                   <TextField
                     {...field}
-                    label="User Name"
+                    label={fieldDefinitions.user_name.label}
+                    required={fieldDefinitions.user_name.required}
+                    type={fieldDefinitions.user_name.type}
+                    placeholder={fieldDefinitions.user_name.placeholder}
                     fullWidth
                     margin="normal"
                     error={!!errors.user_name}
@@ -553,10 +556,12 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 render={({ field }) => (
                   <TextField
                     {...field}
-                    label="User Email"
+                    label={fieldDefinitions.user_email.label}
+                    required={fieldDefinitions.user_email.required}
+                    type={fieldDefinitions.user_email.type}
+                    placeholder={fieldDefinitions.user_email.placeholder}
                     fullWidth
                     margin="normal"
-                    required
                     error={!!errors.user_email}
                     helperText={errors.user_email?.message}
                     placeholder="user@example.com"
@@ -836,7 +841,10 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 render={({ field }) => (
                   <TextField
                     {...field}
-                    label="User Email"
+                    label={fieldDefinitions.user_email.label}
+                    required={fieldDefinitions.user_email.required}
+                    type={fieldDefinitions.user_email.type}
+                    placeholder={fieldDefinitions.user_email.placeholder}
                     fullWidth
                     margin="normal"
                     required
