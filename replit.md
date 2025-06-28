@@ -289,6 +289,12 @@ Preferred communication style: Simple, everyday language.
   - Applied conditional logic to both ADD NEW and UPDATE EXISTING tabs
   - Added filtering logic to remove AI task triggers when editing existing timelines for table entities
   - Maintains DAG entity functionality unchanged with all trigger options available
+- June 28, 2025: Updated owner_email field to accept comma-separated emails like donemarker_location
+  - Modified owner_email field definition to accept single email or multiple comma-separated emails
+  - Added custom validation function to validate each email in comma-separated list
+  - Updated placeholder text to show example format for single or multiple emails
+  - Removed user_name field completely from field definitions and validation schemas
+  - Only owner_email field supports comma-separated format, user_email remains single email validation
 - June 28, 2025: Updated Add Entity modal to use centralized field definitions for both Table and DAG tabs
   - Replaced hard-coded labels with centralized fieldDefinitions for user_name and user_email fields in both tabs
   - "User Name" field now shows as "Owner Email" with mandatory validation from centralized config
