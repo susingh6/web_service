@@ -551,6 +551,24 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                   />
                 )}
               />
+
+              <Controller
+                name="owner_email"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label={fieldDefinitions.owner_email.label}
+                    required={fieldDefinitions.owner_email.required}
+                    type={fieldDefinitions.owner_email.type}
+                    placeholder={fieldDefinitions.owner_email.placeholder}
+                    fullWidth
+                    margin="normal"
+                    error={!!errors.owner_email}
+                    helperText={errors.owner_email?.message}
+                  />
+                )}
+              />
               
               <Controller
                 name="is_active"
@@ -819,6 +837,24 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                     margin="normal"
                     error={!!errors.user_email}
                     helperText={errors.user_email?.message}
+                  />
+                )}
+              />
+
+              <Controller
+                name="owner_email"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label={fieldDefinitions.owner_email.label}
+                    required={fieldDefinitions.owner_email.required}
+                    type={fieldDefinitions.owner_email.type}
+                    placeholder={fieldDefinitions.owner_email.placeholder}
+                    fullWidth
+                    margin="normal"
+                    error={!!errors.owner_email}
+                    helperText={errors.owner_email?.message}
                   />
                 )}
               />
