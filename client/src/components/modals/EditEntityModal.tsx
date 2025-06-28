@@ -155,18 +155,18 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
             ? 's3://analytics-tables/done_markers/' 
             : 's3://analytics-dags/agg_daily/'),
           donemarker_lookback: entity.donemarker_lookback || 2,
-          // Type-specific fields
+          // Type-specific fields - handle missing fields gracefully
           ...(entityType === 'table' ? {
-            schema_name: entity.schema_name || 'analytics',
-            table_name: entity.table_name || entity.name,
-            table_description: entity.table_description || entity.description || 'Table for analytics processing',
-            table_schedule: entity.table_schedule || '0 2 * * *',
-            table_dependency: entity.table_dependency || 'raw_data_ingest,user_profile_enrichment',
+            schema_name: (entity as any).schema_name || 'analytics',
+            table_name: (entity as any).table_name || entity.name,
+            table_description: (entity as any).table_description || entity.description || 'Table for analytics processing',
+            table_schedule: (entity as any).table_schedule || '0 2 * * *',
+            table_dependency: (entity as any).table_dependency || 'raw_data_ingest,user_profile_enrichment',
           } : {
-            dag_name: entity.dag_name || entity.name,
-            dag_description: entity.dag_description || entity.description || 'DAG for daily analytics processing',
-            dag_schedule: entity.dag_schedule || '0 2 * * *',
-            dag_dependency: entity.dag_dependency || 'raw_data_ingest,user_profile_enrichment',
+            dag_name: (entity as any).dag_name || entity.name,
+            dag_description: (entity as any).dag_description || entity.description || 'DAG for daily analytics processing',
+            dag_schedule: (entity as any).dag_schedule || '0 2 * * *',
+            dag_dependency: (entity as any).dag_dependency || 'raw_data_ingest,user_profile_enrichment',
           })
         };
       }
@@ -175,14 +175,8 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
     staleTime: 1000 * 60 * 5, // Cache for 5 minutes
   });
   
-  const {
-    control,
-    handleSubmit,
-    reset,
-    watch,
-    formState: { errors },
-  } = useForm({
-    resolver: yupResolver(schema),
+  const tableForm = useForm({
+    resolver: yupResolver(tableSchema),
     defaultValues: {
       tenant_name: '',
       team_name: '',
@@ -190,23 +184,44 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
       user_name: '',
       user_email: '',
       is_active: true,
-      // Table fields
       schema_name: '',
       table_name: '',
       table_description: '',
       table_schedule: '',
       table_dependency: '',
-      // DAG fields
-      dag_name: '',
-      dag_description: '',
-      dag_schedule: '',
-      dag_dependency: '',
-      // Common fields
       expected_runtime_minutes: 60,
       donemarker_location: '',
       donemarker_lookback: 0,
     },
   });
+
+  const dagForm = useForm({
+    resolver: yupResolver(dagSchema),
+    defaultValues: {
+      tenant_name: '',
+      team_name: '',
+      notification_preferences: [],
+      user_name: '',
+      user_email: '',
+      is_active: true,
+      dag_name: '',
+      dag_description: '',
+      dag_schedule: '',
+      dag_dependency: '',
+      expected_runtime_minutes: 60,
+      donemarker_location: '',
+      donemarker_lookback: 0,
+    },
+  });
+
+  const form = entityType === 'table' ? tableForm : dagForm;
+  const {
+    control,
+    handleSubmit,
+    reset,
+    watch,
+    formState: { errors },
+  } = form;
   
   // Reset form when entity details are loaded
   useEffect(() => {
@@ -214,7 +229,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
       console.log('Resetting form with entity details:', entityDetails);
       
       // Map entity details to form fields
-      const formData = {
+      const formData = entityType === 'table' ? {
         tenant_name: entityDetails.tenant_name || '',
         team_name: entityDetails.team_name || '',
         notification_preferences: entityDetails.notification_preferences || [],
@@ -224,24 +239,26 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
         expected_runtime_minutes: entityDetails.expected_runtime_minutes || 60,
         donemarker_location: entityDetails.donemarker_location || '',
         donemarker_lookback: entityDetails.donemarker_lookback || 0,
+        schema_name: (entityDetails as any).schema_name || '',
+        table_name: (entityDetails as any).table_name || entityDetails.name || '',
+        table_description: (entityDetails as any).table_description || entityDetails.description || '',
+        table_schedule: (entityDetails as any).table_schedule || '',
+        table_dependency: (entityDetails as any).table_dependency || '',
+      } : {
+        tenant_name: entityDetails.tenant_name || '',
+        team_name: entityDetails.team_name || '',
+        notification_preferences: entityDetails.notification_preferences || [],
+        user_name: entityDetails.user_name || '',
+        user_email: entityDetails.user_email || '',
+        is_active: entityDetails.is_active !== undefined ? entityDetails.is_active : true,
+        expected_runtime_minutes: entityDetails.expected_runtime_minutes || 60,
+        donemarker_location: entityDetails.donemarker_location || '',
+        donemarker_lookback: entityDetails.donemarker_lookback || 0,
+        dag_name: (entityDetails as any).dag_name || entityDetails.name || '',
+        dag_description: (entityDetails as any).dag_description || entityDetails.description || '',
+        dag_schedule: (entityDetails as any).dag_schedule || '',
+        dag_dependency: (entityDetails as any).dag_dependency || '',
       };
-
-      if (entityType === 'table') {
-        Object.assign(formData, {
-          schema_name: entityDetails.schema_name || '',
-          table_name: entityDetails.table_name || entityDetails.name || '',
-          table_description: entityDetails.table_description || entityDetails.description || '',
-          table_schedule: entityDetails.table_schedule || '',
-          table_dependency: entityDetails.table_dependency || '',
-        });
-      } else {
-        Object.assign(formData, {
-          dag_name: entityDetails.dag_name || entityDetails.name || '',
-          dag_description: entityDetails.dag_description || entityDetails.description || '',
-          dag_schedule: entityDetails.dag_schedule || '',
-          dag_dependency: entityDetails.dag_dependency || '',
-        });
-      }
 
       reset(formData);
       
