@@ -160,6 +160,9 @@ const Header = () => {
               <Typography variant="body2" color="text.secondary">
                 customer_data_dag missed 95% SLA target - currently at 87%
               </Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                2 minutes ago
+              </Typography>
             </Box>
           </MenuItem>
           <MenuItem onClick={handleNotificationsClose}>
@@ -168,6 +171,9 @@ const Header = () => {
               <Typography variant="body2" color="text.secondary">
                 sales_summary table refresh time increased by 40%
               </Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                15 minutes ago
+              </Typography>
             </Box>
           </MenuItem>
           <MenuItem onClick={handleNotificationsClose}>
@@ -175,6 +181,9 @@ const Header = () => {
               <Typography variant="subtitle2">Entity Status Update</Typography>
               <Typography variant="body2" color="text.secondary">
                 product_analytics_dag has been restored and passed SLA
+              </Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                1 hour ago
               </Typography>
             </Box>
           </MenuItem>
