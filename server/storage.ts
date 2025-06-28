@@ -3,7 +3,8 @@ import {
   teams, type Team, type InsertTeam,
   entities, type Entity, type InsertEntity,
   entityHistory, type EntityHistory, type InsertEntityHistory,
-  issues, type Issue, type InsertIssue 
+  issues, type Issue, type InsertIssue,
+  notificationTimelines, type NotificationTimeline, type InsertNotificationTimeline
 } from "@shared/schema";
 
 // Define the storage interface
@@ -38,6 +39,12 @@ export interface IStorage {
   getIssues(entityId: number): Promise<Issue[]>;
   addIssue(issue: InsertIssue): Promise<Issue>;
   resolveIssue(id: number): Promise<Issue | undefined>;
+  
+  // Notification Timeline operations
+  getNotificationTimelines(entityId: number): Promise<NotificationTimeline[]>;
+  createNotificationTimeline(timeline: InsertNotificationTimeline): Promise<NotificationTimeline>;
+  updateNotificationTimeline(id: string, timeline: Partial<NotificationTimeline>): Promise<NotificationTimeline | undefined>;
+  deleteNotificationTimeline(id: string): Promise<boolean>;
 }
 
 // In-memory storage implementation
@@ -47,6 +54,7 @@ export class MemStorage implements IStorage {
   private entities: Map<number, Entity>;
   private entityHistories: Map<number, EntityHistory[]>;
   private entityIssues: Map<number, Issue[]>;
+  private notificationTimelines: Map<string, NotificationTimeline>;
   
   private userId: number;
   private teamId: number;
@@ -60,6 +68,7 @@ export class MemStorage implements IStorage {
     this.entities = new Map();
     this.entityHistories = new Map();
     this.entityIssues = new Map();
+    this.notificationTimelines = new Map();
     
     this.userId = 1;
     this.teamId = 1;
@@ -374,6 +383,45 @@ export class MemStorage implements IStorage {
       }
     }
     return undefined;
+  }
+
+  // Notification Timeline operations
+  async getNotificationTimelines(entityId: number): Promise<NotificationTimeline[]> {
+    return Array.from(this.notificationTimelines.values())
+      .filter(timeline => timeline.entityId === entityId);
+  }
+
+  async createNotificationTimeline(insertTimeline: InsertNotificationTimeline): Promise<NotificationTimeline> {
+    const id = `timeline_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const timeline: NotificationTimeline = {
+      id,
+      ...insertTimeline,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    
+    this.notificationTimelines.set(id, timeline);
+    return timeline;
+  }
+
+  async updateNotificationTimeline(id: string, updates: Partial<NotificationTimeline>): Promise<NotificationTimeline | undefined> {
+    const existingTimeline = this.notificationTimelines.get(id);
+    if (!existingTimeline) {
+      return undefined;
+    }
+
+    const updatedTimeline: NotificationTimeline = {
+      ...existingTimeline,
+      ...updates,
+      updatedAt: new Date(),
+    };
+
+    this.notificationTimelines.set(id, updatedTimeline);
+    return updatedTimeline;
+  }
+
+  async deleteNotificationTimeline(id: string): Promise<boolean> {
+    return this.notificationTimelines.delete(id);
   }
 }
 

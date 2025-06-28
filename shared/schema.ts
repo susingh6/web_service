@@ -148,3 +148,6 @@ export type InsertEntityHistory = z.infer<typeof insertEntityHistorySchema>;
 
 export type Issue = typeof issues.$inferSelect;
 export type InsertIssue = z.infer<typeof insertIssueSchema>;
+
+export type NotificationTimeline = typeof notificationTimelines.$inferSelect;
+export type InsertNotificationTimeline = z.infer<typeof insertNotificationTimelineSchema>;

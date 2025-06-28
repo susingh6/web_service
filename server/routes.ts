@@ -1,7 +1,7 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertEntitySchema, insertTeamSchema, insertEntityHistorySchema, insertIssueSchema, insertUserSchema } from "@shared/schema";
+import { insertEntitySchema, insertTeamSchema, insertEntityHistorySchema, insertIssueSchema, insertUserSchema, insertNotificationTimelineSchema } from "@shared/schema";
 import { z } from "zod";
 import { setupSimpleAuth } from "./simple-auth";
 import { setupTestRoutes } from "./test-routes";
