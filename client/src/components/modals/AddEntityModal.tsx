@@ -594,28 +594,6 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
               />
               
               <Controller
-                name="notification_preferences"
-                control={control}
-                render={({ field }) => (
-                  <div style={{ margin: '16px 0' }}>
-                    <NotificationConfigManager
-                      value={field.value || []}
-                      onChange={(enabledTypes, settings) => {
-                        field.onChange(enabledTypes);
-                        setNotificationSettings(settings);
-                      }}
-                      teamName={watch('team_name') || ''}
-                    />
-                    {errors.notification_preferences && (
-                      <FormHelperText error sx={{ mt: 1 }}>
-                        {errors.notification_preferences.message}
-                      </FormHelperText>
-                    )}
-                  </div>
-                )}
-              />
-              
-              <Controller
                 name="donemarker_location"
                 control={control}
                 render={({ field }) => (
@@ -895,28 +873,6 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                     helperText={errors.dag_dependency?.message || "Comma-separated list of DAG names"}
                     placeholder="dag1,dag2,dag3"
                   />
-                )}
-              />
-              
-              <Controller
-                name="notification_preferences"
-                control={control}
-                render={({ field }) => (
-                  <div style={{ margin: '16px 0' }}>
-                    <NotificationConfigManager
-                      value={field.value || []}
-                      onChange={(enabledTypes, settings) => {
-                        field.onChange(enabledTypes);
-                        setNotificationSettings(settings);
-                      }}
-                      teamName={watch('team_name') || ''}
-                    />
-                    {errors.notification_preferences && (
-                      <FormHelperText error sx={{ mt: 1 }}>
-                        {errors.notification_preferences.message}
-                      </FormHelperText>
-                    )}
-                  </div>
                 )}
               />
               

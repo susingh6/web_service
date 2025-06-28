@@ -28,8 +28,8 @@ import { Close as CloseIcon } from '@mui/icons-material';
 import { validateTenant, validateTeam, validateDag } from '@/lib/validationUtils';
 import { fetchWithCache, getFromCache } from '@/lib/cacheUtils';
 import { useAppDispatch } from '@/lib/store';
-import { NotificationConfigManager } from '@/components/notifications/NotificationConfigManager';
-import { NotificationSettings } from '@/lib/notifications/types';
+
+
 import { updateEntity } from '@/features/sla/slices/entitiesSlice';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
@@ -773,28 +773,6 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
                 error={!!errors.donemarker_lookback}
                 helperText={errors.donemarker_lookback?.message}
               />
-            )}
-          />
-          
-          <Controller
-            name="notification_preferences"
-            control={control}
-            render={({ field }) => (
-              <div style={{ margin: '16px 0' }}>
-                <NotificationConfigManager
-                  value={(field.value || []).filter((item: string | undefined): item is string => item !== undefined)}
-                  onChange={(enabledTypes, settings) => {
-                    field.onChange(enabledTypes);
-                    setNotificationSettings(settings);
-                  }}
-                  teamName={watch('team_name') || ''}
-                />
-                {errors.notification_preferences && (
-                  <FormHelperText error sx={{ mt: 1 }}>
-                    {errors.notification_preferences.message}
-                  </FormHelperText>
-                )}
-              </div>
             )}
           />
           
