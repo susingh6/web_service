@@ -707,9 +707,11 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
             render={({ field }) => (
               <TextField
                 {...field}
-                label={fieldDefinitions.user_name.label}
+                label={fieldDefinitions.user_name.label + " *"}
                 fullWidth
                 margin="normal"
+                required
+                type="email"
                 error={!!errors.user_name}
                 helperText={errors.user_name?.message}
               />
@@ -760,10 +762,11 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
             render={({ field }) => (
               <TextField
                 {...field}
-                label="Done Marker Location"
+                label={fieldDefinitions.donemarker_location?.label + " *"}
                 fullWidth
                 margin="normal"
-                placeholder="e.g., s3://bucket/path/done.txt"
+                required
+                placeholder={fieldDefinitions.donemarker_location?.placeholder}
                 error={!!errors.donemarker_location}
                 helperText={errors.donemarker_location?.message}
               />

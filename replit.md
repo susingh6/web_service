@@ -274,6 +274,12 @@ Preferred communication style: Simple, everyday language.
   - Achieved 100% centralized API configuration for field definitions, labels, and validation throughout application
   - System now has unified field terminology and validation messaging across all development environments
   - Centralized configuration ensures consistent user experience and simplified maintenance
+- June 28, 2025: Fixed Edit Entity modal mandatory field validation and input capabilities
+  - Made owner email (user_name) mandatory with required asterisk and email validation
+  - Made donemarker location mandatory with required asterisk using centralized field definitions
+  - Donemarker location now accepts single or multiple comma-separated locations like Add Entity modal
+  - Fixed fieldDefinitions export issue in config system that was causing team tab errors
+  - Team tab navigation now working properly with successful data loading
 - June 28, 2025: Updated Add Entity modal to use centralized field definitions for both Table and DAG tabs
   - Replaced hard-coded labels with centralized fieldDefinitions for user_name and user_email fields in both tabs
   - "User Name" field now shows as "Owner Email" with mandatory validation from centralized config
