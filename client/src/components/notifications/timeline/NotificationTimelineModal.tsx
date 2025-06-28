@@ -284,6 +284,7 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
                   <MenuItem value="daily_schedule">{TRIGGER_TYPE_LABELS.daily_schedule}</MenuItem>
                   <MenuItem value="sla_threshold_breached">{TRIGGER_TYPE_LABELS.sla_threshold_breached}</MenuItem>
                   <MenuItem value="entity_success">{TRIGGER_TYPE_LABELS.entity_success}</MenuItem>
+                  <MenuItem value="entity_failure">{TRIGGER_TYPE_LABELS.entity_failure}</MenuItem>
                   <MenuItem value="ai_tasks_status">{TRIGGER_TYPE_LABELS.ai_tasks_status}</MenuItem>
                 </Select>
               </Box>
