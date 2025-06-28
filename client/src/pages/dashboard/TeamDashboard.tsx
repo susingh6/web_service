@@ -11,7 +11,7 @@ import EntityTable from '@/components/dashboard/EntityTable';
 import DateRangePicker from '@/components/dashboard/DateRangePicker';
 import ComplianceTrendChart from '@/components/dashboard/ComplianceTrendChart';
 import EntityPerformanceChart from '@/components/dashboard/EntityPerformanceChart';
-import EntityDetailsDrawer from '@/components/modals/EntityDetailsDrawer';
+import EntityDetailsModal from '@/components/modals/EntityDetailsModal';
 import EditEntityModal from '@/components/modals/EditEntityModal';
 import AddEntityModal from '@/components/modals/AddEntityModal';
 import BulkUploadModal from '@/components/modals/BulkUploadModal';

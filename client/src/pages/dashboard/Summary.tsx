@@ -13,7 +13,7 @@ import EntityTable from '@/components/dashboard/EntityTable';
 import DateRangePicker from '@/components/dashboard/DateRangePicker';
 import AddEntityModal from '@/components/modals/AddEntityModal';
 import BulkUploadModal from '@/components/modals/BulkUploadModal';
-import EntityDetailsDrawer from '@/components/modals/EntityDetailsDrawer';
+import EntityDetailsModal from '@/components/modals/EntityDetailsModal';
 import EditEntityModal from '@/components/modals/EditEntityModal';
 import ConfirmDialog from '@/components/modals/ConfirmDialog';
 import { useToast } from '@/hooks/use-toast';
@@ -216,7 +216,7 @@ const Summary = () => {
         onClose={() => setOpenBulkModal(false)}
       />
       
-      <EntityDetailsDrawer
+      <EntityDetailsModal
         open={openDetailsDrawer}
         onClose={() => setOpenDetailsDrawer(false)}
         entity={selectedEntity}
