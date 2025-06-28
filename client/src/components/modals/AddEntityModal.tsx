@@ -564,7 +564,6 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                     margin="normal"
                     error={!!errors.user_email}
                     helperText={errors.user_email?.message}
-                    placeholder="user@example.com"
                   />
                 )}
               />
@@ -847,10 +846,8 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                     placeholder={fieldDefinitions.user_email.placeholder}
                     fullWidth
                     margin="normal"
-                    required
                     error={!!errors.user_email}
                     helperText={errors.user_email?.message}
-                    placeholder="user@example.com"
                   />
                 )}
               />
