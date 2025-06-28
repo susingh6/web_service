@@ -62,8 +62,8 @@ interface BaseEntity {
   expected_runtime_minutes: number;
   donemarker_location?: string;
   donemarker_lookback?: number;
-  user_name?: string;
   user_email: string;
+  owner_email: string;
   is_active?: boolean;
 }
 
@@ -261,6 +261,21 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
       errors.push({ field: 'user_email', message: `${fieldDefinitions.user_email.label} is required` });
     } else if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(entity.user_email)) {
       errors.push({ field: 'user_email', message: `Invalid ${fieldDefinitions.user_email.label.toLowerCase()} format` });
+    }
+    
+    // Owner email is required with comma-separated validation using centralized field definitions
+    if (!entity.owner_email) {
+      errors.push({ field: 'owner_email', message: `${fieldDefinitions.owner_email.label} is required` });
+    } else {
+      // Validate comma-separated emails
+      const emails = entity.owner_email.split(',').map((email: string) => email.trim());
+      const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+      for (const email of emails) {
+        if (!emailRegex.test(email)) {
+          errors.push({ field: 'owner_email', message: `Invalid email format in ${fieldDefinitions.owner_email.label.toLowerCase()}: ${email}` });
+          break;
+        }
+      }
     }
     
     // Done marker location is required using centralized field definitions
@@ -979,6 +994,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
                       <TableCell>{tabValue === 'tables' ? fieldDefinitions.table_schedule.label : fieldDefinitions.dag_schedule.label}</TableCell>
                       <TableCell>{fieldDefinitions.expected_runtime_minutes.label}</TableCell>
                       <TableCell>{fieldDefinitions.user_email.label}</TableCell>
+                      <TableCell>{fieldDefinitions.owner_email.label}</TableCell>
                       <TableCell width="120px">Details</TableCell>
                     </TableRow>
                   </TableHead>
@@ -1034,6 +1050,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
                           <TableCell>{isTable ? entity.table_schedule : (entity as DagEntity).dag_schedule}</TableCell>
                           <TableCell>{entity.expected_runtime_minutes} min</TableCell>
                           <TableCell>{entity.user_email}</TableCell>
+                          <TableCell>{entity.owner_email}</TableCell>
                           <TableCell>
                             {!result.valid && (
                               <Tooltip title={result.errors.map(err => `${err.field}: ${err.message}`).join('\n')}>
