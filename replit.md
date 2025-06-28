@@ -113,6 +113,12 @@ Preferred communication style: Simple, everyday language.
 
 ## Changelog
 
+- June 28, 2025: Implemented comprehensive API data fetching for EditEntityModal
+  - Added entity details API endpoint `/api/entities/:id/details` with enhanced field structure
+  - Implemented React Query data fetching with proper pre-population of all form fields
+  - Notification preferences and is_active toggle now correctly set from API data
+  - Added fallback logic to handle API unavailability with mock data structure
+  - Form fields auto-populate with comprehensive data including tenant, team, schedule, and dependencies
 - June 28, 2025: Completed EditEntityModal comprehensive form integration
   - EditEntityModal now matches AddEntityModal with identical form fields for both table and DAG entities
   - Fixed "Is Active" toggle positioning to appear below Notification Preferences

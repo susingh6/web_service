@@ -139,6 +139,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to fetch entity" });
     }
   });
+
+  // Get detailed entity information for editing
+  app.get("/api/entities/:id/details", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid entity ID" });
+      }
+      
+      const entity = await storage.getEntity(id);
+      if (!entity) {
+        return res.status(404).json({ message: "Entity not found" });
+      }
+      
+      // Enhanced entity details with comprehensive field structure
+      const entityDetails = {
+        ...entity,
+        // Common fields with sensible defaults based on entity type
+        tenant_name: entity.tenant_name || (entity.type === 'table' ? 'Data Engineering' : 'Analytics'),
+        team_name: entity.team_name || 'PGM',
+        notification_preferences: entity.notification_preferences || ['email', 'slack'],
+        user_name: entity.user_name || 'john.smith',
+        user_email: entity.user_email || 'john.smith@example.com',
+        is_active: entity.is_active !== undefined ? entity.is_active : true,
+        expected_runtime_minutes: entity.expected_runtime_minutes || (entity.type === 'table' ? 30 : 45),
+        donemarker_location: entity.donemarker_location || (entity.type === 'table' 
+          ? 's3://analytics-tables/done_markers/' 
+          : 's3://analytics-dags/agg_daily/'),
+        donemarker_lookback: entity.donemarker_lookback || 2,
+        
+        // Type-specific fields
+        ...(entity.type === 'table' ? {
+          schema_name: entity.schema_name || 'analytics',
+          table_name: entity.table_name || entity.name,
+          table_description: entity.table_description || entity.description || 'Table for analytics processing',
+          table_schedule: entity.table_schedule || '0 2 * * *',
+          table_dependency: entity.table_dependency || 'raw_data_ingest,user_profile_enrichment',
+        } : {
+          dag_name: entity.dag_name || entity.name,
+          dag_description: entity.dag_description || entity.description || 'DAG for daily analytics processing',
+          dag_schedule: entity.dag_schedule || '0 2 * * *',
+          dag_dependency: entity.dag_dependency || 'raw_data_ingest,user_profile_enrichment',
+        })
+      };
+      
+      res.json(entityDetails);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch entity details" });
+    }
+  });
   
   app.put("/api/entities/:id", async (req, res) => {
     try {

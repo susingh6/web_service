@@ -206,36 +206,38 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
     },
   });
   
-  // Reset form when entity changes
+  // Reset form when entity details are loaded
   useEffect(() => {
-    if (entity && open) {
-      // Map entity data to form fields
+    if (open && entityDetails && !isLoadingEntityDetails) {
+      console.log('Resetting form with entity details:', entityDetails);
+      
+      // Map entity details to form fields
       const formData = {
-        tenant_name: entity.tenant_name || '',
-        team_name: entity.team_name || '',
-        notification_preferences: entity.notification_preferences || [],
-        user_name: entity.user_name || '',
-        user_email: entity.user_email || '',
-        is_active: entity.is_active ?? true,
-        expected_runtime_minutes: entity.expected_runtime_minutes || 60,
-        donemarker_location: entity.donemarker_location || '',
-        donemarker_lookback: entity.donemarker_lookback || 0,
+        tenant_name: entityDetails.tenant_name || '',
+        team_name: entityDetails.team_name || '',
+        notification_preferences: entityDetails.notification_preferences || [],
+        user_name: entityDetails.user_name || '',
+        user_email: entityDetails.user_email || '',
+        is_active: entityDetails.is_active !== undefined ? entityDetails.is_active : true,
+        expected_runtime_minutes: entityDetails.expected_runtime_minutes || 60,
+        donemarker_location: entityDetails.donemarker_location || '',
+        donemarker_lookback: entityDetails.donemarker_lookback || 0,
       };
 
-      if (entity.type === 'table') {
+      if (entityType === 'table') {
         Object.assign(formData, {
-          schema_name: entity.schema_name || '',
-          table_name: entity.table_name || entity.name || '',
-          table_description: entity.table_description || entity.description || '',
-          table_schedule: entity.table_schedule || '',
-          table_dependency: entity.table_dependency || '',
+          schema_name: entityDetails.schema_name || '',
+          table_name: entityDetails.table_name || entityDetails.name || '',
+          table_description: entityDetails.table_description || entityDetails.description || '',
+          table_schedule: entityDetails.table_schedule || '',
+          table_dependency: entityDetails.table_dependency || '',
         });
       } else {
         Object.assign(formData, {
-          dag_name: entity.dag_name || entity.name || '',
-          dag_description: entity.dag_description || entity.description || '',
-          dag_schedule: entity.dag_schedule || '',
-          dag_dependency: entity.dag_dependency || '',
+          dag_name: entityDetails.dag_name || entityDetails.name || '',
+          dag_description: entityDetails.dag_description || entityDetails.description || '',
+          dag_schedule: entityDetails.dag_schedule || '',
+          dag_dependency: entityDetails.dag_dependency || '',
         });
       }
 
@@ -247,8 +249,11 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
       if (entityType === 'dag') {
         setDagOptions(getFromCache('dags'));
       }
+    } else if (!open) {
+      // Reset form when modal is closed
+      reset();
     }
-  }, [entity, reset, open, entityType]);
+  }, [entityDetails, reset, open, entityType, isLoadingEntityDetails]);
   
   const onSubmit = async (data: any) => {
     if (!entity) return;
