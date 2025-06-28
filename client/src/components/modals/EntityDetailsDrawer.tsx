@@ -179,8 +179,8 @@ const EntityDetailsDrawer = ({ open, onClose, entity, teams }: EntityDetailsDraw
                   </Typography>
                 </Box>
                 <Chip
-                  label={entity.status.charAt(0).toUpperCase() + entity.status.slice(1)}
-                  color={getStatusColor(entity.status) as "success" | "warning" | "error" | "default"}
+                  label={entity.status ? entity.status.charAt(0).toUpperCase() + entity.status.slice(1) : 'Unknown'}
+                  color={getStatusColor(entity.status || 'unknown') as "success" | "warning" | "error" | "default"}
                   size="small"
                   sx={{ fontWeight: 600 }}
                 />
