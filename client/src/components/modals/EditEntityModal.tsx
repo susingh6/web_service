@@ -50,7 +50,7 @@ const baseSchema = yup.object().shape({
   tenant_name: yup.string().required('Tenant name is required'),
   team_name: yup.string().required('Team name is required'),
   notification_preferences: yup.array().of(yup.string()).default([]),
-  user_name: yup.string().optional(),
+
   user_email: yup.string()
     .required('User email is required')
     .matches(
@@ -147,7 +147,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
           tenant_name: entity.tenant_name || (entityType === 'table' ? 'Data Engineering' : 'Analytics'),
           team_name: entity.team_name || 'PGM',
           notification_preferences: entity.notification_preferences || ['email', 'slack'],
-          user_name: entity.user_name || 'john.smith',
+          owner_email: entity.owner_email || 'john.smith@company.com',
           user_email: entity.user_email || 'john.smith@example.com',
           is_active: entity.is_active !== undefined ? entity.is_active : true,
           expected_runtime_minutes: entity.expected_runtime_minutes || (entityType === 'table' ? 30 : 45),
@@ -703,18 +703,19 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
           
           {/* COMMON FIELDS FOR BOTH TYPES */}
           <Controller
-            name="user_name"
+            name="owner_email"
             control={control}
             render={({ field }) => (
               <TextField
                 {...field}
-                label={fieldDefinitions.user_name.label + " *"}
+                label={fieldDefinitions.owner_email.label + " *"}
                 fullWidth
                 margin="normal"
                 required
                 type="email"
-                error={!!errors.user_name}
-                helperText={errors.user_name?.message}
+                error={!!errors.owner_email}
+                helperText={errors.owner_email?.message}
+                placeholder={fieldDefinitions.owner_email.placeholder}
               />
             )}
           />
