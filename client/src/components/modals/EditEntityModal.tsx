@@ -214,14 +214,15 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
     },
   });
 
-  const form = entityType === 'table' ? tableForm : dagForm;
-  const {
-    control,
-    handleSubmit,
-    reset,
-    watch,
-    formState: { errors },
-  } = form;
+  // Use separate form controls to avoid TypeScript union type issues
+  const tableControl = tableForm.control;
+  const dagControl = dagForm.control;
+  const control = entityType === 'table' ? tableControl : dagControl;
+  
+  const handleSubmit = entityType === 'table' ? tableForm.handleSubmit : dagForm.handleSubmit;
+  const reset = entityType === 'table' ? tableForm.reset : dagForm.reset;
+  const watch = entityType === 'table' ? tableForm.watch : dagForm.watch;
+  const errors = entityType === 'table' ? tableForm.formState.errors : dagForm.formState.errors;
   
   // Reset form when entity details are loaded
   useEffect(() => {
