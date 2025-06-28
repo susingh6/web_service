@@ -173,7 +173,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
     defaultValues: entityType === 'table' ? {
       tenant_name: 'Data Engineering',
       team_name: 'PGM',
-      notification_preferences: ['email'],
+      notification_preferences: [],
       is_active: true,
       schema_name: '',
       table_name: '',
@@ -188,7 +188,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
     } : {
       tenant_name: 'Data Engineering',
       team_name: 'PGM',
-      notification_preferences: ['email'],
+      notification_preferences: [],
       is_active: true,
       dag_name: '',
       dag_description: '',
@@ -210,7 +210,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
         ? {
             tenant_name: 'Data Engineering',
             team_name: 'PGM',
-            notification_preferences: ['email'],
+            notification_preferences: [],
             is_active: true,
             schema_name: '',
             table_name: '',
@@ -226,7 +226,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
         : {
             tenant_name: 'Data Engineering',
             team_name: 'PGM',
-            notification_preferences: ['email'],
+            notification_preferences: [],
             is_active: true,
             dag_name: '',
             dag_description: '',
