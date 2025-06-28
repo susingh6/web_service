@@ -423,8 +423,8 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                     fullWidth
                     margin="normal"
                     required
-                    error={!!errors.table_name}
-                    helperText={errors.table_name?.message}
+                    error={!!(errors as any).table_name}
+                    helperText={(errors as any).table_name?.message}
                     placeholder="e.g., customer_master, orders, products"
                   />
                 )}
@@ -441,8 +441,8 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                     margin="normal"
                     multiline
                     rows={3}
-                    error={!!errors.table_description}
-                    helperText={errors.table_description?.message}
+                    error={!!(errors as any).table_description}
+                    helperText={(errors as any).table_description?.message}
                     placeholder="Brief description of this table"
                   />
                 )}
@@ -458,8 +458,8 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                     fullWidth
                     margin="normal"
                     required
-                    error={!!errors.table_schedule}
-                    helperText={errors.table_schedule?.message}
+                    error={!!(errors as any).table_schedule}
+                    helperText={(errors as any).table_schedule?.message}
                     placeholder="* * * * * (cron format)"
                   />
                 )}
@@ -492,8 +492,8 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                     label={fieldDefinitions.table_dependency.label}
                     fullWidth
                     margin="normal"
-                    error={!!errors.table_dependency}
-                    helperText={errors.table_dependency?.message || "Comma-separated list of table names"}
+                    error={!!(errors as any).table_dependency}
+                    helperText={(errors as any).table_dependency?.message || "Comma-separated list of table names"}
                     placeholder="schema.table1,schema.table2,schema.table3"
                   />
                 )}
@@ -702,8 +702,8 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                         required
                         fullWidth
                         margin="normal"
-                        error={!!errors.dag_name}
-                        helperText={errors.dag_name?.message}
+                        error={!!(errors as any).dag_name}
+                        helperText={(errors as any).dag_name?.message}
                         onBlur={onBlur}
                         InputProps={{
                           ...params.InputProps,
@@ -731,8 +731,8 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                     margin="normal"
                     multiline
                     rows={2}
-                    error={!!errors.dag_description}
-                    helperText={errors.dag_description?.message}
+                    error={!!(errors as any).dag_description}
+                    helperText={(errors as any).dag_description?.message}
                   />
                 )}
               />
@@ -747,8 +747,8 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                     fullWidth
                     margin="normal"
                     required
-                    error={!!errors.dag_schedule}
-                    helperText={errors.dag_schedule?.message}
+                    error={!!(errors as any).dag_schedule}
+                    helperText={(errors as any).dag_schedule?.message}
                     placeholder="* * * * * (cron format)"
                   />
                 )}
