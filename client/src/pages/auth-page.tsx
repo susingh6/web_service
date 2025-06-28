@@ -68,9 +68,9 @@ const AuthPage = () => {
       <div className="flex-1 flex items-center justify-center p-6 bg-background">
         <Card className="w-full max-w-md">
           <CardHeader>
-            <CardTitle className="text-2xl text-center">SLA Monitoring Tool</CardTitle>
+            <CardTitle className="text-2xl text-center">SLA Management System</CardTitle>
             <CardDescription className="text-center">
-              Sign in to access the SLA monitoring platform
+              Sign in to access the SLA management platform
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -182,7 +182,7 @@ const AuthPage = () => {
               className="w-64 h-auto"
             />
           </div>
-          <h1 className="text-4xl font-bold mb-6">SLA Monitoring Tool</h1>
+          <h1 className="text-4xl font-bold mb-6">SLA Management System</h1>
           <p className="text-xl mb-6">
             Track, analyze, and manage service level agreements across your teams with
             detailed insights and real-time compliance metrics.
