@@ -36,8 +36,10 @@ import { visuallyHidden } from '@mui/utils';
 import { useAppDispatch } from '@/lib/store';
 import { selectEntity } from '@/features/sla/slices/entitiesSlice';
 import { format } from 'date-fns';
-import { Entity, EntityStatus } from '@/features/sla/types';
+import { Entity } from '@shared/schema';
 import { getEntityTrend } from '@/lib/trendCache';
+
+type EntityStatus = 'active' | 'inactive' | 'degraded' | 'unknown';
 
 interface StatusConfig {
   color: 'success' | 'warning' | 'error' | 'default';
@@ -115,6 +117,33 @@ const EntityTable = ({
   const [filterStatus, setFilterStatus] = useState<'all' | EntityStatus>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredEntities, setFilteredEntities] = useState<Entity[]>([]);
+  const [trendData, setTrendData] = useState<Map<number, any>>(new Map());
+
+  // Load 30-day trend data (independent of global date filter)
+  useEffect(() => {
+    const loadTrendData = async () => {
+      const trendsMap = new Map();
+      for (const entity of entities) {
+        try {
+          const trend = await getEntityTrend(entity.id);
+          if (trend) {
+            trendsMap.set(entity.id, {
+              value: trend.trend,
+              icon: trend.icon === 'up' ? <TrendingUp /> : trend.icon === 'down' ? <TrendingDown /> : <TrendingFlat />,
+              color: trend.color,
+            });
+          }
+        } catch (error) {
+          console.error(`Failed to load trend for entity ${entity.id}:`, error);
+        }
+      }
+      setTrendData(trendsMap);
+    };
+
+    if (entities.length > 0) {
+      loadTrendData();
+    }
+  }, [entities]);
 
   // Apply filters and sorting to entities
   useEffect(() => {
@@ -255,21 +284,18 @@ const EntityTable = ({
     }
   };
 
-  // Demo trend data - in a real app, this would come from the entity or history API
+  // Get trend data from cache (30-day independent of global date filter)
   const getTrendData = (entity: Entity) => {
-    // For demo purposes, generate random trend data
-    const seed = entity.id * 7919; // Use a prime number for better distribution
-    const rand = () => {
-      const x = Math.sin(seed) * 10000;
-      return (x - Math.floor(x)) * 4 - 2; // Generate a value between -2 and 2
-    };
+    const cached = trendData.get(entity.id);
+    if (cached) {
+      return cached;
+    }
     
-    const value = rand();
-    
+    // Fallback if cache hasn't loaded yet
     return {
-      value,
-      icon: value > 0.5 ? <TrendingUp /> : value < -0.5 ? <TrendingDown /> : <TrendingFlat />,
-      color: value > 0.5 ? 'success' : value < -0.5 ? 'error' : 'warning',
+      value: 0,
+      icon: <TrendingFlat />,
+      color: 'default',
     };
   };
 

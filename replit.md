@@ -113,6 +113,13 @@ Preferred communication style: Simple, everyday language.
 
 ## Changelog
 
+- June 28, 2025: Completed centralized API configuration for 30-day trend system
+  - Added trends30Day endpoint to centralized API configuration (dev.ts, index.ts)
+  - Updated trend cache system to use centralized endpoints instead of hard-coded URLs
+  - Replaced local mock trend generation in EntityTable with cached trend system
+  - 30-day trend data now independent of global date filter with 6-hour refresh cycle
+  - EntityTable component now uses getEntityTrend() from cache for authentic API-based trend data
+  - All trend endpoints now follow centralized configuration schema for consistency
 - June 28, 2025: Completed code deduplication and optimization across the codebase
   - Eliminated duplicate cache utility functions by consolidating fetchWithCache and fetchWithCacheGeneric
   - Created generic cache functions (fetchWithCacheGeneric, getFromCacheGeneric) for type-safe complex objects
