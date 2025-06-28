@@ -505,12 +505,14 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 render={({ field }) => (
                   <TextField
                     {...field}
-                    label="Donemarker Location"
+                    label={fieldDefinitions.donemarker_location.label}
+                    required={fieldDefinitions.donemarker_location.required}
+                    type={fieldDefinitions.donemarker_location.type}
+                    placeholder={fieldDefinitions.donemarker_location.placeholder}
                     fullWidth
                     margin="normal"
                     error={!!errors.donemarker_location}
                     helperText={errors.donemarker_location?.message}
-                    placeholder="s3://bucket/path or hdfs://path"
                   />
                 )}
               />
@@ -792,12 +794,14 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 render={({ field }) => (
                   <TextField
                     {...field}
-                    label="Donemarker Location"
+                    label={fieldDefinitions.donemarker_location.label}
+                    required={fieldDefinitions.donemarker_location.required}
+                    type={fieldDefinitions.donemarker_location.type}
+                    placeholder={fieldDefinitions.donemarker_location.placeholder}
                     fullWidth
                     margin="normal"
                     error={!!errors.donemarker_location}
                     helperText={errors.donemarker_location?.message}
-                    placeholder="s3://bucket/path or hdfs://path"
                   />
                 )}
               />

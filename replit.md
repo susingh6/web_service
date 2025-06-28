@@ -226,6 +226,8 @@ Preferred communication style: Simple, everyday language.
   - Changed donemarker_location from optional to required field in centralized configuration
   - Updated field to accept single location or comma-separated multiple locations (like dependency fields)
   - Added mandatory validation to bulk upload modal for donemarker_location field
+  - Fixed Add Entity modal to show required asterisk for donemarker_location field
+  - Updated both Table and DAG tabs to use centralized field definitions for proper validation display
   - Updated placeholder text to clarify input format for single or multiple locations
   - Field now follows same pattern as table_dependency and dag_dependency fields
 - June 28, 2025: Updated Bulk Upload modal to use centralized field definitions for labels and validation
