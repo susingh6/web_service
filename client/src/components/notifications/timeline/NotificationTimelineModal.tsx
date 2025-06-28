@@ -19,7 +19,9 @@ import {
   Divider,
   Alert,
   CircularProgress,
-  Stack
+  Stack,
+  Tabs,
+  Tab
 } from '@mui/material';
 import { Add as AddIcon } from '@mui/icons-material';
 import { useForm, Controller } from 'react-hook-form';
@@ -62,6 +64,8 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
+  const [tabValue, setTabValue] = useState('add');
+  const [selectedTimelineId, setSelectedTimelineId] = useState<string>('');
   const [triggers, setTriggers] = useState<NotificationTrigger[]>([]);
   const [availableAiTasks, setAvailableAiTasks] = useState<string[]>([]);
   const [enabledChannels, setEnabledChannels] = useState<string[]>([]);
@@ -109,6 +113,20 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
     }
   }, [aiTasks]);
 
+  // Populate form when editing an existing timeline
+  useEffect(() => {
+    if (selectedTimeline && tabValue === 'update') {
+      reset({
+        name: selectedTimeline.name,
+        description: selectedTimeline.description || '',
+        channels: selectedTimeline.channels || [],
+        isActive: selectedTimeline.isActive
+      });
+      setTriggers(selectedTimeline.triggers || []);
+      setEnabledChannels(selectedTimeline.channels || []);
+    }
+  }, [selectedTimeline, reset, tabValue]);
+
   // Mutation to create notification timeline
   const createTimelineMutation = useMutation({
     mutationFn: async (data: InsertNotificationTimeline) => {
@@ -121,15 +139,7 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
         description: 'Notification timeline created successfully'
       });
       queryClient.invalidateQueries({ queryKey: ['notification-timelines', entity?.id] });
-      reset();
-      setTriggers([]);
-      setNotificationSettings({
-        email: { enabled: false, additionalRecipients: [] },
-        slack: { enabled: false, channelId: '', message: '' },
-        pagerduty: { enabled: false, type: 'service', serviceKey: '', escalationPolicy: '' }
-      });
-      onSuccess?.();
-      onClose();
+      handleClose();
     },
     onError: (error: Error) => {
       toast({
@@ -138,6 +148,40 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
         variant: 'destructive'
       });
     }
+  });
+
+  // Mutation to update notification timeline
+  const updateTimelineMutation = useMutation({
+    mutationFn: async (data: { id: string; updates: Partial<NotificationTimeline> }) => {
+      const res = await apiRequest('PUT', endpoints.notificationTimelines.update(data.id), data.updates);
+      return await res.json();
+    },
+    onSuccess: (updatedTimeline) => {
+      toast({
+        title: 'Success',
+        description: 'Notification timeline updated successfully'
+      });
+      queryClient.invalidateQueries({ queryKey: ['notification-timelines', entity?.id] });
+      handleClose();
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to update notification timeline',
+        variant: 'destructive'
+      });
+    }
+  });
+
+  // Fetch individual notification timeline for editing
+  const { data: selectedTimeline, isLoading: isLoadingTimeline } = useQuery({
+    queryKey: ['notification-timeline', selectedTimelineId],
+    queryFn: async () => {
+      if (!selectedTimelineId) return null;
+      const res = await apiRequest('GET', endpoints.notificationTimelines.byId(selectedTimelineId));
+      return await res.json();
+    },
+    enabled: !!selectedTimelineId && tabValue === 'update'
   });
 
   const handleAddTrigger = (triggerType: NotificationTriggerType) => {
