@@ -68,9 +68,9 @@ const AuthPage = () => {
       <div className="flex-1 flex items-center justify-center p-6 bg-background">
         <Card className="w-full max-w-md">
           <CardHeader>
-            <CardTitle className="text-2xl text-center">SLA Monitoring Tool</CardTitle>
+            <CardTitle className="text-2xl text-center">SLA Management Tool</CardTitle>
             <CardDescription className="text-center">
-              Sign in to access the SLA monitoring platform
+              Sign in to access the SLA management platform
             </CardDescription>
           </CardHeader>
           <CardContent>
