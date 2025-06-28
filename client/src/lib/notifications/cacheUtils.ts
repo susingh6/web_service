@@ -15,38 +15,6 @@ export const CACHE_KEYS = {
 } as const;
 
 /**
- * Fetch system users for notification recipient selection
- */
-export const fetchUsersForNotifications = async (): Promise<SystemUser[]> => {
-  try {
-    const response = await fetch('/api/users');
-    if (!response.ok) {
-      throw new Error('Failed to fetch users');
-    }
-    return await response.json();
-  } catch (error) {
-    console.error('Error fetching users:', error);
-    return [];
-  }
-};
-
-/**
- * Fetch predefined user roles for email notifications
- */
-export const fetchUserRoles = async (): Promise<UserRole[]> => {
-  try {
-    const response = await fetch('/api/users/roles');
-    if (!response.ok) {
-      throw new Error('Failed to fetch user roles');
-    }
-    return await response.json();
-  } catch (error) {
-    console.error('Error fetching user roles:', error);
-    return getDefaultRoles();
-  }
-};
-
-/**
  * Get cached users or fetch from API
  */
 export const getCachedUsers = async (): Promise<SystemUser[]> => {
@@ -135,3 +103,13 @@ export const getTeamMemberEmails = (users: SystemUser[], teamName: string): stri
     .map(user => user.email)
     .filter(email => email && email.length > 0);
 };
+
+/**
+ * @deprecated Use getCachedUsers instead for better performance with caching
+ */
+export const fetchUsersForNotifications = getCachedUsers;
+
+/**
+ * @deprecated Use getCachedRoles instead for better performance with caching
+ */
+export const fetchUserRoles = getCachedRoles;

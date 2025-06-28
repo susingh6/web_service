@@ -113,14 +113,15 @@ Preferred communication style: Simple, everyday language.
 
 ## Changelog
 
-- June 28, 2025: Fixed TypeScript errors in cache utilities and completed Entity details modal conversion
-  - Fixed cache utility TypeScript errors by creating generic cache functions for complex objects
-  - Added fetchWithCacheGeneric and getFromCacheGeneric functions to handle UserRole and SystemUser types
-  - Resolved type mismatches between string[] and UserRole[] arrays in notification cache utilities
+- June 28, 2025: Completed code deduplication and optimization across the codebase
+  - Eliminated duplicate cache utility functions by consolidating fetchWithCache and fetchWithCacheGeneric
+  - Created generic cache functions (fetchWithCacheGeneric, getFromCacheGeneric) for type-safe complex objects
+  - Removed redundant notification API functions by creating backward compatibility wrappers
+  - Added updateCacheWithNewValue utility to eliminate manual localStorage operations
   - Converted EntityDetailsDrawer from side-opening drawer to centered modal (EntityDetailsModal)
-  - Updated all page references to use the new centered modal approach
-  - Fixed EntityPerformanceChart component props to properly display entity performance data
-  - Maintained identical content, styling, and functionality while improving UI consistency
+  - Fixed all TypeScript errors in cache utilities and notification system
+  - Maintained identical functionality while significantly reducing code duplication
+  - Improved code maintainability and type safety across the application
 - June 28, 2025: Completed tabbed notification timeline modal implementation
   - Added "ADD NEW" and "UPDATE EXISTING" tabs to notification timeline modal
   - Implemented dropdown selection for existing timelines in update mode
