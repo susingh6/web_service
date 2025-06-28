@@ -49,6 +49,20 @@ export const fieldDefinitions = {
   user_email: {
     type: 'email',
     required: true,
+    label: 'User Email',
+    placeholder: 'user@company.com',
+    validation: yup.string()
+      .required('User email is required')
+      .matches(
+        /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
+        'Invalid email format'
+      ),
+    apiField: 'user_email'
+  },
+
+  owner_email: {
+    type: 'email',
+    required: true,
     label: 'Owner Email',
     placeholder: 'owner@company.com',
     validation: yup.string()
@@ -57,7 +71,7 @@ export const fieldDefinitions = {
         /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
         'Invalid email format'
       ),
-    apiField: 'user_email'
+    apiField: 'owner_email'
   },
   
   is_active: {
@@ -442,6 +456,7 @@ export const bulkUploadFields = {
     'expected_runtime_minutes',
     'user_name',
     'user_email',
+    'owner_email',
     'donemarker_location',
     'donemarker_lookback'
   ],
@@ -456,6 +471,7 @@ export const bulkUploadFields = {
     'expected_runtime_minutes',
     'user_name',
     'user_email',
+    'owner_email',
     'donemarker_location',
     'donemarker_lookback'
   ]

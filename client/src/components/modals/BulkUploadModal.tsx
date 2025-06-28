@@ -607,6 +607,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
           table_dependency: "reporting.campaigns,reporting.conversions",  // Example as comma-separated string
           donemarker_location: "s3://ad-analytics/markers/performance/",
           donemarker_lookback: 2,
+          user_email: "jane.smith@example.com",
           owner_email: "jane.smith@example.com",
           is_active: true
         }
@@ -623,6 +624,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
           dag_dependency: "sensor_validation,data_quality_check",  // Example as comma-separated string
           donemarker_location: "s3://airflow/markers/device_etl/",
           donemarker_lookback: 0,
+          user_email: "alex.johnson@example.com",
           owner_email: "alex.johnson@example.com",
           is_active: true
         },
@@ -636,6 +638,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
           dag_dependency: ["user_activity_collection", "model_training"],  // Example as string array
           donemarker_location: "s3://airflow/markers/segmentation/",
           donemarker_lookback: 1,
+          user_email: "sarah.williams@example.com",
           owner_email: "sarah.williams@example.com",
           is_active: true
         }
