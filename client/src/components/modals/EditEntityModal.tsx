@@ -50,13 +50,20 @@ const baseSchema = yup.object().shape({
   tenant_name: yup.string().required('Tenant name is required'),
   team_name: yup.string().required('Team name is required'),
   notification_preferences: yup.array().of(yup.string()).default([]),
-  user_name: yup.string().optional(),
   user_email: yup.string()
     .required('User email is required')
     .matches(
       /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
       'Invalid email format'
     ),
+  owner_email: yup.string()
+    .required('Owner email is required')
+    .test('email-format', 'Invalid email format', function(value) {
+      if (!value) return false;
+      const emails = value.split(',').map((email: string) => email.trim());
+      const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+      return emails.every((email: string) => emailRegex.test(email));
+    }),
   is_active: yup.boolean().default(true),
 });
 
@@ -147,8 +154,8 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
           tenant_name: entity.tenant_name || (entityType === 'table' ? 'Data Engineering' : 'Analytics'),
           team_name: entity.team_name || 'PGM',
           notification_preferences: entity.notification_preferences || ['email', 'slack'],
-          user_name: entity.user_name || 'john.smith',
           user_email: entity.user_email || 'john.smith@example.com',
+          owner_email: entity.ownerEmail || 'john.smith@example.com',
           is_active: entity.is_active !== undefined ? entity.is_active : true,
           expected_runtime_minutes: entity.expected_runtime_minutes || (entityType === 'table' ? 30 : 45),
           donemarker_location: entity.donemarker_location || (entityType === 'table' 
@@ -181,8 +188,8 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
       tenant_name: '',
       team_name: '',
       notification_preferences: [],
-      user_name: '',
       user_email: '',
+      owner_email: '',
       is_active: true,
       schema_name: '',
       table_name: '',
@@ -201,8 +208,8 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
       tenant_name: '',
       team_name: '',
       notification_preferences: [],
-      user_name: '',
       user_email: '',
+      owner_email: '',
       is_active: true,
       dag_name: '',
       dag_description: '',
@@ -702,18 +709,19 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
           
           {/* COMMON FIELDS FOR BOTH TYPES */}
           <Controller
-            name="user_name"
+            name="owner_email"
             control={control}
             render={({ field }) => (
               <TextField
                 {...field}
-                label={fieldDefinitions.user_name.label + " *"}
+                label={fieldDefinitions.owner_email.label + " *"}
                 fullWidth
                 margin="normal"
                 required
                 type="email"
-                error={!!errors.user_name}
-                helperText={errors.user_name?.message}
+                placeholder={fieldDefinitions.owner_email.placeholder}
+                error={!!errors.owner_email}
+                helperText={errors.owner_email?.message}
               />
             )}
           />
