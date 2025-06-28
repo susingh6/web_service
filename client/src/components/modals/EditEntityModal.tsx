@@ -760,7 +760,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
             render={({ field }) => (
               <TextField
                 {...field}
-                label="Done Marker Lookback (Hours)"
+                label="Done Marker Lookback (Days)"
                 type="number"
                 fullWidth
                 margin="normal"
