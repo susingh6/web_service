@@ -2,6 +2,7 @@ export type NotificationTriggerType =
   | 'daily_schedule'
   | 'sla_threshold_breached'
   | 'entity_success'
+  | 'entity_failure'
   | 'ai_tasks_status';
 
 export interface DailyScheduleTrigger {
@@ -18,6 +19,10 @@ export interface EntitySuccessTrigger {
   type: 'entity_success';
 }
 
+export interface EntityFailureTrigger {
+  type: 'entity_failure';
+}
+
 export interface AiTasksStatusTrigger {
   type: 'ai_tasks_status';
   condition: 'all_passed' | 'any_passed' | 'all_failed' | 'any_failed';
@@ -28,6 +33,7 @@ export type NotificationTrigger =
   | DailyScheduleTrigger
   | SlaThresholdBreachedTrigger
   | EntitySuccessTrigger
+  | EntityFailureTrigger
   | AiTasksStatusTrigger;
 
 export interface NotificationTimeline {
@@ -55,6 +61,7 @@ export const TRIGGER_TYPE_LABELS: Record<NotificationTriggerType, string> = {
   daily_schedule: 'DAILY',
   sla_threshold_breached: 'SLA THRESHOLD BREACHED',
   entity_success: 'SLA MET',
+  entity_failure: 'SLA FAILED',
   ai_tasks_status: 'AI TASKS STATUS CHANGE'
 };
 

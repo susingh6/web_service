@@ -82,6 +82,13 @@ export const TriggerConfig: React.FC<TriggerConfigProps> = ({
           </Typography>
         );
 
+      case 'entity_failure':
+        return (
+          <Typography variant="body2" color="textSecondary">
+            Notification will be sent when the {getEntityLabel().toLowerCase()} fails to meet SLA requirements.
+          </Typography>
+        );
+
       case 'ai_tasks_status':
         return (
           <Box>
