@@ -280,6 +280,10 @@ Preferred communication style: Simple, everyday language.
   - Donemarker location now accepts single or multiple comma-separated locations like Add Entity modal
   - Fixed fieldDefinitions export issue in config system that was causing team tab errors
   - Team tab navigation now working properly with successful data loading
+- June 28, 2025: Removed action buttons from entity details modal
+  - Eliminated View History, Edit Entity, and Delete buttons from bottom of entity details modal
+  - Modal now shows only entity information and history without action buttons
+  - Consistent behavior across both table and DAG entity types
 - June 28, 2025: Updated Add Entity modal to use centralized field definitions for both Table and DAG tabs
   - Replaced hard-coded labels with centralized fieldDefinitions for user_name and user_email fields in both tabs
   - "User Name" field now shows as "Owner Email" with mandatory validation from centralized config

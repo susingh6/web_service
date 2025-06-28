@@ -277,45 +277,7 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
             )}
           </Paper>
           
-          {/* Footer actions */}
-          {entity.type !== 'dag' && (
-            <Box sx={{ pt: 2, borderTop: 1, borderColor: 'divider' }}>
-              <Grid container spacing={2}>
-                <Grid size={{ xs: 6, sm: 4 }}>
-                  <Button
-                    fullWidth
-                    variant="outlined"
-                    color="inherit"
-                    startIcon={<HistoryIcon />}
-                  >
-                    View History
-                  </Button>
-                </Grid>
-                <Grid size={{ xs: 6, sm: 4 }}>
-                  <Button
-                    fullWidth
-                    variant="outlined"
-                    color="primary"
-                    startIcon={<EditIcon />}
-                    onClick={onClose}
-                  >
-                    Edit Entity
-                  </Button>
-                </Grid>
-                <Grid size={{ xs: 12, sm: 4 }}>
-                  <Button
-                    fullWidth
-                    variant="contained"
-                    color="error"
-                    startIcon={<DeleteIcon />}
-                    onClick={handleDelete}
-                  >
-                    Delete
-                  </Button>
-                </Grid>
-              </Grid>
-            </Box>
-          )}
+
         </DialogContent>
       </Dialog>
       
