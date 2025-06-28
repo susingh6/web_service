@@ -336,8 +336,8 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                     renderInput={(params) => (
                       <TextField
                         {...params}
-                        label="Tenant Name"
-                        required
+                        label={fieldDefinitions.tenant_name.label}
+                        required={fieldDefinitions.tenant_name.required}
                         fullWidth
                         margin="normal"
                         error={!!errors.tenant_name}
