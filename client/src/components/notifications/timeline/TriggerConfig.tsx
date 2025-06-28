@@ -1,0 +1,210 @@
+import React from 'react';
+import {
+  FormControl,
+  FormLabel,
+  TextField,
+  Select,
+  MenuItem,
+  Checkbox,
+  FormControlLabel,
+  FormGroup,
+  Box,
+  Typography,
+  Chip
+} from '@mui/material';
+import {
+  NotificationTrigger,
+  NotificationTriggerType,
+  TRIGGER_TYPE_LABELS,
+  AI_TASK_CONDITIONS,
+  DailyScheduleTrigger,
+  SlaFailedTrigger,
+  AiTaskFailedTrigger,
+  EntitySuccessTrigger,
+  AiTasksStatusTrigger
+} from '@/lib/notifications/timelineTypes';
+
+interface TriggerConfigProps {
+  trigger: NotificationTrigger;
+  onChange: (trigger: NotificationTrigger) => void;
+  onRemove: () => void;
+  availableAiTasks?: string[];
+  entityType: 'table' | 'dag';
+}
+
+export const TriggerConfig: React.FC<TriggerConfigProps> = ({
+  trigger,
+  onChange,
+  onRemove,
+  availableAiTasks = [],
+  entityType
+}) => {
+  const getEntityLabel = () => entityType === 'table' ? 'Table' : 'DAG';
+  
+  const renderTriggerSpecificConfig = () => {
+    switch (trigger.type) {
+      case 'daily_schedule':
+        return (
+          <TextField
+            label="Time (UTC)"
+            type="time"
+            value={trigger.time || '09:00'}
+            onChange={(e) => onChange({ ...trigger, time: e.target.value })}
+            InputLabelProps={{ shrink: true }}
+            inputProps={{ step: 300 }} // 5 minute steps
+            fullWidth
+            margin="normal"
+          />
+        );
+
+      case 'sla_failed':
+        return (
+          <TextField
+            label="SLA Threshold (%)"
+            type="number"
+            value={trigger.threshold || 95}
+            onChange={(e) => onChange({ 
+              ...trigger, 
+              threshold: parseFloat(e.target.value) || 95 
+            })}
+            inputProps={{ min: 0, max: 100, step: 0.1 }}
+            fullWidth
+            margin="normal"
+            helperText={`Notify when ${getEntityLabel()} SLA drops below this percentage`}
+          />
+        );
+
+      case 'ai_task_failed':
+        return (
+          <Box>
+            <Typography variant="body2" color="textSecondary" sx={{ mb: 1 }}>
+              Select specific AI tasks to monitor (leave empty for all):
+            </Typography>
+            <FormGroup>
+              {availableAiTasks.map((taskName) => (
+                <FormControlLabel
+                  key={taskName}
+                  control={
+                    <Checkbox
+                      checked={trigger.taskNames?.includes(taskName) || false}
+                      onChange={(e) => {
+                        const currentTasks = trigger.taskNames || [];
+                        const newTasks = e.target.checked
+                          ? [...currentTasks, taskName]
+                          : currentTasks.filter(t => t !== taskName);
+                        onChange({ ...trigger, taskNames: newTasks });
+                      }}
+                    />
+                  }
+                  label={taskName}
+                />
+              ))}
+            </FormGroup>
+            {(!trigger.taskNames || trigger.taskNames.length === 0) && (
+              <Chip 
+                label="Monitoring all AI tasks" 
+                size="small" 
+                color="primary" 
+                variant="outlined"
+                sx={{ mt: 1 }}
+              />
+            )}
+          </Box>
+        );
+
+      case 'dag_success':
+        return (
+          <Typography variant="body2" color="textSecondary">
+            Notification will be sent when the {getEntityLabel().toLowerCase()} completes successfully.
+          </Typography>
+        );
+
+      case 'ai_tasks_status':
+        return (
+          <Box>
+            <FormControl fullWidth margin="normal">
+              <FormLabel>Condition</FormLabel>
+              <Select
+                value={trigger.condition || 'all_passed'}
+                onChange={(e) => onChange({ 
+                  ...trigger, 
+                  condition: e.target.value as any 
+                })}
+              >
+                {AI_TASK_CONDITIONS.map((condition) => (
+                  <MenuItem key={condition.value} value={condition.value}>
+                    {condition.label}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            
+            <Typography variant="body2" color="textSecondary" sx={{ mb: 1, mt: 2 }}>
+              Select specific AI tasks to monitor (leave empty for all):
+            </Typography>
+            <FormGroup>
+              {availableAiTasks.map((taskName) => (
+                <FormControlLabel
+                  key={taskName}
+                  control={
+                    <Checkbox
+                      checked={trigger.taskNames?.includes(taskName) || false}
+                      onChange={(e) => {
+                        const currentTasks = trigger.taskNames || [];
+                        const newTasks = e.target.checked
+                          ? [...currentTasks, taskName]
+                          : currentTasks.filter(t => t !== taskName);
+                        onChange({ ...trigger, taskNames: newTasks });
+                      }}
+                    />
+                  }
+                  label={taskName}
+                />
+              ))}
+            </FormGroup>
+            {(!trigger.taskNames || trigger.taskNames.length === 0) && (
+              <Chip 
+                label="Monitoring all AI tasks" 
+                size="small" 
+                color="primary" 
+                variant="outlined"
+                sx={{ mt: 1 }}
+              />
+            )}
+          </Box>
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <Box 
+      sx={{ 
+        border: 1, 
+        borderColor: 'divider', 
+        borderRadius: 2, 
+        p: 2, 
+        mb: 2,
+        position: 'relative'
+      }}
+    >
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+        <Typography variant="h6">
+          {TRIGGER_TYPE_LABELS[trigger.type]}
+        </Typography>
+        <Chip 
+          label="Remove" 
+          onClick={onRemove} 
+          color="error" 
+          variant="outlined" 
+          size="small"
+          clickable
+        />
+      </Box>
+      
+      {renderTriggerSpecificConfig()}
+    </Box>
+  );
+};
