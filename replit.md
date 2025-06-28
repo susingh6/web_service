@@ -113,13 +113,6 @@ Preferred communication style: Simple, everyday language.
 
 ## Changelog
 
-- June 28, 2025: Updated entity schema to replace "User Name" with mandatory "Owner Email" field and made "Donemarker Location" mandatory
-  - Changed "User Name" field to "Owner Email" as mandatory field with email validation
-  - Made "Donemarker Location" field mandatory with appropriate S3 placeholder
-  - Updated field definitions in centralized schema configuration system
-  - Applied changes to both AddEntityModal and EditEntityModal components
-  - Enhanced data quality by requiring critical ownership and location information
-  - Modal forms now properly display "Owner Email *" and "Done Marker Location *" labels
 - June 28, 2025: Updated header title from "SLA Monitoring Dashboard" to "SLA Dashboard"
   - Changed application title in Header component to match user requirements
   - Updated notification dropdown examples to show realistic SLA-related alerts

@@ -336,8 +336,8 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                     renderInput={(params) => (
                       <TextField
                         {...params}
-                        label={fieldDefinitions.tenant_name.label}
-                        required={fieldDefinitions.tenant_name.required}
+                        label="Tenant Name"
+                        required
                         fullWidth
                         margin="normal"
                         error={!!errors.tenant_name}
@@ -510,7 +510,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 render={({ field }) => (
                   <TextField
                     {...field}
-                    label="Done Marker Location *"
+                    label="Donemarker Location"
                     fullWidth
                     margin="normal"
                     error={!!errors.donemarker_location}
@@ -537,6 +537,20 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 )}
               />
               
+              <Controller
+                name="user_name"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="User Name"
+                    fullWidth
+                    margin="normal"
+                    error={!!errors.user_name}
+                    helperText={errors.user_name?.message}
+                  />
+                )}
+              />
               
               <Controller
                 name="user_email"
@@ -544,13 +558,13 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 render={({ field }) => (
                   <TextField
                     {...field}
-                    label="Owner Email *"
+                    label="User Email"
                     fullWidth
                     margin="normal"
                     required
                     error={!!errors.user_email}
                     helperText={errors.user_email?.message}
-                    placeholder="owner@company.com"
+                    placeholder="user@example.com"
                   />
                 )}
               />
@@ -779,7 +793,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 render={({ field }) => (
                   <TextField
                     {...field}
-                    label="Done Marker Location *"
+                    label="Donemarker Location"
                     fullWidth
                     margin="normal"
                     error={!!errors.donemarker_location}
@@ -807,18 +821,33 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
               />
               
               <Controller
+                name="user_name"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="User Name"
+                    fullWidth
+                    margin="normal"
+                    error={!!errors.user_name}
+                    helperText={errors.user_name?.message}
+                  />
+                )}
+              />
+              
+              <Controller
                 name="user_email"
                 control={control}
                 render={({ field }) => (
                   <TextField
                     {...field}
-                    label="Owner Email *"
+                    label="User Email"
                     fullWidth
                     margin="normal"
                     required
                     error={!!errors.user_email}
                     helperText={errors.user_email?.message}
-                    placeholder="owner@company.com"
+                    placeholder="user@example.com"
                   />
                 )}
               />

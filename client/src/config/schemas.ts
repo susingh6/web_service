@@ -44,10 +44,10 @@ export const fieldDefinitions = {
   user_email: {
     type: 'email',
     required: true,
-    label: 'Owner Email',
-    placeholder: 'owner@company.com',
+    label: 'User Email',
+    placeholder: 'user@company.com',
     validation: yup.string()
-      .required('Owner email is required')
+      .required('User email is required')
       .matches(
         /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
         'Invalid email format'
@@ -88,10 +88,10 @@ export const fieldDefinitions = {
   
   donemarker_location: {
     type: 'string',
-    required: true,
+    required: false,
     label: 'Done Marker Location',
-    placeholder: 's3://bucket/path/to/done-markers/',
-    validation: yup.string().required('Done marker location is required'),
+    placeholder: 'Optional location path',
+    validation: yup.string().optional(),
     apiField: 'donemarker_location'
   },
   
