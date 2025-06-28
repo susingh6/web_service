@@ -381,7 +381,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
             <>
               <Controller
                 name="tenant_name"
-                control={control}
+                control={tableControl}
                 render={({ field: { onChange, value, onBlur, ref } }) => (
                   <Autocomplete
                     value={value}
@@ -455,7 +455,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
               
               <Controller
                 name="schema_name"
-                control={control}
+                control={tableControl}
                 render={({ field }) => (
                   <TextField
                     {...field}
