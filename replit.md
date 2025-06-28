@@ -113,6 +113,14 @@ Preferred communication style: Simple, everyday language.
 
 ## Changelog
 
+- June 28, 2025: Completed centralized API configuration system for notification timelines
+  - Added notification timeline endpoints to centralized API configuration in config files
+  - Updated NotificationTimelineModal to use centralized endpoints from config system
+  - Implemented complete backend API routes for notification timeline management
+  - Added endpoints for creating, reading, updating, and deleting notification timelines
+  - Implemented AI tasks endpoint for DAG entities with mock data structure
+  - Centralized all API endpoints through config files instead of hardcoded URLs
+  - System now uses config-based API management for consistent endpoint handling across development, staging, and production
 - June 28, 2025: Implemented comprehensive notification configuration system
   - Created extensible notification types architecture with email, Slack, and PagerDuty support
   - Built NotificationConfigManager with collapsible channel configurations

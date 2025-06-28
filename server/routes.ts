@@ -356,6 +356,98 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to resolve issue" });
     }
   });
+
+  // Notification Timeline endpoints
+
+  // Get notification timelines for an entity
+  app.get("/api/entities/:id/notification-timelines", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const entityId = parseInt(req.params.id);
+      const timelines = await storage.getNotificationTimelines(entityId);
+      res.json(timelines);
+    } catch (error) {
+      console.error("Error fetching notification timelines:", error);
+      res.status(500).json({ message: "Failed to fetch notification timelines" });
+    }
+  });
+
+  // Get AI tasks for an entity
+  app.get("/api/entities/:id/ai-tasks", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const entityId = parseInt(req.params.id);
+      // Return mock AI tasks for now - this would be replaced with actual AI task retrieval
+      const mockAiTasks = [
+        { id: 1, name: "data_validation", description: "Validate data integrity" },
+        { id: 2, name: "quality_check", description: "Check data quality metrics" },
+        { id: 3, name: "anomaly_detection", description: "Detect data anomalies" }
+      ];
+      res.json(mockAiTasks);
+    } catch (error) {
+      console.error("Error fetching AI tasks:", error);
+      res.status(500).json({ message: "Failed to fetch AI tasks" });
+    }
+  });
+
+  // Create notification timeline
+  app.post("/api/notification-timelines", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const validatedData = insertNotificationTimelineSchema.parse(req.body);
+      const timeline = await storage.createNotificationTimeline(validatedData);
+      res.status(201).json(timeline);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid input", errors: error.errors });
+      }
+      console.error("Error creating notification timeline:", error);
+      res.status(500).json({ message: "Failed to create notification timeline" });
+    }
+  });
+
+  // Get notification timeline by ID
+  app.get("/api/notification-timelines/:id", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const timelineId = req.params.id;
+      // Implementation would retrieve timeline by ID from storage
+      res.json({ message: "Timeline retrieval not yet implemented" });
+    } catch (error) {
+      console.error("Error fetching notification timeline:", error);
+      res.status(500).json({ message: "Failed to fetch notification timeline" });
+    }
+  });
+
+  // Update notification timeline
+  app.put("/api/notification-timelines/:id", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const timelineId = req.params.id;
+      const timeline = await storage.updateNotificationTimeline(timelineId, req.body);
+      
+      if (!timeline) {
+        return res.status(404).json({ message: "Notification timeline not found" });
+      }
+      
+      res.json(timeline);
+    } catch (error) {
+      console.error("Error updating notification timeline:", error);
+      res.status(500).json({ message: "Failed to update notification timeline" });
+    }
+  });
+
+  // Delete notification timeline
+  app.delete("/api/notification-timelines/:id", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const timelineId = req.params.id;
+      const deleted = await storage.deleteNotificationTimeline(timelineId);
+      
+      if (!deleted) {
+        return res.status(404).json({ message: "Notification timeline not found" });
+      }
+      
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting notification timeline:", error);
+      res.status(500).json({ message: "Failed to delete notification timeline" });
+    }
+  });
   
   // Dashboard summary endpoint
   app.get("/api/dashboard/summary", async (req, res) => {
