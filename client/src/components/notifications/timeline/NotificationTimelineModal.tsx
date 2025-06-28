@@ -133,10 +133,16 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
         channels: selectedTimeline.channels || [],
         isActive: selectedTimeline.isActive
       });
-      setTriggers(selectedTimeline.triggers || []);
+      
+      // Filter out AI task triggers for table entities
+      const filteredTriggers = entity?.type === 'table' 
+        ? (selectedTimeline.triggers || []).filter(trigger => trigger.type !== 'ai_tasks_status')
+        : (selectedTimeline.triggers || []);
+      
+      setTriggers(filteredTriggers);
       setEnabledChannels(selectedTimeline.channels || []);
     }
-  }, [selectedTimeline, reset, tabValue]);
+  }, [selectedTimeline, reset, tabValue, entity?.type]);
 
   // Mutation to create notification timeline
   const createTimelineMutation = useMutation({

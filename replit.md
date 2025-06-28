@@ -284,6 +284,11 @@ Preferred communication style: Simple, everyday language.
   - Eliminated View History, Edit Entity, and Delete buttons from bottom of entity details modal
   - Modal now shows only entity information and history without action buttons
   - Consistent behavior across both table and DAG entity types
+- June 28, 2025: Fixed notification timeline trigger options to be entity-type specific
+  - AI TASKS STATUS CHANGE trigger now only appears for DAG entities, not table entities
+  - Applied conditional logic to both ADD NEW and UPDATE EXISTING tabs
+  - Added filtering logic to remove AI task triggers when editing existing timelines for table entities
+  - Maintains DAG entity functionality unchanged with all trigger options available
 - June 28, 2025: Updated Add Entity modal to use centralized field definitions for both Table and DAG tabs
   - Replaced hard-coded labels with centralized fieldDefinitions for user_name and user_email fields in both tabs
   - "User Name" field now shows as "Owner Email" with mandatory validation from centralized config
