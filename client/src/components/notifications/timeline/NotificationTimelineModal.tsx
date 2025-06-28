@@ -107,12 +107,6 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
     enabled: !!entity?.id && entity?.type === 'dag' && open
   });
 
-  useEffect(() => {
-    if (aiTasks) {
-      setAvailableAiTasks(aiTasks.map((task: any) => task.name));
-    }
-  }, [aiTasks]);
-
   // Fetch individual notification timeline for editing
   const { data: selectedTimeline, isLoading: isLoadingTimeline } = useQuery({
     queryKey: ['notification-timeline', selectedTimelineId],
@@ -123,6 +117,12 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
     },
     enabled: !!selectedTimelineId && tabValue === 'update'
   });
+
+  useEffect(() => {
+    if (aiTasks) {
+      setAvailableAiTasks(aiTasks.map((task: any) => task.name));
+    }
+  }, [aiTasks]);
 
   // Populate form when editing an existing timeline
   useEffect(() => {
@@ -182,17 +182,6 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
         variant: 'destructive'
       });
     }
-  });
-
-  // Fetch individual notification timeline for editing
-  const { data: selectedTimeline, isLoading: isLoadingTimeline } = useQuery({
-    queryKey: ['notification-timeline', selectedTimelineId],
-    queryFn: async () => {
-      if (!selectedTimelineId) return null;
-      const res = await apiRequest('GET', endpoints.notificationTimelines.byId(selectedTimelineId));
-      return await res.json();
-    },
-    enabled: !!selectedTimelineId && tabValue === 'update'
   });
 
   const handleAddTrigger = (triggerType: NotificationTriggerType) => {
@@ -478,10 +467,13 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
           <Button
             type="submit"
             variant="contained"
-            disabled={createTimelineMutation.isPending}
-            startIcon={createTimelineMutation.isPending ? <CircularProgress size={20} /> : null}
+            disabled={createTimelineMutation.isPending || updateTimelineMutation.isPending}
+            startIcon={(createTimelineMutation.isPending || updateTimelineMutation.isPending) ? <CircularProgress size={20} /> : null}
           >
-            {createTimelineMutation.isPending ? 'Creating...' : 'Create Timeline'}
+            {tabValue === 'add' 
+              ? (createTimelineMutation.isPending ? 'Creating...' : 'Create Timeline')
+              : (updateTimelineMutation.isPending ? 'Updating...' : 'Update Timeline')
+            }
           </Button>
         </DialogActions>
       </form>
