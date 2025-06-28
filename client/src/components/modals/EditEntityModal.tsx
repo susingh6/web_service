@@ -473,7 +473,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
                 render={({ field }) => (
                   <TextField
                     {...field}
-                    label="Table Description"
+                    label={fieldDefinitions.table_description.label}
                     fullWidth
                     margin="normal"
                     multiline
@@ -507,7 +507,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
                 render={({ field }) => (
                   <TextField
                     {...field}
-                    label="Table Dependency"
+                    label={fieldDefinitions.table_dependency.label}
                     fullWidth
                     margin="normal"
                     placeholder="e.g., upstream_table1, upstream_table2"
@@ -609,7 +609,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
                     renderInput={(params) => (
                       <TextField
                         {...params}
-                        label="DAG Name *"
+                        label={fieldDefinitions.dag_name.label + " *"}
                         required
                         fullWidth
                         margin="normal"
@@ -637,7 +637,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
                 render={({ field }) => (
                   <TextField
                     {...field}
-                    label="DAG Description"
+                    label={fieldDefinitions.dag_description.label}
                     fullWidth
                     margin="normal"
                     multiline
@@ -671,7 +671,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
                 render={({ field }) => (
                   <TextField
                     {...field}
-                    label="DAG Dependency"
+                    label={fieldDefinitions.dag_dependency.label}
                     fullWidth
                     margin="normal"
                     placeholder="e.g., upstream_dag1, upstream_dag2"
