@@ -5,6 +5,7 @@
 
 import { fetchWithCache, getFromCache } from '@/lib/cacheUtils';
 import { SystemUser, UserRole } from './types';
+import { endpoints } from '@/config';
 
 // Cache keys for notification-related data
 export const CACHE_KEYS = {
