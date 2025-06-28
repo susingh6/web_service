@@ -18,8 +18,7 @@ import {
   TRIGGER_TYPE_LABELS,
   AI_TASK_CONDITIONS,
   DailyScheduleTrigger,
-  SlaFailedTrigger,
-  AiTaskFailedTrigger,
+  SlaThresholdBreachedTrigger,
   EntitySuccessTrigger,
   AiTasksStatusTrigger
 } from '@/lib/notifications/timelineTypes';

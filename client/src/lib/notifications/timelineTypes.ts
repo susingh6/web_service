@@ -1,7 +1,6 @@
 export type NotificationTriggerType = 
   | 'daily_schedule'
-  | 'sla_failed'
-  | 'ai_task_failed'
+  | 'sla_threshold_breached'
   | 'entity_success'
   | 'ai_tasks_status';
 
@@ -10,14 +9,9 @@ export interface DailyScheduleTrigger {
   time: string; // HH:MM format in UTC
 }
 
-export interface SlaFailedTrigger {
-  type: 'sla_failed';
+export interface SlaThresholdBreachedTrigger {
+  type: 'sla_threshold_breached';
   threshold?: number; // Optional SLA threshold percentage
-}
-
-export interface AiTaskFailedTrigger {
-  type: 'ai_task_failed';
-  taskNames?: string[]; // Specific AI tasks to monitor, empty means all
 }
 
 export interface EntitySuccessTrigger {
@@ -32,8 +26,7 @@ export interface AiTasksStatusTrigger {
 
 export type NotificationTrigger = 
   | DailyScheduleTrigger
-  | SlaFailedTrigger
-  | AiTaskFailedTrigger
+  | SlaThresholdBreachedTrigger
   | EntitySuccessTrigger
   | AiTasksStatusTrigger;
 
@@ -59,11 +52,10 @@ export interface InsertNotificationTimeline {
 }
 
 export const TRIGGER_TYPE_LABELS: Record<NotificationTriggerType, string> = {
-  daily_schedule: 'Daily at Specific Time',
-  sla_failed: 'SLA Status Failed',
-  ai_task_failed: 'AI Task Failed',
-  entity_success: 'Entity Completed Successfully',
-  ai_tasks_status: 'AI Tasks Status Change'
+  daily_schedule: 'DAILY',
+  sla_threshold_breached: 'SLA THRESHOLD BREACHED',
+  entity_success: 'SLA MET',
+  ai_tasks_status: 'AI TASKS STATUS CHANGE'
 };
 
 export const AI_TASK_CONDITIONS = [

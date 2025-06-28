@@ -145,10 +145,8 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
       switch (triggerType) {
         case 'daily_schedule':
           return { type: 'daily_schedule', time: '09:00' };
-        case 'sla_failed':
-          return { type: 'sla_failed', threshold: 95 };
-        case 'ai_task_failed':
-          return { type: 'ai_task_failed', taskNames: [] };
+        case 'sla_threshold_breached':
+          return { type: 'sla_threshold_breached', threshold: 95 };
         case 'entity_success':
           return { type: 'entity_success' };
         case 'ai_tasks_status':
@@ -284,8 +282,7 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
                 >
                   <MenuItem value="" disabled>Select trigger type to add</MenuItem>
                   <MenuItem value="daily_schedule">{TRIGGER_TYPE_LABELS.daily_schedule}</MenuItem>
-                  <MenuItem value="sla_failed">{TRIGGER_TYPE_LABELS.sla_failed}</MenuItem>
-                  <MenuItem value="ai_task_failed">{TRIGGER_TYPE_LABELS.ai_task_failed}</MenuItem>
+                  <MenuItem value="sla_threshold_breached">{TRIGGER_TYPE_LABELS.sla_threshold_breached}</MenuItem>
                   <MenuItem value="entity_success">{TRIGGER_TYPE_LABELS.entity_success}</MenuItem>
                   <MenuItem value="ai_tasks_status">{TRIGGER_TYPE_LABELS.ai_tasks_status}</MenuItem>
                 </Select>
