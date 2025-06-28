@@ -3,7 +3,7 @@
  * Implements 6-hour cache TTL for users and roles data
  */
 
-import { fetchWithCache, getFromCache } from '@/lib/cacheUtils';
+import { fetchWithCache, fetchWithCacheGeneric, getFromCache, getFromCacheGeneric } from '@/lib/cacheUtils';
 import { SystemUser, UserRole } from './types';
 import { endpoints } from '@/config';
 
@@ -51,7 +51,7 @@ export const fetchUserRoles = async (): Promise<UserRole[]> => {
  */
 export const getCachedUsers = async (): Promise<SystemUser[]> => {
   try {
-    const result = await fetchWithCache('/api/users', CACHE_KEYS.USERS);
+    const result = await fetchWithCacheGeneric<SystemUser[]>('/api/users', CACHE_KEYS.USERS);
     return Array.isArray(result) ? result : [];
   } catch (error) {
     console.error('Error fetching cached users:', error);
@@ -64,7 +64,7 @@ export const getCachedUsers = async (): Promise<SystemUser[]> => {
  */
 export const getCachedRoles = async (): Promise<UserRole[]> => {
   try {
-    const result = await fetchWithCache('/api/users/roles', CACHE_KEYS.ROLES);
+    const result = await fetchWithCacheGeneric<UserRole[]>('/api/users/roles', CACHE_KEYS.ROLES);
     return Array.isArray(result) ? result : getDefaultRoles();
   } catch (error) {
     console.error('Error fetching cached roles:', error);
@@ -76,8 +76,7 @@ export const getCachedRoles = async (): Promise<UserRole[]> => {
  * Get users from cache without API call
  */
 export const getUsersFromCache = (): SystemUser[] => {
-  const cached = getFromCache(CACHE_KEYS.USERS);
-  return Array.isArray(cached) ? cached : [];
+  return getFromCacheGeneric<SystemUser[]>(CACHE_KEYS.USERS, []);
 };
 
 /**
