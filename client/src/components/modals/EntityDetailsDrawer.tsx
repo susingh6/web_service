@@ -357,42 +357,44 @@ const EntityDetailsDrawer = ({ open, onClose, entity, teams }: EntityDetailsDraw
           </Box>
           
           {/* Footer actions */}
-          <Box sx={{ p: 3, borderTop: 1, borderColor: 'divider' }}>
-            <Grid container spacing={2}>
-              <Grid item xs={6} sm={4}>
-                <Button
-                  fullWidth
-                  variant="outlined"
-                  color="inherit"
-                  startIcon={<HistoryIcon />}
-                >
-                  View History
-                </Button>
+          {entity.type !== 'dag' && (
+            <Box sx={{ p: 3, borderTop: 1, borderColor: 'divider' }}>
+              <Grid container spacing={2}>
+                <Grid item xs={6} sm={4}>
+                  <Button
+                    fullWidth
+                    variant="outlined"
+                    color="inherit"
+                    startIcon={<HistoryIcon />}
+                  >
+                    View History
+                  </Button>
+                </Grid>
+                <Grid item xs={6} sm={4}>
+                  <Button
+                    fullWidth
+                    variant="outlined"
+                    color="primary"
+                    startIcon={<EditIcon />}
+                    onClick={onClose}
+                  >
+                    Edit Entity
+                  </Button>
+                </Grid>
+                <Grid item xs={12} sm={4}>
+                  <Button
+                    fullWidth
+                    variant="contained"
+                    color="error"
+                    startIcon={<DeleteIcon />}
+                    onClick={handleDelete}
+                  >
+                    Delete
+                  </Button>
+                </Grid>
               </Grid>
-              <Grid item xs={6} sm={4}>
-                <Button
-                  fullWidth
-                  variant="outlined"
-                  color="primary"
-                  startIcon={<EditIcon />}
-                  onClick={onClose}
-                >
-                  Edit Entity
-                </Button>
-              </Grid>
-              <Grid item xs={12} sm={4}>
-                <Button
-                  fullWidth
-                  variant="contained"
-                  color="error"
-                  startIcon={<DeleteIcon />}
-                  onClick={handleDelete}
-                >
-                  Delete
-                </Button>
-              </Grid>
-            </Grid>
-          </Box>
+            </Box>
+          )}
         </Box>
       </Drawer>
       
