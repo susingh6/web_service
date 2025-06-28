@@ -9,6 +9,7 @@ import { PublicClientApplication, Configuration, AuthenticationResult, AccountIn
 import { User } from "@shared/schema";
 import { getQueryFn, apiRequest, queryClient } from "../lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { buildUrl, endpoints } from "@/config/index";
 
 // MSAL configuration
 const msalConfig: Configuration = {
@@ -117,7 +118,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Traditional login mutation
   const loginMutation = useMutation({
     mutationFn: async (credentials: LoginData) => {
-      const res = await apiRequest("POST", "/api/login", credentials);
+      const res = await apiRequest("POST", buildUrl(endpoints.auth.login), credentials);
       return await res.json();
     },
     onSuccess: (user: User) => {

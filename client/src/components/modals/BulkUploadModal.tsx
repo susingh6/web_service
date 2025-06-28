@@ -51,7 +51,8 @@ import {
 } from '@mui/icons-material';
 import { useToast } from '@/hooks/use-toast';
 import { fetchWithCache, getFromCache } from '@/lib/cacheUtils';
-import { apiClient } from '@/config/api';
+import { buildUrl, endpoints } from '@/config/index';
+import { apiRequest } from '@/lib/queryClient';
 
 // Entity types for validation
 interface BaseEntity {
@@ -171,7 +172,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
   const fetchTeamOptions = async () => {
     setLoadingTeams(true);
     try {
-      const response = await apiClient.teams.getAll();
+      const response = await apiRequest('GET', buildUrl(endpoints.teams));
       const teams = await response.json();
       const teamNames = teams.map((team: any) => team.name);
       setTeamOptions(teamNames);
