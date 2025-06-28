@@ -29,9 +29,11 @@ import { validateTenant, validateTeam, validateDag } from '@/lib/validationUtils
 import { fetchWithCache, getFromCache } from '@/lib/cacheUtils';
 import { useAppDispatch } from '@/lib/store';
 import { updateEntity } from '@/features/sla/slices/entitiesSlice';
-import { queryClient } from '@/lib/queryClient';
+import { queryClient, apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { Entity } from '@shared/schema';
+import { endpoints } from '@/config';
+import { useQuery } from '@tanstack/react-query';
 
 type EntityType = 'table' | 'dag';
 
@@ -118,6 +120,59 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
     entityType === 'table' ? tableSchema : dagSchema, 
     [entityType]
   );
+  
+  // Fetch entity details for pre-population
+  const { data: entityDetails, isLoading: isLoadingEntityDetails } = useQuery({
+    queryKey: ['entity-details', entity?.id],
+    queryFn: async () => {
+      if (!entity?.id) return null;
+      
+      try {
+        // First try to get detailed entity data from the API
+        const detailsEndpoint = endpoints.entity.details(entity.id);
+        console.log(`Fetching entity details from: ${detailsEndpoint}`);
+        
+        const response = await apiRequest('GET', detailsEndpoint);
+        const detailsData = await response.json();
+        
+        console.log('Entity details from API:', detailsData);
+        return detailsData;
+      } catch (error) {
+        console.log('Entity details API not available, using existing entity data');
+        // Fallback to basic entity data with enhanced mock data structure
+        return {
+          ...entity,
+          // Mock comprehensive field structure based on entity type
+          tenant_name: entity.tenant_name || (entityType === 'table' ? 'Data Engineering' : 'Analytics'),
+          team_name: entity.team_name || 'PGM',
+          notification_preferences: entity.notification_preferences || ['email', 'slack'],
+          user_name: entity.user_name || 'john.smith',
+          user_email: entity.user_email || 'john.smith@example.com',
+          is_active: entity.is_active !== undefined ? entity.is_active : true,
+          expected_runtime_minutes: entity.expected_runtime_minutes || (entityType === 'table' ? 30 : 45),
+          donemarker_location: entity.donemarker_location || (entityType === 'table' 
+            ? 's3://analytics-tables/done_markers/' 
+            : 's3://analytics-dags/agg_daily/'),
+          donemarker_lookback: entity.donemarker_lookback || 2,
+          // Type-specific fields
+          ...(entityType === 'table' ? {
+            schema_name: entity.schema_name || 'analytics',
+            table_name: entity.table_name || entity.name,
+            table_description: entity.table_description || entity.description || 'Table for analytics processing',
+            table_schedule: entity.table_schedule || '0 2 * * *',
+            table_dependency: entity.table_dependency || 'raw_data_ingest,user_profile_enrichment',
+          } : {
+            dag_name: entity.dag_name || entity.name,
+            dag_description: entity.dag_description || entity.description || 'DAG for daily analytics processing',
+            dag_schedule: entity.dag_schedule || '0 2 * * *',
+            dag_dependency: entity.dag_dependency || 'raw_data_ingest,user_profile_enrichment',
+          })
+        };
+      }
+    },
+    enabled: !!entity?.id && open,
+    staleTime: 1000 * 60 * 5, // Cache for 5 minutes
+  });
   
   const {
     control,

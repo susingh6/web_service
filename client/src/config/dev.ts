@@ -26,6 +26,7 @@ export const devConfig = {
       byTeam: (teamId: number) => `/api/entities?teamId=${teamId}`,
       history: (entityId: number) => `/api/entities/${entityId}/history`,
       issues: (entityId: number) => `/api/entities/${entityId}/issues`,
+      details: (entityId: number) => `/api/entities/${entityId}/details`,
     },
     
     // Issues

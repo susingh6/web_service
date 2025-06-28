@@ -26,6 +26,7 @@ interface ApiConfig {
       byTeam: (teamId: number) => string;
       history: (entityId: number) => string;
       issues: (entityId: number) => string;
+      details: (entityId: number) => string;
     };
     issues: {
       resolve: (issueId: number) => string;
