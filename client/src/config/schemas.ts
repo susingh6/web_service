@@ -32,33 +32,17 @@ export const fieldDefinitions = {
     apiField: 'team_name'
   },
   
-  user_name: {
-    type: 'email',
-    required: true,
-    label: 'Owner Email',
-    placeholder: 'owner@company.com',
-    validation: yup.string()
-      .required('Owner email is required')
-      .matches(
-        /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
-        'Invalid email format'
-      ),
-    apiField: 'user_name'
-  },
-  
   user_email: {
     type: 'email',
     required: true,
     label: 'User Email',
-    placeholder: 'user@company.com or user1@company.com,user2@company.com',
+    placeholder: 'user@company.com',
     validation: yup.string()
       .required('User email is required')
-      .test('email-format', 'Invalid email format', function(value) {
-        if (!value) return false;
-        const emails = value.split(',').map(email => email.trim());
-        const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-        return emails.every(email => emailRegex.test(email));
-      }),
+      .matches(
+        /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
+        'Invalid email format'
+      ),
     apiField: 'user_email'
   },
 
@@ -273,7 +257,6 @@ const buildBaseSchema = () => {
     tenant_name: fieldDefinitions.tenant_name.validation,
     team_name: fieldDefinitions.team_name.validation,
     notification_preferences: fieldDefinitions.notification_preferences.validation,
-    user_name: fieldDefinitions.user_name.validation,
     user_email: fieldDefinitions.user_email.validation,
     is_active: fieldDefinitions.is_active.validation,
   });
