@@ -18,7 +18,8 @@ import {
   Chip,
   Divider,
   Alert,
-  CircularProgress
+  CircularProgress,
+  Stack
 } from '@mui/material';
 import { Add as AddIcon } from '@mui/icons-material';
 import { useForm, Controller } from 'react-hook-form';
@@ -147,7 +148,7 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
           return { type: 'daily_schedule', time: '09:00' };
       }
     })();
-
+    
     setTriggers(prev => [...prev, newTrigger]);
   };
 
@@ -160,91 +161,159 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
   };
 
   const onSubmit = (data: TimelineFormData) => {
-    if (!entity) return;
-    
     if (triggers.length === 0) {
       toast({
-        title: 'Validation Error',
-        description: 'Please add at least one notification trigger',
+        title: 'Error',
+        description: 'Please add at least one trigger',
         variant: 'destructive'
       });
       return;
     }
 
-    const timelineData: InsertNotificationTimeline = {
-      entityId: entity.id,
+    const payload: InsertNotificationTimeline = {
+      entityId: entity?.id || 0,
       name: data.name,
-      description: data.description || undefined,
+      description: data.description,
       triggers,
       channels: data.channels,
       isActive: data.isActive
     };
 
-    createTimelineMutation.mutate(timelineData);
+    createTimelineMutation.mutate(payload);
   };
 
-  const entityLabel = entity?.type === 'table' ? 'Table' : 'DAG';
+  const handleClose = () => {
+    reset();
+    setTriggers([]);
+    onClose();
+  };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle>
-        Set Notification Timelines for {entityLabel}: {entity?.name}
+    <Dialog
+      open={open}
+      onClose={handleClose}
+      maxWidth="md"
+      fullWidth
+      PaperProps={{
+        sx: {
+          borderRadius: 2,
+          boxShadow: 24,
+        },
+      }}
+    >
+      <DialogTitle sx={{ pb: 1 }}>
+        <Typography variant="h6" component="h2" fontWeight={600}>
+          Set Notification Timeline
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+          Configure notification triggers and channels for {entity?.name}
+        </Typography>
       </DialogTitle>
-      
-      <DialogContent>
-        <form onSubmit={handleSubmit(onSubmit)}>
-          <Box sx={{ mb: 3 }}>
-            <Controller
-              name="name"
-              control={control}
-              rules={{ required: 'Timeline name is required' }}
-              render={({ field }) => (
-                <TextField
-                  {...field}
-                  label="Timeline Name"
-                  fullWidth
-                  margin="normal"
-                  error={!!errors.name}
-                  helperText={errors.name?.message}
-                />
-              )}
-            />
 
-            <Controller
-              name="description"
-              control={control}
-              render={({ field }) => (
-                <TextField
-                  {...field}
-                  label="Description (Optional)"
-                  fullWidth
-                  margin="normal"
-                  multiline
-                  rows={2}
+      <form onSubmit={handleSubmit(onSubmit)}>
+        <DialogContent sx={{ pt: 2 }}>
+          <Stack spacing={3}>
+            {/* Basic Information Section */}
+            <Box>
+              <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 2 }}>
+                Basic Information
+              </Typography>
+              <Stack spacing={2}>
+                <Controller
+                  name="name"
+                  control={control}
+                  rules={{ required: 'Timeline name is required' }}
+                  render={({ field }) => (
+                    <TextField
+                      {...field}
+                      label="Timeline Name"
+                      fullWidth
+                      required
+                      error={!!errors.name}
+                      helperText={errors.name?.message}
+                      placeholder="e.g., Daily Status Update"
+                    />
+                  )}
                 />
-              )}
-            />
 
-            <Controller
-              name="channels"
-              control={control}
-              rules={{ required: 'Select at least one notification channel' }}
-              render={({ field: { onChange, value } }) => (
-                <FormControl component="fieldset" margin="normal" fullWidth>
-                  <FormLabel component="legend">Notification Channels</FormLabel>
-                  <FormGroup row>
+                <Controller
+                  name="description"
+                  control={control}
+                  render={({ field }) => (
+                    <TextField
+                      {...field}
+                      label="Description (Optional)"
+                      fullWidth
+                      multiline
+                      rows={2}
+                      error={!!errors.description}
+                      helperText={errors.description?.message}
+                      placeholder="Describe when and why this notification should be sent"
+                    />
+                  )}
+                />
+              </Stack>
+            </Box>
+
+            <Divider />
+
+            {/* Trigger Configuration Section */}
+            <Box>
+              <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 2 }}>
+                Trigger Configuration
+              </Typography>
+              
+              <Box sx={{ mb: 2 }}>
+                <FormLabel component="legend" sx={{ mb: 1 }}>Add Trigger</FormLabel>
+                <Select
+                  value=""
+                  onChange={(e) => handleAddTrigger(e.target.value as NotificationTriggerType)}
+                  displayEmpty
+                  fullWidth
+                >
+                  <MenuItem value="" disabled>Select trigger type to add</MenuItem>
+                  <MenuItem value="daily_schedule">{TRIGGER_TYPE_LABELS.daily_schedule}</MenuItem>
+                  <MenuItem value="sla_failed">{TRIGGER_TYPE_LABELS.sla_failed}</MenuItem>
+                  <MenuItem value="ai_task_failed">{TRIGGER_TYPE_LABELS.ai_task_failed}</MenuItem>
+                  <MenuItem value="entity_success">{TRIGGER_TYPE_LABELS.entity_success}</MenuItem>
+                  <MenuItem value="ai_tasks_status">{TRIGGER_TYPE_LABELS.ai_tasks_status}</MenuItem>
+                </Select>
+              </Box>
+
+              {triggers.map((trigger, index) => (
+                <TriggerConfig
+                  key={index}
+                  trigger={trigger}
+                  onUpdate={(updatedTrigger) => handleUpdateTrigger(index, updatedTrigger)}
+                  onRemove={() => handleRemoveTrigger(index)}
+                  availableAiTasks={availableAiTasks}
+                />
+              ))}
+            </Box>
+
+            <Divider />
+
+            {/* Notification Channels Section */}
+            <Box>
+              <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 2 }}>
+                Notification Channels
+              </Typography>
+              <Controller
+                name="channels"
+                control={control}
+                render={({ field }) => (
+                  <FormGroup>
                     {['email', 'slack', 'pagerduty'].map((channel) => (
                       <FormControlLabel
                         key={channel}
                         control={
                           <Checkbox
-                            checked={value?.includes(channel) || false}
+                            checked={field.value.includes(channel)}
                             onChange={(e) => {
-                              const currentValue = value || [];
                               if (e.target.checked) {
-                                onChange([...currentValue, channel]);
+                                field.onChange([...field.value, channel]);
                               } else {
-                                onChange(currentValue.filter((c: string) => c !== channel));
+                                field.onChange(field.value.filter((c: string) => c !== channel));
                               }
                             }}
                           />
@@ -253,112 +322,71 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
                       />
                     ))}
                   </FormGroup>
-                  {errors.channels && (
-                    <Typography color="error" variant="caption">
-                      {errors.channels.message}
-                    </Typography>
-                  )}
-                </FormControl>
-              )}
-            />
-
-            <Controller
-              name="isActive"
-              control={control}
-              render={({ field: { onChange, value } }) => (
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={value}
-                      onChange={onChange}
-                    />
-                  }
-                  label="Active Timeline"
-                />
-              )}
-            />
-          </Box>
-
-          <Divider sx={{ my: 3 }} />
-
-          <Box sx={{ mb: 3 }}>
-            <Typography variant="h6" gutterBottom>
-              Notification Triggers
-            </Typography>
-            
-            <Box sx={{ mb: 2 }}>
-              <FormControl fullWidth>
-                <FormLabel>Add New Trigger</FormLabel>
-                <Select
-                  value=""
-                  onChange={(e) => handleAddTrigger(e.target.value as NotificationTriggerType)}
-                  displayEmpty
-                >
-                  <MenuItem value="" disabled>
-                    Select trigger type to add...
-                  </MenuItem>
-                  {Object.entries(TRIGGER_TYPE_LABELS).map(([type, label]) => (
-                    <MenuItem key={type} value={type}>
-                      {label}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+                )}
+              />
             </Box>
 
-            {triggers.length === 0 ? (
-              <Alert severity="info">
-                No triggers configured. Add at least one trigger to set up notifications.
-              </Alert>
-            ) : (
+            <Divider />
+
+            {/* Existing Timelines Section */}
+            {existingTimelines && existingTimelines.length > 0 && (
               <Box>
-                {triggers.map((trigger, index) => (
-                  <TriggerConfig
-                    key={index}
-                    trigger={trigger}
-                    onChange={(updatedTrigger) => handleUpdateTrigger(index, updatedTrigger)}
-                    onRemove={() => handleRemoveTrigger(index)}
-                    availableAiTasks={availableAiTasks}
-                    entityType={entity?.type as 'table' | 'dag'}
-                  />
-                ))}
+                <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 2 }}>
+                  Existing Timelines
+                </Typography>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                  {existingTimelines.map((timeline: NotificationTimeline) => (
+                    <Chip
+                      key={timeline.id}
+                      label={timeline.name}
+                      variant="outlined"
+                      color={timeline.isActive ? "primary" : "default"}
+                    />
+                  ))}
+                </Box>
               </Box>
             )}
-          </Box>
 
-          {existingTimelines && existingTimelines.length > 0 && (
-            <Box sx={{ mb: 3 }}>
-              <Typography variant="h6" gutterBottom>
-                Existing Timelines
+            {/* Status Section */}
+            <Box>
+              <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 2 }}>
+                Status
               </Typography>
-              {existingTimelines.map((timeline: NotificationTimeline) => (
-                <Chip
-                  key={timeline.id}
-                  label={`${timeline.name} (${timeline.triggers.length} triggers)`}
-                  variant="outlined"
-                  sx={{ mr: 1, mb: 1 }}
-                  color={timeline.isActive ? 'primary' : 'default'}
-                />
-              ))}
+              <Controller
+                name="isActive"
+                control={control}
+                render={({ field }) => (
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={field.value}
+                        onChange={field.onChange}
+                      />
+                    }
+                    label="Active"
+                  />
+                )}
+              />
             </Box>
-          )}
-        </form>
-      </DialogContent>
+          </Stack>
+        </DialogContent>
 
-      <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button 
-          onClick={handleSubmit(onSubmit)}
-          variant="contained"
-          disabled={createTimelineMutation.isPending}
-        >
-          {createTimelineMutation.isPending ? (
-            <CircularProgress size={20} />
-          ) : (
-            'Create Timeline'
-          )}
-        </Button>
-      </DialogActions>
+        <DialogActions sx={{ px: 3, pb: 3 }}>
+          <Button onClick={handleClose} disabled={createTimelineMutation.isPending}>
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            variant="contained"
+            disabled={createTimelineMutation.isPending}
+            startIcon={createTimelineMutation.isPending ? <CircularProgress size={20} /> : null}
+          >
+            {createTimelineMutation.isPending ? 'Creating...' : 'Create Timeline'}
+          </Button>
+        </DialogActions>
+      </form>
     </Dialog>
   );
 };
+
+export default NotificationTimelineModal;
