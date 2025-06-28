@@ -17,6 +17,7 @@ import EditEntityModal from '@/components/modals/EditEntityModal';
 import AddEntityModal from '@/components/modals/AddEntityModal';
 import BulkUploadModal from '@/components/modals/BulkUploadModal';
 import ConfirmDialog from '@/components/modals/ConfirmDialog';
+import TaskManagementModal from '@/components/modals/TaskManagementModal';
 import { useToast } from '@/hooks/use-toast';
 import { queryClient } from '@/lib/queryClient';
 
@@ -34,6 +35,7 @@ const TeamDashboard = () => {
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
   const [openAddModal, setOpenAddModal] = useState(false);
   const [openBulkModal, setOpenBulkModal] = useState(false);
+  const [openTasksModal, setOpenTasksModal] = useState(false);
   const [chartFilter, setChartFilter] = useState('All');
   
   // Get current team info - try both ID and name lookup
@@ -103,6 +105,11 @@ const TeamDashboard = () => {
       setSelectedEntity(entity);
       setOpenDeleteDialog(true);
     }
+  };
+
+  const handleViewTasks = (entity: Entity) => {
+    setSelectedEntity(entity);
+    setOpenTasksModal(true);
   };
   
   const handleConfirmDelete = async () => {
@@ -283,10 +290,15 @@ const TeamDashboard = () => {
         
         <Box role="tabpanel" hidden={tabValue !== 1}>
           {tabValue === 1 && (
-            <DagList 
-              dags={dags}
-              isLoading={isLoading}
-              error={null}
+            <EntityTable
+              entities={dags}
+              type="dag"
+              teams={teams}
+              onEditEntity={handleEditEntity}
+              onDeleteEntity={handleDeleteEntity}
+              onViewHistory={() => {}}
+              onViewDetails={handleViewDetails}
+              onViewTasks={handleViewTasks}
               showActions={true} // Show actions in team tabs
             />
           )}
@@ -325,6 +337,15 @@ const TeamDashboard = () => {
       <BulkUploadModal
         open={openBulkModal}
         onClose={() => setOpenBulkModal(false)}
+      />
+      
+      <TaskManagementModal
+        isOpen={openTasksModal}
+        onClose={() => {
+          setOpenTasksModal(false);
+          setSelectedEntity(null);
+        }}
+        dag={selectedEntity}
       />
     </Box>
   );
