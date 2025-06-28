@@ -182,7 +182,7 @@ const AuthPage = () => {
               className="w-64 h-auto"
             />
           </div>
-          <h1 className="text-4xl font-bold mb-6">SLA Monitoring Tool</h1>
+          <h1 className="text-4xl font-bold mb-6">SLA Management Tool</h1>
           <p className="text-xl mb-6">
             Track, analyze, and manage service level agreements across your teams with
             detailed insights and real-time compliance metrics.
