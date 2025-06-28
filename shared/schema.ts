@@ -111,6 +111,13 @@ export const insertIssueSchema = createInsertSchema(issues).omit({
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 
+// User roles for notification system
+export interface UserRole {
+  role: string;
+  label: string;
+  description: string;
+}
+
 export type Team = typeof teams.$inferSelect;
 export type InsertTeam = z.infer<typeof insertTeamSchema>;
 

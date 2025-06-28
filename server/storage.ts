@@ -1,5 +1,5 @@
 import { 
-  users, type User, type InsertUser,
+  users, type User, type InsertUser, type UserRole,
   teams, type Team, type InsertTeam,
   entities, type Entity, type InsertEntity,
   entityHistory, type EntityHistory, type InsertEntityHistory,
@@ -12,6 +12,8 @@ export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  getUsers(): Promise<User[]>;
+  getUserRoles(): Promise<UserRole[]>;
   
   // Team operations
   getTeams(): Promise<Team[]>;
@@ -184,6 +186,46 @@ export class MemStorage implements IStorage {
     };
     this.users.set(id, user);
     return user;
+  }
+
+  async getUsers(): Promise<User[]> {
+    return Array.from(this.users.values());
+  }
+
+  async getUserRoles(): Promise<UserRole[]> {
+    // Return predefined user roles for notification system
+    return [
+      {
+        role: 'admin',
+        label: 'Administrator',
+        description: 'System administrators with full access'
+      },
+      {
+        role: 'manager',
+        label: 'Team Manager',
+        description: 'Team leads and managers'
+      },
+      {
+        role: 'lead',
+        label: 'Technical Lead',
+        description: 'Senior technical staff and project leads'
+      },
+      {
+        role: 'developer',
+        label: 'Developer',
+        description: 'Software developers and engineers'
+      },
+      {
+        role: 'analyst',
+        label: 'Data Analyst',
+        description: 'Data analysts and business intelligence staff'
+      },
+      {
+        role: 'ops',
+        label: 'Operations',
+        description: 'DevOps and infrastructure team members'
+      }
+    ];
   }
   
   // Team operations
