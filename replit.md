@@ -122,6 +122,7 @@ Preferred communication style: Simple, everyday language.
   - Form now correctly routes to appropriate mutation based on selected tab
   - Fixed conditional rendering to show all fields in both tabs (name, description, triggers, channels, status)
   - Both tabs now have identical field visibility and functionality
+  - Removed duplicate Timeline Name field from UPDATE EXISTING tab's Basic Information section
   - Maintained field render order as requested - no changes to individual field positioning
 - June 28, 2025: Completed removal of notification_preferences from bulk upload modal system
   - Removed notification_preferences from BaseEntity interface definition

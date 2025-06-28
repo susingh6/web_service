@@ -1,7 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useForm, Controller, useWatch } from 'react-hook-form';
-import * as yup from 'yup';
 import { yupResolver } from '@hookform/resolvers/yup';
+import { 
+  buildTableSchema, 
+  buildDagSchema, 
+  fieldDefinitions, 
+  defaultValues,
+  getFieldsForEntityType,
+  mapFormDataToApi 
+} from '@/config/schemas';
 import {
   Autocomplete,
   Button,
@@ -35,55 +42,10 @@ interface AddEntityModalProps {
   teams: { id: number; name: string }[];
 }
 
-// Common schema fields shared between both forms
-const baseSchema = yup.object().shape({
-  tenant_name: yup.string().required('Tenant name is required'),
-  team_name: yup.string().required('Team name is required'),
-  notification_preferences: yup.array().of(yup.string()).default([]),
-  user_name: yup.string().optional(),
-  user_email: yup.string()
-    .required('User email is required')
-    .matches(
-      /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
-      'Invalid email format'
-    ),
-  is_active: yup.boolean().default(true),
-});
-
-// Schema for Tables
-const tableSchema = baseSchema.shape({
-  schema_name: yup.string().required('Schema name is required'),
-  table_name: yup.string().required('Table name is required'),
-  table_description: yup.string().optional(),
-  table_schedule: yup.string()
-    .required('Table schedule is required')
-    .matches(/^[\d*\/ ,\-]+$/, 'Invalid cron format'),
-  expected_runtime_minutes: yup.number()
-    .required('Expected runtime is required')
-    .positive('Must be positive')
-    .min(1, 'Must be at least 1 minute')
-    .max(1440, 'Must not exceed 1440 minutes (24 hours)'),
-  table_dependency: yup.string().optional(),
-  donemarker_location: yup.string().optional(),
-  donemarker_lookback: yup.number().min(0, 'Must be non-negative').optional(),
-});
-
-// Schema for DAGs
-const dagSchema = baseSchema.shape({
-  dag_name: yup.string().required('DAG name is required'),
-  dag_description: yup.string().optional(),
-  dag_schedule: yup.string()
-    .required('DAG schedule is required')
-    .matches(/^[\d*\/ ,\-]+$/, 'Invalid cron format'),
-  expected_runtime_minutes: yup.number()
-    .required('Expected runtime is required')
-    .positive('Must be positive')
-    .min(1, 'Must be at least 1 minute')
-    .max(1440, 'Must not exceed 1440 minutes (24 hours)'),
-  dag_dependency: yup.string().optional(),
-  donemarker_location: yup.string().optional(),
-  donemarker_lookback: yup.number().min(0, 'Must be non-negative').optional(),
-});
+// Use centralized schemas from config
+const getSchemaForType = (entityType: EntityType) => {
+  return entityType === 'table' ? buildTableSchema() : buildDagSchema();
+};
 
 const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
   const [entityType, setEntityType] = useState<EntityType>('table');

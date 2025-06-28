@@ -324,22 +324,25 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
                 Basic Information
               </Typography>
               <Stack spacing={2}>
-                <Controller
-                  name="name"
-                  control={control}
-                  rules={{ required: 'Timeline name is required' }}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      label="Timeline Name"
-                      fullWidth
-                      required
-                      error={!!errors.name}
-                      helperText={errors.name?.message}
-                      placeholder="e.g., Daily Status Update"
-                    />
-                  )}
-                />
+                {/* Show Timeline Name field only in ADD mode, not in UPDATE mode since it's already in dropdown */}
+                {tabValue === 'add' && (
+                  <Controller
+                    name="name"
+                    control={control}
+                    rules={{ required: 'Timeline name is required' }}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        label="Timeline Name"
+                        fullWidth
+                        required
+                        error={!!errors.name}
+                        helperText={errors.name?.message}
+                        placeholder="e.g., Daily Status Update"
+                      />
+                    )}
+                  />
+                )}
 
                 <Controller
                   name="description"
