@@ -113,6 +113,14 @@ Preferred communication style: Simple, everyday language.
 
 ## Changelog
 
+- June 28, 2025: Fixed TypeScript errors in cache utilities and completed Entity details modal conversion
+  - Fixed cache utility TypeScript errors by creating generic cache functions for complex objects
+  - Added fetchWithCacheGeneric and getFromCacheGeneric functions to handle UserRole and SystemUser types
+  - Resolved type mismatches between string[] and UserRole[] arrays in notification cache utilities
+  - Converted EntityDetailsDrawer from side-opening drawer to centered modal (EntityDetailsModal)
+  - Updated all page references to use the new centered modal approach
+  - Fixed EntityPerformanceChart component props to properly display entity performance data
+  - Maintained identical content, styling, and functionality while improving UI consistency
 - June 28, 2025: Completed tabbed notification timeline modal implementation
   - Added "ADD NEW" and "UPDATE EXISTING" tabs to notification timeline modal
   - Implemented dropdown selection for existing timelines in update mode

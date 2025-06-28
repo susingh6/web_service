@@ -80,14 +80,6 @@ export const getUsersFromCache = (): SystemUser[] => {
 };
 
 /**
- * Get roles from cache without API call
- */
-export const getRolesFromCache = (): UserRole[] => {
-  const cached = getFromCache(CACHE_KEYS.ROLES);
-  return Array.isArray(cached) ? cached : getDefaultRoles();
-};
-
-/**
  * Default roles fallback when API is unavailable
  */
 const getDefaultRoles = (): UserRole[] => [
@@ -116,6 +108,13 @@ const getDefaultRoles = (): UserRole[] => [
     emails: []
   }
 ];
+
+/**
+ * Get roles from cache without API call
+ */
+export const getRolesFromCache = (): UserRole[] => {
+  return getFromCacheGeneric<UserRole[]>(CACHE_KEYS.ROLES, getDefaultRoles());
+};
 
 /**
  * Extract email addresses from selected users
