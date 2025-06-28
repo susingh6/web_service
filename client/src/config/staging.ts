@@ -17,7 +17,7 @@ export const stagingConfig = {
     // Dashboard
     dashboard: {
       summary: '/api/dashboard/summary',
-      teamPerformance: '/api/dashboard/team',
+      teamPerformance: (teamId: number) => `/api/dashboard/team/${teamId}`,
       complianceTrend: '/api/dashboard/compliance-trend',
     },
     
@@ -27,11 +27,29 @@ export const stagingConfig = {
       byTeam: (teamId: number) => `/api/entities?teamId=${teamId}`,
       history: (entityId: number) => `/api/entities/${entityId}/history`,
       issues: (entityId: number) => `/api/entities/${entityId}/issues`,
+      details: (entityId: number) => `/api/entities/${entityId}/details`,
+      aiTasks: (entityId: number) => `/api/entities/${entityId}/ai-tasks`,
+      notificationTimelines: (entityId: number) => `/api/entities/${entityId}/notification-timelines`,
+      trends30Day: '/api/entities/trends/30-day',
+    },
+
+    // Task operations
+    tasks: {
+      byDag: (dagId: number) => `/api/dags/${dagId}/tasks`,
+      updatePriority: (taskId: number) => `/api/tasks/${taskId}`,
     },
     
     // Issues
     issues: {
       resolve: (issueId: number) => `/api/issues/${issueId}/resolve`,
+    },
+    
+    // Notification Timelines
+    notificationTimelines: {
+      create: '/api/notification-timelines',
+      byId: (id: string) => `/api/notification-timelines/${id}`,
+      update: (id: string) => `/api/notification-timelines/${id}`,
+      delete: (id: string) => `/api/notification-timelines/${id}`,
     },
     
     // Debug endpoints

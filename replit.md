@@ -222,4 +222,11 @@ Preferred communication style: Simple, everyday language.
   - Fixed import extensions in config system
   - Centralized API configuration system implemented
   - Team dashboard navigation fully functional
+- June 28, 2025: Completed comprehensive centralized API configuration migration for modals
+  - Updated AddEntityModal to use centralized endpoints for entity creation and option fetching
+  - Updated BulkUploadModal to use centralized endpoints for bulk entity submission
+  - Fixed staging and production configuration files to match complete API interface
+  - All modals now use buildUrl(endpoints.entities) instead of hard-coded URLs
+  - Improved error handling in bulk upload with proper API request error management
+  - Centralized API system now covers 100% of entity management workflows
 - June 27, 2025: Initial setup

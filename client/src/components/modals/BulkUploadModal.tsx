@@ -186,7 +186,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
   const fetchDagOptions = async () => {
     setLoadingDags(true);
     try {
-      const options = await fetchWithCache('https://airflow.example.com/api/dags', 'dags');
+      const options = await fetchWithCache(buildUrl(endpoints.debug.teams), 'dags');
       setDagOptions(options);
     } catch (error) {
       console.error('Error fetching DAG options:', error);
@@ -495,22 +495,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
     setIsSubmitting(true);
     
     try {
-      // Placeholder for the actual API call to bulk upload
-      // In a real implementation, this would be an API call to the backend
-      // 
-      // We send the needs_dag_validation flag to let the backend know which DAGs need validation
-      // This way, the FastAPI backend can handle new DAG names appropriately
-      // const response = await fetch('/api/entities/bulk', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ 
-      //     entities: validEntities, 
-      //     entityType: tabValue,
-      //     hasNewDags: validEntities.some(entity => 'needs_dag_validation' in entity && entity.needs_dag_validation)
-      //   })
-      // });
-      
-      // For demonstration, log the entities that would be sent to the backend
+      // Actual API call to bulk upload using centralized configuration
       const entitiesWithNewDags = validEntities.filter(entity => 
         'needs_dag_validation' in entity && entity.needs_dag_validation
       );
@@ -521,12 +506,24 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
         );
       }
       
-      // Simulate API call success with a timeout
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Use centralized API configuration for bulk entity creation
+      const endpoint = buildUrl(endpoints.entities);
       
-      // Simulate success response
-      const successCount = validEntities.length;
-      const failedCount = 0;
+      // Submit each entity individually using the standard entities endpoint
+      const submitPromises = validEntities.map(async (entity) => {
+        try {
+          const response = await apiRequest('POST', endpoint, entity);
+          return await response.json();
+        } catch (error) {
+          throw new Error(`Failed to submit entity: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      });
+      
+      const results = await Promise.allSettled(submitPromises);
+      
+      // Count successes and failures
+      const successCount = results.filter(result => result.status === 'fulfilled').length;
+      const failedCount = results.filter(result => result.status === 'rejected').length;
       
       // Update upload summary
       setUploadSummary(prev => ({
