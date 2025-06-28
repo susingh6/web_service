@@ -331,7 +331,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                     renderInput={(params) => (
                       <TextField
                         {...params}
-                        label="Tenant Name"
+                        label={fieldDefinitions.tenant_name.label}
                         required
                         fullWidth
                         margin="normal"
@@ -374,7 +374,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                     renderInput={(params) => (
                       <TextField
                         {...params}
-                        label="Team Name"
+                        label={fieldDefinitions.team_name.label}
                         required
                         fullWidth
                         margin="normal"
@@ -402,7 +402,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 render={({ field }) => (
                   <TextField
                     {...field}
-                    label="Schema Name"
+                    label={fieldDefinitions.schema_name.label}
                     fullWidth
                     margin="normal"
                     required
@@ -419,7 +419,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 render={({ field }) => (
                   <TextField
                     {...field}
-                    label="Table Name"
+                    label={fieldDefinitions.table_name.label}
                     fullWidth
                     margin="normal"
                     required
@@ -436,7 +436,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 render={({ field }) => (
                   <TextField
                     {...field}
-                    label="Table Description"
+                    label={fieldDefinitions.table_description.label}
                     fullWidth
                     margin="normal"
                     multiline
@@ -489,7 +489,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 render={({ field }) => (
                   <TextField
                     {...field}
-                    label="Table Dependency"
+                    label={fieldDefinitions.table_dependency.label}
                     fullWidth
                     margin="normal"
                     error={!!errors.table_dependency}
@@ -612,7 +612,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                     renderInput={(params) => (
                       <TextField
                         {...params}
-                        label="Tenant Name"
+                        label={fieldDefinitions.tenant_name.label}
                         required
                         fullWidth
                         margin="normal"
@@ -655,7 +655,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                     renderInput={(params) => (
                       <TextField
                         {...params}
-                        label="Team Name"
+                        label={fieldDefinitions.team_name.label}
                         required
                         fullWidth
                         margin="normal"
@@ -698,7 +698,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                     renderInput={(params) => (
                       <TextField
                         {...params}
-                        label="DAG Name"
+                        label={fieldDefinitions.dag_name.label}
                         required
                         fullWidth
                         margin="normal"

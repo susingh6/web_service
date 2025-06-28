@@ -246,6 +246,13 @@ Preferred communication style: Simple, everyday language.
   - Updated required fields display lists to show both email fields as mandatory
   - Maintained centralized API configuration approach for all field definitions and validation
   - Sample data now includes realistic email examples for both user_email and owner_email fields
+- June 28, 2025: Updated Edit Entity modal to use centralized field definitions for labels and attributes
+  - Replaced all hard-coded labels with centralized fieldDefinitions from config schemas
+  - Updated Team Name, Schema Name, User Name, User Email labels to use centralized configuration
+  - Updated entity-specific labels (Table/DAG Name, Description, Schedule, Dependency) with centralized definitions
+  - Updated common field labels (Expected Runtime, Donemarker Location, Donemarker Lookback) with centralized config
+  - Maintained identical rendering structure and functionality with no visual changes
+  - Edit Entity modal now consistently uses Add Entity modal field labels from centralized system
 - June 28, 2025: Updated Add Entity modal to use centralized field definitions for both Table and DAG tabs
   - Replaced hard-coded labels with centralized fieldDefinitions for user_name and user_email fields in both tabs
   - "User Name" field now shows as "Owner Email" with mandatory validation from centralized config
