@@ -28,14 +28,13 @@ import { Close as CloseIcon } from '@mui/icons-material';
 import { validateTenant, validateTeam, validateDag } from '@/lib/validationUtils';
 import { fetchWithCache, getFromCache } from '@/lib/cacheUtils';
 import { useAppDispatch } from '@/lib/store';
-
-
 import { updateEntity } from '@/features/sla/slices/entitiesSlice';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { Entity } from '@shared/schema';
-import { endpoints } from '@/config';
+import { endpoints, buildUrl } from '@/config';
 import { useQuery } from '@tanstack/react-query';
+import { fieldDefinitions } from '@/config/schemas';
 
 type EntityType = 'table' | 'dag';
 
