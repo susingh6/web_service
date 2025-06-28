@@ -691,7 +691,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
             render={({ field }) => (
               <TextField
                 {...field}
-                label="User Name"
+                label="User Name (optional)"
                 fullWidth
                 margin="normal"
                 error={!!errors.user_name}

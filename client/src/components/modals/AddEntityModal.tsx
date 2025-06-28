@@ -543,7 +543,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 render={({ field }) => (
                   <TextField
                     {...field}
-                    label="User Name"
+                    label="User Name (optional)"
                     fullWidth
                     margin="normal"
                     error={!!errors.user_name}
@@ -826,7 +826,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 render={({ field }) => (
                   <TextField
                     {...field}
-                    label="User Name"
+                    label="User Name (optional)"
                     fullWidth
                     margin="normal"
                     error={!!errors.user_name}
