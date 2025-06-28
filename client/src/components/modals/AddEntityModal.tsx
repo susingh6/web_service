@@ -36,9 +36,7 @@ import { fetchWithCache, getFromCache } from '@/lib/cacheUtils';
 import { 
   buildTableSchema as tableSchemaBuilder, 
   buildDagSchema as dagSchemaBuilder, 
-  defaultValues as configDefaultValues,
-  getFieldsForEntityType,
-  mapFormDataToApi 
+  defaultValues as configDefaultValues
 } from '@/config/schemas';
 
 type EntityType = 'table' | 'dag';
@@ -151,40 +149,10 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
   // This effect updates the form when entity type changes
   useEffect(() => {
     // Reset form with appropriate default values when entity type changes
-    reset(
-      entityType === 'table' 
-        ? {
-            tenant_name: 'Data Engineering',
-            team_name: 'PGM',
-            notification_preferences: [],
-            is_active: true,
-            schema_name: '',
-            table_name: '',
-            table_description: '',
-            table_schedule: '',
-            expected_runtime_minutes: 30,
-            table_dependency: '',
-            donemarker_location: '',
-            donemarker_lookback: 0,
-            user_name: '',
-            user_email: ''
-          } 
-        : {
-            tenant_name: 'Data Engineering',
-            team_name: 'PGM',
-            notification_preferences: [],
-            is_active: true,
-            dag_name: '',
-            dag_description: '',
-            dag_schedule: '',
-            expected_runtime_minutes: 30,
-            dag_dependency: '',
-            donemarker_location: '',
-            donemarker_lookback: 0,
-            user_name: '',
-            user_email: ''
-          }
-    );
+    reset({
+      ...configDefaultValues.common,
+      ...(entityType === 'table' ? configDefaultValues.table : configDefaultValues.dag)
+    });
   }, [entityType, reset]);
 
   const handleChangeEntityType = (_event: React.SyntheticEvent, newValue: EntityType) => {
