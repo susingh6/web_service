@@ -78,6 +78,19 @@ export const issues = pgTable("issues", {
   resolvedAt: timestamp("resolved_at"),
 });
 
+// Notification Timelines for storing timeline configurations
+export const notificationTimelines = pgTable("notification_timelines", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  entityId: integer("entity_id").notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  triggers: json("triggers").$type<any[]>().notNull(), // Array of NotificationTrigger objects
+  channels: json("channels").$type<string[]>().notNull(), // Array of channel strings: ['email', 'slack', 'pagerduty']
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 // Zod schemas for data validation
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
@@ -105,6 +118,12 @@ export const insertEntityHistorySchema = createInsertSchema(entityHistory).omit(
 export const insertIssueSchema = createInsertSchema(issues).omit({
   id: true,
   resolvedAt: true,
+});
+
+export const insertNotificationTimelineSchema = createInsertSchema(notificationTimelines).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
 });
 
 // Types for use in the application

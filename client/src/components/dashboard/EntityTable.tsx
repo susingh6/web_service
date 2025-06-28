@@ -88,6 +88,7 @@ interface EntityTableProps {
   onViewHistory: (entity: Entity) => void;
   onViewDetails: (entity: Entity) => void;
   onViewTasks?: (entity: Entity) => void; // For DAG entities to view tasks
+  onSetNotificationTimeline?: (entity: Entity) => void; // For notification timeline setup
   showActions?: boolean; // Controls whether to show action buttons
 }
 
@@ -100,6 +101,7 @@ const EntityTable = ({
   onViewHistory,
   onViewDetails,
   onViewTasks,
+  onSetNotificationTimeline,
   showActions = true, // Default to showing actions
 }: EntityTableProps) => {
   const dispatch = useAppDispatch();

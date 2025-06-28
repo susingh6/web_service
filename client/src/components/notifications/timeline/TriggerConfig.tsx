@@ -112,7 +112,7 @@ export const TriggerConfig: React.FC<TriggerConfigProps> = ({
           </Box>
         );
 
-      case 'dag_success':
+      case 'entity_success':
         return (
           <Typography variant="body2" color="textSecondary">
             Notification will be sent when the {getEntityLabel().toLowerCase()} completes successfully.
