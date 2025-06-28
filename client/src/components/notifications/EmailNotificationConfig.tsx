@@ -1,6 +1,6 @@
 /**
  * Email notification configuration component
- * Supports default recipients, role-based selection, and custom emails
+ * Supports default recipients and custom emails
  */
 
 import { useState, useEffect } from 'react';
@@ -11,9 +11,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { X, Plus, Users, Mail } from 'lucide-react';
-import { EmailNotificationConfig, SystemUser, UserRole } from '@/lib/notifications/types';
+import { EmailNotificationConfig, SystemUser } from '@/lib/notifications/types';
 import { validateEmail } from '@/lib/notifications/types';
-import { getUsersFromCache, getRolesFromCache, getTeamMemberEmails } from '@/lib/notifications/cacheUtils';
+import { getUsersFromCache, getTeamMemberEmails } from '@/lib/notifications/cacheUtils';
 
 interface EmailConfigProps {
   config: EmailNotificationConfig;
@@ -23,9 +23,7 @@ interface EmailConfigProps {
 
 export function EmailNotificationConfigComponent({ config, onChange, teamName }: EmailConfigProps) {
   const [users, setUsers] = useState<SystemUser[]>([]);
-  const [roles, setRoles] = useState<UserRole[]>([]);
   const [selectedUsers, setSelectedUsers] = useState<number[]>([]);
-  const [selectedRoles, setSelectedRoles] = useState<string[]>(config?.roleBasedRecipients || []);
   const [customEmailInput, setCustomEmailInput] = useState('');
   const [customEmails, setCustomEmails] = useState<string[]>(config?.customEmails || []);
   const [emailError, setEmailError] = useState('');
@@ -33,7 +31,6 @@ export function EmailNotificationConfigComponent({ config, onChange, teamName }:
   useEffect(() => {
     // Load cached data
     setUsers(getUsersFromCache());
-    setRoles(getRolesFromCache());
   }, []);
 
   useEffect(() => {
@@ -43,12 +40,12 @@ export function EmailNotificationConfigComponent({ config, onChange, teamName }:
       const updatedConfig = {
         ...config,
         defaultRecipients: teamEmails,
-        roleBasedRecipients: selectedRoles,
+        roleBasedRecipients: [], // No longer using roles
         customEmails: customEmails,
       };
       onChange(updatedConfig);
     }
-  }, [teamName, users, selectedRoles, customEmails]);
+  }, [teamName, users, customEmails]);
 
   const handleAddCustomEmail = () => {
     const email = customEmailInput.trim();
@@ -77,13 +74,7 @@ export function EmailNotificationConfigComponent({ config, onChange, teamName }:
     setCustomEmails(customEmails.filter(email => email !== emailToRemove));
   };
 
-  const handleRoleToggle = (roleId: string) => {
-    const updatedRoles = selectedRoles.includes(roleId)
-      ? selectedRoles.filter(id => id !== roleId)
-      : [...selectedRoles, roleId];
-    
-    setSelectedRoles(updatedRoles);
-  };
+
 
   const handleUserSelect = (userId: string) => {
     const userIdNum = parseInt(userId);
@@ -125,26 +116,12 @@ export function EmailNotificationConfigComponent({ config, onChange, teamName }:
         </CardContent>
       </Card>
 
-      {/* Role-based Recipients */}
+      {/* Additional Users */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm">Additional Recipients</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="grid grid-cols-2 gap-2">
-            {roles.map((role) => (
-              <label key={role.id} className="flex items-center space-x-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={selectedRoles.includes(role.id)}
-                  onChange={() => handleRoleToggle(role.id)}
-                  className="rounded border-gray-300"
-                />
-                <span className="text-sm">{role.name}</span>
-              </label>
-            ))}
-          </div>
-          
           {/* User Selection */}
           <div className="space-y-2">
             <Label className="text-xs">Additional Users</Label>
