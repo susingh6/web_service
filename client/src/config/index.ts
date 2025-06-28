@@ -30,6 +30,10 @@ interface ApiConfig {
       aiTasks: (entityId: number) => string;
       notificationTimelines: (entityId: number) => string;
     };
+    tasks: {
+      byDag: (dagId: number) => string;
+      updatePriority: (taskId: number) => string;
+    };
     issues: {
       resolve: (issueId: number) => string;
     };

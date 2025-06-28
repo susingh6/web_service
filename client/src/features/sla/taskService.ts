@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Task, TaskPriority } from './types';
 import { apiRequest } from '@/lib/queryClient';
+import { endpoints } from '@/config';
 import { mockTaskService } from './mockService';
 
 // Task service that uses API or mock data
@@ -12,7 +13,7 @@ export const useGetDagTasks = (dagId?: number) => {
       
       try {
         // Try to get from API first
-        const response = await apiRequest('GET', `/api/dags/${dagId}/tasks`);
+        const response = await apiRequest('GET', endpoints.tasks.byDag(dagId));
         return await response.json();
       } catch (error) {
         // Fall back to mock data if API fails or doesn't exist yet

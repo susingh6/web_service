@@ -30,6 +30,12 @@ export const devConfig = {
       aiTasks: (entityId: number) => `/api/entities/${entityId}/ai-tasks`,
       notificationTimelines: (entityId: number) => `/api/entities/${entityId}/notification-timelines`,
     },
+
+    // Task operations
+    tasks: {
+      byDag: (dagId: number) => `/api/dags/${dagId}/tasks`,
+      updatePriority: (taskId: number) => `/api/tasks/${taskId}`,
+    },
     
     // Issues
     issues: {
