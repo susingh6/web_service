@@ -113,6 +113,12 @@ Preferred communication style: Simple, everyday language.
 
 ## Changelog
 
+- June 28, 2025: Completed EditEntityModal comprehensive form integration
+  - EditEntityModal now matches AddEntityModal with identical form fields for both table and DAG entities
+  - Fixed "Is Active" toggle positioning to appear below Notification Preferences
+  - Changed button text from "Save Changes" to "Edit Changes"
+  - Pre-populated all form fields with existing entity data
+  - Maintained validation rules and field requirements across both modals
 - June 28, 2025: Fixed critical DAG entry click errors
   - Resolved .toFixed() and .charAt() errors on undefined entity properties
   - Added comprehensive null checks with fallback values

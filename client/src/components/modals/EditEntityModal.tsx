@@ -782,17 +782,18 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
             name="is_active"
             control={control}
             render={({ field: { onChange, value } }) => (
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={value}
-                    onChange={(e) => onChange(e.target.checked)}
-                    name="is_active"
-                  />
-                }
-                label="Is Active"
-                sx={{ mt: 2 }}
-              />
+              <Box sx={{ mt: 2 }}>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={value}
+                      onChange={(e) => onChange(e.target.checked)}
+                      name="is_active"
+                    />
+                  }
+                  label="Is Active"
+                />
+              </Box>
             )}
           />
         </DialogContent>
@@ -808,7 +809,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
             disabled={isSubmitting}
             startIcon={isSubmitting && <CircularProgress size={20} color="inherit" />}
           >
-            {isSubmitting ? 'Saving...' : 'Save Changes'}
+            {isSubmitting ? 'Saving...' : 'Edit Changes'}
           </Button>
         </DialogActions>
       </form>
