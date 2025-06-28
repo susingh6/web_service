@@ -781,8 +781,8 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                     label={fieldDefinitions.dag_dependency.label}
                     fullWidth
                     margin="normal"
-                    error={!!errors.dag_dependency}
-                    helperText={errors.dag_dependency?.message || "Comma-separated list of DAG names"}
+                    error={!!(errors as any).dag_dependency}
+                    helperText={(errors as any).dag_dependency?.message || "Comma-separated list of DAG names"}
                     placeholder="dag1,dag2,dag3"
                   />
                 )}
