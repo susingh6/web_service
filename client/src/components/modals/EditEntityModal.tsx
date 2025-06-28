@@ -39,6 +39,34 @@ interface EditEntityModalProps {
   teams: { id: number; name: string }[];
 }
 
+// Simple form types for type safety
+interface BaseFormData {
+  tenant_name: string;
+  team_name: string;
+  user_email: string;
+  owner_email: string;
+  notification_preferences: string[];
+  is_active: boolean;
+  donemarker_location: string;
+  donemarker_lookback: number;
+  expected_runtime_minutes: number;
+}
+
+interface TableFormData extends BaseFormData {
+  schema_name: string;
+  table_name: string;
+  table_description: string;
+  table_schedule: string;
+  table_dependency: string;
+}
+
+interface DagFormData extends BaseFormData {
+  dag_name: string;
+  dag_description: string;
+  dag_schedule: string;
+  dag_dependency: string;
+}
+
 const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps) => {
   const dispatch = useAppDispatch();
   const { toast } = useToast();
@@ -47,13 +75,12 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
 
   const entityType: EntityType = entity?.type === 'dag' ? 'dag' : 'table';
 
-  // Create form with dynamic schema
-  const currentSchema = entityType === 'table' ? tableSchema : dagSchema;
-  
-  const form = useForm({
-    resolver: yupResolver(currentSchema),
+  // Create form with any type to avoid schema conflicts
+  const form = useForm<any>({
     mode: 'onChange',
   });
+
+  const { control, handleSubmit, formState: { errors }, reset } = form;
 
   // Pre-populate form with entity data
   useEffect(() => {
@@ -73,27 +100,27 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
       if (entityType === 'table') {
         const tableFormData = {
           ...baseFormData,
-          schema_name: entity.schema_name || '',
+          schema_name: entity.schemaName || '',
           table_name: entity.name || '',
           table_description: entity.description || '',
           table_schedule: entity.refreshFrequency || '',
-          table_dependency: entity.table_dependency || '',
+          table_dependency: entity.tableDependency || '',
         };
-        form.reset(tableFormData);
+        reset(tableFormData);
       } else {
         const dagFormData = {
           ...baseFormData,
           dag_name: entity.name || '',
           dag_description: entity.description || '',
           dag_schedule: entity.refreshFrequency || '',
-          dag_dependency: Array.isArray(entity.dag_dependency) 
-            ? entity.dag_dependency.join(', ') 
-            : entity.dag_dependency || '',
+          dag_dependency: Array.isArray(entity.dagDependency) 
+            ? entity.dagDependency.join(', ') 
+            : entity.dagDependency || '',
         };
-        form.reset(dagFormData);
+        reset(dagFormData);
       }
     }
-  }, [entity, entityType, form, open]);
+  }, [entity, entityType, reset, open]);
 
   const onSubmit = async (data: any) => {
     if (!entity) return;
@@ -133,8 +160,6 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
 
   if (!entity) return null;
 
-  const { control, handleSubmit, formState: { errors } } = currentForm;
-
   return (
     <Dialog 
       open={open} 
@@ -167,6 +192,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
               <Controller
                 name="tenant_name"
                 control={control}
+                rules={{ required: 'Tenant name is required' }}
                 render={({ field }) => (
                   <TextField
                     {...field}
@@ -184,6 +210,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
               <Controller
                 name="team_name"
                 control={control}
+                rules={{ required: 'Team name is required' }}
                 render={({ field }) => (
                   <FormControl fullWidth margin="normal" required error={!!errors.team_name}>
                     <InputLabel>{fieldDefinitions.team_name.label} *</InputLabel>
@@ -207,6 +234,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
                   <Controller
                     name="schema_name"
                     control={control}
+                    rules={{ required: 'Schema name is required' }}
                     render={({ field }) => (
                       <TextField
                         {...field}
@@ -224,6 +252,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
                   <Controller
                     name="table_name"
                     control={control}
+                    rules={{ required: 'Table name is required' }}
                     render={({ field }) => (
                       <TextField
                         {...field}
@@ -259,6 +288,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
                   <Controller
                     name="table_schedule"
                     control={control}
+                    rules={{ required: 'Table schedule is required' }}
                     render={({ field }) => (
                       <TextField
                         {...field}
@@ -294,6 +324,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
                   <Controller
                     name="dag_name"
                     control={control}
+                    rules={{ required: 'DAG name is required' }}
                     render={({ field }) => (
                       <TextField
                         {...field}
@@ -329,6 +360,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
                   <Controller
                     name="dag_schedule"
                     control={control}
+                    rules={{ required: 'DAG schedule is required' }}
                     render={({ field }) => (
                       <TextField
                         {...field}
@@ -368,6 +400,13 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
               <Controller
                 name="user_email"
                 control={control}
+                rules={{ 
+                  required: 'User email is required',
+                  pattern: {
+                    value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+                    message: 'Invalid email format'
+                  }
+                }}
                 render={({ field }) => (
                   <TextField
                     {...field}
@@ -386,6 +425,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
               <Controller
                 name="owner_email"
                 control={control}
+                rules={{ required: 'Owner email is required' }}
                 render={({ field }) => (
                   <TextField
                     {...field}
@@ -404,6 +444,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
               <Controller
                 name="expected_runtime_minutes"
                 control={control}
+                rules={{ required: 'Expected runtime is required' }}
                 render={({ field }) => (
                   <TextField
                     {...field}
@@ -422,6 +463,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
               <Controller
                 name="donemarker_location"
                 control={control}
+                rules={{ required: 'Donemarker location is required' }}
                 render={({ field }) => (
                   <TextField
                     {...field}
