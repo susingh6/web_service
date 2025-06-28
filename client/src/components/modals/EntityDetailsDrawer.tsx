@@ -3,8 +3,6 @@ import {
   Box,
   Typography,
   IconButton,
-  Divider,
-  Grid,
   Chip,
   Paper,
   Avatar,
@@ -20,7 +18,6 @@ import {
 } from '@mui/icons-material';
 import { format } from 'date-fns';
 import { Entity } from '@shared/schema';
-import EntityPerformanceChart from '@/components/dashboard/EntityPerformanceChart';
 
 interface EntityDetailsDrawerProps {
   open: boolean;
@@ -79,7 +76,7 @@ const EntityDetailsDrawer = ({ open, onClose, entity, teams }: EntityDetailsDraw
   
   const teamName = teams.find(team => team.id === entity.teamId)?.name || 'Unknown';
   
-  const formatDate = (date: Date | undefined) => {
+  const formatDate = (date: Date | null | undefined) => {
     if (!date) return 'N/A';
     return format(date, 'MMM d, yyyy • h:mm a');
   };
@@ -177,7 +174,7 @@ const EntityDetailsDrawer = ({ open, onClose, entity, teams }: EntityDetailsDraw
                 
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <Typography variant="body2" color="text.secondary">Last Updated:</Typography>
-                  <Typography variant="body1" fontWeight="medium">{formatDate(entity.lastRefreshed || undefined)}</Typography>
+                  <Typography variant="body1" fontWeight="medium">{formatDate(entity.lastRefreshed)}</Typography>
                 </Box>
               </Box>
             </Paper>
