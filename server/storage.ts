@@ -107,6 +107,9 @@ export class MemStorage implements IStorage {
     
     // Load mock DAG data using FS instead of require
     await this.loadMockDags();
+    
+    // Add some table entities with correct statuses
+    this.addTableEntities();
   }
   
   /**
@@ -131,16 +134,16 @@ export class MemStorage implements IStorage {
         
         // Load each DAG entity into our entities map
         mockDags.forEach(dag => {
-          // Map the lastStatus to the status field for display in UI
+          // Map the lastStatus to the API status field for display in UI
           const statusMap: Record<string, string> = {
-            "success": "success", 
-            "running": "running",
-            "failed": "failed"
+            "success": "Passed", 
+            "running": "Pending",
+            "failed": "Failed"
           };
           
           const statusValue = dag.lastStatus && statusMap[dag.lastStatus] 
             ? statusMap[dag.lastStatus] 
-            : (dag.status || "unknown");
+            : (dag.status || "Pending");
           
           this.entities.set(dag.id, {
             ...dag,
@@ -160,6 +163,95 @@ export class MemStorage implements IStorage {
     } catch (error) {
       console.error('Failed to load mock DAG data:', error);
     }
+  }
+  
+  /**
+   * Add table entities with API-compatible statuses
+   */
+  private addTableEntities(): void {
+    const tableEntities = [
+      {
+        name: 'agg_daily',
+        type: 'table',
+        teamId: 1, // PGM
+        description: 'Daily aggregation table for transaction data',
+        slaTarget: 95.0,
+        currentSla: 98.5,
+        status: 'Passed',
+        refreshFrequency: 'Daily',
+        lastRefreshed: new Date('2025-06-27T14:30:00Z'),
+        owner: 'John Smith',
+        ownerEmail: 'john.smith@company.com'
+      },
+      {
+        name: 'app_hourly',
+        type: 'table', 
+        teamId: 1, // PGM
+        description: 'Hourly application metrics table',
+        slaTarget: 92.0,
+        currentSla: 96.2,
+        status: 'Passed',
+        refreshFrequency: 'Hourly',
+        lastRefreshed: new Date('2025-06-28T14:00:00Z'),
+        owner: 'Jane Doe',
+        ownerEmail: 'jane.doe@company.com'
+      },
+      {
+        name: 'user_events',
+        type: 'table',
+        teamId: 2, // Core
+        description: 'User event tracking table',
+        slaTarget: 90.0,
+        currentSla: null,
+        status: 'Pending',
+        refreshFrequency: 'Real-time',
+        lastRefreshed: null,
+        owner: 'Mike Johnson',
+        ownerEmail: 'mike.johnson@company.com'
+      },
+      {
+        name: 'payment_logs',
+        type: 'table',
+        teamId: 3, // Viewer Product
+        description: 'Payment transaction logs',
+        slaTarget: 99.0,
+        currentSla: 85.2,
+        status: 'Failed',
+        refreshFrequency: 'Real-time',
+        lastRefreshed: new Date('2025-06-28T12:15:00Z'),
+        owner: 'Sarah Wilson',
+        ownerEmail: 'sarah.wilson@company.com'
+      }
+    ];
+
+    tableEntities.forEach(entity => {
+      const id = this.entityId++;
+      const fullEntity: Entity = {
+        id,
+        ...entity,
+        nextRefresh: entity.lastRefreshed ? new Date(entity.lastRefreshed.getTime() + 24 * 60 * 60 * 1000) : new Date(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        // Set null for optional fields
+        tenant_name: null,
+        team_name: null,
+        user_name: null,
+        user_email: null,
+        expected_runtime_minutes: null,
+        dag_name: null,
+        dag_description: null,
+        dag_schedule: null,
+        dag_dependency: null,
+        donemarker_location: null,
+        donemarker_lookback: null,
+        lastRun: entity.lastRefreshed,
+        lastStatus: entity.status,
+        avgRuntime: null,
+        successRate: entity.currentSla,
+        notification_preferences: []
+      };
+      this.entities.set(id, fullEntity);
+    });
   }
   
   // User operations

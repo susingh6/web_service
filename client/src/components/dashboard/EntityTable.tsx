@@ -39,7 +39,7 @@ import { format } from 'date-fns';
 import { Entity } from '@shared/schema';
 import { getEntityTrend } from '@/lib/trendCache';
 
-type EntityStatus = 'active' | 'inactive' | 'degraded' | 'unknown';
+type EntityStatus = 'Pending' | 'Failed' | 'Passed';
 
 interface StatusConfig {
   color: 'success' | 'warning' | 'error' | 'default';
@@ -50,18 +50,10 @@ interface StatusConfig {
 const DEFAULT_STATUS: StatusConfig = { color: 'default', label: 'Unknown', lightBg: 'rgba(158, 158, 158, 0.1)' };
 
 const STATUS_CONFIG: Record<string, StatusConfig> = {
-  // Regular monitoring status terms (for tables)
-  healthy: { color: 'success', label: 'Healthy', lightBg: 'rgba(76, 175, 80, 0.1)' },
-  warning: { color: 'warning', label: 'Warning', lightBg: 'rgba(255, 152, 0, 0.1)' },
-  critical: { color: 'error', label: 'Critical', lightBg: 'rgba(244, 67, 54, 0.1)' },
-  
-  // DAG status terms
-  success: { color: 'success', label: 'Success', lightBg: 'rgba(76, 175, 80, 0.1)' },
-  failed: { color: 'error', label: 'Failed', lightBg: 'rgba(244, 67, 54, 0.1)' },
-  running: { color: 'warning', label: 'Running', lightBg: 'rgba(255, 152, 0, 0.1)' },
-  
-  // Add a "Passed" status as requested
-  passed: { color: 'success', label: 'Passed', lightBg: 'rgba(76, 175, 80, 0.1)' },
+  // API statuses as specified
+  'Passed': { color: 'success', label: 'Passed', lightBg: 'rgba(76, 175, 80, 0.1)' },
+  'Pending': { color: 'warning', label: 'Pending', lightBg: 'rgba(255, 152, 0, 0.1)' },
+  'Failed': { color: 'error', label: 'Failed', lightBg: 'rgba(244, 67, 54, 0.1)' },
 };
 
 interface HeadCell {
@@ -331,37 +323,37 @@ const EntityTable = ({
               All
             </Button>
             <Button 
-              variant={filterStatus === 'healthy' ? 'contained' : 'outlined'} 
-              onClick={() => setFilterStatus('healthy')}
+              variant={filterStatus === 'Passed' ? 'contained' : 'outlined'} 
+              onClick={() => setFilterStatus('Passed')}
               sx={{ 
-                color: filterStatus === 'healthy' ? 'white' : STATUS_CONFIG.healthy.color,
-                borderColor: STATUS_CONFIG.healthy.color,
-                '&.Mui-contained': { backgroundColor: STATUS_CONFIG.healthy.color },
+                color: filterStatus === 'Passed' ? 'white' : STATUS_CONFIG.Passed.color,
+                borderColor: STATUS_CONFIG.Passed.color,
+                '&.Mui-contained': { backgroundColor: STATUS_CONFIG.Passed.color },
               }}
             >
-              Healthy
+              Passed
             </Button>
             <Button 
-              variant={filterStatus === 'warning' ? 'contained' : 'outlined'} 
-              onClick={() => setFilterStatus('warning')}
+              variant={filterStatus === 'Pending' ? 'contained' : 'outlined'} 
+              onClick={() => setFilterStatus('Pending')}
               sx={{ 
-                color: filterStatus === 'warning' ? 'white' : STATUS_CONFIG.warning.color,
-                borderColor: STATUS_CONFIG.warning.color,
-                '&.Mui-contained': { backgroundColor: STATUS_CONFIG.warning.color },
+                color: filterStatus === 'Pending' ? 'white' : STATUS_CONFIG.Pending.color,
+                borderColor: STATUS_CONFIG.Pending.color,
+                '&.Mui-contained': { backgroundColor: STATUS_CONFIG.Pending.color },
               }}
             >
-              Warning
+              Pending
             </Button>
             <Button 
-              variant={filterStatus === 'critical' ? 'contained' : 'outlined'} 
-              onClick={() => setFilterStatus('critical')}
+              variant={filterStatus === 'Failed' ? 'contained' : 'outlined'} 
+              onClick={() => setFilterStatus('Failed')}
               sx={{ 
-                color: filterStatus === 'critical' ? 'white' : STATUS_CONFIG.critical.color,
-                borderColor: STATUS_CONFIG.critical.color,
-                '&.Mui-contained': { backgroundColor: STATUS_CONFIG.critical.color },
+                color: filterStatus === 'Failed' ? 'white' : STATUS_CONFIG.Failed.color,
+                borderColor: STATUS_CONFIG.Failed.color,
+                '&.Mui-contained': { backgroundColor: STATUS_CONFIG.Failed.color },
               }}
             >
-              Critical
+              Failed
             </Button>
           </ButtonGroup>
         </Box>
