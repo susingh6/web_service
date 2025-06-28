@@ -295,9 +295,10 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
                 <TriggerConfig
                   key={index}
                   trigger={trigger}
-                  onUpdate={(updatedTrigger) => handleUpdateTrigger(index, updatedTrigger)}
+                  onChange={(updatedTrigger) => handleUpdateTrigger(index, updatedTrigger)}
                   onRemove={() => handleRemoveTrigger(index)}
                   availableAiTasks={availableAiTasks}
+                  entityType={entity?.type as 'table' | 'dag' || 'dag'}
                 />
               ))}
             </Box>
