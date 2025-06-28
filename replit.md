@@ -113,6 +113,12 @@ Preferred communication style: Simple, everyday language.
 
 ## Changelog
 
+- June 28, 2025: Completed removal of notification_preferences from bulk upload modal system
+  - Removed notification_preferences from BaseEntity interface definition
+  - Eliminated notification_preferences from optional fields display for both tables and DAGs
+  - Removed notification_preferences from all sample template downloads (tables and DAGs)
+  - Notification configuration now completely isolated from bulk upload workflows
+  - Bulk upload system focuses exclusively on entity properties without notification configuration
 - June 28, 2025: Completed removal of notification configuration from entity modals
   - Removed NotificationConfigManager from both AddEntityModal and EditEntityModal
   - Eliminated notification configuration section from entity creation and editing workflows

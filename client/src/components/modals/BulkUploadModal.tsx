@@ -59,7 +59,6 @@ interface BaseEntity {
   tenant_name: string;
   team_name: string;
   expected_runtime_minutes: number;
-  notification_preferences?: string[];
   donemarker_location?: string;
   donemarker_lookback?: number;
   user_name?: string;
@@ -588,7 +587,6 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
           table_schedule: "0 */4 * * *",  // Every 4 hours
           expected_runtime_minutes: 45,
           table_dependency: ["analytics.products", "analytics.orders"],  // Example as string array
-          notification_preferences: ["email", "slack"],
           donemarker_location: "s3://data-warehouse/markers/customer_data/",
           donemarker_lookback: 1,
           user_name: "John Doe",
@@ -604,7 +602,6 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
           table_schedule: "0 0 * * *",  // Daily at midnight
           expected_runtime_minutes: 120,
           table_dependency: "reporting.campaigns,reporting.conversions",  // Example as comma-separated string
-          notification_preferences: ["slack", "pagerduty"],
           donemarker_location: "s3://ad-analytics/markers/performance/",
           donemarker_lookback: 2,
           user_name: "Jane Smith",
@@ -622,7 +619,6 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
           dag_schedule: "0 */2 * * *",  // Every 2 hours
           expected_runtime_minutes: 30,
           dag_dependency: "sensor_validation,data_quality_check",  // Example as comma-separated string
-          notification_preferences: ["pagerduty", "email"],
           donemarker_location: "s3://airflow/markers/device_etl/",
           donemarker_lookback: 0,
           user_name: "Alex Johnson",
@@ -637,7 +633,6 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
           dag_schedule: "0 4 * * *",  // Daily at 4 AM
           expected_runtime_minutes: 60,
           dag_dependency: ["user_activity_collection", "model_training"],  // Example as string array
-          notification_preferences: ["email", "slack"],
           donemarker_location: "s3://airflow/markers/segmentation/",
           donemarker_lookback: 1,
           user_name: "Sarah Williams",
@@ -765,7 +760,6 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
               
               <Typography component="div" variant="body2" sx={{ pl: 2, mb: 1 }}>
                 <ul>
-                  <li>notification_preferences: Array of strings (e.g., ["email", "slack", "pagerduty"])</li>
                   <li>donemarker_location: String</li>
                   <li>donemarker_lookback: Number</li>
                   <li>is_active: Boolean</li>
