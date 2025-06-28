@@ -280,7 +280,7 @@ const TeamDashboard = () => {
               teams={teams}
               onEditEntity={handleEditEntity}
               onDeleteEntity={handleDeleteEntity}
-              onViewHistory={() => {}}
+              onViewHistory={handleViewDetails}
               onViewDetails={handleViewDetails}
               showActions={true} // Show actions in team tabs
             />
@@ -295,7 +295,7 @@ const TeamDashboard = () => {
               teams={teams}
               onEditEntity={handleEditEntity}
               onDeleteEntity={handleDeleteEntity}
-              onViewHistory={() => {}}
+              onViewHistory={handleViewDetails}
               onViewDetails={handleViewDetails}
               onViewTasks={handleViewTasks}
               showActions={true} // Show actions in team tabs

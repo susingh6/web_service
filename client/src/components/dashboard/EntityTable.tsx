@@ -199,9 +199,9 @@ const EntityTable = ({
     setPage(0);
   };
 
-  const handleRowClick = (entity: Entity) => {
+  const handleHistoryClick = (entity: Entity) => {
     dispatch(selectEntity(entity));
-    onViewDetails(entity);
+    onViewHistory(entity);
   };
 
   const isSelected = (id: number) => selected.indexOf(id) !== -1;
@@ -393,13 +393,11 @@ const EntityTable = ({
                 return (
                   <TableRow
                     hover
-                    onClick={() => handleRowClick(entity)}
                     role="checkbox"
                     aria-checked={isItemSelected}
                     tabIndex={-1}
                     key={entity.id}
                     selected={isItemSelected}
-                    sx={{ cursor: 'pointer' }}
                   >
                     <TableCell padding="checkbox" onClick={(e) => e.stopPropagation()}>
                       <Checkbox
@@ -477,7 +475,7 @@ const EntityTable = ({
                           )}
                           
                           <Tooltip title="History">
-                            <IconButton size="small" color="inherit" onClick={() => onViewHistory(entity)}>
+                            <IconButton size="small" color="inherit" onClick={() => handleHistoryClick(entity)}>
                               <History fontSize="small" />
                             </IconButton>
                           </Tooltip>
