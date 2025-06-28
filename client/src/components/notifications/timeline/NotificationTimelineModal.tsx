@@ -113,6 +113,17 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
     }
   }, [aiTasks]);
 
+  // Fetch individual notification timeline for editing
+  const { data: selectedTimeline, isLoading: isLoadingTimeline } = useQuery({
+    queryKey: ['notification-timeline', selectedTimelineId],
+    queryFn: async () => {
+      if (!selectedTimelineId) return null;
+      const res = await apiRequest('GET', endpoints.notificationTimelines.byId(selectedTimelineId));
+      return await res.json();
+    },
+    enabled: !!selectedTimelineId && tabValue === 'update'
+  });
+
   // Populate form when editing an existing timeline
   useEffect(() => {
     if (selectedTimeline && tabValue === 'update') {
@@ -223,16 +234,26 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
       return;
     }
 
-    const payload: InsertNotificationTimeline = {
-      entityId: entity?.id || 0,
-      name: data.name,
-      description: data.description,
-      triggers,
-      channels: enabledChannels,
-      isActive: data.isActive
-    };
-
-    createTimelineMutation.mutate(payload);
+    if (tabValue === 'add') {
+      const payload: InsertNotificationTimeline = {
+        entityId: entity?.id || 0,
+        name: data.name,
+        description: data.description,
+        triggers,
+        channels: enabledChannels,
+        isActive: data.isActive
+      };
+      createTimelineMutation.mutate(payload);
+    } else {
+      const updates = {
+        name: data.name,
+        description: data.description,
+        triggers,
+        channels: enabledChannels,
+        isActive: data.isActive
+      };
+      updateTimelineMutation.mutate({ id: selectedTimelineId, updates });
+    }
   };
 
   const handleClose = () => {
@@ -263,10 +284,51 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
         <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
           Configure notification triggers and channels for {entity?.name}
         </Typography>
+        
+        {/* Tabs for Add New vs Update Existing */}
+        <Box sx={{ borderBottom: 1, borderColor: 'divider', mt: 2 }}>
+          <Tabs value={tabValue} onChange={(e, newValue) => setTabValue(newValue)}>
+            <Tab label="ADD NEW" value="add" />
+            <Tab label="UPDATE EXISTING" value="update" />
+          </Tabs>
+        </Box>
       </DialogTitle>
 
       <form onSubmit={handleSubmit(onSubmit)}>
         <DialogContent sx={{ pt: 2 }}>
+          {/* Dropdown for selecting existing timeline when updating */}
+          {tabValue === 'update' && (
+            <Box sx={{ mb: 3 }}>
+              <FormControl fullWidth required>
+                <FormLabel sx={{ mb: 1 }}>Timeline Name</FormLabel>
+                <Select
+                  value={selectedTimelineId}
+                  onChange={(e) => setSelectedTimelineId(e.target.value)}
+                  displayEmpty
+                >
+                  <MenuItem value="" disabled>
+                    Select existing notification timeline
+                  </MenuItem>
+                  {existingTimelines?.map((timeline: NotificationTimeline) => (
+                    <MenuItem key={timeline.id} value={timeline.id}>
+                      {timeline.name.toUpperCase()}
+                    </MenuItem>
+                  ))}
+                </Select>
+                {isLoadingTimelines && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
+                    <CircularProgress size={16} sx={{ mr: 1 }} />
+                    <Typography variant="body2" color="text.secondary">
+                      Loading timelines...
+                    </Typography>
+                  </Box>
+                )}
+              </FormControl>
+            </Box>
+          )}
+
+          {/* Show form only if adding new OR if updating and timeline is selected */}
+          {(tabValue === 'add' || (tabValue === 'update' && selectedTimelineId)) && (
           <Stack spacing={3}>
             {/* Basic Information Section */}
             <Box>
@@ -406,6 +468,7 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
               />
             </Box>
           </Stack>
+          )}
         </DialogContent>
 
         <DialogActions sx={{ px: 3, pb: 3 }}>
