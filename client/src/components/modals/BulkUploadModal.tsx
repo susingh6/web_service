@@ -159,7 +159,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
   const fetchTenantOptions = async () => {
     setLoadingTenants(true);
     try {
-      const options = await fetchWithCache('https://api.example.com/tenants', 'tenants');
+      const options = await fetchWithCache(buildUrl(endpoints.debug.teams), 'tenants');
       setTenantOptions(options);
     } catch (error) {
       console.error('Error fetching tenant options:', error);

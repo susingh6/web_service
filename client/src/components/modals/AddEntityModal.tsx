@@ -38,6 +38,8 @@ import {
   buildDagSchema as dagSchemaBuilder, 
   defaultValues as configDefaultValues
 } from '@/config/schemas';
+import { buildUrl, endpoints } from '@/config';
+import { apiRequest } from '@/lib/queryClient';
 
 type EntityType = 'table' | 'dag';
 
@@ -98,7 +100,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
   const fetchTenantOptions = async () => {
     setLoadingTenants(true);
     try {
-      const options = await fetchWithCache('https://api.example.com/tenants', 'tenants');
+      const options = await fetchWithCache(buildUrl(endpoints.debug.teams), 'tenants');
       setTenantOptions(options);
     } catch (error) {
       console.error('Error fetching tenant options:', error);
@@ -110,8 +112,10 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
   const fetchTeamOptions = async () => {
     setLoadingTeams(true);
     try {
-      const options = await fetchWithCache('https://api.example.com/teams', 'teams');
-      setTeamOptions(options);
+      const response = await apiRequest('GET', buildUrl(endpoints.teams));
+      const teams = await response.json();
+      const teamNames = teams.map((team: any) => team.name);
+      setTeamOptions(teamNames);
     } catch (error) {
       console.error('Error fetching team options:', error);
     } finally {
@@ -122,8 +126,8 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
   const fetchDagOptions = async () => {
     setLoadingDags(true);
     try {
-      // Use our FastAPI endpoint that will internally fetch from Airflow
-      const options = await fetchWithCache('https://api.example.com/dags', 'dags');
+      // Use centralized endpoint for DAG options
+      const options = await fetchWithCache(buildUrl(endpoints.debug.teams), 'dags');
       setDagOptions(options);
     } catch (error) {
       console.error('Error fetching DAG options:', error);
@@ -202,22 +206,13 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
         // Add any additional fields needed by the API
       };
       
-      // Determine the endpoint based on entity type
-      const endpoint = entityType === 'dag' 
-        ? 'https://api.example.com/entities/dag' 
-        : 'https://api.example.com/entities/table';
+      // Use centralized API configuration for entity creation
+      const endpoint = buildUrl(endpoints.entities);
         
       console.log(`Submitting ${entityType} to endpoint: ${endpoint}`);
       
-      // Make the API call to create the entity
-      // FastAPI will perform full validation including Airflow API checks
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(entityData),
-      });
+      // Make the API call to create the entity using centralized apiRequest
+      const response = await apiRequest('POST', endpoint, entityData);
       
       if (!response.ok) {
         // Handle server validation errors
