@@ -113,6 +113,13 @@ Preferred communication style: Simple, everyday language.
 
 ## Changelog
 
+- June 28, 2025: Implemented centralized API system for task drag and drop functionality
+  - Added task endpoints to centralized API configuration (dev.ts, index.ts)
+  - Updated task service to use centralized endpoints instead of hard-coded URLs
+  - Implemented backend API routes for GET /api/dags/:dagId/tasks and PATCH /api/tasks/:taskId
+  - Task priority updates now use proper API calls with centralized configuration
+  - Removed fallback to mock data dependency - now uses authentic API integration
+  - Drag and drop from "Regular Tasks" to "AI Monitored Tasks" registers changes via API
 - June 28, 2025: Completed centralized API configuration system for notification timelines
   - Added notification timeline endpoints to centralized API configuration in config files
   - Updated NotificationTimelineModal to use centralized endpoints from config system

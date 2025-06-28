@@ -40,7 +40,7 @@ export const useUpdateTaskPriority = () => {
     mutationFn: async ({ taskId, priority, dagId }: UpdateTaskPriorityParams) => {
       try {
         // Try to update via API first
-        const response = await apiRequest('PATCH', `/api/tasks/${taskId}`, { priority });
+        const response = await apiRequest('PATCH', endpoints.tasks.updatePriority(taskId), { priority });
         return await response.json();
       } catch (error) {
         // Fall back to mock data if API fails or doesn't exist yet

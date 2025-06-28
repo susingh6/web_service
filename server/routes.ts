@@ -448,6 +448,83 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to delete notification timeline" });
     }
   });
+
+  // Task API routes
+  // Get tasks for a specific DAG
+  app.get("/api/dags/:dagId/tasks", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const dagId = parseInt(req.params.dagId);
+      if (isNaN(dagId)) {
+        return res.status(400).json({ message: "Invalid DAG ID" });
+      }
+
+      // For now, return mock data as tasks are not stored in database yet
+      // In a real implementation, this would fetch from the database
+      const mockTasks = [
+        {
+          id: 1,
+          name: "Task1",
+          priority: "normal",
+          status: "running",
+          dagId: dagId,
+          description: "First task in the DAG"
+        },
+        {
+          id: 2,
+          name: "Task2", 
+          priority: "high",
+          status: "completed",
+          dagId: dagId,
+          description: "Second task in the DAG"
+        },
+        {
+          id: 3,
+          name: "Task3",
+          priority: "normal",
+          status: "pending",
+          dagId: dagId,
+          description: "Third task in the DAG"
+        }
+      ];
+
+      res.json(mockTasks);
+    } catch (error) {
+      console.error("Error fetching DAG tasks:", error);
+      res.status(500).json({ message: "Failed to fetch DAG tasks" });
+    }
+  });
+
+  // Update task priority
+  app.patch("/api/tasks/:taskId", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const taskId = parseInt(req.params.taskId);
+      if (isNaN(taskId)) {
+        return res.status(400).json({ message: "Invalid task ID" });
+      }
+
+      const { priority } = req.body;
+      if (!priority || !["high", "normal"].includes(priority)) {
+        return res.status(400).json({ message: "Invalid priority. Must be 'high' or 'normal'" });
+      }
+
+      // For now, return updated mock data
+      // In a real implementation, this would update the database
+      const updatedTask = {
+        id: taskId,
+        name: `Task${taskId}`,
+        priority: priority,
+        status: "running",
+        description: `Updated task ${taskId} priority to ${priority}`,
+        updatedAt: new Date().toISOString()
+      };
+
+      console.log(`Task ${taskId} priority updated to ${priority}`);
+      res.json(updatedTask);
+    } catch (error) {
+      console.error("Error updating task priority:", error);
+      res.status(500).json({ message: "Failed to update task priority" });
+    }
+  });
   
   // Dashboard summary endpoint
   app.get("/api/dashboard/summary", async (req, res) => {
