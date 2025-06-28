@@ -82,7 +82,7 @@ const Header = () => {
               fontWeight: 600,
             }}
           >
-            SLA Monitoring Dashboard
+            SLA Dashboard
           </Typography>
         </Box>
         
