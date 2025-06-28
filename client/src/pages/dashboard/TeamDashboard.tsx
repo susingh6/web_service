@@ -8,7 +8,6 @@ import { Entity, Team } from '@shared/schema';
 import MetricCard from '@/components/dashboard/MetricCard';
 import ChartCard from '@/components/dashboard/ChartCard';
 import EntityTable from '@/components/dashboard/EntityTable';
-import DagList from '@/components/dashboard/DagList';
 import DateRangePicker from '@/components/dashboard/DateRangePicker';
 import ComplianceTrendChart from '@/components/dashboard/ComplianceTrendChart';
 import EntityPerformanceChart from '@/components/dashboard/EntityPerformanceChart';
