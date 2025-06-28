@@ -535,22 +535,6 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
               />
               
               <Controller
-                name="user_name"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    label={fieldDefinitions.user_name.label}
-                    required={fieldDefinitions.user_name.required}
-                    type={fieldDefinitions.user_name.type}
-                    placeholder={fieldDefinitions.user_name.placeholder}
-                    fullWidth
-                    margin="normal"
-                    error={!!errors.user_name}
-                    helperText={errors.user_name?.message}
-                  />
-                )}
-              />
               
               <Controller
                 name="user_email"
@@ -824,22 +808,6 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
               />
               
               <Controller
-                name="user_name"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    label={fieldDefinitions.user_name.label}
-                    required={fieldDefinitions.user_name.required}
-                    type={fieldDefinitions.user_name.type}
-                    placeholder={fieldDefinitions.user_name.placeholder}
-                    fullWidth
-                    margin="normal"
-                    error={!!errors.user_name}
-                    helperText={errors.user_name?.message}
-                  />
-                )}
-              />
               
               <Controller
                 name="user_email"
