@@ -413,7 +413,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
                     renderInput={(params) => (
                       <TextField
                         {...params}
-                        label="Team Name *"
+                        label={fieldDefinitions.team_name.label + " *"}
                         required
                         fullWidth
                         margin="normal"
@@ -441,7 +441,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
                 render={({ field }) => (
                   <TextField
                     {...field}
-                    label="Schema Name *"
+                    label={fieldDefinitions.schema_name.label + " *"}
                     fullWidth
                     margin="normal"
                     required
@@ -457,7 +457,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
                 render={({ field }) => (
                   <TextField
                     {...field}
-                    label="Table Name *"
+                    label={fieldDefinitions.table_name.label + " *"}
                     fullWidth
                     margin="normal"
                     required
@@ -572,7 +572,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
                     renderInput={(params) => (
                       <TextField
                         {...params}
-                        label="Team Name *"
+                        label={fieldDefinitions.team_name.label + " *"}
                         required
                         fullWidth
                         margin="normal"
@@ -690,7 +690,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
             render={({ field }) => (
               <TextField
                 {...field}
-                label="User Name"
+                label={fieldDefinitions.user_name.label}
                 fullWidth
                 margin="normal"
                 error={!!errors.user_name}
@@ -705,7 +705,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
             render={({ field }) => (
               <TextField
                 {...field}
-                label="User Email *"
+                label={fieldDefinitions.user_email.label + " *"}
                 fullWidth
                 margin="normal"
                 required
