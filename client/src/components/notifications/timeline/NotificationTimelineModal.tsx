@@ -35,6 +35,8 @@ import {
   TRIGGER_TYPE_LABELS
 } from '@/lib/notifications/timelineTypes';
 import { TriggerConfig } from './TriggerConfig';
+import { NotificationConfigManager } from '@/components/notifications/NotificationConfigManager';
+import { NotificationSettings } from '@/lib/notifications/types';
 import { Entity } from '@shared/schema';
 
 interface NotificationTimelineModalProps {
@@ -62,6 +64,11 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
   
   const [triggers, setTriggers] = useState<NotificationTrigger[]>([]);
   const [availableAiTasks, setAvailableAiTasks] = useState<string[]>([]);
+  const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({
+    email: { enabled: false, additionalRecipients: [] },
+    slack: { enabled: false, channelId: '', message: '' },
+    pagerduty: { enabled: false, type: 'service', serviceKey: '', escalationPolicy: '' }
+  });
 
   const {
     control,
@@ -119,6 +126,11 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
       queryClient.invalidateQueries({ queryKey: ['notification-timelines', entity?.id] });
       reset();
       setTriggers([]);
+      setNotificationSettings({
+        email: { enabled: false, additionalRecipients: [] },
+        slack: { enabled: false, channelId: '', message: '' },
+        pagerduty: { enabled: false, type: 'service', serviceKey: '', escalationPolicy: '' }
+      });
       onSuccess?.();
       onClose();
     },
@@ -175,7 +187,9 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
       name: data.name,
       description: data.description,
       triggers,
-      channels: data.channels,
+      channels: Object.entries(notificationSettings)
+        .filter(([_, config]) => config.enabled)
+        .map(([channel]) => channel),
       isActive: data.isActive
     };
 
@@ -185,6 +199,11 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
   const handleClose = () => {
     reset();
     setTriggers([]);
+    setNotificationSettings({
+      email: { enabled: false, additionalRecipients: [] },
+      slack: { enabled: false, channelId: '', message: '' },
+      pagerduty: { enabled: false, type: 'service', serviceKey: '', escalationPolicy: '' }
+    });
     onClose();
   };
 
@@ -298,31 +317,9 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
               <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 2 }}>
                 Notification Channels
               </Typography>
-              <Controller
-                name="channels"
-                control={control}
-                render={({ field }) => (
-                  <FormGroup>
-                    {['email', 'slack', 'pagerduty'].map((channel) => (
-                      <FormControlLabel
-                        key={channel}
-                        control={
-                          <Checkbox
-                            checked={field.value.includes(channel)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                field.onChange([...field.value, channel]);
-                              } else {
-                                field.onChange(field.value.filter((c: string) => c !== channel));
-                              }
-                            }}
-                          />
-                        }
-                        label={channel.charAt(0).toUpperCase() + channel.slice(1)}
-                      />
-                    ))}
-                  </FormGroup>
-                )}
+              <NotificationConfigManager
+                value={notificationSettings}
+                onChange={setNotificationSettings}
               />
             </Box>
 
