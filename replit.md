@@ -127,6 +127,8 @@ Preferred communication style: Simple, everyday language.
   - Fixed undefined config errors and added proper default values for all notification components
   - Updated email configuration label from "Additional Recipients by Role" to "Additional Recipients"
   - Updated notification message to specify "SLA Management System Administration" for clarity
+  - Integrated NotificationConfigManager into EditEntityModal to match AddEntityModal functionality
+  - Eliminated code duplication by using centralized notification configuration system across both modals
 - June 28, 2025: Implemented comprehensive API data fetching for EditEntityModal
   - Added entity details API endpoint `/api/entities/:id/details` with enhanced field structure
   - Implemented React Query data fetching with proper pre-population of all form fields

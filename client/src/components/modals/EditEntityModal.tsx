@@ -28,6 +28,8 @@ import { Close as CloseIcon } from '@mui/icons-material';
 import { validateTenant, validateTeam, validateDag } from '@/lib/validationUtils';
 import { fetchWithCache, getFromCache } from '@/lib/cacheUtils';
 import { useAppDispatch } from '@/lib/store';
+import { NotificationConfigManager } from '@/components/notifications/NotificationConfigManager';
+import { NotificationSettings } from '@/lib/notifications/types';
 import { updateEntity } from '@/features/sla/slices/entitiesSlice';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
@@ -115,6 +117,9 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
   // State for validation errors
   const [validationError, setValidationError] = useState<string | null>(null);
   
+  // State for notification settings
+  const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({});
+  
   // Dynamic schema selection
   const schema = React.useMemo(() => 
     entityType === 'table' ? tableSchema : dagSchema, 
@@ -178,6 +183,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
     control,
     handleSubmit,
     reset,
+    watch,
     formState: { errors },
   } = useForm({
     resolver: yupResolver(schema),
@@ -773,68 +779,22 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
           <Controller
             name="notification_preferences"
             control={control}
-            render={({ field: { onChange, value } }) => (
-              <FormControl component="fieldset" margin="normal">
-                <FormLabel component="legend">Notification Preferences</FormLabel>
-                <FormGroup>
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={value?.includes('email') || false}
-                        onChange={(e) => {
-                          const currentValue = value || [];
-                          if (e.target.checked) {
-                            onChange([...currentValue, 'email']);
-                          } else {
-                            onChange(currentValue.filter((item: string) => item !== 'email'));
-                          }
-                        }}
-                        name="email"
-                      />
-                    }
-                    label="Email"
-                  />
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={value?.includes('slack') || false}
-                        onChange={(e) => {
-                          const currentValue = value || [];
-                          if (e.target.checked) {
-                            onChange([...currentValue, 'slack']);
-                          } else {
-                            onChange(currentValue.filter((item: string) => item !== 'slack'));
-                          }
-                        }}
-                        name="slack"
-                      />
-                    }
-                    label="Slack"
-                  />
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={value?.includes('sms') || false}
-                        onChange={(e) => {
-                          const currentValue = value || [];
-                          if (e.target.checked) {
-                            onChange([...currentValue, 'sms']);
-                          } else {
-                            onChange(currentValue.filter((item: string) => item !== 'sms'));
-                          }
-                        }}
-                        name="sms"
-                      />
-                    }
-                    label="SMS"
-                  />
-                </FormGroup>
+            render={({ field }) => (
+              <div style={{ margin: '16px 0' }}>
+                <NotificationConfigManager
+                  value={field.value || []}
+                  onChange={(enabledTypes, settings) => {
+                    field.onChange(enabledTypes);
+                    setNotificationSettings(settings);
+                  }}
+                  teamName={watch('team_name') || ''}
+                />
                 {errors.notification_preferences && (
-                  <FormHelperText error>
-                    {errors.notification_preferences?.message}
+                  <FormHelperText error sx={{ mt: 1 }}>
+                    {errors.notification_preferences.message}
                   </FormHelperText>
                 )}
-              </FormControl>
+              </div>
             )}
           />
           
