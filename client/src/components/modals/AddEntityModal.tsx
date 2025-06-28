@@ -825,7 +825,10 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 render={({ field }) => (
                   <TextField
                     {...field}
-                    label="User Name"
+                    label={fieldDefinitions.user_name.label}
+                    required={fieldDefinitions.user_name.required}
+                    type={fieldDefinitions.user_name.type}
+                    placeholder={fieldDefinitions.user_name.placeholder}
                     fullWidth
                     margin="normal"
                     error={!!errors.user_name}

@@ -53,6 +53,7 @@ import { useToast } from '@/hooks/use-toast';
 import { fetchWithCache, getFromCache } from '@/lib/cacheUtils';
 import { buildUrl, endpoints } from '@/config/index';
 import { apiRequest } from '@/lib/queryClient';
+import { fieldDefinitions } from '@/config/schemas';
 
 // Entity types for validation
 interface BaseEntity {
@@ -232,63 +233,63 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
       entity.needs_dag_validation = true;
     }
     
-    // Common required fields validation
+    // Common required fields validation using centralized field definitions
     // Tenant name must exist in the predefined list
     if (!entity.tenant_name) {
-      errors.push({ field: 'tenant_name', message: 'Tenant name is required' });
+      errors.push({ field: 'tenant_name', message: `${fieldDefinitions.tenant_name.label} is required` });
     } else if (tenantOptions.length > 0 && !tenantOptions.includes(entity.tenant_name)) {
-      errors.push({ field: 'tenant_name', message: `Tenant "${entity.tenant_name}" is not in the known list. New tenant names are not allowed.` });
+      errors.push({ field: 'tenant_name', message: `${fieldDefinitions.tenant_name.label} "${entity.tenant_name}" is not in the known list. New tenant names are not allowed.` });
     }
     
     // Team name must exist in the predefined list
     if (!entity.team_name) {
-      errors.push({ field: 'team_name', message: 'Team name is required' });
+      errors.push({ field: 'team_name', message: `${fieldDefinitions.team_name.label} is required` });
     } else if (teamOptions.length > 0 && !teamOptions.includes(entity.team_name)) {
-      errors.push({ field: 'team_name', message: `Team "${entity.team_name}" is not in the known list. New team names are not allowed.` });
+      errors.push({ field: 'team_name', message: `${fieldDefinitions.team_name.label} "${entity.team_name}" is not in the known list. New team names are not allowed.` });
     }
     
     if (!entity.expected_runtime_minutes) {
-      errors.push({ field: 'expected_runtime_minutes', message: 'Expected runtime minutes is required' });
+      errors.push({ field: 'expected_runtime_minutes', message: `${fieldDefinitions.expected_runtime_minutes.label} is required` });
     } else if (isNaN(Number(entity.expected_runtime_minutes))) {
-      errors.push({ field: 'expected_runtime_minutes', message: 'Expected runtime must be a number' });
+      errors.push({ field: 'expected_runtime_minutes', message: `${fieldDefinitions.expected_runtime_minutes.label} must be a number` });
     } else if (Number(entity.expected_runtime_minutes) < 1 || Number(entity.expected_runtime_minutes) > 1440) {
-      errors.push({ field: 'expected_runtime_minutes', message: 'Expected runtime must be between 1 and 1440 minutes' });
+      errors.push({ field: 'expected_runtime_minutes', message: `${fieldDefinitions.expected_runtime_minutes.label} must be between 1 and 1440 minutes` });
     }
     
-    // User email is required with valid format
+    // User email is required with valid format using centralized field definitions
     if (!entity.user_email) {
-      errors.push({ field: 'user_email', message: 'User email is required' });
+      errors.push({ field: 'user_email', message: `${fieldDefinitions.user_email.label} is required` });
     } else if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(entity.user_email)) {
-      errors.push({ field: 'user_email', message: 'Invalid email format' });
+      errors.push({ field: 'user_email', message: `Invalid ${fieldDefinitions.user_email.label.toLowerCase()} format` });
     }
     
-    // Entity type specific validation
+    // Entity type specific validation using centralized field definitions
     if (entityType === 'tables') {
       if (!entity.schema_name) {
-        errors.push({ field: 'schema_name', message: 'Schema name is required' });
+        errors.push({ field: 'schema_name', message: `${fieldDefinitions.schema_name.label} is required` });
       }
       
       if (!entity.table_name) {
-        errors.push({ field: 'table_name', message: 'Table name is required' });
+        errors.push({ field: 'table_name', message: `${fieldDefinitions.table_name.label} is required` });
       }
       
       if (!entity.table_schedule) {
-        errors.push({ field: 'table_schedule', message: 'Table schedule is required' });
+        errors.push({ field: 'table_schedule', message: `${fieldDefinitions.table_schedule.label} is required` });
       } else if (!/^[\d*\/ ,\-]+$/.test(entity.table_schedule)) {
-        errors.push({ field: 'table_schedule', message: 'Invalid cron format' });
+        errors.push({ field: 'table_schedule', message: `Invalid ${fieldDefinitions.table_schedule.label.toLowerCase()} format` });
       }
     } else { // DAGs validation
       if (!entity.dag_name) {
-        errors.push({ field: 'dag_name', message: 'DAG name is required' });
+        errors.push({ field: 'dag_name', message: `${fieldDefinitions.dag_name.label} is required` });
       } else if (isNewDag) {
         // Only warn about new DAG names, don't treat as error since backend will validate
         // We already set the needs_dag_validation flag above
       }
       
       if (!entity.dag_schedule) {
-        errors.push({ field: 'dag_schedule', message: 'DAG schedule is required' });
+        errors.push({ field: 'dag_schedule', message: `${fieldDefinitions.dag_schedule.label} is required` });
       } else if (!/^[\d*\/ ,\-]+$/.test(entity.dag_schedule)) {
-        errors.push({ field: 'dag_schedule', message: 'Invalid cron format' });
+        errors.push({ field: 'dag_schedule', message: `Invalid ${fieldDefinitions.dag_schedule.label.toLowerCase()} format` });
       }
     }
     
