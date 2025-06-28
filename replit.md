@@ -253,6 +253,13 @@ Preferred communication style: Simple, everyday language.
   - Updated common field labels (Expected Runtime, Donemarker Location, Donemarker Lookback) with centralized config
   - Maintained identical rendering structure and functionality with no visual changes
   - Edit Entity modal now consistently uses Add Entity modal field labels from centralized system
+- June 28, 2025: Updated Add Entity modal to complete centralized field definitions for labels and attributes
+  - Replaced remaining hard-coded labels with centralized fieldDefinitions from config schemas
+  - Updated Tenant Name, Team Name, Schema Name labels to use centralized configuration
+  - Updated Table/DAG entity-specific labels (Name, Description, Schedule, Dependency) with centralized definitions
+  - Updated common field labels (Expected Runtime, Donemarker Location, Donemarker Lookback) with centralized config
+  - Maintained identical rendering structure and functionality with no visual changes
+  - Add Entity modal now fully integrated with centralized API configuration system
 - June 28, 2025: Updated Add Entity modal to use centralized field definitions for both Table and DAG tabs
   - Replaced hard-coded labels with centralized fieldDefinitions for user_name and user_email fields in both tabs
   - "User Name" field now shows as "Owner Email" with mandatory validation from centralized config

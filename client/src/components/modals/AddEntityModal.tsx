@@ -726,7 +726,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 render={({ field }) => (
                   <TextField
                     {...field}
-                    label="DAG Description"
+                    label={fieldDefinitions.dag_description.label}
                     fullWidth
                     margin="normal"
                     multiline
@@ -778,7 +778,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 render={({ field }) => (
                   <TextField
                     {...field}
-                    label="DAG Dependency"
+                    label={fieldDefinitions.dag_dependency.label}
                     fullWidth
                     margin="normal"
                     error={!!errors.dag_dependency}
