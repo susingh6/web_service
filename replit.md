@@ -236,6 +236,9 @@ Preferred communication style: Simple, everyday language.
   - Validation errors now dynamically reference field labels from centralized configuration
   - Maintained same rendering structure while achieving consistent field terminology
   - Bulk upload system now fully integrated with centralized configuration schema
+  - Fixed donemarker_location display to show as mandatory field in required fields list
+  - Removed donemarker_location from optional fields section
+  - Updated download sample template to include donemarker_location as required field for both tables and DAGs
 - June 28, 2025: Updated Add Entity modal to use centralized field definitions for both Table and DAG tabs
   - Replaced hard-coded labels with centralized fieldDefinitions for user_name and user_email fields in both tabs
   - "User Name" field now shows as "Owner Email" with mandatory validation from centralized config

@@ -744,6 +744,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
                     <li>table_schedule: String (must be valid cron format)</li>
                     <li>expected_runtime_minutes: Number (must be between 1 and 1440)</li>
                     <li>user_email: String</li>
+                    <li>donemarker_location: String (single location or comma-separated multiple locations)</li>
                   </ul>
                 ) : (
                   <ul>
@@ -753,6 +754,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
                     <li>dag_schedule: String (must be valid cron format)</li>
                     <li>expected_runtime_minutes: Number (must be between 1 and 1440)</li>
                     <li>user_email: String</li>
+                    <li>donemarker_location: String (single location or comma-separated multiple locations)</li>
                   </ul>
                 )}
               </Typography>
@@ -763,7 +765,6 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
               
               <Typography component="div" variant="body2" sx={{ pl: 2, mb: 1 }}>
                 <ul>
-                  <li>donemarker_location: String</li>
                   <li>donemarker_lookback: Number</li>
                   <li>is_active: Boolean</li>
                   {tabValue === 'tables' ? (
