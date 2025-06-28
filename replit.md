@@ -222,6 +222,11 @@ Preferred communication style: Simple, everyday language.
   - Fixed import extensions in config system
   - Centralized API configuration system implemented
   - Team dashboard navigation fully functional
+- June 28, 2025: Updated Add Entity modal field configuration
+  - Changed "User Name" field to "Owner Email" as mandatory field in centralized schema configuration
+  - Added email validation with proper format checking for Owner Email field
+  - Updated field placeholder and labeling to reflect new requirement
+  - No changes to other fields or rendering order as requested
 - June 28, 2025: Completed comprehensive centralized API configuration migration for modals
   - Updated AddEntityModal to use centralized endpoints for entity creation and option fetching
   - Updated BulkUploadModal to use centralized endpoints for bulk entity submission

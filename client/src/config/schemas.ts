@@ -33,11 +33,16 @@ export const fieldDefinitions = {
   },
   
   user_name: {
-    type: 'string',
-    required: false,
-    label: 'User Name',
-    placeholder: 'Optional user name',
-    validation: yup.string().optional(),
+    type: 'email',
+    required: true,
+    label: 'Owner Email',
+    placeholder: 'owner@company.com',
+    validation: yup.string()
+      .required('Owner email is required')
+      .matches(
+        /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
+        'Invalid email format'
+      ),
     apiField: 'user_name'
   },
   
