@@ -93,10 +93,10 @@ export const fieldDefinitions = {
   
   donemarker_location: {
     type: 'string',
-    required: false,
+    required: true,
     label: 'Done Marker Location',
-    placeholder: 'Optional location path',
-    validation: yup.string().optional(),
+    placeholder: 'Location path(s) - single location or comma-separated for multiple',
+    validation: yup.string().required('Done marker location is required'),
     apiField: 'donemarker_location'
   },
   

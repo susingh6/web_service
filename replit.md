@@ -222,6 +222,12 @@ Preferred communication style: Simple, everyday language.
   - Fixed import extensions in config system
   - Centralized API configuration system implemented
   - Team dashboard navigation fully functional
+- June 28, 2025: Made donemarker_location field mandatory with flexible input type
+  - Changed donemarker_location from optional to required field in centralized configuration
+  - Updated field to accept single location or comma-separated multiple locations (like dependency fields)
+  - Added mandatory validation to bulk upload modal for donemarker_location field
+  - Updated placeholder text to clarify input format for single or multiple locations
+  - Field now follows same pattern as table_dependency and dag_dependency fields
 - June 28, 2025: Updated Bulk Upload modal to use centralized field definitions for labels and validation
   - Replaced hard-coded validation messages with centralized fieldDefinitions throughout validation function
   - Updated table headers to use centralized field labels instead of hard-coded values

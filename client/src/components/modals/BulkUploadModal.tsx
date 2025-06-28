@@ -263,6 +263,11 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
       errors.push({ field: 'user_email', message: `Invalid ${fieldDefinitions.user_email.label.toLowerCase()} format` });
     }
     
+    // Done marker location is required using centralized field definitions
+    if (!entity.donemarker_location) {
+      errors.push({ field: 'donemarker_location', message: `${fieldDefinitions.donemarker_location.label} is required` });
+    }
+    
     // Entity type specific validation using centralized field definitions
     if (entityType === 'tables') {
       if (!entity.schema_name) {
