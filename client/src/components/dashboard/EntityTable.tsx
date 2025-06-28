@@ -29,6 +29,7 @@ import {
   TrendingUp,
   TrendingDown,
   TrendingFlat,
+  Assignment,
 } from '@mui/icons-material';
 import { visuallyHidden } from '@mui/utils';
 import { useAppDispatch } from '@/lib/store';
@@ -86,6 +87,7 @@ interface EntityTableProps {
   onDeleteEntity: (id: number) => void;
   onViewHistory: (entity: Entity) => void;
   onViewDetails: (entity: Entity) => void;
+  onViewTasks?: (entity: Entity) => void; // For DAG entities to view tasks
   showActions?: boolean; // Controls whether to show action buttons
 }
 
@@ -97,6 +99,7 @@ const EntityTable = ({
   onDeleteEntity,
   onViewHistory,
   onViewDetails,
+  onViewTasks,
   showActions = true, // Default to showing actions
 }: EntityTableProps) => {
   const dispatch = useAppDispatch();
@@ -464,6 +467,14 @@ const EntityTable = ({
                               <Edit fontSize="small" />
                             </IconButton>
                           </Tooltip>
+                          
+                          {type === 'dag' && onViewTasks && (
+                            <Tooltip title="View Tasks">
+                              <IconButton size="small" color="info" onClick={() => onViewTasks(entity)}>
+                                <Assignment fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          )}
                           
                           <Tooltip title="History">
                             <IconButton size="small" color="inherit" onClick={() => onViewHistory(entity)}>
