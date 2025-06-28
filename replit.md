@@ -113,6 +113,11 @@ Preferred communication style: Simple, everyday language.
 
 ## Changelog
 
+- June 28, 2025: Removed blue info icons from all dashboard charts in Summary and Teams sections
+  - Eliminated Info icon imports from MetricCard component
+  - Removed Tooltip wrapper and Info icon fallback display
+  - Dashboard charts now show clean titles without unnecessary visual clutter
+  - Applied changes to all metric cards displaying compliance percentages and entity counts
 - June 28, 2025: Completed centralized API configuration for 30-day trend system
   - Added trends30Day endpoint to centralized API configuration (dev.ts, index.ts)
   - Updated trend cache system to use centralized endpoints instead of hard-coded URLs

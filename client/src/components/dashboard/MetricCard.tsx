@@ -1,6 +1,6 @@
-import { Card, CardContent, Typography, Box, LinearProgress, Tooltip } from '@mui/material';
+import { Card, CardContent, Typography, Box, LinearProgress } from '@mui/material';
 import { styled } from '@mui/material/styles';
-import { TrendingUp, TrendingDown, TrendingFlat, Info } from '@mui/icons-material';
+import { TrendingUp, TrendingDown, TrendingFlat } from '@mui/icons-material';
 
 interface MetricCardProps {
   title: string;
@@ -66,11 +66,7 @@ const MetricCard = ({
           <Typography color="text.secondary" fontWeight={500} variant="body2">
             {title}
           </Typography>
-          {icon || (
-            <Tooltip title="View more details">
-              <Info color="primary" fontSize="small" />
-            </Tooltip>
-          )}
+          {icon}
         </Box>
         
         {loading ? (
