@@ -71,7 +71,11 @@ export function NotificationConfigManager({ value, onChange, teamName }: Notific
     
     // Auto-expand when enabled
     if (enabled) {
-      setExpandedChannels(prev => new Set([...prev, channelType]));
+      setExpandedChannels(prev => {
+        const newSet = new Set(prev);
+        newSet.add(channelType);
+        return newSet;
+      });
     } else {
       setExpandedChannels(prev => {
         const newSet = new Set(prev);

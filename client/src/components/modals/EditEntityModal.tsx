@@ -782,7 +782,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
             render={({ field }) => (
               <div style={{ margin: '16px 0' }}>
                 <NotificationConfigManager
-                  value={field.value || []}
+                  value={(field.value || []).filter((item: string | undefined): item is string => item !== undefined)}
                   onChange={(enabledTypes, settings) => {
                     field.onChange(enabledTypes);
                     setNotificationSettings(settings);
