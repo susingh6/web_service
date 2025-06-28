@@ -110,7 +110,7 @@ export function NotificationConfigManager({ value, onChange, teamName }: Notific
       case 'email':
         return (
           <EmailNotificationConfigComponent
-            config={notificationSettings.email as EmailNotificationConfig}
+            config={notificationSettings.email as EmailNotificationConfig || { roleBasedRecipients: [], customEmails: [] }}
             onChange={(config) => handleChannelConfigChange('email', config)}
             teamName={teamName}
           />
@@ -118,14 +118,14 @@ export function NotificationConfigManager({ value, onChange, teamName }: Notific
       case 'slack':
         return (
           <SlackNotificationConfigComponent
-            config={notificationSettings.slack as SlackNotificationConfig}
+            config={notificationSettings.slack as SlackNotificationConfig || { channelName: '' }}
             onChange={(config) => handleChannelConfigChange('slack', config)}
           />
         );
       case 'pagerduty':
         return (
           <PagerDutyNotificationConfigComponent
-            config={notificationSettings.pagerduty as PagerDutyNotificationConfig}
+            config={notificationSettings.pagerduty as PagerDutyNotificationConfig || { serviceKey: '', escalationPolicy: '' }}
             onChange={(config) => handleChannelConfigChange('pagerduty', config)}
           />
         );

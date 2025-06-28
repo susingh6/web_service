@@ -17,14 +17,14 @@ interface PagerDutyConfigProps {
 }
 
 export function PagerDutyNotificationConfigComponent({ config, onChange }: PagerDutyConfigProps) {
-  const [serviceKey, setServiceKey] = useState(config.serviceKey || '');
-  const [escalationPolicy, setEscalationPolicy] = useState(config.escalationPolicy || '');
+  const [serviceKey, setServiceKey] = useState(config?.serviceKey || '');
+  const [escalationPolicy, setEscalationPolicy] = useState(config?.escalationPolicy || '');
   const [serviceKeyError, setServiceKeyError] = useState('');
   const [isValidating, setIsValidating] = useState(false);
 
   useEffect(() => {
     const updatedConfig = {
-      ...config,
+      ...(config || {}),
       serviceKey: serviceKey,
       escalationPolicy: escalationPolicy,
     };

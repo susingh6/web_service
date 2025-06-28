@@ -17,15 +17,15 @@ interface SlackConfigProps {
 }
 
 export function SlackNotificationConfigComponent({ config, onChange }: SlackConfigProps) {
-  const [channelName, setChannelName] = useState(config.channelName || '');
+  const [channelName, setChannelName] = useState(config?.channelName || '');
   const [channelError, setChannelError] = useState('');
   const [isValidating, setIsValidating] = useState(false);
 
   useEffect(() => {
     // Update parent config when channel name changes
-    if (channelName !== config.channelName) {
+    if (channelName !== config?.channelName) {
       const updatedConfig = {
-        ...config,
+        ...(config || {}),
         channelName: channelName,
       };
       onChange(updatedConfig);

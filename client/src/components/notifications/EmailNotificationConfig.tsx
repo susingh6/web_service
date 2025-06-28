@@ -25,9 +25,9 @@ export function EmailNotificationConfigComponent({ config, onChange, teamName }:
   const [users, setUsers] = useState<SystemUser[]>([]);
   const [roles, setRoles] = useState<UserRole[]>([]);
   const [selectedUsers, setSelectedUsers] = useState<number[]>([]);
-  const [selectedRoles, setSelectedRoles] = useState<string[]>(config.roleBasedRecipients || []);
+  const [selectedRoles, setSelectedRoles] = useState<string[]>(config?.roleBasedRecipients || []);
   const [customEmailInput, setCustomEmailInput] = useState('');
-  const [customEmails, setCustomEmails] = useState<string[]>(config.customEmails || []);
+  const [customEmails, setCustomEmails] = useState<string[]>(config?.customEmails || []);
   const [emailError, setEmailError] = useState('');
 
   useEffect(() => {
