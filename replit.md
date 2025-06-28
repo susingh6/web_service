@@ -239,6 +239,13 @@ Preferred communication style: Simple, everyday language.
   - Fixed donemarker_location display to show as mandatory field in required fields list
   - Removed donemarker_location from optional fields section
   - Updated download sample template to include donemarker_location as required field for both tables and DAGs
+- June 28, 2025: Added both user_email and owner_email as mandatory fields in bulk upload modal
+  - Added owner_email field definition to centralized schemas configuration with proper validation
+  - Updated bulk upload modal to show both user_email and owner_email as required fields for tables and DAGs
+  - Modified sample data templates to include both email fields in download examples
+  - Updated required fields display lists to show both email fields as mandatory
+  - Maintained centralized API configuration approach for all field definitions and validation
+  - Sample data now includes realistic email examples for both user_email and owner_email fields
 - June 28, 2025: Updated Add Entity modal to use centralized field definitions for both Table and DAG tabs
   - Replaced hard-coded labels with centralized fieldDefinitions for user_name and user_email fields in both tabs
   - "User Name" field now shows as "Owner Email" with mandatory validation from centralized config
