@@ -128,7 +128,7 @@ export function EmailNotificationConfigComponent({ config, onChange, teamName }:
       {/* Role-based Recipients */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm">Additional Recipients by Role</CardTitle>
+          <CardTitle className="text-sm">Additional Recipients</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="grid grid-cols-2 gap-2">

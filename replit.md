@@ -123,6 +123,9 @@ Preferred communication style: Simple, everyday language.
   - Established server-side endpoints for users and user roles to support notification system
   - Added UserRole interface and storage methods for predefined organizational roles
   - System designed for storing notification preferences, with actual delivery to be configured separately
+  - Integrated NotificationConfigManager into AddEntityModal replacing simple checkboxes
+  - Fixed undefined config errors and added proper default values for all notification components
+  - Updated email configuration label from "Additional Recipients by Role" to "Additional Recipients"
 - June 28, 2025: Implemented comprehensive API data fetching for EditEntityModal
   - Added entity details API endpoint `/api/entities/:id/details` with enhanced field structure
   - Implemented React Query data fetching with proper pre-population of all form fields
