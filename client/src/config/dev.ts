@@ -27,11 +27,21 @@ export const devConfig = {
       history: (entityId: number) => `/api/entities/${entityId}/history`,
       issues: (entityId: number) => `/api/entities/${entityId}/issues`,
       details: (entityId: number) => `/api/entities/${entityId}/details`,
+      aiTasks: (entityId: number) => `/api/entities/${entityId}/ai-tasks`,
+      notificationTimelines: (entityId: number) => `/api/entities/${entityId}/notification-timelines`,
     },
     
     // Issues
     issues: {
       resolve: (issueId: number) => `/api/issues/${issueId}/resolve`,
+    },
+    
+    // Notification Timelines
+    notificationTimelines: {
+      create: '/api/notification-timelines',
+      byId: (id: string) => `/api/notification-timelines/${id}`,
+      update: (id: string) => `/api/notification-timelines/${id}`,
+      delete: (id: string) => `/api/notification-timelines/${id}`,
     },
     
     // Debug endpoints

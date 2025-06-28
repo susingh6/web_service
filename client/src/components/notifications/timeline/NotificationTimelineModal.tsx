@@ -25,6 +25,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
+import { endpoints } from '@/config';
 import {
   NotificationTimeline,
   InsertNotificationTimeline,
@@ -80,7 +81,7 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
     queryKey: ['notification-timelines', entity?.id],
     queryFn: async () => {
       if (!entity?.id) return [];
-      const res = await apiRequest('GET', `/api/entities/${entity.id}/notification-timelines`);
+      const res = await apiRequest('GET', endpoints.entity.notificationTimelines(entity.id));
       return await res.json();
     },
     enabled: !!entity?.id && open
@@ -91,7 +92,7 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
     queryKey: ['ai-tasks', entity?.id],
     queryFn: async () => {
       if (!entity?.id || entity?.type !== 'dag') return [];
-      const res = await apiRequest('GET', `/api/entities/${entity.id}/ai-tasks`);
+      const res = await apiRequest('GET', endpoints.entity.aiTasks(entity.id));
       return await res.json();
     },
     enabled: !!entity?.id && entity?.type === 'dag' && open
@@ -106,7 +107,7 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
   // Mutation to create notification timeline
   const createTimelineMutation = useMutation({
     mutationFn: async (data: InsertNotificationTimeline) => {
-      const res = await apiRequest('POST', '/api/notification-timelines', data);
+      const res = await apiRequest('POST', endpoints.notificationTimelines.create, data);
       return await res.json();
     },
     onSuccess: (newTimeline) => {

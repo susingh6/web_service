@@ -27,9 +27,17 @@ interface ApiConfig {
       history: (entityId: number) => string;
       issues: (entityId: number) => string;
       details: (entityId: number) => string;
+      aiTasks: (entityId: number) => string;
+      notificationTimelines: (entityId: number) => string;
     };
     issues: {
       resolve: (issueId: number) => string;
+    };
+    notificationTimelines: {
+      create: string;
+      byId: (id: string) => string;
+      update: (id: string) => string;
+      delete: (id: string) => string;
     };
     debug: {
       teams: string;
