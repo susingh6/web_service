@@ -293,12 +293,12 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
       }
     }
     
-    // Optional field validations
+    // Optional field validations using centralized field definitions
     if (entity.donemarker_lookback !== undefined) {
       if (isNaN(Number(entity.donemarker_lookback))) {
-        errors.push({ field: 'donemarker_lookback', message: 'Donemarker lookback must be a number' });
+        errors.push({ field: 'donemarker_lookback', message: `${fieldDefinitions.donemarker_lookback.label} must be a number` });
       } else if (Number(entity.donemarker_lookback) < 0) {
-        errors.push({ field: 'donemarker_lookback', message: 'Donemarker lookback must be a non-negative number' });
+        errors.push({ field: 'donemarker_lookback', message: `${fieldDefinitions.donemarker_lookback.label} must be a non-negative number` });
       }
     }
     
@@ -958,19 +958,19 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
                   <TableHead>
                     <TableRow>
                       <TableCell width="60px">Status</TableCell>
-                      <TableCell>Tenant</TableCell>
-                      <TableCell>Team</TableCell>
+                      <TableCell>{fieldDefinitions.tenant_name.label}</TableCell>
+                      <TableCell>{fieldDefinitions.team_name.label}</TableCell>
                       {tabValue === 'tables' ? (
                         <>
-                          <TableCell>Schema</TableCell>
-                          <TableCell>Table Name</TableCell>
+                          <TableCell>{fieldDefinitions.schema_name.label}</TableCell>
+                          <TableCell>{fieldDefinitions.table_name.label}</TableCell>
                         </>
                       ) : (
-                        <TableCell>DAG Name</TableCell>
+                        <TableCell>{fieldDefinitions.dag_name.label}</TableCell>
                       )}
                       <TableCell>Schedule</TableCell>
-                      <TableCell>Runtime</TableCell>
-                      <TableCell>Email</TableCell>
+                      <TableCell>{fieldDefinitions.expected_runtime_minutes.label}</TableCell>
+                      <TableCell>{fieldDefinitions.user_email.label}</TableCell>
                       <TableCell width="120px">Details</TableCell>
                     </TableRow>
                   </TableHead>

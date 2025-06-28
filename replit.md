@@ -222,6 +222,12 @@ Preferred communication style: Simple, everyday language.
   - Fixed import extensions in config system
   - Centralized API configuration system implemented
   - Team dashboard navigation fully functional
+- June 28, 2025: Updated Bulk Upload modal to use centralized field definitions for labels and validation
+  - Replaced hard-coded validation messages with centralized fieldDefinitions throughout validation function
+  - Updated table headers to use centralized field labels instead of hard-coded values
+  - Validation errors now dynamically reference field labels from centralized configuration
+  - Maintained same rendering structure while achieving consistent field terminology
+  - Bulk upload system now fully integrated with centralized configuration schema
 - June 28, 2025: Updated Add Entity modal to use centralized field definitions for both Table and DAG tabs
   - Replaced hard-coded labels with centralized fieldDefinitions for user_name and user_email fields in both tabs
   - "User Name" field now shows as "Owner Email" with mandatory validation from centralized config
