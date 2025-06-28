@@ -258,7 +258,6 @@ const buildBaseSchema = () => {
     team_name: fieldDefinitions.team_name.validation,
     notification_preferences: fieldDefinitions.notification_preferences.validation,
     user_email: fieldDefinitions.user_email.validation,
-    owner_email: fieldDefinitions.owner_email.validation,
     is_active: fieldDefinitions.is_active.validation,
   });
 };

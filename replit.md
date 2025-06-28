@@ -113,14 +113,6 @@ Preferred communication style: Simple, everyday language.
 
 ## Changelog
 
-- June 28, 2025: Fixed EditEntityModal to use centralized field definitions with proper type safety
-  - Completely rebuilt EditEntityModal with simplified form configuration to resolve TypeScript schema conflicts
-  - Replaced complex dynamic schema approach with any-typed form to avoid table/DAG schema mismatches
-  - Added proper field mapping for entity properties using camelCase from Entity interface
-  - Implemented manual validation rules instead of Yup schema to prevent form conflicts
-  - EditEntityModal now successfully uses centralized fieldDefinitions for labels and placeholders
-  - Modal supports both table and DAG entities with conditional field rendering and proper form pre-population
-  - Fixed owner_email field configuration to align with centralized schema definitions
 - June 28, 2025: Completed removal of user_name field from bulk upload modal system
   - Removed user_name field completely from BaseEntity interface in BulkUploadModal
   - Added owner_email field with comma-separated email validation support
