@@ -526,7 +526,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 render={({ field }) => (
                   <TextField
                     {...field}
-                    label="Donemarker Lookback"
+                    label="Donemarker Lookback (Days)"
                     type="number"
                     fullWidth
                     margin="normal"
@@ -809,7 +809,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 render={({ field }) => (
                   <TextField
                     {...field}
-                    label="Donemarker Lookback"
+                    label="Donemarker Lookback (Days)"
                     type="number"
                     fullWidth
                     margin="normal"
