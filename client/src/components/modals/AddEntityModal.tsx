@@ -510,7 +510,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 render={({ field }) => (
                   <TextField
                     {...field}
-                    label="Donemarker Location"
+                    label="Done Marker Location *"
                     fullWidth
                     margin="normal"
                     error={!!errors.donemarker_location}
@@ -779,7 +779,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 render={({ field }) => (
                   <TextField
                     {...field}
-                    label="Donemarker Location"
+                    label="Done Marker Location *"
                     fullWidth
                     margin="normal"
                     error={!!errors.donemarker_location}
