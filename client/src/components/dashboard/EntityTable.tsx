@@ -30,6 +30,7 @@ import {
   TrendingDown,
   TrendingFlat,
   Assignment,
+  Notifications,
 } from '@mui/icons-material';
 import { visuallyHidden } from '@mui/utils';
 import { useAppDispatch } from '@/lib/store';
@@ -472,6 +473,14 @@ const EntityTable = ({
                             <Tooltip title="View Tasks">
                               <IconButton size="small" color="info" onClick={() => onViewTasks(entity)}>
                                 <Assignment fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          )}
+                          
+                          {onSetNotificationTimeline && (
+                            <Tooltip title="Notification Timeline">
+                              <IconButton size="small" color="secondary" onClick={() => onSetNotificationTimeline(entity)}>
+                                <Notifications fontSize="small" />
                               </IconButton>
                             </Tooltip>
                           )}
