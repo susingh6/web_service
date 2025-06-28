@@ -316,8 +316,7 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
             </Box>
           )}
 
-          {/* Show form only if adding new OR if updating and timeline is selected */}
-          {(tabValue === 'add' || (tabValue === 'update' && selectedTimelineId)) && (
+          {/* Form fields - always visible in both tabs */}
           <Stack spacing={3}>
             {/* Basic Information Section */}
             <Box>
@@ -457,7 +456,6 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
               />
             </Box>
           </Stack>
-          )}
         </DialogContent>
 
         <DialogActions sx={{ px: 3, pb: 3 }}>

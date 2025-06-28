@@ -120,6 +120,8 @@ Preferred communication style: Simple, everyday language.
   - Fixed duplicate variable declarations and syntax errors in modal component
   - Updated button text and mutations to handle both create and update operations
   - Form now correctly routes to appropriate mutation based on selected tab
+  - Fixed conditional rendering to show all fields in both tabs (name, description, triggers, channels, status)
+  - Both tabs now have identical field visibility and functionality
   - Maintained field render order as requested - no changes to individual field positioning
 - June 28, 2025: Completed removal of notification_preferences from bulk upload modal system
   - Removed notification_preferences from BaseEntity interface definition
