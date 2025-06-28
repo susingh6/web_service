@@ -37,6 +37,7 @@ import { useAppDispatch } from '@/lib/store';
 import { selectEntity } from '@/features/sla/slices/entitiesSlice';
 import { format } from 'date-fns';
 import { Entity, EntityStatus } from '@/features/sla/types';
+import { getEntityTrend } from '@/lib/trendCache';
 
 interface StatusConfig {
   color: 'success' | 'warning' | 'error' | 'default';

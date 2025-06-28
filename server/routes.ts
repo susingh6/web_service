@@ -388,6 +388,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get 30-day trends for all entities (independent of global date filter)
+  app.get("/api/entities/trends/30-day", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const entities = await storage.getEntities();
+      
+      // Generate 30-day trend data for each entity
+      // In production, this would calculate real trends from the last 30 days of data
+      const trends = entities.map(entity => {
+        // Use entity ID for consistent demo data
+        const seed = entity.id * 7919;
+        const rand = () => {
+          const x = Math.sin(seed) * 10000;
+          return (x - Math.floor(x)) * 4 - 2; // Generate value between -2 and 2
+        };
+        
+        const trendValue = rand();
+        
+        return {
+          entityId: entity.id,
+          trend: Number(trendValue.toFixed(1)),
+          icon: trendValue > 0.5 ? 'up' : trendValue < -0.5 ? 'down' : 'flat',
+          color: trendValue > 0.5 ? 'success' : trendValue < -0.5 ? 'error' : 'warning',
+          lastUpdated: new Date().toISOString()
+        };
+      });
+      
+      console.log(`Generated 30-day trends for ${trends.length} entities`);
+      res.json(trends);
+    } catch (error) {
+      console.error("Error fetching 30-day trends:", error);
+      res.status(500).json({ message: "Failed to fetch 30-day trends" });
+    }
+  });
+
   // Create notification timeline
   app.post("/api/notification-timelines", isAuthenticated, async (req: Request, res: Response) => {
     try {

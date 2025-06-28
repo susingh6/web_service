@@ -29,6 +29,7 @@ interface ApiConfig {
       details: (entityId: number) => string;
       aiTasks: (entityId: number) => string;
       notificationTimelines: (entityId: number) => string;
+      trends30Day: string;
     };
     tasks: {
       byDag: (dagId: number) => string;
