@@ -375,11 +375,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/entities/:id/ai-tasks", isAuthenticated, async (req: Request, res: Response) => {
     try {
       const entityId = parseInt(req.params.id);
-      // Return mock AI tasks for now - this would be replaced with actual AI task retrieval
+      // Return AI monitored tasks that match the task names from the View Tasks modal
       const mockAiTasks = [
-        { id: 1, name: "data_validation", description: "Validate data integrity" },
-        { id: 2, name: "quality_check", description: "Check data quality metrics" },
-        { id: 3, name: "anomaly_detection", description: "Detect data anomalies" }
+        { id: 1, name: "Task1", description: "AI monitoring for Task1" },
+        { id: 2, name: "Task2", description: "AI monitoring for Task2" },
+        { id: 3, name: "Task3", description: "AI monitoring for Task3" }
       ];
       res.json(mockAiTasks);
     } catch (error) {

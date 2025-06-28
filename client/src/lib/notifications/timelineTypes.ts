@@ -25,7 +25,7 @@ export interface EntityFailureTrigger {
 
 export interface AiTasksStatusTrigger {
   type: 'ai_tasks_status';
-  condition: 'all_passed' | 'any_passed' | 'all_failed' | 'any_failed';
+  condition: 'all_passed' | 'all_failed';
   taskNames?: string[]; // Specific AI tasks to monitor, empty means all
 }
 
@@ -66,8 +66,6 @@ export const TRIGGER_TYPE_LABELS: Record<NotificationTriggerType, string> = {
 };
 
 export const AI_TASK_CONDITIONS = [
-  { value: 'all_passed', label: 'All AI Tasks Passed' },
-  { value: 'any_passed', label: 'Any AI Task Passed' },
-  { value: 'all_failed', label: 'All AI Tasks Failed' },
-  { value: 'any_failed', label: 'Any AI Task Failed' }
+  { value: 'all_passed', label: 'AI TASKS PASSED' },
+  { value: 'all_failed', label: 'AI TASKS FAILED' }
 ] as const;
