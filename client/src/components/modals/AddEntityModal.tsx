@@ -406,8 +406,8 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                     fullWidth
                     margin="normal"
                     required
-                    error={!!errors.schema_name}
-                    helperText={errors.schema_name?.message}
+                    error={!!(errors as any).schema_name}
+                    helperText={(errors as any).schema_name?.message}
                     placeholder="e.g., public, sales, marketing"
                   />
                 )}

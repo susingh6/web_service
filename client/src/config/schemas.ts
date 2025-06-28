@@ -244,6 +244,24 @@ export const fieldDefinitions = {
     placeholder: 'Your team',
     validation: yup.string().optional(),
     apiField: 'team'
+  },
+
+  timeline_name: {
+    type: 'string',
+    required: true,
+    label: 'Timeline Name',
+    placeholder: 'Enter timeline name',
+    validation: yup.string().required('Timeline name is required'),
+    apiField: 'name'
+  },
+
+  description: {
+    type: 'string',
+    required: false,
+    label: 'Description',
+    placeholder: 'Enter description',
+    validation: yup.string(),
+    apiField: 'description'
   }
 };
 
@@ -317,7 +335,7 @@ export const defaultValues = {
     tenant_name: 'Data Engineering',
     team_name: 'PGM',
     notification_preferences: [],
-    user_name: '',
+    owner_email: '',
     user_email: '',
     is_active: true,
     expected_runtime_minutes: 60,
@@ -442,7 +460,6 @@ export const bulkUploadFields = {
     'table_schedule',
     'table_dependency',
     'expected_runtime_minutes',
-    'user_name',
     'user_email',
     'owner_email',
     'donemarker_location',
@@ -457,7 +474,6 @@ export const bulkUploadFields = {
     'dag_schedule',
     'dag_dependency',
     'expected_runtime_minutes',
-    'user_name',
     'user_email',
     'owner_email',
     'donemarker_location',
