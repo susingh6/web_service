@@ -26,6 +26,8 @@ import {
 } from '@mui/material';
 import { validateTenant, validateTeam, validateDag } from '@/lib/validationUtils';
 import { fetchWithCache, getFromCache } from '@/lib/cacheUtils';
+import { NotificationConfigManager } from '@/components/notifications/NotificationConfigManager';
+import { NotificationSettings } from '@/lib/notifications/types';
 
 type EntityType = 'table' | 'dag';
 
@@ -100,6 +102,9 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
   
   // State for validation errors (single declaration)
   const [validationError, setValidationError] = useState<string | null>(null);
+  
+  // State for notification settings
+  const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({});
   
   // Dynamic schema selection with memoization for performance
   const schema = React.useMemo(() => 
