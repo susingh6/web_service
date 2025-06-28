@@ -56,12 +56,12 @@ export const TriggerConfig: React.FC<TriggerConfigProps> = ({
           />
         );
 
-      case 'sla_failed':
+      case 'sla_threshold_breached':
         return (
           <TextField
             label="SLA Threshold (%)"
             type="number"
-            value={trigger.threshold || 95}
+            value={(trigger as SlaThresholdBreachedTrigger).threshold || 95}
             onChange={(e) => onChange({ 
               ...trigger, 
               threshold: parseFloat(e.target.value) || 95 
@@ -73,43 +73,7 @@ export const TriggerConfig: React.FC<TriggerConfigProps> = ({
           />
         );
 
-      case 'ai_task_failed':
-        return (
-          <Box>
-            <Typography variant="body2" color="textSecondary" sx={{ mb: 1 }}>
-              Select specific AI tasks to monitor (leave empty for all):
-            </Typography>
-            <FormGroup>
-              {availableAiTasks.map((taskName) => (
-                <FormControlLabel
-                  key={taskName}
-                  control={
-                    <Checkbox
-                      checked={trigger.taskNames?.includes(taskName) || false}
-                      onChange={(e) => {
-                        const currentTasks = trigger.taskNames || [];
-                        const newTasks = e.target.checked
-                          ? [...currentTasks, taskName]
-                          : currentTasks.filter(t => t !== taskName);
-                        onChange({ ...trigger, taskNames: newTasks });
-                      }}
-                    />
-                  }
-                  label={taskName}
-                />
-              ))}
-            </FormGroup>
-            {(!trigger.taskNames || trigger.taskNames.length === 0) && (
-              <Chip 
-                label="Monitoring all AI tasks" 
-                size="small" 
-                color="primary" 
-                variant="outlined"
-                sx={{ mt: 1 }}
-              />
-            )}
-          </Box>
-        );
+
 
       case 'entity_success':
         return (
@@ -124,7 +88,7 @@ export const TriggerConfig: React.FC<TriggerConfigProps> = ({
             <FormControl fullWidth margin="normal">
               <FormLabel>Condition</FormLabel>
               <Select
-                value={trigger.condition || 'all_passed'}
+                value={(trigger as AiTasksStatusTrigger).condition || 'all_passed'}
                 onChange={(e) => onChange({ 
                   ...trigger, 
                   condition: e.target.value as any 
@@ -147,9 +111,9 @@ export const TriggerConfig: React.FC<TriggerConfigProps> = ({
                   key={taskName}
                   control={
                     <Checkbox
-                      checked={trigger.taskNames?.includes(taskName) || false}
+                      checked={(trigger as AiTasksStatusTrigger).taskNames?.includes(taskName) || false}
                       onChange={(e) => {
-                        const currentTasks = trigger.taskNames || [];
+                        const currentTasks = (trigger as AiTasksStatusTrigger).taskNames || [];
                         const newTasks = e.target.checked
                           ? [...currentTasks, taskName]
                           : currentTasks.filter(t => t !== taskName);
@@ -161,7 +125,7 @@ export const TriggerConfig: React.FC<TriggerConfigProps> = ({
                 />
               ))}
             </FormGroup>
-            {(!trigger.taskNames || trigger.taskNames.length === 0) && (
+            {(!(trigger as AiTasksStatusTrigger).taskNames || (trigger as AiTasksStatusTrigger).taskNames.length === 0) && (
               <Chip 
                 label="Monitoring all AI tasks" 
                 size="small" 
