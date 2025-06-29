@@ -233,7 +233,7 @@ export function NotificationConfigManager({ value, onChange, teamName }: Notific
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
             <p className="text-sm text-blue-800">
               <strong>Configuration saved locally.</strong> These settings will be stored when you save the entity.
-              Actual notification delivery will be configured separately in the SLA Management System Administration.
+              Actual notification delivery will be configured separately in the SLA Management Notification System Administration.
             </p>
           </div>
         )}
