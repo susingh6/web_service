@@ -113,6 +113,15 @@ Preferred communication style: Simple, everyday language.
 
 ## Changelog
 
+- June 29, 2025: Implemented REGULAR TASKS STATUS CHANGE trigger with complete notification configuration system
+  - Added RegularTasksStatusTrigger interface with identical structure to AI tasks trigger system
+  - Implemented regular tasks API endpoint (/api/entities/:id/regular-tasks) using centralized configuration
+  - Added "REGULAR TASKS STATUS CHANGE" trigger option for DAG entities in notification timeline modal
+  - Created comprehensive UI with task selection checkboxes for regular tasks (Task4-Task7) from regular bucket
+  - Added radio button notification behavior options: notify when all tasks complete vs notify for each task individually
+  - Supports both REGULAR TASKS PASSED and REGULAR TASKS FAILED conditions with same notification patterns
+  - Fixed handleAddTrigger function to properly create regular tasks trigger objects instead of defaulting to daily schedule
+  - System now provides complete parity between AI tasks and regular tasks notification configuration
 - June 29, 2025: Enhanced EntityDetailsModal with centralized API configuration and comprehensive settings display
   - Added current DAG/table SLA settings section with API-based data retrieval using centralized endpoints
   - Implemented separate endpoints for DAG and Table current settings: /api/dags/current-settings and /api/tables/current-settings

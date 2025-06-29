@@ -233,6 +233,8 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
           return { type: 'entity_failure' };
         case 'ai_tasks_status':
           return { type: 'ai_tasks_status', condition: 'all_passed', taskNames: [] };
+        case 'regular_tasks_status':
+          return { type: 'regular_tasks_status', condition: 'all_passed', taskNames: [] };
         default:
           return { type: 'daily_schedule', time: '09:00' };
       }
