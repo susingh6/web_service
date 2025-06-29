@@ -113,6 +113,11 @@ Preferred communication style: Simple, everyday language.
 
 ## Changelog
 
+- June 29, 2025: Fixed duplicate trigger prevention in notification timeline modal
+  - Added duplicate detection logic to prevent adding the same trigger type multiple times
+  - Shows clear error message when users attempt to add duplicate triggers
+  - Prevents duplicate entries like multiple "SLA THRESHOLD BREACHED" triggers
+  - Applies to both Tables and DAGs in ADD NEW and UPDATE EXISTING tabs
 - June 29, 2025: Updated Entity Details modal delete functionality to use centralized API configuration
   - Added delete endpoint to centralized API configuration (entity.delete function)
   - Updated Entity Details modal to use buildUrl(endpoints.entity.delete) instead of hard-coded comments

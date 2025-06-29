@@ -191,6 +191,18 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
   });
 
   const handleAddTrigger = (triggerType: NotificationTriggerType) => {
+    // Check if this trigger type already exists
+    const triggerExists = triggers.some(trigger => trigger.type === triggerType);
+    
+    if (triggerExists) {
+      toast({
+        title: 'Duplicate Trigger',
+        description: `${TRIGGER_TYPE_LABELS[triggerType]} trigger already exists`,
+        variant: 'destructive'
+      });
+      return;
+    }
+
     const newTrigger: NotificationTrigger = (() => {
       switch (triggerType) {
         case 'daily_schedule':
