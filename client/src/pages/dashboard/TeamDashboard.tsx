@@ -38,6 +38,7 @@ const TeamDashboard = () => {
   const [openTasksModal, setOpenTasksModal] = useState(false);
   const [openNotificationTimelineModal, setOpenNotificationTimelineModal] = useState(false);
   const [chartFilter, setChartFilter] = useState('All');
+  const [entitiesChartFilter, setEntitiesChartFilter] = useState('All');
   
   // Get current team info - try both ID and name lookup
   const team = teams.find((t: Team) => {
@@ -252,7 +253,9 @@ const TeamDashboard = () => {
           <Box flex="1 1 500px" minWidth="500px">
             <ChartCard
               title="Top 5 Entities Performance"
-              chart={<EntityPerformanceChart entities={teamEntities.slice(0, 5)} />}
+              filters={['All', 'Tables', 'DAGs']}
+              onFilterChange={setEntitiesChartFilter}
+              chart={<EntityPerformanceChart entities={teamEntities.slice(0, 5)} filter={entitiesChartFilter.toLowerCase() as 'all' | 'tables' | 'dags'} />}
             />
           </Box>
         </Box>

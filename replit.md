@@ -113,6 +113,11 @@ Preferred communication style: Simple, everyday language.
 
 ## Changelog
 
+- June 29, 2025: Added filter buttons to Top 5 Entities Performance chart in team dashboard
+  - Added All/Tables/DAGs filter buttons matching the Compliance Trend chart design
+  - Updated EntityPerformanceChart component to accept and process filter prop
+  - Chart now filters entities by type (tables only, DAGs only, or all entities)
+  - Maintains consistent UI pattern across both dashboard charts
 - June 29, 2025: Fixed duplicate trigger prevention in notification timeline modal
   - Added duplicate detection logic to prevent adding the same trigger type multiple times
   - Shows clear error message when users attempt to add duplicate triggers

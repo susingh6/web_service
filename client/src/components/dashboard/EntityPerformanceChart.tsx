@@ -11,7 +11,7 @@ import {
   TooltipProps,
 } from 'recharts';
 import { format, subDays } from 'date-fns';
-import { Entity } from '@/features/sla/types';
+import { Entity } from '@shared/schema';
 
 // Generate demo data for entity performance
 const generateEntityPerformanceData = (entity: Entity, days = 30) => {
@@ -45,9 +45,10 @@ const generateEntityPerformanceData = (entity: Entity, days = 30) => {
 interface EntityPerformanceChartProps {
   entities: Entity[];
   days?: number;
+  filter?: 'all' | 'tables' | 'dags';
 }
 
-const EntityPerformanceChart = ({ entities, days = 30 }: EntityPerformanceChartProps) => {
+const EntityPerformanceChart = ({ entities, days = 30, filter = 'all' }: EntityPerformanceChartProps) => {
   const theme = useTheme();
   
   if (!entities || entities.length === 0) {
@@ -60,8 +61,26 @@ const EntityPerformanceChart = ({ entities, days = 30 }: EntityPerformanceChartP
     );
   }
   
-  // Generate data for each entity
-  const allData = entities.flatMap(entity => 
+  // Filter entities based on the filter prop
+  const filteredEntities = entities.filter(entity => {
+    if (filter === 'all') return true;
+    if (filter === 'tables') return entity.type === 'table';
+    if (filter === 'dags') return entity.type === 'dag';
+    return true;
+  });
+
+  if (filteredEntities.length === 0) {
+    return (
+      <Box display="flex" alignItems="center" justifyContent="center" height="100%">
+        <Typography variant="body1" color="text.secondary">
+          No {filter === 'all' ? '' : filter} data available
+        </Typography>
+      </Box>
+    );
+  }
+  
+  // Generate data for each filtered entity
+  const allData = filteredEntities.flatMap(entity => 
     generateEntityPerformanceData(entity, days)
   );
   
