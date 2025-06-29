@@ -1,6 +1,6 @@
-import { Card, CardContent, Typography, Box, LinearProgress } from '@mui/material';
+import { Card, CardContent, Typography, Box, LinearProgress, Tooltip, IconButton } from '@mui/material';
 import { styled } from '@mui/material/styles';
-import { TrendingUp, TrendingDown, TrendingFlat } from '@mui/icons-material';
+import { TrendingUp, TrendingDown, TrendingFlat, Info } from '@mui/icons-material';
 
 interface MetricCardProps {
   title: string;
@@ -11,6 +11,7 @@ interface MetricCardProps {
   suffix?: string;
   subtitle?: string;
   loading?: boolean;
+  infoTooltip?: string;
 }
 
 const ProgressBar = styled(LinearProgress)(({ theme, value }) => ({
@@ -35,6 +36,7 @@ const MetricCard = ({
   suffix = '',
   subtitle,
   loading = false,
+  infoTooltip,
 }: MetricCardProps) => {
   // Determine trend icon and color
   const trendIcon = trend > 0 ? (
@@ -63,9 +65,18 @@ const MetricCard = ({
     <Card elevation={0} sx={{ height: '100%' }}>
       <CardContent>
         <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
-          <Typography color="text.secondary" fontWeight={500} variant="body2">
-            {title}
-          </Typography>
+          <Box display="flex" alignItems="center" gap={0.5}>
+            <Typography color="text.secondary" fontWeight={500} variant="body2">
+              {title}
+            </Typography>
+            {infoTooltip && (
+              <Tooltip title={infoTooltip} arrow placement="top">
+                <IconButton size="small" sx={{ p: 0.5 }}>
+                  <Info fontSize="small" color="action" />
+                </IconButton>
+              </Tooltip>
+            )}
+          </Box>
           {icon}
         </Box>
         

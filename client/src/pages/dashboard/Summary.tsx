@@ -119,10 +119,33 @@ const Summary = () => {
       {/* Metrics Cards */}
       <Box display="flex" flexWrap="wrap" gap={3} mb={4}>
         {[
-          { title: "Overall SLA Compliance", value: metrics?.overallCompliance || 0, suffix: "%", progress: metrics?.overallCompliance || 0 },
-          { title: "Tables SLA Compliance", value: metrics?.tablesCompliance || 0, suffix: "%", progress: metrics?.tablesCompliance || 0 },
-          { title: "DAGs SLA Compliance", value: metrics?.dagsCompliance || 0, suffix: "%", progress: metrics?.dagsCompliance || 0 },
-          { title: "Entities Monitored", value: metrics?.entitiesCount || 0, suffix: "" }
+          { 
+            title: "Overall SLA Compliance", 
+            value: metrics?.overallCompliance || 0, 
+            suffix: "%", 
+            progress: metrics?.overallCompliance || 0,
+            infoTooltip: "Average SLA compliance calculated across all tables and DAGs monitored across all teams"
+          },
+          { 
+            title: "Tables SLA Compliance", 
+            value: metrics?.tablesCompliance || 0, 
+            suffix: "%", 
+            progress: metrics?.tablesCompliance || 0,
+            infoTooltip: "SLA compliance percentage calculated for table entities only"
+          },
+          { 
+            title: "DAGs SLA Compliance", 
+            value: metrics?.dagsCompliance || 0, 
+            suffix: "%", 
+            progress: metrics?.dagsCompliance || 0,
+            infoTooltip: "SLA compliance percentage calculated for DAG entities only"
+          },
+          { 
+            title: "Entities Monitored", 
+            value: metrics?.entitiesCount || 0, 
+            suffix: "",
+            subtitle: `${tables.length} Tables • ${dags.length} DAGs`
+          }
         ].map((card, idx) => (
           <Box key={card.title} flex="1 1 250px" minWidth="250px">
             <MetricCard {...card} />

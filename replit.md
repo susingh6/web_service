@@ -113,6 +113,12 @@ Preferred communication style: Simple, everyday language.
 
 ## Changelog
 
+- June 29, 2025: Added info icons to SLA compliance cards with explanatory tooltips and entities breakdown display
+  - Added info tooltips to Overall, Tables, and DAGs SLA compliance cards with clear explanations
+  - Overall SLA tooltip explains it's calculated as average across all tables and DAGs across all teams
+  - Tables and DAGs tooltips specify they show compliance for their respective entity types only
+  - Updated Entities Monitored card to show breakdown (e.g., "5 Tables • 4 DAGs") instead of just total count
+  - Enhanced MetricCard component with infoTooltip prop and Info icon with tooltip functionality
 - June 29, 2025: Removed download and print icons from Team Performance Comparison chart in summary dashboard
   - Eliminated action buttons (download/print) from chart header to maintain clean design
   - Chart now displays without unnecessary UI clutter in top right corner
