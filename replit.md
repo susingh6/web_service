@@ -113,15 +113,17 @@ Preferred communication style: Simple, everyday language.
 
 ## Changelog
 
-- June 29, 2025: Implemented REGULAR TASKS STATUS CHANGE trigger with complete notification configuration system
-  - Added RegularTasksStatusTrigger interface with identical structure to AI tasks trigger system
-  - Implemented regular tasks API endpoint (/api/entities/:id/regular-tasks) using centralized configuration
-  - Added "REGULAR TASKS STATUS CHANGE" trigger option for DAG entities in notification timeline modal
-  - Created comprehensive UI with task selection checkboxes for regular tasks (Task4-Task7) from regular bucket
+- June 29, 2025: Implemented unified tasks API system with comprehensive notification configuration
+  - Created single /api/entities/:id/tasks endpoint returning all tasks with task_type field ("AI" or "regular")
+  - Frontend filters tasks by task_type for AI and Regular task sections
+  - Both notification timeline modal and task management use unified API endpoint with centralized configuration
+  - Added REGULAR TASKS STATUS CHANGE trigger with identical functionality to AI tasks system
+  - Created comprehensive UI with task selection checkboxes for regular tasks (Task4-Task7)
   - Added radio button notification behavior options: notify when all tasks complete vs notify for each task individually
   - Supports both REGULAR TASKS PASSED and REGULAR TASKS FAILED conditions with same notification patterns
-  - Fixed handleAddTrigger function to properly create regular tasks trigger objects instead of defaulting to daily schedule
-  - System now provides complete parity between AI tasks and regular tasks notification configuration
+  - Fixed handleAddTrigger function to properly create regular tasks trigger objects
+  - Updated task management modal message to reflect that both AI and Regular tasks support notification configuration
+  - System now provides complete parity between AI tasks and regular tasks with unified data source
 - June 29, 2025: Enhanced EntityDetailsModal with centralized API configuration and comprehensive settings display
   - Added current DAG/table SLA settings section with API-based data retrieval using centralized endpoints
   - Implemented separate endpoints for DAG and Table current settings: /api/dags/current-settings and /api/tables/current-settings
