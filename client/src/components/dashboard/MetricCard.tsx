@@ -72,7 +72,7 @@ const MetricCard = ({
             {infoTooltip && (
               <Tooltip title={infoTooltip} arrow placement="top">
                 <IconButton size="small" sx={{ p: 0.5 }}>
-                  <Info fontSize="small" color="action" />
+                  <Info fontSize="small" color="primary" />
                 </IconButton>
               </Tooltip>
             )}

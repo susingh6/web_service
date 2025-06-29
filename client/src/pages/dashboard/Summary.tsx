@@ -131,14 +131,14 @@ const Summary = () => {
             value: metrics?.tablesCompliance || 0, 
             suffix: "%", 
             progress: metrics?.tablesCompliance || 0,
-            infoTooltip: "SLA compliance percentage calculated for table entities only"
+            infoTooltip: "Average SLA compliance percentage calculated across all table entities"
           },
           { 
             title: "DAGs SLA Compliance", 
             value: metrics?.dagsCompliance || 0, 
             suffix: "%", 
             progress: metrics?.dagsCompliance || 0,
-            infoTooltip: "SLA compliance percentage calculated for DAG entities only"
+            infoTooltip: "Average SLA compliance percentage calculated across all DAG entities"
           },
           { 
             title: "Entities Monitored", 
