@@ -371,38 +371,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get AI tasks for an entity
-  app.get("/api/entities/:id/ai-tasks", isAuthenticated, async (req: Request, res: Response) => {
+  // Get all tasks for an entity with task_type field
+  app.get("/api/entities/:id/tasks", isAuthenticated, async (req: Request, res: Response) => {
     try {
       const entityId = parseInt(req.params.id);
-      // Return AI monitored tasks that match the task names from the View Tasks modal
-      const mockAiTasks = [
-        { id: 1, name: "Task1", description: "AI monitoring for Task1" },
-        { id: 2, name: "Task2", description: "AI monitoring for Task2" },
-        { id: 3, name: "Task3", description: "AI monitoring for Task3" }
+      // Return all tasks with task_type field indicating AI or regular
+      const allTasks = [
+        { id: 1, name: "Task1", description: "AI monitoring for Task1", task_type: "AI" },
+        { id: 2, name: "Task2", description: "AI monitoring for Task2", task_type: "AI" },
+        { id: 3, name: "Task3", description: "AI monitoring for Task3", task_type: "AI" },
+        { id: 4, name: "Task4", description: "Regular monitoring for Task4", task_type: "regular" },
+        { id: 5, name: "Task5", description: "Regular monitoring for Task5", task_type: "regular" },
+        { id: 6, name: "Task6", description: "Regular monitoring for Task6", task_type: "regular" },
+        { id: 7, name: "Task7", description: "Regular monitoring for Task7", task_type: "regular" }
       ];
-      res.json(mockAiTasks);
+      res.json(allTasks);
     } catch (error) {
-      console.error("Error fetching AI tasks:", error);
-      res.status(500).json({ message: "Failed to fetch AI tasks" });
-    }
-  });
-
-  // Get regular tasks for an entity
-  app.get("/api/entities/:id/regular-tasks", isAuthenticated, async (req: Request, res: Response) => {
-    try {
-      const entityId = parseInt(req.params.id);
-      // Return regular tasks that match the task names from the View Tasks modal
-      const mockRegularTasks = [
-        { id: 4, name: "Task4", description: "Regular monitoring for Task4" },
-        { id: 5, name: "Task5", description: "Regular monitoring for Task5" },
-        { id: 6, name: "Task6", description: "Regular monitoring for Task6" },
-        { id: 7, name: "Task7", description: "Regular monitoring for Task7" }
-      ];
-      res.json(mockRegularTasks);
-    } catch (error) {
-      console.error("Error fetching regular tasks:", error);
-      res.status(500).json({ message: "Failed to fetch regular tasks" });
+      console.error("Error fetching tasks:", error);
+      res.status(500).json({ message: "Failed to fetch tasks" });
     }
   });
 

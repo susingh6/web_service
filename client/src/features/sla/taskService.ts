@@ -4,7 +4,7 @@ import { apiRequest } from '@/lib/queryClient';
 import { endpoints } from '@/config';
 import { mockTaskService } from './mockService';
 
-// Task service that uses API or mock data
+// Task service that uses unified tasks API
 export const useGetDagTasks = (dagId?: number) => {
   return useQuery({
     queryKey: ['tasks', dagId],
@@ -12,13 +12,21 @@ export const useGetDagTasks = (dagId?: number) => {
       if (!dagId) return [];
       
       try {
-        // Try to get from API first
-        const response = await apiRequest('GET', endpoints.tasks.byDag(dagId));
-        return await response.json();
+        // Get all tasks from unified endpoint
+        const response = await apiRequest('GET', endpoints.entity.tasks(dagId));
+        const allTasks = await response.json();
+        
+        // Transform to expected format with priority field
+        return allTasks.map((task: any) => ({
+          id: task.id,
+          name: task.name,
+          description: task.description,
+          priority: task.task_type === 'AI' ? 'high' : 'normal',
+          task_type: task.task_type
+        }));
       } catch (error) {
-        // Fall back to mock data if API fails or doesn't exist yet
-        console.log('Using mock tasks data for DAG:', dagId);
-        return mockTaskService.getDagTasks(dagId);
+        console.error('Error fetching tasks:', error);
+        return [];
       }
     },
     enabled: !!dagId,

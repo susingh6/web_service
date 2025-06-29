@@ -97,27 +97,20 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
     enabled: !!entity?.id && open
   });
 
-  // Fetch AI tasks for this entity (if it's a DAG)
-  const { data: aiTasks } = useQuery({
-    queryKey: ['ai-tasks', entity?.id],
+  // Fetch all tasks for this entity (if it's a DAG)
+  const { data: allTasks } = useQuery({
+    queryKey: ['tasks', entity?.id],
     queryFn: async () => {
       if (!entity?.id || entity?.type !== 'dag') return [];
-      const res = await apiRequest('GET', endpoints.entity.aiTasks(entity.id));
+      const res = await apiRequest('GET', endpoints.entity.tasks(entity.id));
       return await res.json();
     },
     enabled: !!entity?.id && entity?.type === 'dag' && open
   });
 
-  // Fetch regular tasks for this entity (if it's a DAG)
-  const { data: regularTasks } = useQuery({
-    queryKey: ['regular-tasks', entity?.id],
-    queryFn: async () => {
-      if (!entity?.id || entity?.type !== 'dag') return [];
-      const res = await apiRequest('GET', endpoints.entity.regularTasks(entity.id));
-      return await res.json();
-    },
-    enabled: !!entity?.id && entity?.type === 'dag' && open
-  });
+  // Filter tasks by type
+  const aiTasks = allTasks?.filter((task: any) => task.task_type === 'AI') || [];
+  const regularTasks = allTasks?.filter((task: any) => task.task_type === 'regular') || [];
 
   // Fetch individual notification timeline for editing
   const { data: selectedTimeline, isLoading: isLoadingTimeline } = useQuery({
