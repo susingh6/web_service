@@ -171,7 +171,7 @@ const EntityPerformanceChart = ({ entities, days = 30, filter = 'all' }: EntityP
         {/* Target line */}
         <Line
           type="monotone"
-          dataKey={(item) => entities[0]?.slaTarget || 95}
+          dataKey={(item) => filteredEntities[0]?.slaTarget || 95}
           stroke={theme.palette.error.main}
           strokeDasharray="5 5"
           strokeWidth={1}
@@ -181,7 +181,7 @@ const EntityPerformanceChart = ({ entities, days = 30, filter = 'all' }: EntityP
         />
         
         {/* Entity lines */}
-        {entities.map((entity, index) => (
+        {filteredEntities.map((entity, index) => (
           <Line
             key={entity.id}
             type="monotone"
