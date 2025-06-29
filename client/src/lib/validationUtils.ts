@@ -1,70 +1,90 @@
 /**
- * Utility functions for validating custom inputs against API endpoints
+ * Centralized validation utilities for entity forms
+ * Eliminates duplicate validation logic across AddEntityModal and EditEntityModal
  */
 
-/**
- * Validates a custom tenant name by checking against the API
- * @param tenantName The tenant name to validate
- * @returns Promise that resolves to true if valid, or error message if invalid
- */
-export const validateTenant = async (tenantName: string): Promise<true | string> => {
-  try {
-    // Placeholder API endpoint - will be replaced with actual endpoint
-    const response = await fetch(`https://api.example.com/validate/tenant?name=${encodeURIComponent(tenantName)}`);
-    
-    if (!response.ok) {
-      const errorData = await response.json();
-      return errorData.message || 'Invalid tenant name. Please check and try again.';
-    }
-    
-    return true;
-  } catch (error) {
-    console.error('Error validating tenant name:', error);
-    return 'Unable to validate tenant name. Please try again later.';
+export const validateTenant = async (tenantName: string): Promise<boolean | string> => {
+  // Basic validation - non-empty string
+  if (!tenantName || tenantName.trim() === '') {
+    return 'Tenant name cannot be empty';
   }
+  
+  // Length validation
+  if (tenantName.length < 2) {
+    return 'Tenant name must be at least 2 characters';
+  }
+  
+  if (tenantName.length > 100) {
+    return 'Tenant name must be less than 100 characters';
+  }
+  
+  // Pattern validation - alphanumeric, spaces, hyphens, underscores
+  const validPattern = /^[a-zA-Z0-9\s\-_]+$/;
+  if (!validPattern.test(tenantName)) {
+    return 'Tenant name can only contain letters, numbers, spaces, hyphens, and underscores';
+  }
+  
+  return true;
+};
+
+export const validateTeam = async (teamName: string): Promise<boolean | string> => {
+  // Basic validation - non-empty string
+  if (!teamName || teamName.trim() === '') {
+    return 'Team name cannot be empty';
+  }
+  
+  // Length validation
+  if (teamName.length < 2) {
+    return 'Team name must be at least 2 characters';
+  }
+  
+  if (teamName.length > 50) {
+    return 'Team name must be less than 50 characters';
+  }
+  
+  // Pattern validation - alphanumeric, spaces, hyphens, underscores
+  const validPattern = /^[a-zA-Z0-9\s\-_]+$/;
+  if (!validPattern.test(teamName)) {
+    return 'Team name can only contain letters, numbers, spaces, hyphens, and underscores';
+  }
+  
+  return true;
+};
+
+export const validateDag = async (dagName: string): Promise<boolean | string> => {
+  // Basic validation - non-empty string
+  if (!dagName || dagName.trim() === '') {
+    return 'DAG name cannot be empty';
+  }
+  
+  // Length validation
+  if (dagName.length < 2) {
+    return 'DAG name must be at least 2 characters';
+  }
+  
+  if (dagName.length > 100) {
+    return 'DAG name must be less than 100 characters';
+  }
+  
+  // Pattern validation for DAG names - more restrictive
+  const validPattern = /^[a-zA-Z0-9_]+$/;
+  if (!validPattern.test(dagName)) {
+    return 'DAG name can only contain letters, numbers, and underscores';
+  }
+  
+  return true;
 };
 
 /**
- * Validates a custom team name by checking against the API
- * @param teamName The team name to validate
- * @returns Promise that resolves to true if valid, or error message if invalid
+ * Cache update utility to eliminate duplicate cache management code
  */
-export const validateTeam = async (teamName: string): Promise<true | string> => {
-  try {
-    // Placeholder API endpoint - will be replaced with actual endpoint
-    const response = await fetch(`https://api.example.com/validate/team?name=${encodeURIComponent(teamName)}`);
-    
-    if (!response.ok) {
-      const errorData = await response.json();
-      return errorData.message || 'Invalid team name. Please check and try again.';
-    }
-    
-    return true;
-  } catch (error) {
-    console.error('Error validating team name:', error);
-    return 'Unable to validate team name. Please try again later.';
+export const updateCacheWithNewValue = (cacheKey: string, newValue: string, currentOptions: string[]): string[] => {
+  if (!currentOptions.includes(newValue)) {
+    const updated = [...currentOptions, newValue];
+    localStorage.setItem(cacheKey, JSON.stringify(updated));
+    localStorage.setItem(`${cacheKey}_time`, Date.now().toString());
+    console.log(`Cache updated with validated ${cacheKey.slice(0, -1)} name:`, newValue);
+    return updated;
   }
-};
-
-/**
- * Validates a custom DAG name by checking against our FastAPI backend
- * The backend will then validate with Airflow - web UI never calls Airflow directly
- * @param dagName The DAG name to validate
- * @returns Promise that resolves to true if valid, or error message if invalid
- */
-export const validateDag = async (dagName: string): Promise<true | string> => {
-  try {
-    // Our FastAPI endpoint that will internally check with Airflow
-    const response = await fetch(`https://api.example.com/validate/dag?name=${encodeURIComponent(dagName)}`);
-    
-    if (!response.ok) {
-      const errorData = await response.json();
-      return errorData.message || 'Invalid DAG name. Please check and try again.';
-    }
-    
-    return true;
-  } catch (error) {
-    console.error('Error validating DAG name:', error);
-    return 'Unable to validate DAG name. Please try again later.';
-  }
+  return currentOptions;
 };

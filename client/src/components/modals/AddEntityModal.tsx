@@ -31,7 +31,7 @@ import {
   Typography,
   Alert,
 } from '@mui/material';
-import { validateTenant, validateTeam, validateDag } from '@/lib/validationUtils';
+import { validateTenant, validateTeam, validateDag, updateCacheWithNewValue } from '@/lib/validationUtils';
 import { fetchWithCacheGeneric, getFromCacheGeneric } from '@/lib/cacheUtils';
 import { 
   buildTableSchema as tableSchemaBuilder, 
@@ -177,14 +177,14 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
       // 1. Pre-validate tenant name
       const tenantValidation = await validateTenant(data.tenant_name);
       if (tenantValidation !== true) {
-        setValidationError(tenantValidation);
+        setValidationError(typeof tenantValidation === 'string' ? tenantValidation : 'Invalid tenant name');
         return;
       }
       
       // 2. Pre-validate team name
       const teamValidation = await validateTeam(data.team_name);
       if (teamValidation !== true) {
-        setValidationError(teamValidation);
+        setValidationError(typeof teamValidation === 'string' ? teamValidation : 'Invalid team name');
         return;
       }
       
@@ -192,7 +192,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
       if (entityType === 'dag') {
         const dagValidation = await validateDag(data.dag_name);
         if (dagValidation !== true) {
-          setValidationError(dagValidation);
+          setValidationError(typeof dagValidation === 'string' ? dagValidation : 'Invalid DAG name');
           return;
         }
       }
@@ -226,36 +226,13 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
         const responseData = await response.json();
         
         // Only update cache after successful validation from FastAPI
-        if (entityType === 'dag' && !dagOptions.includes(data.dag_name)) {
-          // Make sure the value was accepted by the backend before caching
-          const updatedDags = [...dagOptions, data.dag_name];
-          setDagOptions(updatedDags);
-          
-          // Update the cache with the validated DAG name
-          localStorage.setItem('dags', JSON.stringify(updatedDags));
-          localStorage.setItem('dags_time', Date.now().toString());
-          
-          console.log('Cache updated with validated DAG name:', data.dag_name);
+        if (entityType === 'dag') {
+          setDagOptions(updateCacheWithNewValue('dags', data.dag_name, dagOptions));
         }
         
-        // Do similar cache updates for tenant and team if they're new values
-        if (!tenantOptions.includes(data.tenant_name)) {
-          const updatedTenants = [...tenantOptions, data.tenant_name];
-          setTenantOptions(updatedTenants);
-          localStorage.setItem('tenants', JSON.stringify(updatedTenants));
-          localStorage.setItem('tenants_time', Date.now().toString());
-          
-          console.log('Cache updated with validated tenant name:', data.tenant_name);
-        }
-        
-        if (!teamOptions.includes(data.team_name)) {
-          const updatedTeams = [...teamOptions, data.team_name];
-          setTeamOptions(updatedTeams);
-          localStorage.setItem('teams', JSON.stringify(updatedTeams));
-          localStorage.setItem('teams_time', Date.now().toString());
-          
-          console.log('Cache updated with validated team name:', data.team_name);
-        }
+        // Update caches with validated new values using centralized utility
+        setTenantOptions(updateCacheWithNewValue('tenants', data.tenant_name, tenantOptions));
+        setTeamOptions(updateCacheWithNewValue('teams', data.team_name, teamOptions));
       } catch (parseError) {
         console.warn('Could not parse response JSON, but submission was successful');
       }

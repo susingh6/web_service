@@ -113,6 +113,12 @@ Preferred communication style: Simple, everyday language.
 
 ## Changelog
 
+- June 29, 2025: Completed comprehensive code deduplication across validation and cache management utilities
+  - Created centralized validation utilities (validateTenant, validateTeam, validateDag) eliminating duplicate validation logic
+  - Added updateCacheWithNewValue utility to consolidate duplicate cache management code across AddEntityModal and EditEntityModal
+  - Fixed task visibility issue in task management modal by improving cache invalidation strategy
+  - Resolved infinite re-render loop in NotificationTimelineModal that was causing maximum update depth warnings
+  - Tasks now remain visible after moving between Regular Tasks and AI Monitored Tasks sections
 - June 29, 2025: Completed code deduplication after centralized API configuration migration
   - Removed deprecated legacy API functions (api.getTeams, api.getEntities, etc.) that were replaced by apiClient
   - Eliminated redundant fetchWithCache function by consolidating into fetchWithCacheGeneric for type safety
