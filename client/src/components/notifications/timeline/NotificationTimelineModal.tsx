@@ -138,7 +138,9 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
 
   useEffect(() => {
     if (regularTasks) {
+      console.log('Regular tasks received:', regularTasks);
       setAvailableRegularTasks(regularTasks.map((task: any) => task.name));
+      console.log('Available regular tasks set:', regularTasks.map((task: any) => task.name));
     }
   }, [regularTasks]);
 

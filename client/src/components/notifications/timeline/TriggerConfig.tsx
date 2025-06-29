@@ -251,6 +251,7 @@ export const TriggerConfig: React.FC<TriggerConfigProps> = ({
               Select specific regular tasks to monitor (leave empty for all):
             </Typography>
             <FormGroup>
+              {console.log('TriggerConfig - availableRegularTasks:', availableRegularTasks)}
               {availableRegularTasks.map((taskName) => (
                 <FormControlLabel
                   key={taskName}
