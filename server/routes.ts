@@ -388,6 +388,84 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get current settings for an entity by team name, entity name, and type
+  app.get("/api/entities/current-settings", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const { team, name, type } = req.query;
+      
+      if (!team || !name || !type) {
+        return res.status(400).json({ message: "Missing required parameters: team, name, type" });
+      }
+      
+      // Find the entity by team name, entity name, and type
+      const entities = await storage.getEntities();
+      const teams = await storage.getTeams();
+      
+      const teamObj = teams.find(t => t.name === team);
+      if (!teamObj) {
+        return res.status(404).json({ message: "Team not found" });
+      }
+      
+      const entity = entities.find(e => e.name === name && e.type === type && e.teamId === teamObj.id);
+      if (!entity) {
+        return res.status(404).json({ message: "Entity not found" });
+      }
+      
+      // Return current entity settings in a standardized format
+      const currentSettings = {
+        name: entity.name,
+        team: teamObj.name,
+        ownerEmail: entity.owner || entity.ownerEmail,
+        userEmail: entity.user_email,
+        description: entity.description,
+        schedule: entity.dag_schedule || entity.table_schedule,
+        expectedRuntime: entity.expected_runtime_minutes,
+        donemarkerLocation: entity.donemarker_location,
+        donemarkerLookback: entity.donemarker_lookback,
+        dagDependency: entity.type === 'dag' ? entity.dag_dependency : undefined,
+        tableDependency: entity.type === 'table' ? entity.table_dependency : undefined,
+        isActive: entity.status === 'healthy' || entity.status === 'warning',
+        status: entity.status,
+        lastUpdated: new Date()
+      };
+      
+      res.json(currentSettings);
+    } catch (error) {
+      console.error("Error fetching current settings:", error);
+      res.status(500).json({ message: "Failed to fetch current settings" });
+    }
+  });
+
+  // Get history changes for an entity (last 5 changes)
+  app.get("/api/entities/:id/history-changes", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const entityId = parseInt(req.params.id);
+      if (isNaN(entityId)) {
+        return res.status(400).json({ message: "Invalid entity ID" });
+      }
+      
+      // Get entity history from storage
+      const history = await storage.getEntityHistory(entityId);
+      
+      // Transform history into changes format for display
+      const changes = history.slice(0, 5).map((record, index) => ({
+        id: record.id,
+        fieldChanged: 'SLA Compliance',
+        oldValue: null,
+        newValue: record.slaValue,
+        description: `SLA compliance updated to ${record.slaValue}% with ${record.status} status`,
+        changedBy: 'System',
+        changedAt: record.date,
+        entityId: record.entityId
+      }));
+      
+      res.json(changes);
+    } catch (error) {
+      console.error("Error fetching history changes:", error);
+      res.status(500).json({ message: "Failed to fetch history changes" });
+    }
+  });
+
   // Get 30-day trends for all entities (independent of global date filter)
   app.get("/api/entities/trends/30-day", isAuthenticated, async (req: Request, res: Response) => {
     try {

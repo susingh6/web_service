@@ -324,30 +324,30 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
                     </TableRow>
                     <TableRow>
                       <TableCell sx={{ fontWeight: 600 }}>Schedule</TableCell>
-                      <TableCell>{currentSettings.schedule || entity.schedule || 'N/A'}</TableCell>
+                      <TableCell>{currentSettings.schedule || entity.dag_schedule || entity.table_schedule || 'N/A'}</TableCell>
                     </TableRow>
                     <TableRow>
-                      <TableCell sx={{ fontWeight: 600 }}>Expected Runtime (hrs)</TableCell>
-                      <TableCell>{currentSettings.expectedRuntime || entity.expectedRuntime || 'N/A'}</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Expected Runtime (mins)</TableCell>
+                      <TableCell>{currentSettings.expectedRuntime || entity.expected_runtime_minutes || 'N/A'}</TableCell>
                     </TableRow>
                     <TableRow>
                       <TableCell sx={{ fontWeight: 600 }}>Donemarker Location</TableCell>
-                      <TableCell>{currentSettings.donemarkerLocation || entity.donemarkerLocation || 'N/A'}</TableCell>
+                      <TableCell>{currentSettings.donemarkerLocation || entity.donemarker_location || 'N/A'}</TableCell>
                     </TableRow>
                     <TableRow>
                       <TableCell sx={{ fontWeight: 600 }}>Donemarker Lookback (hrs)</TableCell>
-                      <TableCell>{currentSettings.donemarkerLookback || entity.donemarkerLookback || 'N/A'}</TableCell>
+                      <TableCell>{currentSettings.donemarkerLookback || entity.donemarker_lookback || 'N/A'}</TableCell>
                     </TableRow>
                     {entity.type === 'dag' && (
                       <TableRow>
                         <TableCell sx={{ fontWeight: 600 }}>DAG Dependency</TableCell>
-                        <TableCell>{currentSettings.dagDependency || entity.dagDependency || 'N/A'}</TableCell>
+                        <TableCell>{currentSettings.dagDependency || entity.dag_dependency || 'N/A'}</TableCell>
                       </TableRow>
                     )}
                     {entity.type === 'table' && (
                       <TableRow>
                         <TableCell sx={{ fontWeight: 600 }}>Table Dependency</TableCell>
-                        <TableCell>{currentSettings.tableDependency || entity.tableDependency || 'N/A'}</TableCell>
+                        <TableCell>{currentSettings.tableDependency || entity.table_dependency || 'N/A'}</TableCell>
                       </TableRow>
                     )}
                     <TableRow>
