@@ -113,6 +113,10 @@ Preferred communication style: Simple, everyday language.
 
 ## Changelog
 
+- June 29, 2025: Removed hardcoded date range from Compliance Trend chart titles for dynamic date filtering
+  - Changed "Compliance Trend (Last 30 Days)" to "Compliance Trend" in both Summary and Team dashboards
+  - Chart title now dynamically reflects selected date range from date picker
+  - X-axis automatically adjusts to show correct date range based on user filter selection
 - June 29, 2025: Added info icons to SLA compliance cards with explanatory tooltips and entities breakdown display
   - Added blue info tooltips to Overall, Tables, and DAGs SLA compliance cards with clear explanations
   - Summary dashboard tooltips explain calculations across all teams and entity types

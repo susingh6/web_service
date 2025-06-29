@@ -157,7 +157,7 @@ const Summary = () => {
       <Box display="flex" flexWrap="wrap" gap={3} mb={4}>
         <Box flex="1 1 500px" minWidth="500px">
           <ChartCard
-            title="Compliance Trend (Last 30 Days)"
+            title="Compliance Trend"
             filters={['All', 'Tables', 'DAGs']}
             onFilterChange={setChartFilter}
             loading={metricsLoading}
