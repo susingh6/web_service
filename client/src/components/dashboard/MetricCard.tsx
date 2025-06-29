@@ -1,6 +1,7 @@
 import { Card, CardContent, Typography, Box, LinearProgress, Tooltip, IconButton } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import { TrendingUp, TrendingDown, TrendingFlat, Info } from '@mui/icons-material';
+import { getSlaColorCode } from '@/config';
 
 interface MetricCardProps {
   title: string;

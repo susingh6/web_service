@@ -50,6 +50,18 @@ interface ApiConfig {
       teams: string;
     };
   };
+  slaColorThresholds: {
+    green: {
+      min: number;
+    };
+    amber: {
+      min: number;
+      max: number;
+    };
+    red: {
+      max: number;
+    };
+  };
   debug: boolean;
   logLevel: string;
   enableMockData: boolean;
@@ -103,6 +115,36 @@ export const buildUrlWithParams = (
 
 // Export individual endpoints for convenience
 export const endpoints = config.endpoints;
+
+// SLA Color Threshold Utilities
+export const getSlaColor = (compliancePercentage: number): 'green' | 'amber' | 'red' => {
+  const thresholds = config.slaColorThresholds;
+  
+  if (compliancePercentage >= thresholds.green.min) {
+    return 'green';
+  } else if (compliancePercentage >= thresholds.amber.min && compliancePercentage <= thresholds.amber.max) {
+    return 'amber';
+  } else {
+    return 'red';
+  }
+};
+
+export const getSlaColorCode = (compliancePercentage: number): string => {
+  const colorType = getSlaColor(compliancePercentage);
+  
+  switch (colorType) {
+    case 'green':
+      return '#4caf50'; // Material-UI green
+    case 'amber':
+      return '#ff9800'; // Material-UI orange/amber
+    case 'red':
+      return '#f44336'; // Material-UI red
+    default:
+      return '#9e9e9e'; // Material-UI grey fallback
+  }
+};
+
+export const slaColorThresholds = config.slaColorThresholds;
 
 // Export environment info
 export const isDevelopment = env === 'development';

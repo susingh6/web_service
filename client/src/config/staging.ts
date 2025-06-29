@@ -58,6 +58,20 @@ export const stagingConfig = {
     },
   },
   
+  // SLA Compliance Color Thresholds
+  slaColorThresholds: {
+    green: {
+      min: 90, // 90% and above shows green
+    },
+    amber: {
+      min: 75, // 75% to 89% shows amber/orange
+      max: 89,
+    },
+    red: {
+      max: 74, // Below 75% shows red
+    },
+  },
+  
   // Staging settings
   debug: false,
   logLevel: 'info',
