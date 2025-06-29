@@ -9,7 +9,8 @@ export const CACHE_TTL = 6 * 60 * 60 * 1000;
  */
 export const fetchWithCacheGeneric = async <T>(
   url: string, 
-  cacheKey: string
+  cacheKey: string,
+  defaultValue?: T
 ): Promise<T> => {
   // Check if we have cached data and if it's still valid
   const cachedData = localStorage.getItem(cacheKey);
@@ -38,6 +39,10 @@ export const fetchWithCacheGeneric = async <T>(
     return data;
   } catch (error) {
     console.error(`Error fetching ${cacheKey}:`, error);
+    // Return type-safe default value or throw error to let caller handle it
+    if (defaultValue !== undefined) {
+      return defaultValue;
+    }
     throw error;
   }
 };

@@ -36,19 +36,16 @@ export const preloadAllCacheData = async (): Promise<void> => {
   // Initialize with defaults first for instant access
   initializeDefaultCache();
   
-  try {
-    // Then load from API in parallel to update the cache with real data if needed
-    await Promise.all([
-      fetchWithCache('https://api.example.com/tenants', 'tenants'), 
-      fetchWithCache('https://api.example.com/teams', 'teams'),
-      fetchWithCache('https://api.example.com/dags', 'dags'),
-    ]);
-    
-    console.log('Cache preloading complete');
-  } catch (error) {
-    console.error('Error preloading cache:', error);
-    // Don't block app startup if preloading fails - we already have defaults
-  }
+  // Skip API calls for now since we don't have real endpoints configured
+  // Just use the default values that were already initialized
+  console.log('Cache preloading complete');
+  
+  // TODO: Replace with real API endpoints when backend is fully configured
+  // await Promise.all([
+  //   fetchWithCache(buildUrl(endpoints.tenants), 'tenants'), 
+  //   fetchWithCache(buildUrl(endpoints.teams), 'teams'),
+  //   fetchWithCache(buildUrl(endpoints.dags), 'dags'),
+  // ]);
 };
 
 // Additional function to refresh cache in background
