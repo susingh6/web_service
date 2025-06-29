@@ -114,11 +114,13 @@ Preferred communication style: Simple, everyday language.
 ## Changelog
 
 - June 29, 2025: Enhanced EntityDetailsModal with centralized API configuration and comprehensive settings display
-  - Added current DAG/table settings section with API-based data retrieval using centralized endpoints
+  - Added current DAG/table SLA settings section with API-based data retrieval using centralized endpoints
   - Implemented last 5 history changes tracking with API integration for change management
   - Added new API endpoints: /api/entities/current-settings and /api/entities/:id/history-changes
-  - Current settings show all entity properties from Add Entity modal (team, owner, schedule, dependencies, etc.)
+  - Current SLA settings show all entity properties from Add Entity modal (team, owner, schedule, dependencies, etc.)
   - History section displays recent changes to DAG/table configurations with timestamps and change details
+  - Fixed React Hooks error by ensuring consistent hook call order and proper conditional logic
+  - Updated section heading to "Current DAG SLA Settings" and "Current Table SLA Settings" for clarity
   - All API calls use centralized configuration schema for consistent endpoint management
 - June 29, 2025: Updated Task Management modal message for better clarity and grammar
   - Changed message to "AI Monitored Tasks receive enhanced monitoring and can trigger SLA alerts when issues are detected"
