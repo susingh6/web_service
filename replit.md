@@ -113,6 +113,9 @@ Preferred communication style: Simple, everyday language.
 
 ## Changelog
 
+- June 29, 2025: Updated Task Management modal message for better clarity and grammar
+  - Changed message to "AI Monitored Tasks receive enhanced monitoring and can trigger SLA alerts when issues are detected"
+  - Improved professional tone and grammatical correctness in drag-and-drop instruction text
 - June 29, 2025: Implemented configurable SLA compliance color thresholds via centralized configuration
   - Added slaColorThresholds to centralized API configuration (dev.ts, staging.ts, prod.ts)
   - Created getSlaColor() and getSlaColorCode() utility functions for dynamic threshold evaluation

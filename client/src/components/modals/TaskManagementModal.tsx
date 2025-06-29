@@ -118,7 +118,7 @@ const TaskManagementModal: React.FC<TaskManagementModalProps> = ({
             
             <Box sx={{ mb: 3 }}>
               <Typography variant="body2" color="text.secondary">
-                Drag and drop tasks between zones to change their priority. AI Monitored Tasks are monitored more frequently and trigger alerts sooner when issues are detected.
+                Drag and drop tasks between zones to change their priority. AI Monitored Tasks receive enhanced monitoring and can trigger SLA alerts when issues are detected.
               </Typography>
             </Box>
             
