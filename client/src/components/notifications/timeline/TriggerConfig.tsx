@@ -10,7 +10,9 @@ import {
   FormGroup,
   Box,
   Typography,
-  Chip
+  Chip,
+  Radio,
+  RadioGroup
 } from '@mui/material';
 import {
   NotificationTrigger,
@@ -140,6 +142,45 @@ export const TriggerConfig: React.FC<TriggerConfigProps> = ({
                 variant="outlined"
                 sx={{ mt: 1 }}
               />
+            )}
+            
+            {/* Notification Behavior for AI TASKS PASSED */}
+            {(trigger as AiTasksStatusTrigger).condition === 'ai_tasks_passed' && (
+              <Box sx={{ mt: 3 }}>
+                <Typography variant="body2" fontWeight={600} sx={{ mb: 2 }}>
+                  Notification Behavior:
+                </Typography>
+                <FormControl component="fieldset">
+                  <RadioGroup
+                    value={(trigger as AiTasksStatusTrigger).notificationBehavior || 'notify_all'}
+                    onChange={(e) => {
+                      onChange({ 
+                        ...trigger, 
+                        notificationBehavior: e.target.value as 'notify_all' | 'notify_each'
+                      });
+                    }}
+                  >
+                    <FormControlLabel
+                      value="notify_all"
+                      control={<Radio />}
+                      label="Notify when ALL selected tasks pass"
+                      sx={{ mb: 1 }}
+                    />
+                    <Typography variant="caption" color="textSecondary" sx={{ ml: 4, mb: 2, display: 'block' }}>
+                      Send one notification when all selected tasks complete successfully
+                    </Typography>
+                    
+                    <FormControlLabel
+                      value="notify_each"
+                      control={<Radio />}
+                      label="Notify for EACH task individually"
+                    />
+                    <Typography variant="caption" color="textSecondary" sx={{ ml: 4, display: 'block' }}>
+                      Send separate notifications as each task completes successfully
+                    </Typography>
+                  </RadioGroup>
+                </FormControl>
+              </Box>
             )}
           </Box>
         );
