@@ -32,9 +32,8 @@ const Navigation = () => {
       const cachedValues = getFromCache('teams');
       setCachedTeams(cachedValues);
       
-      // Then fetch in background to refresh the cache if needed
-      const freshValues = await fetchWithCache('https://api.example.com/teams', 'teams');
-      setCachedTeams(freshValues);
+      // Skip background fetch for now since we don't have real endpoints configured
+      // TODO: Replace with real API endpoint when backend is fully configured
     } catch (error) {
       console.error('Error loading team cache:', error);
     } finally {

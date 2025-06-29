@@ -50,14 +50,7 @@ export const preloadAllCacheData = async (): Promise<void> => {
 
 // Additional function to refresh cache in background
 export const refreshCacheInBackground = async (): Promise<void> => {
-  try {
-    // We do this silently in the background to avoid blocking UI
-    await Promise.all([
-      fetchWithCache('https://api.example.com/tenants', 'tenants'),
-      fetchWithCache('https://api.example.com/teams', 'teams'),
-      fetchWithCache('https://api.example.com/dags', 'dags'),
-    ]);
-  } catch (error) {
-    console.error('Background cache refresh error:', error);
-  }
+  // Skip background refresh for now since we don't have real endpoints configured
+  // TODO: Replace with real API endpoints when backend is fully configured
+  console.log('Background cache refresh skipped - using defaults');
 };
