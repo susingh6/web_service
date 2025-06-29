@@ -27,6 +27,7 @@ export interface AiTasksStatusTrigger {
   type: 'ai_tasks_status';
   condition: 'all_passed' | 'all_failed';
   taskNames?: string[]; // Specific AI tasks to monitor, empty means all
+  notificationBehavior?: 'notify_all' | 'notify_each'; // How to notify when tasks pass
 }
 
 export type NotificationTrigger = 

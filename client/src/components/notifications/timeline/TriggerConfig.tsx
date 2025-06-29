@@ -145,7 +145,7 @@ export const TriggerConfig: React.FC<TriggerConfigProps> = ({
             )}
             
             {/* Notification Behavior for AI TASKS PASSED */}
-            {(trigger as AiTasksStatusTrigger).condition === 'ai_tasks_passed' && (
+            {(trigger as AiTasksStatusTrigger).condition === 'all_passed' && (
               <Box sx={{ mt: 3 }}>
                 <Typography variant="body2" fontWeight={600} sx={{ mb: 2 }}>
                   Notification Behavior:
