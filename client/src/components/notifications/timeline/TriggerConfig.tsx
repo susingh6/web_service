@@ -22,7 +22,8 @@ import {
   DailyScheduleTrigger,
   SlaThresholdBreachedTrigger,
   EntitySuccessTrigger,
-  AiTasksStatusTrigger
+  AiTasksStatusTrigger,
+  RegularTasksStatusTrigger
 } from '@/lib/notifications/timelineTypes';
 
 interface TriggerConfigProps {
@@ -30,6 +31,7 @@ interface TriggerConfigProps {
   onChange: (trigger: NotificationTrigger) => void;
   onRemove: () => void;
   availableAiTasks?: string[];
+  availableRegularTasks?: string[];
   entityType: 'table' | 'dag';
 }
 
@@ -38,6 +40,7 @@ export const TriggerConfig: React.FC<TriggerConfigProps> = ({
   onChange,
   onRemove,
   availableAiTasks = [],
+  availableRegularTasks = [],
   entityType
 }) => {
   const getEntityLabel = () => entityType === 'table' ? 'Table' : 'DAG';
@@ -192,6 +195,139 @@ export const TriggerConfig: React.FC<TriggerConfigProps> = ({
                 <FormControl component="fieldset">
                   <RadioGroup
                     value={(trigger as AiTasksStatusTrigger).notificationBehavior || 'notify_all'}
+                    onChange={(e) => {
+                      onChange({ 
+                        ...trigger, 
+                        notificationBehavior: e.target.value as 'notify_all' | 'notify_each'
+                      });
+                    }}
+                  >
+                    <FormControlLabel
+                      value="notify_all"
+                      control={<Radio />}
+                      label="Notify when ALL selected tasks fail"
+                      sx={{ mb: 1 }}
+                    />
+                    <Typography variant="caption" color="textSecondary" sx={{ ml: 4, mb: 2, display: 'block' }}>
+                      Send one notification when all selected tasks have failed
+                    </Typography>
+                    
+                    <FormControlLabel
+                      value="notify_each"
+                      control={<Radio />}
+                      label="Notify for EACH task individually"
+                    />
+                    <Typography variant="caption" color="textSecondary" sx={{ ml: 4, display: 'block' }}>
+                      Send separate notifications as each task fails
+                    </Typography>
+                  </RadioGroup>
+                </FormControl>
+              </Box>
+            )}
+          </Box>
+        );
+
+      case 'regular_tasks_status':
+        return (
+          <Box>
+            <FormControl fullWidth sx={{ mb: 2 }}>
+              <FormLabel>Regular Task Condition</FormLabel>
+              <Select
+                value={(trigger as RegularTasksStatusTrigger).condition || 'all_passed'}
+                onChange={(e) => onChange({ 
+                  ...trigger, 
+                  condition: e.target.value as any 
+                })}
+              >
+                {AI_TASK_CONDITIONS.map((condition) => (
+                  <MenuItem key={condition.value} value={condition.value}>
+                    {condition.label.replace('AI TASKS', 'REGULAR TASKS')}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            
+            <Typography variant="body2" color="textSecondary" sx={{ mb: 1, mt: 2 }}>
+              Select specific regular tasks to monitor (leave empty for all):
+            </Typography>
+            <FormGroup>
+              {availableRegularTasks.map((taskName) => (
+                <FormControlLabel
+                  key={taskName}
+                  control={
+                    <Checkbox
+                      checked={(trigger as RegularTasksStatusTrigger).taskNames?.includes(taskName) || false}
+                      onChange={(e) => {
+                        const currentTasks = (trigger as RegularTasksStatusTrigger).taskNames || [];
+                        const newTasks = e.target.checked
+                          ? [...currentTasks, taskName]
+                          : currentTasks.filter(t => t !== taskName);
+                        onChange({ ...trigger, taskNames: newTasks });
+                      }}
+                    />
+                  }
+                  label={taskName}
+                />
+              ))}
+            </FormGroup>
+            {(!(trigger as RegularTasksStatusTrigger).taskNames || (trigger as RegularTasksStatusTrigger).taskNames.length === 0) && (
+              <Chip 
+                label="Monitoring all regular tasks" 
+                size="small" 
+                color="primary" 
+                variant="outlined"
+                sx={{ mt: 1 }}
+              />
+            )}
+            
+            {/* Notification Behavior for REGULAR TASKS PASSED */}
+            {(trigger as RegularTasksStatusTrigger).condition === 'all_passed' && (
+              <Box sx={{ mt: 3 }}>
+                <Typography variant="body2" fontWeight={600} sx={{ mb: 2 }}>
+                  Notification Behavior:
+                </Typography>
+                <FormControl component="fieldset">
+                  <RadioGroup
+                    value={(trigger as RegularTasksStatusTrigger).notificationBehavior || 'notify_all'}
+                    onChange={(e) => {
+                      onChange({ 
+                        ...trigger, 
+                        notificationBehavior: e.target.value as 'notify_all' | 'notify_each'
+                      });
+                    }}
+                  >
+                    <FormControlLabel
+                      value="notify_all"
+                      control={<Radio />}
+                      label="Notify when ALL selected tasks pass"
+                      sx={{ mb: 1 }}
+                    />
+                    <Typography variant="caption" color="textSecondary" sx={{ ml: 4, mb: 2, display: 'block' }}>
+                      Send one notification when all selected tasks complete successfully
+                    </Typography>
+                    
+                    <FormControlLabel
+                      value="notify_each"
+                      control={<Radio />}
+                      label="Notify for EACH task individually"
+                    />
+                    <Typography variant="caption" color="textSecondary" sx={{ ml: 4, display: 'block' }}>
+                      Send separate notifications as each task completes successfully
+                    </Typography>
+                  </RadioGroup>
+                </FormControl>
+              </Box>
+            )}
+            
+            {/* Notification Behavior for REGULAR TASKS FAILED */}
+            {(trigger as RegularTasksStatusTrigger).condition === 'all_failed' && (
+              <Box sx={{ mt: 3 }}>
+                <Typography variant="body2" fontWeight={600} sx={{ mb: 2 }}>
+                  Notification Behavior:
+                </Typography>
+                <FormControl component="fieldset">
+                  <RadioGroup
+                    value={(trigger as RegularTasksStatusTrigger).notificationBehavior || 'notify_all'}
                     onChange={(e) => {
                       onChange({ 
                         ...trigger, 

@@ -423,6 +423,9 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
                   {entity?.type === 'dag' && (
                     <MenuItem value="ai_tasks_status">{TRIGGER_TYPE_LABELS.ai_tasks_status}</MenuItem>
                   )}
+                  {entity?.type === 'dag' && (
+                    <MenuItem value="regular_tasks_status">{TRIGGER_TYPE_LABELS.regular_tasks_status}</MenuItem>
+                  )}
                 </Select>
               </Box>
 
@@ -433,6 +436,7 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
                   onChange={(updatedTrigger) => handleUpdateTrigger(index, updatedTrigger)}
                   onRemove={() => handleRemoveTrigger(index)}
                   availableAiTasks={availableAiTasks}
+                  availableRegularTasks={availableRegularTasks}
                   entityType={entity?.type as 'table' | 'dag' || 'dag'}
                 />
               ))}
