@@ -29,7 +29,8 @@ import { Entity, Issue } from '@shared/schema';
 import EntityPerformanceChart from '@/components/dashboard/EntityPerformanceChart';
 import ConfirmDialog from './ConfirmDialog';
 import { useToast } from '@/hooks/use-toast';
-import { queryClient } from '@/lib/queryClient';
+import { queryClient, apiRequest } from '@/lib/queryClient';
+import { buildUrl, endpoints } from '@/config';
 
 interface EntityDetailsModalProps {
   open: boolean;
@@ -99,8 +100,7 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
   
   const handleConfirmDelete = async () => {
     try {
-      // This would be a real API call in production
-      // await deleteEntity(entity.id);
+      await apiRequest("DELETE", buildUrl(endpoints.entity.delete(entity.id)));
       
       toast({
         title: 'Success',

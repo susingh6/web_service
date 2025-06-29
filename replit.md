@@ -113,6 +113,12 @@ Preferred communication style: Simple, everyday language.
 
 ## Changelog
 
+- June 29, 2025: Updated Entity Details modal delete functionality to use centralized API configuration
+  - Added delete endpoint to centralized API configuration (entity.delete function)
+  - Updated Entity Details modal to use buildUrl(endpoints.entity.delete) instead of hard-coded comments
+  - Confirmed backend DELETE /api/entities/:id endpoint exists and is properly configured
+  - Delete functionality now follows centralized API pattern like all other modals
+  - Display labels remain static as they represent entity properties, not configurable form fields
 - June 29, 2025: Fixed authentication system runtime errors and confirmed centralized API integration
   - Resolved cache utility errors causing login page crashes with proper error handling
   - Disabled problematic API fetch calls during cache preloading to prevent unhandled rejections

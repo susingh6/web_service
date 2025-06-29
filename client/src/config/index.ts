@@ -31,6 +31,7 @@ interface ApiConfig {
       aiTasks: (entityId: number) => string;
       notificationTimelines: (entityId: number) => string;
       trends30Day: string;
+      delete: (id: number) => string;
     };
     tasks: {
       byDag: (dagId: number) => string;

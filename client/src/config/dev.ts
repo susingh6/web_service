@@ -30,6 +30,7 @@ export const devConfig = {
       aiTasks: (entityId: number) => `/api/entities/${entityId}/ai-tasks`,
       notificationTimelines: (entityId: number) => `/api/entities/${entityId}/notification-timelines`,
       trends30Day: '/api/entities/trends/30-day',
+      delete: (id: number) => `/api/entities/${id}`,
     },
 
     // Task operations
