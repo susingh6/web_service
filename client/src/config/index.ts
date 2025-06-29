@@ -32,6 +32,8 @@ interface ApiConfig {
       notificationTimelines: (entityId: number) => string;
       trends30Day: string;
       delete: (id: number) => string;
+      currentSettings: (teamName: string, entityName: string, entityType: string) => string;
+      historyChanges: (entityId: number) => string;
     };
     tasks: {
       byDag: (dagId: number) => string;

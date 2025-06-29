@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -15,6 +15,14 @@ import {
   ListItem,
   ListItemIcon,
   ListItemText,
+  CircularProgress,
+  Divider,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
 } from '@mui/material';
 import {
   Close as CloseIcon,
@@ -23,6 +31,9 @@ import {
   History as HistoryIcon,
   Warning as WarningIcon,
   Error as ErrorIcon,
+  Settings as SettingsIcon,
+  Schedule as ScheduleIcon,
+  Person as PersonIcon,
 } from '@mui/icons-material';
 import { format } from 'date-fns';
 import { Entity, Issue } from '@shared/schema';
@@ -31,6 +42,7 @@ import ConfirmDialog from './ConfirmDialog';
 import { useToast } from '@/hooks/use-toast';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 import { buildUrl, endpoints } from '@/config';
+import { useQuery } from '@tanstack/react-query';
 
 interface EntityDetailsModalProps {
   open: boolean;
@@ -86,8 +98,35 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
   // Find team name
   const teamName = teams.find(team => team.id === entity.teamId)?.name || 'Unknown Team';
   
-  // Mock data for display
-  const issues = mockIssues.filter(issue => issue.entityId === entity.id);
+  // Fetch current entity settings using centralized API
+  const { data: currentSettings, isLoading: settingsLoading } = useQuery({
+    queryKey: ['currentSettings', teamName, entity.name, entity.type],
+    queryFn: async () => {
+      const response = await apiRequest('GET', buildUrl(endpoints.entity.currentSettings(teamName, entity.name, entity.type)));
+      return response.json();
+    },
+    enabled: open && !!entity && !!teamName,
+  });
+
+  // Fetch entity history changes using centralized API
+  const { data: historyChanges, isLoading: historyLoading } = useQuery({
+    queryKey: ['historyChanges', entity.id],
+    queryFn: async () => {
+      const response = await apiRequest('GET', buildUrl(endpoints.entity.historyChanges(entity.id)));
+      return response.json();
+    },
+    enabled: open && !!entity,
+  });
+
+  // Fetch entity issues using centralized API
+  const { data: issues = [], isLoading: issuesLoading } = useQuery({
+    queryKey: ['entityIssues', entity.id],
+    queryFn: async () => {
+      const response = await apiRequest('GET', buildUrl(endpoints.entity.issues(entity.id)));
+      return response.json();
+    },
+    enabled: open && !!entity,
+  });
   
   const formatDate = (date: Date | null) => {
     if (!date) return 'N/A';
@@ -245,6 +284,135 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
             <Box sx={{ height: 300 }}>
               <EntityPerformanceChart entities={[entity]} />
             </Box>
+          </Paper>
+
+          {/* Current Settings */}
+          <Paper elevation={0} sx={{ p: 3, mb: 3, borderRadius: 1 }}>
+            <Box display="flex" alignItems="center" mb={2}>
+              <SettingsIcon sx={{ mr: 1, color: 'primary.main' }} />
+              <Typography variant="h6" fontWeight={600}>
+                Current {entity.type === 'dag' ? 'DAG' : 'Table'} Settings
+              </Typography>
+            </Box>
+            {settingsLoading ? (
+              <Box display="flex" justifyContent="center" py={2}>
+                <CircularProgress size={24} />
+              </Box>
+            ) : currentSettings ? (
+              <TableContainer>
+                <Table size="small">
+                  <TableBody>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 600, width: '25%' }}>Entity Name</TableCell>
+                      <TableCell>{currentSettings.name || entity.name}</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 600 }}>Team</TableCell>
+                      <TableCell>{currentSettings.team || teamName}</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 600 }}>Owner Email</TableCell>
+                      <TableCell>{currentSettings.ownerEmail || entity.owner || 'N/A'}</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 600 }}>User Email</TableCell>
+                      <TableCell>{currentSettings.userEmail || 'N/A'}</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 600 }}>Description</TableCell>
+                      <TableCell>{currentSettings.description || entity.description || 'N/A'}</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 600 }}>Schedule</TableCell>
+                      <TableCell>{currentSettings.schedule || entity.schedule || 'N/A'}</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 600 }}>Expected Runtime (hrs)</TableCell>
+                      <TableCell>{currentSettings.expectedRuntime || entity.expectedRuntime || 'N/A'}</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 600 }}>Donemarker Location</TableCell>
+                      <TableCell>{currentSettings.donemarkerLocation || entity.donemarkerLocation || 'N/A'}</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 600 }}>Donemarker Lookback (hrs)</TableCell>
+                      <TableCell>{currentSettings.donemarkerLookback || entity.donemarkerLookback || 'N/A'}</TableCell>
+                    </TableRow>
+                    {entity.type === 'dag' && (
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 600 }}>DAG Dependency</TableCell>
+                        <TableCell>{currentSettings.dagDependency || entity.dagDependency || 'N/A'}</TableCell>
+                      </TableRow>
+                    )}
+                    {entity.type === 'table' && (
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 600 }}>Table Dependency</TableCell>
+                        <TableCell>{currentSettings.tableDependency || entity.tableDependency || 'N/A'}</TableCell>
+                      </TableRow>
+                    )}
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
+                      <TableCell>
+                        <Chip 
+                          label={currentSettings.isActive !== undefined ? (currentSettings.isActive ? 'Active' : 'Inactive') : (entity.status || 'Unknown')}
+                          color={currentSettings.isActive ? 'success' : 'default'}
+                          size="small"
+                        />
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            ) : (
+              <Typography color="text.secondary">Unable to load current settings</Typography>
+            )}
+          </Paper>
+
+          {/* History Changes */}
+          <Paper elevation={0} sx={{ p: 3, mb: 3, borderRadius: 1 }}>
+            <Box display="flex" alignItems="center" mb={2}>
+              <HistoryIcon sx={{ mr: 1, color: 'primary.main' }} />
+              <Typography variant="h6" fontWeight={600}>
+                Recent Changes (Last 5)
+              </Typography>
+            </Box>
+            {historyLoading ? (
+              <Box display="flex" justifyContent="center" py={2}>
+                <CircularProgress size={24} />
+              </Box>
+            ) : historyChanges && historyChanges.length > 0 ? (
+              <List dense>
+                {historyChanges.slice(0, 5).map((change: any, index: number) => (
+                  <ListItem key={index} divider={index < 4}>
+                    <ListItemIcon>
+                      <PersonIcon color="primary" />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={
+                        <Box>
+                          <Typography variant="body2" fontWeight={600}>
+                            {change.fieldChanged || 'Settings Updated'}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {change.changedBy || 'System'} • {formatDate(new Date(change.changedAt || change.date))}
+                          </Typography>
+                        </Box>
+                      }
+                      secondary={
+                        <Typography variant="body2" color="text.secondary">
+                          {change.oldValue && change.newValue ? 
+                            `Changed from "${change.oldValue}" to "${change.newValue}"` :
+                            change.description || 'Configuration updated'
+                          }
+                        </Typography>
+                      }
+                    />
+                  </ListItem>
+                ))}
+              </List>
+            ) : (
+              <Typography color="text.secondary">No recent changes found</Typography>
+            )}
           </Paper>
           
           {/* Issues */}
