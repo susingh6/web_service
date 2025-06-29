@@ -147,7 +147,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Registration mutation
   const registerMutation = useMutation({
     mutationFn: async (data: RegisterData) => {
-      const res = await apiRequest("POST", "/api/register", data);
+      const res = await apiRequest("POST", buildUrl(endpoints.auth.register), data);
       return await res.json();
     },
     onSuccess: (user: User) => {
@@ -239,7 +239,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
           // Perform a simple redirect rather than using MSAL's logout
           // which can sometimes cause issues
-          await apiRequest("POST", "/api/logout");
+          await apiRequest("POST", buildUrl(endpoints.auth.logout));
           window.location.href = '/auth';
           
           // The below code is commented out because it can cause issues
@@ -252,7 +252,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         try {
           // Send logout request to server
-          await apiRequest("POST", "/api/logout");
+          await apiRequest("POST", buildUrl(endpoints.auth.logout));
           
           // Update auth state
           setAuthMethod(null);
