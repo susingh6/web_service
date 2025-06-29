@@ -11,11 +11,14 @@ import { getQueryFn, apiRequest, queryClient } from "../lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { buildUrl, endpoints } from "@/config/index";
 
-// MSAL configuration
-const msalConfig: Configuration = {
+// Check if Azure AD is configured
+const isAzureConfigured = !!(import.meta.env.VITE_AZURE_CLIENT_ID && import.meta.env.VITE_AZURE_AUTHORITY);
+
+// MSAL configuration (only if Azure is configured)
+const msalConfig: Configuration | null = isAzureConfigured ? {
   auth: {
-    clientId: import.meta.env.VITE_AZURE_CLIENT_ID || 'default-client-id',
-    authority: import.meta.env.VITE_AZURE_AUTHORITY || 'https://login.microsoftonline.com/common',
+    clientId: import.meta.env.VITE_AZURE_CLIENT_ID,
+    authority: import.meta.env.VITE_AZURE_AUTHORITY,
     redirectUri: window.location.origin,
     postLogoutRedirectUri: window.location.origin,
   },
@@ -23,14 +26,16 @@ const msalConfig: Configuration = {
     cacheLocation: 'sessionStorage',
     storeAuthStateInCookie: false,
   },
-};
+} : null;
 
-// Initialize MSAL instance
-let msalInstance: PublicClientApplication;
-try {
-  msalInstance = new PublicClientApplication(msalConfig);
-} catch (err) {
-  console.error("Error initializing MSAL:", err);
+// Initialize MSAL instance (only if Azure is configured)
+let msalInstance: PublicClientApplication | null = null;
+if (isAzureConfigured && msalConfig) {
+  try {
+    msalInstance = new PublicClientApplication(msalConfig);
+  } catch (err) {
+    console.error("Error initializing MSAL:", err);
+  }
 }
 
 // Azure AD login request scopes
@@ -165,11 +170,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Azure AD login function
   const loginWithAzure = async (): Promise<void> => {
-    if (!msalInstance) {
-      setAzureError("Azure AD authentication is not initialized");
+    if (!isAzureConfigured || !msalInstance) {
+      setAzureError("Azure AD authentication is not configured");
       toast({
         title: "Login failed",
-        description: "Azure AD authentication is not initialized",
+        description: "Azure AD authentication is not configured. Please use username/password login.",
         variant: "destructive",
       });
       return;
