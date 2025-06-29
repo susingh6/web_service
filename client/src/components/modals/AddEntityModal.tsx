@@ -32,7 +32,7 @@ import {
   Alert,
 } from '@mui/material';
 import { validateTenant, validateTeam, validateDag } from '@/lib/validationUtils';
-import { fetchWithCacheGeneric, getFromCache } from '@/lib/cacheUtils';
+import { fetchWithCacheGeneric, getFromCacheGeneric } from '@/lib/cacheUtils';
 import { 
   buildTableSchema as tableSchemaBuilder, 
   buildDagSchema as dagSchemaBuilder, 
@@ -58,9 +58,9 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
   const [entityType, setEntityType] = useState<EntityType>('table');
   
   // State for dynamic options - initialize from cache for instant load
-  const [tenantOptions, setTenantOptions] = useState<string[]>(() => getFromCache('tenants'));
-  const [teamOptions, setTeamOptions] = useState<string[]>(() => getFromCache('teams'));
-  const [dagOptions, setDagOptions] = useState<string[]>(() => getFromCache('dags'));
+  const [tenantOptions, setTenantOptions] = useState<string[]>(() => getFromCacheGeneric<string[]>('tenants', ['Ad Engineering', 'Data Engineering']));
+  const [teamOptions, setTeamOptions] = useState<string[]>(() => getFromCacheGeneric<string[]>('teams', ['PGM', 'Core', 'Viewer Product', 'IOT', 'CDM']));
+  const [dagOptions, setDagOptions] = useState<string[]>(() => getFromCacheGeneric<string[]>('dags', ['agg_daily', 'agg_hourly', 'PGM_Freeview_Play_Agg_Daily', 'CHN_agg', 'CHN_billing']));
   
   // Loading states
   const [loadingTenants, setLoadingTenants] = useState(false);
@@ -84,12 +84,12 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
     if (open) {
       // Just load the latest values from cache when modal opens
       // No API calls - we rely on the app-level 6-hour refresh cycle
-      setTenantOptions(getFromCache('tenants'));
-      setTeamOptions(getFromCache('teams'));
+      setTenantOptions(getFromCacheGeneric<string[]>('tenants', ['Ad Engineering', 'Data Engineering']));
+      setTeamOptions(getFromCacheGeneric<string[]>('teams', ['PGM', 'Core', 'Viewer Product', 'IOT', 'CDM']));
       
       // Only load DAG options if viewing the DAG tab
       if (entityType === 'dag') {
-        setDagOptions(getFromCache('dags'));
+        setDagOptions(getFromCacheGeneric<string[]>('dags', ['agg_daily', 'agg_hourly', 'PGM_Freeview_Play_Agg_Daily', 'CHN_agg', 'CHN_billing']));
       }
       
       console.log('Modal opened - using cached values without additional API calls');

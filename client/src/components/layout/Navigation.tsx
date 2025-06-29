@@ -6,7 +6,7 @@ import { fetchTeams } from '@/features/sla/slices/entitiesSlice';
 import { Team } from '@/features/sla/types';
 import { useQuery } from '@tanstack/react-query';
 import { teamsApi } from '@/features/sla/api';
-import { fetchWithCache, getFromCache } from '@/lib/cacheUtils';
+import { fetchWithCacheGeneric, getFromCacheGeneric } from '@/lib/cacheUtils';
 
 const Navigation = () => {
   const theme = useTheme();

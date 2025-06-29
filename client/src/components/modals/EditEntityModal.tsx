@@ -26,7 +26,7 @@ import {
 } from '@mui/material';
 import { Close as CloseIcon } from '@mui/icons-material';
 import { validateTenant, validateTeam, validateDag } from '@/lib/validationUtils';
-import { fetchWithCacheGeneric, getFromCache } from '@/lib/cacheUtils';
+import { fetchWithCacheGeneric, getFromCacheGeneric } from '@/lib/cacheUtils';
 import { useAppDispatch } from '@/lib/store';
 import { updateEntity } from '@/features/sla/slices/entitiesSlice';
 import { queryClient, apiRequest } from '@/lib/queryClient';
@@ -104,9 +104,9 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
   const entityType: EntityType = entity?.type === 'dag' ? 'dag' : 'table';
   
   // State for dynamic options - initialize from cache for instant load
-  const [tenantOptions, setTenantOptions] = useState<string[]>(() => getFromCache('tenants'));
-  const [teamOptions, setTeamOptions] = useState<string[]>(() => getFromCache('teams'));
-  const [dagOptions, setDagOptions] = useState<string[]>(() => getFromCache('dags'));
+  const [tenantOptions, setTenantOptions] = useState<string[]>(() => getFromCacheGeneric<string[]>('tenants', ['Ad Engineering', 'Data Engineering']));
+  const [teamOptions, setTeamOptions] = useState<string[]>(() => getFromCacheGeneric<string[]>('teams', ['PGM', 'Core', 'Viewer Product', 'IOT', 'CDM']));
+  const [dagOptions, setDagOptions] = useState<string[]>(() => getFromCacheGeneric<string[]>('dags', ['agg_daily', 'agg_hourly', 'PGM_Freeview_Play_Agg_Daily', 'CHN_agg', 'CHN_billing']));
   
   // Loading states
   const [loadingTenants, setLoadingTenants] = useState(false);
@@ -264,10 +264,10 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
       reset(formData);
       
       // Load cache data when modal opens
-      setTenantOptions(getFromCache('tenants'));
-      setTeamOptions(getFromCache('teams'));
+      setTenantOptions(getFromCacheGeneric<string[]>('tenants', ['Ad Engineering', 'Data Engineering']));
+      setTeamOptions(getFromCacheGeneric<string[]>('teams', ['PGM', 'Core', 'Viewer Product', 'IOT', 'CDM']));
       if (entityType === 'dag') {
-        setDagOptions(getFromCache('dags'));
+        setDagOptions(getFromCacheGeneric<string[]>('dags', ['agg_daily', 'agg_hourly', 'PGM_Freeview_Play_Agg_Daily', 'CHN_agg', 'CHN_billing']));
       }
     } else if (!open) {
       // Reset form when modal is closed
