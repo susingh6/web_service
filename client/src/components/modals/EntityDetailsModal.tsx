@@ -93,15 +93,14 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
   const { toast } = useToast();
   
-  if (!entity) return null;
-  
-  // Find team name
-  const teamName = teams.find(team => team.id === entity.teamId)?.name || 'Unknown Team';
+  // Find team name - do this before early return to avoid hooks order issues
+  const teamName = entity ? teams.find(team => team.id === entity.teamId)?.name || 'Unknown Team' : '';
   
   // Fetch current entity settings using centralized API
   const { data: currentSettings, isLoading: settingsLoading } = useQuery({
-    queryKey: ['currentSettings', teamName, entity.name, entity.type],
+    queryKey: ['currentSettings', teamName, entity?.name, entity?.type],
     queryFn: async () => {
+      if (!entity || !teamName) return null;
       const response = await apiRequest('GET', buildUrl(endpoints.entity.currentSettings(teamName, entity.name, entity.type)));
       return response.json();
     },
@@ -110,8 +109,9 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
 
   // Fetch entity history changes using centralized API
   const { data: historyChanges, isLoading: historyLoading } = useQuery({
-    queryKey: ['historyChanges', entity.id],
+    queryKey: ['historyChanges', entity?.id],
     queryFn: async () => {
+      if (!entity) return [];
       const response = await apiRequest('GET', buildUrl(endpoints.entity.historyChanges(entity.id)));
       return response.json();
     },
@@ -120,13 +120,17 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
 
   // Fetch entity issues using centralized API
   const { data: issues = [], isLoading: issuesLoading } = useQuery({
-    queryKey: ['entityIssues', entity.id],
+    queryKey: ['entityIssues', entity?.id],
     queryFn: async () => {
+      if (!entity) return [];
       const response = await apiRequest('GET', buildUrl(endpoints.entity.issues(entity.id)));
       return response.json();
     },
     enabled: open && !!entity,
   });
+  
+  // Early return after all hooks have been called
+  if (!entity) return null;
   
   const formatDate = (date: Date | null) => {
     if (!date) return 'N/A';
@@ -422,7 +426,7 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
             </Typography>
             {issues.length > 0 ? (
               <List dense>
-                {issues.map((issue) => (
+                {issues.map((issue: any) => (
                   <ListItem key={issue.id} divider>
                     <ListItemIcon>
                       {issue.severity === 'high' ? (
