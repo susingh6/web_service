@@ -229,9 +229,30 @@ const TeamDashboard = () => {
         {/* Metrics Cards */}
         <Box display="flex" flexWrap="wrap" gap={3} mb={4}>
           {[
-            { title: "Overall SLA Compliance", value: overallComplianceAvg, trend: 1.2, progress: overallComplianceAvg, suffix: "%" },
-            { title: "Tables SLA Compliance", value: tablesComplianceAvg, trend: 0.8, progress: tablesComplianceAvg, suffix: "%" },
-            { title: "DAGs SLA Compliance", value: dagsComplianceAvg, trend: -0.3, progress: dagsComplianceAvg, suffix: "%" }
+            { 
+              title: "Overall SLA Compliance", 
+              value: overallComplianceAvg, 
+              trend: 1.2, 
+              progress: overallComplianceAvg, 
+              suffix: "%",
+              infoTooltip: `Average SLA compliance calculated across all tables and DAGs for ${team.name} team`
+            },
+            { 
+              title: "Tables SLA Compliance", 
+              value: tablesComplianceAvg, 
+              trend: 0.8, 
+              progress: tablesComplianceAvg, 
+              suffix: "%",
+              infoTooltip: `Average SLA compliance percentage calculated across all table entities for ${team.name} team`
+            },
+            { 
+              title: "DAGs SLA Compliance", 
+              value: dagsComplianceAvg, 
+              trend: -0.3, 
+              progress: dagsComplianceAvg, 
+              suffix: "%",
+              infoTooltip: `Average SLA compliance percentage calculated across all DAG entities for ${team.name} team`
+            }
           ].map((card, idx) => (
             <Box key={card.title} flex="1 1 300px" minWidth="300px">
               <MetricCard {...card} />
