@@ -96,12 +96,20 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
   // Find team name - do this before early return to avoid hooks order issues
   const teamName = entity ? teams.find(team => team.id === entity.teamId)?.name || 'Unknown Team' : '';
   
-  // Fetch current entity settings using centralized API
+  // Fetch current entity settings using separate endpoints for DAG and Table
   const { data: currentSettings, isLoading: settingsLoading } = useQuery({
     queryKey: ['currentSettings', teamName, entity?.name, entity?.type],
     queryFn: async () => {
       if (!entity || !teamName) return null;
-      const response = await apiRequest('GET', buildUrl(endpoints.entity.currentSettings(teamName, entity.name, entity.type)));
+      
+      let settingsEndpoint;
+      if (entity.type === 'dag') {
+        settingsEndpoint = endpoints.entity.currentDagSettings(teamName, entity.name);
+      } else {
+        settingsEndpoint = endpoints.entity.currentTableSettings(teamName, entity.name);
+      }
+      
+      const response = await apiRequest('GET', buildUrl(settingsEndpoint));
       return response.json();
     },
     enabled: open && !!entity && !!teamName,

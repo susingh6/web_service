@@ -31,7 +31,8 @@ export const devConfig = {
       notificationTimelines: (entityId: number) => `/api/entities/${entityId}/notification-timelines`,
       trends30Day: '/api/entities/trends/30-day',
       delete: (id: number) => `/api/entities/${id}`,
-      currentSettings: (teamName: string, entityName: string, entityType: string) => `/api/entities/current-settings?team=${teamName}&name=${entityName}&type=${entityType}`,
+      currentDagSettings: (teamName: string, entityName: string) => `/api/dags/current-settings?team=${teamName}&name=${entityName}`,
+      currentTableSettings: (teamName: string, entityName: string) => `/api/tables/current-settings?team=${teamName}&name=${entityName}`,
       historyChanges: (entityId: number) => `/api/entities/${entityId}/history-changes`,
     },
 

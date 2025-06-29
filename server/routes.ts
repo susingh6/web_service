@@ -388,16 +388,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get current settings for an entity by team name, entity name, and type
-  app.get("/api/entities/current-settings", isAuthenticated, async (req: Request, res: Response) => {
+  // Get current DAG settings by team name and entity name
+  app.get("/api/dags/current-settings", isAuthenticated, async (req: Request, res: Response) => {
     try {
-      const { team, name, type } = req.query;
+      const { team, name } = req.query;
       
-      if (!team || !name || !type) {
-        return res.status(400).json({ message: "Missing required parameters: team, name, type" });
+      if (!team || !name) {
+        return res.status(400).json({ message: "Missing required parameters: team, name" });
       }
       
-      // Find the entity by team name, entity name, and type
+      // Find the DAG entity by team name and entity name
       const entities = await storage.getEntities();
       const teams = await storage.getTeams();
       
@@ -406,24 +406,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Team not found" });
       }
       
-      const entity = entities.find(e => e.name === name && e.type === type && e.teamId === teamObj.id);
+      const entity = entities.find(e => e.name === name && e.type === 'dag' && e.teamId === teamObj.id);
       if (!entity) {
-        return res.status(404).json({ message: "Entity not found" });
+        return res.status(404).json({ message: "DAG not found" });
       }
       
-      // Return current entity settings in a standardized format
+      // Return current DAG settings in a standardized format
       const currentSettings = {
         name: entity.name,
         team: teamObj.name,
         ownerEmail: entity.owner || entity.ownerEmail,
         userEmail: entity.user_email,
-        description: entity.description,
-        schedule: entity.dag_schedule || entity.table_schedule,
+        description: entity.dag_description || entity.description,
+        schedule: entity.dag_schedule,
         expectedRuntime: entity.expected_runtime_minutes,
         donemarkerLocation: entity.donemarker_location,
         donemarkerLookback: entity.donemarker_lookback,
-        dagDependency: entity.type === 'dag' ? entity.dag_dependency : undefined,
-        tableDependency: entity.type === 'table' ? entity.table_dependency : undefined,
+        dagDependency: entity.dag_dependency,
         isActive: entity.status === 'healthy' || entity.status === 'warning',
         status: entity.status,
         lastUpdated: new Date()
@@ -431,8 +430,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json(currentSettings);
     } catch (error) {
-      console.error("Error fetching current settings:", error);
-      res.status(500).json({ message: "Failed to fetch current settings" });
+      console.error("Error fetching current DAG settings:", error);
+      res.status(500).json({ message: "Failed to fetch current DAG settings" });
+    }
+  });
+
+  // Get current Table settings by team name and entity name
+  app.get("/api/tables/current-settings", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const { team, name } = req.query;
+      
+      if (!team || !name) {
+        return res.status(400).json({ message: "Missing required parameters: team, name" });
+      }
+      
+      // Find the Table entity by team name and entity name
+      const entities = await storage.getEntities();
+      const teams = await storage.getTeams();
+      
+      const teamObj = teams.find(t => t.name === team);
+      if (!teamObj) {
+        return res.status(404).json({ message: "Team not found" });
+      }
+      
+      const entity = entities.find(e => e.name === name && e.type === 'table' && e.teamId === teamObj.id);
+      if (!entity) {
+        return res.status(404).json({ message: "Table not found" });
+      }
+      
+      // Return current Table settings in a standardized format
+      const currentSettings = {
+        name: entity.name,
+        team: teamObj.name,
+        ownerEmail: entity.owner || entity.ownerEmail,
+        userEmail: entity.user_email,
+        description: entity.table_description || entity.description,
+        schedule: entity.table_schedule,
+        expectedRuntime: entity.expected_runtime_minutes,
+        donemarkerLocation: entity.donemarker_location,
+        donemarkerLookback: entity.donemarker_lookback,
+        tableDependency: entity.table_dependency,
+        schemaName: entity.schema_name,
+        isActive: entity.status === 'healthy' || entity.status === 'warning',
+        status: entity.status,
+        lastUpdated: new Date()
+      };
+      
+      res.json(currentSettings);
+    } catch (error) {
+      console.error("Error fetching current Table settings:", error);
+      res.status(500).json({ message: "Failed to fetch current Table settings" });
     }
   });
 

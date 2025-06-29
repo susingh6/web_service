@@ -115,8 +115,9 @@ Preferred communication style: Simple, everyday language.
 
 - June 29, 2025: Enhanced EntityDetailsModal with centralized API configuration and comprehensive settings display
   - Added current DAG/table SLA settings section with API-based data retrieval using centralized endpoints
-  - Implemented last 5 history changes tracking with API integration for change management
-  - Added new API endpoints: /api/entities/current-settings and /api/entities/:id/history-changes
+  - Implemented separate endpoints for DAG and Table current settings: /api/dags/current-settings and /api/tables/current-settings
+  - Added asynchronous data fetching for both current settings and last 5 history changes with proper loading states
+  - Updated tooltip text from "History" to "DAG Details" and "Table Details" for entity-type specific clarity
   - Current SLA settings show all entity properties from Add Entity modal (team, owner, schedule, dependencies, etc.)
   - History section displays recent changes to DAG/table configurations with timestamps and change details
   - Fixed React Hooks error by ensuring consistent hook call order and proper conditional logic
