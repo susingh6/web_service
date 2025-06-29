@@ -113,6 +113,12 @@ Preferred communication style: Simple, everyday language.
 
 ## Changelog
 
+- June 29, 2025: Fixed authentication system runtime errors and confirmed centralized API integration
+  - Resolved cache utility errors causing login page crashes with proper error handling
+  - Disabled problematic API fetch calls during cache preloading to prevent unhandled rejections
+  - Confirmed all authentication endpoints use centralized API configuration (login, register, logout, user)
+  - Maintained Azure AD boilerplate code with proper fallback handling for unconfigured environments
+  - Authentication system now stable with working username/password login using test user
 - June 28, 2025: Completed removal of user_name field from bulk upload modal system
   - Removed user_name field completely from BaseEntity interface in BulkUploadModal
   - Added owner_email field with comma-separated email validation support
