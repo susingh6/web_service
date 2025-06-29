@@ -113,6 +113,9 @@ Preferred communication style: Simple, everyday language.
 
 ## Changelog
 
+- June 29, 2025: Removed download and print icons from Team Performance Comparison chart in summary dashboard
+  - Eliminated action buttons (download/print) from chart header to maintain clean design
+  - Chart now displays without unnecessary UI clutter in top right corner
 - June 29, 2025: Added filter buttons to Top 5 Entities Performance chart in team dashboard
   - Added All/Tables/DAGs filter buttons matching the Compliance Trend chart design
   - Updated EntityPerformanceChart component to accept and process filter prop
