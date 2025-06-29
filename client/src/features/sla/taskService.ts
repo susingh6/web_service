@@ -56,9 +56,17 @@ export const useUpdateTaskPriority = () => {
         return mockTaskService.updateTaskPriority(taskId, priority);
       }
     },
-    onSuccess: (_, variables) => {
-      // Invalidate tasks query to refetch data
-      queryClient.invalidateQueries({ queryKey: ['tasks', variables.dagId] });
+    onSuccess: (updatedTask, variables) => {
+      // Update the cache directly instead of invalidating to prevent UI flicker
+      queryClient.setQueryData(['tasks', variables.dagId], (oldTasks: Task[] | undefined) => {
+        if (!oldTasks) return oldTasks;
+        
+        return oldTasks.map(task => 
+          task.id === variables.taskId 
+            ? { ...task, priority: variables.priority, task_type: variables.priority === 'high' ? 'AI' : 'regular' }
+            : task
+        );
+      });
     },
   });
 };
