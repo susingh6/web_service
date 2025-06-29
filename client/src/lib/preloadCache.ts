@@ -1,4 +1,4 @@
-import { fetchWithCacheGeneric, getFromCache } from './cacheUtils';
+import { fetchWithCacheGeneric, getFromCacheGeneric } from './cacheUtils';
 
 // Default values to ensure consistency across the application
 const DEFAULT_TENANTS = ['Ad Engineering', 'Data Engineering'];

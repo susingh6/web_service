@@ -26,7 +26,7 @@ import {
 } from '@mui/material';
 import { Close as CloseIcon } from '@mui/icons-material';
 import { validateTenant, validateTeam, validateDag } from '@/lib/validationUtils';
-import { fetchWithCache, getFromCache } from '@/lib/cacheUtils';
+import { fetchWithCacheGeneric, getFromCache } from '@/lib/cacheUtils';
 import { useAppDispatch } from '@/lib/store';
 import { updateEntity } from '@/features/sla/slices/entitiesSlice';
 import { queryClient, apiRequest } from '@/lib/queryClient';

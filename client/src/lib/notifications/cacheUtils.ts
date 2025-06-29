@@ -3,7 +3,7 @@
  * Implements 6-hour cache TTL for users and roles data
  */
 
-import { fetchWithCacheGeneric, getFromCache, getFromCacheGeneric } from '@/lib/cacheUtils';
+import { fetchWithCacheGeneric, getFromCacheGeneric } from '@/lib/cacheUtils';
 import { SystemUser, UserRole } from './types';
 import { endpoints } from '@/config';
 

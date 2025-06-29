@@ -50,7 +50,7 @@ import {
   DeleteOutline as DeleteOutlineIcon
 } from '@mui/icons-material';
 import { useToast } from '@/hooks/use-toast';
-import { fetchWithCache, getFromCache } from '@/lib/cacheUtils';
+import { fetchWithCacheGeneric, getFromCache } from '@/lib/cacheUtils';
 import { buildUrl, endpoints } from '@/config/index';
 import { apiRequest } from '@/lib/queryClient';
 import { fieldDefinitions } from '@/config/schemas';
@@ -160,7 +160,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
   const fetchTenantOptions = async () => {
     setLoadingTenants(true);
     try {
-      const options = await fetchWithCache(buildUrl(endpoints.debug.teams), 'tenants');
+      const options = await fetchWithCacheGeneric<string[]>(buildUrl(endpoints.debug.teams), 'tenants');
       setTenantOptions(options);
     } catch (error) {
       console.error('Error fetching tenant options:', error);
@@ -187,7 +187,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
   const fetchDagOptions = async () => {
     setLoadingDags(true);
     try {
-      const options = await fetchWithCache(buildUrl(endpoints.debug.teams), 'dags');
+      const options = await fetchWithCacheGeneric<string[]>(buildUrl(endpoints.debug.teams), 'dags');
       setDagOptions(options);
     } catch (error) {
       console.error('Error fetching DAG options:', error);

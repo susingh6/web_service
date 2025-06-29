@@ -69,25 +69,7 @@ export const getFromCacheGeneric = <T>(cacheKey: string, defaultValue: T): T => 
   return defaultValue;
 };
 
-/**
- * Retrieves cached data without triggering an API call
- * Backward compatibility wrapper for getFromCacheGeneric
- * @param cacheKey The key to retrieve the cache for from localStorage
- * @returns The cached data or default values if cache is not available
- */
-export const getFromCache = (cacheKey: string): string[] => {
-  // Default fallback values for legacy cache keys
-  let defaultValue: string[] = [];
-  if (cacheKey === 'tenants') {
-    defaultValue = ['Ad Engineering', 'Data Engineering'];
-  } else if (cacheKey === 'teams') {
-    defaultValue = ['PGM', 'Core', 'Viewer Product', 'IOT', 'CDM'];
-  } else if (cacheKey === 'dags') {
-    defaultValue = ['agg_daily', 'agg_hourly', 'PGM_Freeview_Play_Agg_Daily', 'CHN_agg', 'CHN_billing'];
-  }
-  
-  return getFromCacheGeneric<string[]>(cacheKey, defaultValue);
-};
+
 
 /**
  * Updates cache with new value and adds timestamp

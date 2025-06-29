@@ -113,6 +113,14 @@ Preferred communication style: Simple, everyday language.
 
 ## Changelog
 
+- June 29, 2025: Completed code deduplication after centralized API configuration migration
+  - Removed deprecated legacy API functions (api.getTeams, api.getEntities, etc.) that were replaced by apiClient
+  - Eliminated redundant fetchWithCache function by consolidating into fetchWithCacheGeneric for type safety
+  - Removed deprecated fetchUsersForNotifications and fetchUserRoles wrapper functions from notification cache utilities
+  - Updated all modal imports to use fetchWithCacheGeneric instead of removed fetchWithCache function
+  - Removed redundant getFromCache wrapper function that duplicated getFromCacheGeneric functionality
+  - Fixed all TypeScript compilation errors related to removed duplicate functions
+  - Achieved significant code reduction while maintaining identical functionality across all components
 - June 29, 2025: Implemented unified tasks API system with comprehensive notification configuration
   - Created single /api/entities/:id/tasks endpoint returning all tasks with task_type field ("AI" or "regular")
   - Frontend filters tasks by task_type for AI and Regular task sections

@@ -32,7 +32,7 @@ import {
   Alert,
 } from '@mui/material';
 import { validateTenant, validateTeam, validateDag } from '@/lib/validationUtils';
-import { fetchWithCache, getFromCache } from '@/lib/cacheUtils';
+import { fetchWithCacheGeneric, getFromCache } from '@/lib/cacheUtils';
 import { 
   buildTableSchema as tableSchemaBuilder, 
   buildDagSchema as dagSchemaBuilder, 
@@ -100,7 +100,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
   const fetchTenantOptions = async () => {
     setLoadingTenants(true);
     try {
-      const options = await fetchWithCache(buildUrl(endpoints.debug.teams), 'tenants');
+      const options = await fetchWithCacheGeneric<string[]>(buildUrl(endpoints.debug.teams), 'tenants');
       setTenantOptions(options);
     } catch (error) {
       console.error('Error fetching tenant options:', error);
@@ -127,7 +127,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
     setLoadingDags(true);
     try {
       // Use centralized endpoint for DAG options
-      const options = await fetchWithCache(buildUrl(endpoints.debug.teams), 'dags');
+      const options = await fetchWithCacheGeneric<string[]>(buildUrl(endpoints.debug.teams), 'dags');
       setDagOptions(options);
     } catch (error) {
       console.error('Error fetching DAG options:', error);
