@@ -29,7 +29,7 @@ const Navigation = () => {
     setLoading(true);
     try {
       // First try to get from cache without API call
-      const cachedValues = getFromCache('teams');
+      const cachedValues = getFromCacheGeneric<string[]>('teams', ['PGM', 'Core', 'Viewer Product', 'IOT', 'CDM']);
       setCachedTeams(cachedValues);
       
       // Skip background fetch for now since we don't have real endpoints configured
