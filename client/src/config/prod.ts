@@ -30,6 +30,10 @@ export const prodConfig = {
       tasks: (entityId: number) => `/api/entities/${entityId}/tasks`,
       notificationTimelines: (entityId: number) => `/api/entities/${entityId}/notification-timelines`,
       trends30Day: '/api/entities/trends/30-day',
+      delete: (id: number) => `/api/entities/${id}`,
+      currentDagSettings: (teamName: string, entityName: string) => `/api/dags/current-settings?team=${teamName}&name=${entityName}`,
+      currentTableSettings: (teamName: string, entityName: string) => `/api/tables/current-settings?team=${teamName}&name=${entityName}`,
+      historyChanges: (entityId: number) => `/api/entities/${entityId}/history-changes`,
     },
 
     // Task operations

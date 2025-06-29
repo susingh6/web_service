@@ -28,8 +28,7 @@ interface ApiConfig {
       history: (entityId: number) => string;
       issues: (entityId: number) => string;
       details: (entityId: number) => string;
-      aiTasks: (entityId: number) => string;
-      regularTasks: (entityId: number) => string;
+      tasks: (entityId: number) => string;
       notificationTimelines: (entityId: number) => string;
       trends30Day: string;
       delete: (id: number) => string;
