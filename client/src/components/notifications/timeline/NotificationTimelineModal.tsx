@@ -124,14 +124,28 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
   });
 
   useEffect(() => {
-    if (aiTasks) {
-      setAvailableAiTasks(aiTasks.map((task: any) => task.name));
+    if (aiTasks?.length > 0) {
+      const taskNames = aiTasks.map((task: any) => task.name);
+      setAvailableAiTasks(prev => {
+        // Only update if the array actually changed
+        if (JSON.stringify(prev) !== JSON.stringify(taskNames)) {
+          return taskNames;
+        }
+        return prev;
+      });
     }
   }, [aiTasks]);
 
   useEffect(() => {
-    if (regularTasks) {
-      setAvailableRegularTasks(regularTasks.map((task: any) => task.name));
+    if (regularTasks?.length > 0) {
+      const taskNames = regularTasks.map((task: any) => task.name);
+      setAvailableRegularTasks(prev => {
+        // Only update if the array actually changed
+        if (JSON.stringify(prev) !== JSON.stringify(taskNames)) {
+          return taskNames;
+        }
+        return prev;
+      });
     }
   }, [regularTasks]);
 
