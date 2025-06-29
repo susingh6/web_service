@@ -68,6 +68,7 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
   const [selectedTimelineId, setSelectedTimelineId] = useState<string>('');
   const [triggers, setTriggers] = useState<NotificationTrigger[]>([]);
   const [availableAiTasks, setAvailableAiTasks] = useState<string[]>([]);
+  const [availableRegularTasks, setAvailableRegularTasks] = useState<string[]>([]);
   const [enabledChannels, setEnabledChannels] = useState<string[]>([]);
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({});
 
@@ -107,6 +108,17 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
     enabled: !!entity?.id && entity?.type === 'dag' && open
   });
 
+  // Fetch regular tasks for this entity (if it's a DAG)
+  const { data: regularTasks } = useQuery({
+    queryKey: ['regular-tasks', entity?.id],
+    queryFn: async () => {
+      if (!entity?.id || entity?.type !== 'dag') return [];
+      const res = await apiRequest('GET', endpoints.entity.regularTasks(entity.id));
+      return await res.json();
+    },
+    enabled: !!entity?.id && entity?.type === 'dag' && open
+  });
+
   // Fetch individual notification timeline for editing
   const { data: selectedTimeline, isLoading: isLoadingTimeline } = useQuery({
     queryKey: ['notification-timeline', selectedTimelineId],
@@ -123,6 +135,12 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
       setAvailableAiTasks(aiTasks.map((task: any) => task.name));
     }
   }, [aiTasks]);
+
+  useEffect(() => {
+    if (regularTasks) {
+      setAvailableRegularTasks(regularTasks.map((task: any) => task.name));
+    }
+  }, [regularTasks]);
 
   // Populate form when editing an existing timeline
   useEffect(() => {

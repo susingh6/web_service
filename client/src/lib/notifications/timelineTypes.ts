@@ -3,7 +3,8 @@ export type NotificationTriggerType =
   | 'sla_threshold_breached'
   | 'entity_success'
   | 'entity_failure'
-  | 'ai_tasks_status';
+  | 'ai_tasks_status'
+  | 'regular_tasks_status';
 
 export interface DailyScheduleTrigger {
   type: 'daily_schedule';
@@ -30,12 +31,20 @@ export interface AiTasksStatusTrigger {
   notificationBehavior?: 'notify_all' | 'notify_each'; // How to notify when tasks pass
 }
 
+export interface RegularTasksStatusTrigger {
+  type: 'regular_tasks_status';
+  condition: 'all_passed' | 'all_failed';
+  taskNames?: string[]; // Specific regular tasks to monitor, empty means all
+  notificationBehavior?: 'notify_all' | 'notify_each'; // How to notify when tasks pass
+}
+
 export type NotificationTrigger = 
   | DailyScheduleTrigger
   | SlaThresholdBreachedTrigger
   | EntitySuccessTrigger
   | EntityFailureTrigger
-  | AiTasksStatusTrigger;
+  | AiTasksStatusTrigger
+  | RegularTasksStatusTrigger;
 
 export interface NotificationTimeline {
   id: string;
@@ -63,7 +72,8 @@ export const TRIGGER_TYPE_LABELS: Record<NotificationTriggerType, string> = {
   sla_threshold_breached: 'SLA THRESHOLD BREACHED',
   entity_success: 'SLA MET',
   entity_failure: 'SLA FAILED',
-  ai_tasks_status: 'AI TASKS STATUS CHANGE'
+  ai_tasks_status: 'AI TASKS STATUS CHANGE',
+  regular_tasks_status: 'REGULAR TASKS STATUS CHANGE'
 };
 
 export const AI_TASK_CONDITIONS = [

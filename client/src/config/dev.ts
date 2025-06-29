@@ -28,6 +28,7 @@ export const devConfig = {
       issues: (entityId: number) => `/api/entities/${entityId}/issues`,
       details: (entityId: number) => `/api/entities/${entityId}/details`,
       aiTasks: (entityId: number) => `/api/entities/${entityId}/ai-tasks`,
+      regularTasks: (entityId: number) => `/api/entities/${entityId}/regular-tasks`,
       notificationTimelines: (entityId: number) => `/api/entities/${entityId}/notification-timelines`,
       trends30Day: '/api/entities/trends/30-day',
       delete: (id: number) => `/api/entities/${id}`,
