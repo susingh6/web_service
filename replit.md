@@ -113,6 +113,12 @@ Preferred communication style: Simple, everyday language.
 
 ## Changelog
 
+- June 29, 2025: Implemented configurable SLA compliance color thresholds via centralized configuration
+  - Added slaColorThresholds to centralized API configuration (dev.ts, staging.ts, prod.ts)
+  - Created getSlaColor() and getSlaColorCode() utility functions for dynamic threshold evaluation
+  - Updated MetricCard component to use configurable thresholds instead of hardcoded values
+  - Progress bars now show green (≥90%), amber (75-89%), or red (<75%) based on config settings
+  - Color thresholds can be modified in config files and reflect dynamically across all dashboards
 - June 29, 2025: Removed hardcoded date range from Compliance Trend chart titles for dynamic date filtering
   - Changed "Compliance Trend (Last 30 Days)" to "Compliance Trend" in both Summary and Team dashboards
   - Chart title now dynamically reflects selected date range from date picker

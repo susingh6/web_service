@@ -21,10 +21,7 @@ const ProgressBar = styled(LinearProgress)(({ theme, value }) => ({
   backgroundColor: theme.palette.grey[200],
   '& .MuiLinearProgress-bar': {
     borderRadius: 4,
-    backgroundColor: 
-      value && value >= 95 ? theme.palette.success.main :
-      value && value >= 85 ? theme.palette.warning.main :
-      theme.palette.error.main,
+    backgroundColor: value ? getSlaColorCode(value) : theme.palette.grey[400],
   },
 }));
 
