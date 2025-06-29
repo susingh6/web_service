@@ -377,7 +377,7 @@ const DagList: React.FC<DagListProps> = ({ dags, isLoading, error, showActions =
                           </IconButton>
                         </Tooltip>
                         
-                        <Tooltip title="History">
+                        <Tooltip title="DAG Details">
                           <IconButton 
                             size="small"
                             color="inherit"
