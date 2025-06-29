@@ -95,14 +95,3 @@ export const apiClient = {
  */
 export { buildUrl, buildUrlWithParams, endpoints };
 
-/**
- * Legacy support - individual endpoint functions
- * @deprecated Use apiClient instead for better organization
- */
-export const api = {
-  getTeams: () => buildUrl(endpoints.teams),
-  getEntities: () => buildUrl(endpoints.entities),
-  getEntitiesByTeam: (teamId: number) => buildUrl(endpoints.entity.byTeam, teamId),
-  getDashboardSummary: () => buildUrl(endpoints.dashboard.summary),
-  getEntityById: (id: number) => buildUrl(endpoints.entity.byId, id),
-};

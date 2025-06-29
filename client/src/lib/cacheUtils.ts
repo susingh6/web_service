@@ -47,34 +47,7 @@ export const fetchWithCacheGeneric = async <T>(
   }
 };
 
-/**
- * Fetches data from API with caching for improved performance and reduced API calls
- * Backward compatibility wrapper for fetchWithCacheGeneric
- * @param url The API URL to fetch from
- * @param cacheKey The key to store the cache under in localStorage
- * @returns A Promise resolving to the array of string values
- */
-export const fetchWithCache = async (
-  url: string, 
-  cacheKey: string
-): Promise<string[]> => {
-  try {
-    return await fetchWithCacheGeneric<string[]>(url, cacheKey);
-  } catch (error) {
-    console.error(`Error fetching ${cacheKey}:`, error);
-    
-    // Fallback to mock data for legacy cache keys
-    if (cacheKey === 'tenants') {
-      return ['Ad Engineering', 'Data Engineering'];
-    } else if (cacheKey === 'teams') {
-      return ['PGM', 'Core', 'Viewer Product', 'IOT', 'CDM'];
-    } else if (cacheKey === 'dags') {
-      return ['agg_daily', 'agg_hourly', 'PGM_Freeview_Play_Agg_Daily', 'CHN_agg', 'CHN_billing'];
-    }
-    
-    return [];
-  }
-};
+
 
 /**
  * Generic function to retrieve cached data without triggering an API call

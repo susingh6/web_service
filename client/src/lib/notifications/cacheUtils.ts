@@ -3,7 +3,7 @@
  * Implements 6-hour cache TTL for users and roles data
  */
 
-import { fetchWithCache, fetchWithCacheGeneric, getFromCache, getFromCacheGeneric } from '@/lib/cacheUtils';
+import { fetchWithCacheGeneric, getFromCache, getFromCacheGeneric } from '@/lib/cacheUtils';
 import { SystemUser, UserRole } from './types';
 import { endpoints } from '@/config';
 
@@ -104,12 +104,3 @@ export const getTeamMemberEmails = (users: SystemUser[], teamName: string): stri
     .filter(email => email && email.length > 0);
 };
 
-/**
- * @deprecated Use getCachedUsers instead for better performance with caching
- */
-export const fetchUsersForNotifications = getCachedUsers;
-
-/**
- * @deprecated Use getCachedRoles instead for better performance with caching
- */
-export const fetchUserRoles = getCachedRoles;
