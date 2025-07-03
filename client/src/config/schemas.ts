@@ -14,6 +14,15 @@ import * as yup from 'yup';
 
 export const fieldDefinitions = {
   // Common fields across all entities
+  entity_name: {
+    type: 'string',
+    required: true,
+    label: 'Entity Name',
+    placeholder: 'Enter entity name',
+    validation: yup.string().required('Entity name is required'),
+    apiField: 'entity_name'
+  },
+  
   tenant_name: {
     type: 'string',
     required: true,
@@ -272,6 +281,7 @@ export const fieldDefinitions = {
 // Build base schema for common fields
 const buildBaseSchema = () => {
   return yup.object().shape({
+    entity_name: fieldDefinitions.entity_name.validation,
     tenant_name: fieldDefinitions.tenant_name.validation,
     team_name: fieldDefinitions.team_name.validation,
     notification_preferences: fieldDefinitions.notification_preferences.validation,
@@ -332,6 +342,7 @@ export const buildRegisterSchema = () => {
 
 export const defaultValues = {
   common: {
+    entity_name: '',
     tenant_name: 'Data Engineering',
     team_name: 'PGM',
     notification_preferences: [],

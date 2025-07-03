@@ -288,6 +288,24 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
             /* TABLE FIELDS */
             <>
               <Controller
+                name="entity_name"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label={fieldDefinitions.entity_name.label}
+                    required={fieldDefinitions.entity_name.required}
+                    type={fieldDefinitions.entity_name.type}
+                    placeholder={fieldDefinitions.entity_name.placeholder}
+                    fullWidth
+                    margin="normal"
+                    error={!!errors.entity_name}
+                    helperText={errors.entity_name?.message}
+                  />
+                )}
+              />
+              
+              <Controller
                 name="tenant_name"
                 control={control}
                 render={({ field: { onChange, value, onBlur, ref } }) => (
@@ -568,6 +586,24 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
           ) : (
             /* DAG FIELDS */
             <>
+              <Controller
+                name="entity_name"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label={fieldDefinitions.entity_name.label}
+                    required={fieldDefinitions.entity_name.required}
+                    type={fieldDefinitions.entity_name.type}
+                    placeholder={fieldDefinitions.entity_name.placeholder}
+                    fullWidth
+                    margin="normal"
+                    error={!!errors.entity_name}
+                    helperText={errors.entity_name?.message}
+                  />
+                )}
+              />
+              
               <Controller
                 name="tenant_name"
                 control={control}
