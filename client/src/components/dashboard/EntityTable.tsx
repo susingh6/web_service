@@ -66,13 +66,13 @@ interface HeadCell {
 }
 
 const getHeadCells = (showActions: boolean, type: 'table' | 'dag'): HeadCell[] => [
-  { id: 'name', label: 'Entity Name', numeric: false, disablePadding: true, sortable: true },
-  { id: type === 'table' ? 'table_name' : 'dag_name', label: type === 'table' ? 'Table Name' : 'DAG Name', numeric: false, disablePadding: false, sortable: true },
-  { id: 'teamId', label: 'Team', numeric: false, disablePadding: false, sortable: true },
-  { id: 'status', label: 'Status', numeric: false, disablePadding: false, sortable: true },
-  { id: 'currentSla', label: 'Current SLA', numeric: true, disablePadding: false, sortable: true },
-  { id: 'trend', label: '30-Day Trend', numeric: true, disablePadding: false, sortable: false },
-  { id: 'lastRefreshed', label: 'Last Updated', numeric: false, disablePadding: false, sortable: true },
+  { id: 'name', label: 'Entity Name', numeric: false, disablePadding: true, sortable: true, width: '180px' },
+  { id: type === 'table' ? 'table_name' : 'dag_name', label: type === 'table' ? 'Table Name' : 'DAG Name', numeric: false, disablePadding: false, sortable: true, width: '200px' },
+  { id: 'teamId', label: 'Team', numeric: false, disablePadding: false, sortable: true, width: '120px' },
+  { id: 'status', label: 'Status', numeric: false, disablePadding: false, sortable: true, width: '100px' },
+  { id: 'currentSla', label: 'Current SLA', numeric: true, disablePadding: false, sortable: true, width: '120px' },
+  { id: 'trend', label: '30-Day Trend', numeric: true, disablePadding: false, sortable: false, width: '140px' },
+  { id: 'lastRefreshed', label: 'Last Updated', numeric: false, disablePadding: false, sortable: true, width: '150px' },
   ...(showActions ? [{ id: 'actions' as const, label: 'Actions', numeric: false, disablePadding: false, sortable: false, width: '120px' }] : []),
 ];
 
@@ -431,13 +431,13 @@ const EntityTable = ({
                       />
                     </TableCell>
                     
-                    <TableCell padding="none">
+                    <TableCell padding="none" sx={{ width: '180px' }}>
                       <Typography variant="body2" fontWeight={500}>
                         {entity.name}
                       </Typography>
                     </TableCell>
                     
-                    <TableCell>
+                    <TableCell sx={{ width: '200px' }}>
                       <Typography variant="body2" fontWeight={500}>
                         {type === 'table' 
                           ? (entity.schema_name && entity.table_name ? `${entity.schema_name}.${entity.table_name}` : entity.table_name || 'N/A')
@@ -446,13 +446,13 @@ const EntityTable = ({
                       </Typography>
                     </TableCell>
                     
-                    <TableCell>
+                    <TableCell sx={{ width: '120px' }}>
                       <Typography variant="body2">
                         {getTeamName(entity.teamId)}
                       </Typography>
                     </TableCell>
                     
-                    <TableCell>
+                    <TableCell sx={{ width: '100px' }}>
                       <Chip
                         label={(STATUS_CONFIG[entity.status] || DEFAULT_STATUS).label}
                         size="small"
@@ -466,13 +466,13 @@ const EntityTable = ({
                       />
                     </TableCell>
                     
-                    <TableCell align="right">
+                    <TableCell align="right" sx={{ width: '120px' }}>
                       <Typography variant="body2" fontWeight={500}>
                         {entity.currentSla?.toFixed(1)}%
                       </Typography>
                     </TableCell>
                     
-                    <TableCell align="right">
+                    <TableCell align="right" sx={{ width: '140px' }}>
                       <Box display="flex" alignItems="center" justifyContent="flex-end">
                         <Box component="span" color={`${trendData.color}.main`} display="flex" alignItems="center" mr={0.5}>
                           {trendData.icon}
@@ -483,14 +483,14 @@ const EntityTable = ({
                       </Box>
                     </TableCell>
                     
-                    <TableCell>
+                    <TableCell sx={{ width: '150px' }}>
                       <Typography variant="body2" color="text.secondary">
                         {formatDate(entity.lastRefreshed)}
                       </Typography>
                     </TableCell>
                     
                     {showActions && (
-                      <TableCell align="center" onClick={(e) => e.stopPropagation()}>
+                      <TableCell align="center" onClick={(e) => e.stopPropagation()} sx={{ width: '120px' }}>
                         <Box display="flex" justifyContent="center">
                           <Tooltip title="Edit">
                             <IconButton size="small" color="primary" onClick={() => onEditEntity(entity)}>
