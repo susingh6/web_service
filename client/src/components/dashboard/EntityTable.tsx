@@ -57,7 +57,7 @@ const STATUS_CONFIG: Record<string, StatusConfig> = {
 };
 
 interface HeadCell {
-  id: keyof Entity | 'actions' | 'trend';
+  id: keyof Entity | 'actions' | 'trend' | 'table_name' | 'dag_name';
   label: string;
   numeric: boolean;
   disablePadding: boolean;
@@ -66,13 +66,14 @@ interface HeadCell {
 }
 
 const getHeadCells = (showActions: boolean, type: 'table' | 'dag'): HeadCell[] => [
-  { id: 'name', label: type === 'table' ? 'Table Name' : 'DAG Name', numeric: false, disablePadding: true, sortable: true },
+  { id: 'name', label: 'Entity Name', numeric: false, disablePadding: true, sortable: true },
+  { id: type === 'table' ? 'table_name' : 'dag_name', label: type === 'table' ? 'Table Name' : 'DAG Name', numeric: false, disablePadding: false, sortable: true },
   { id: 'teamId', label: 'Team', numeric: false, disablePadding: false, sortable: true },
   { id: 'status', label: 'Status', numeric: false, disablePadding: false, sortable: true },
   { id: 'currentSla', label: 'Current SLA', numeric: true, disablePadding: false, sortable: true },
   { id: 'trend', label: '30-Day Trend', numeric: true, disablePadding: false, sortable: false },
   { id: 'lastRefreshed', label: 'Last Updated', numeric: false, disablePadding: false, sortable: true },
-  ...(showActions ? [{ id: 'actions', label: 'Actions', numeric: false, disablePadding: false, sortable: false, width: '120px' }] : []),
+  ...(showActions ? [{ id: 'actions' as const, label: 'Actions', numeric: false, disablePadding: false, sortable: false, width: '120px' }] : []),
 ];
 
 interface EntityTableProps {
@@ -373,7 +374,7 @@ const EntityTable = ({
                 />
               </TableCell>
               
-              {getHeadCells(showActions).map((headCell) => (
+              {getHeadCells(showActions, type).map((headCell) => (
                 <TableCell
                   key={headCell.id}
                   align={headCell.numeric ? 'right' : 'left'}
@@ -433,6 +434,15 @@ const EntityTable = ({
                     <TableCell padding="none">
                       <Typography variant="body2" fontWeight={500}>
                         {entity.name}
+                      </Typography>
+                    </TableCell>
+                    
+                    <TableCell>
+                      <Typography variant="body2" fontWeight={500}>
+                        {type === 'table' 
+                          ? (entity.schema_name && entity.table_name ? `${entity.schema_name}.${entity.table_name}` : entity.table_name || 'N/A')
+                          : entity.dag_name || 'N/A'
+                        }
                       </Typography>
                     </TableCell>
                     
