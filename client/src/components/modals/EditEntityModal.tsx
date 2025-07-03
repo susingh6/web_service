@@ -47,10 +47,18 @@ interface EditEntityModalProps {
 
 // Common schema fields shared between both forms
 const baseSchema = yup.object().shape({
+  entity_name: yup.string().required('Entity name is required'),
   tenant_name: yup.string().required('Tenant name is required'),
   team_name: yup.string().required('Team name is required'),
   notification_preferences: yup.array().of(yup.string()).default([]),
-
+  owner_email: yup.string()
+    .required('Owner email is required')
+    .test('email-validation', 'Invalid email format', function(value) {
+      if (!value) return false;
+      const emails = value.split(',').map(email => email.trim());
+      const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+      return emails.every(email => emailRegex.test(email));
+    }),
   user_email: yup.string()
     .required('User email is required')
     .matches(
@@ -58,6 +66,13 @@ const baseSchema = yup.object().shape({
       'Invalid email format'
     ),
   is_active: yup.boolean().default(true),
+  expected_runtime_minutes: yup.number()
+    .required('Expected runtime is required')
+    .positive('Must be positive')
+    .min(1, 'Must be at least 1 minute')
+    .max(1440, 'Must not exceed 1440 minutes (24 hours)'),
+  donemarker_location: yup.string().required('Donemarker location is required'),
+  donemarker_lookback: yup.number().min(0, 'Must be non-negative').optional(),
 });
 
 // Schema for Tables
@@ -68,14 +83,7 @@ const tableSchema = baseSchema.shape({
   table_schedule: yup.string()
     .required('Table schedule is required')
     .matches(/^[\d*\/ ,\-]+$/, 'Invalid cron format'),
-  expected_runtime_minutes: yup.number()
-    .required('Expected runtime is required')
-    .positive('Must be positive')
-    .min(1, 'Must be at least 1 minute')
-    .max(1440, 'Must not exceed 1440 minutes (24 hours)'),
   table_dependency: yup.string().optional(),
-  donemarker_location: yup.string().optional(),
-  donemarker_lookback: yup.number().min(0, 'Must be non-negative').optional(),
 });
 
 // Schema for DAGs
@@ -85,14 +93,7 @@ const dagSchema = baseSchema.shape({
   dag_schedule: yup.string()
     .required('DAG schedule is required')
     .matches(/^[\d*\/ ,\-]+$/, 'Invalid cron format'),
-  expected_runtime_minutes: yup.number()
-    .required('Expected runtime is required')
-    .positive('Must be positive')
-    .min(1, 'Must be at least 1 minute')
-    .max(1440, 'Must not exceed 1440 minutes (24 hours)'),
   dag_dependency: yup.string().optional(),
-  donemarker_location: yup.string().optional(),
-  donemarker_lookback: yup.number().min(0, 'Must be non-negative').optional(),
 });
 
 const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps) => {
@@ -178,39 +179,41 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
   const tableForm = useForm({
     resolver: yupResolver(tableSchema),
     defaultValues: {
+      entity_name: '',
       tenant_name: '',
       team_name: '',
       notification_preferences: [],
       owner_email: '',
       user_email: '',
       is_active: true,
+      expected_runtime_minutes: 60,
+      donemarker_location: '',
+      donemarker_lookback: 0,
       schema_name: '',
       table_name: '',
       table_description: '',
       table_schedule: '',
       table_dependency: '',
-      expected_runtime_minutes: 60,
-      donemarker_location: '',
-      donemarker_lookback: 0,
     },
   });
 
   const dagForm = useForm({
     resolver: yupResolver(dagSchema),
     defaultValues: {
+      entity_name: '',
       tenant_name: '',
       team_name: '',
       notification_preferences: [],
       owner_email: '',
       user_email: '',
       is_active: true,
+      expected_runtime_minutes: 60,
+      donemarker_location: '',
+      donemarker_lookback: 0,
       dag_name: '',
       dag_description: '',
       dag_schedule: '',
       dag_dependency: '',
-      expected_runtime_minutes: 60,
-      donemarker_location: '',
-      donemarker_lookback: 0,
     },
   });
 
@@ -231,6 +234,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
       
       // Map entity details to form fields
       const formData = entityType === 'table' ? {
+        entity_name: entityDetails.name || '',
         tenant_name: entityDetails.tenant_name || '',
         team_name: entityDetails.team_name || '',
         notification_preferences: entityDetails.notification_preferences || [],
@@ -246,6 +250,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
         table_schedule: (entityDetails as any).table_schedule || '',
         table_dependency: (entityDetails as any).table_dependency || '',
       } : {
+        entity_name: entityDetails.name || '',
         tenant_name: entityDetails.tenant_name || '',
         team_name: entityDetails.team_name || '',
         notification_preferences: entityDetails.notification_preferences || [],
