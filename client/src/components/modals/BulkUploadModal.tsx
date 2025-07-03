@@ -57,6 +57,7 @@ import { fieldDefinitions } from '@/config/schemas';
 
 // Entity types for validation
 interface BaseEntity {
+  entity_name: string;
   tenant_name: string;
   team_name: string;
   expected_runtime_minutes: number;
@@ -234,6 +235,11 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
     }
     
     // Common required fields validation using centralized field definitions
+    // Entity name is required
+    if (!entity.entity_name) {
+      errors.push({ field: 'entity_name', message: `${fieldDefinitions.entity_name.label} is required` });
+    }
+    
     // Tenant name must exist in the predefined list
     if (!entity.tenant_name) {
       errors.push({ field: 'tenant_name', message: `${fieldDefinitions.tenant_name.label} is required` });
@@ -597,6 +603,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
     if (entityType === 'tables') {
       sampleData = [
         {
+          entity_name: "Customer Analytics Table",
           tenant_name: "Data Engineering",
           team_name: "PGM",
           schema_name: "analytics",
@@ -612,6 +619,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
           is_active: true
         },
         {
+          entity_name: "Ad Performance Metrics",
           tenant_name: "Ad Engineering",
           team_name: "Core",
           schema_name: "reporting",
@@ -630,6 +638,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
     } else {
       sampleData = [
         {
+          entity_name: "IoT Device Data ETL",
           tenant_name: "Data Engineering",
           team_name: "IOT",
           dag_name: "device_data_etl",
@@ -644,6 +653,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
           is_active: true
         },
         {
+          entity_name: "User Segmentation Pipeline",
           tenant_name: "Ad Engineering",
           team_name: "Viewer Product",
           dag_name: "user_segmentation",
@@ -752,6 +762,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
               <Typography component="div" variant="body2" sx={{ pl: 2, mb: 1 }}>
                 {tabValue === 'tables' ? (
                   <ul>
+                    <li>{fieldDefinitions.entity_name.label}: String</li>
                     <li>{fieldDefinitions.tenant_name.label}: String ("Data Engineering", "Ad Engineering", etc.)</li>
                     <li>{fieldDefinitions.team_name.label}: String ("PGM", "Core", etc.)</li>
                     <li>{fieldDefinitions.schema_name.label}: String</li>
@@ -764,6 +775,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
                   </ul>
                 ) : (
                   <ul>
+                    <li>{fieldDefinitions.entity_name.label}: String</li>
                     <li>{fieldDefinitions.tenant_name.label}: String ("Data Engineering", "Ad Engineering", etc.)</li>
                     <li>{fieldDefinitions.team_name.label}: String ("PGM", "Core", etc.)</li>
                     <li>{fieldDefinitions.dag_name.label}: String (new DAG names will require backend validation)</li>
@@ -981,6 +993,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
                   <TableHead>
                     <TableRow>
                       <TableCell width="60px">Status</TableCell>
+                      <TableCell>{fieldDefinitions.entity_name.label}</TableCell>
                       <TableCell>{fieldDefinitions.tenant_name.label}</TableCell>
                       <TableCell>{fieldDefinitions.team_name.label}</TableCell>
                       {tabValue === 'tables' ? (
@@ -1027,6 +1040,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
                               </Tooltip>
                             )}
                           </TableCell>
+                          <TableCell>{entity.entity_name}</TableCell>
                           <TableCell>{entity.tenant_name}</TableCell>
                           <TableCell>{entity.team_name}</TableCell>
                           {isTable ? (
