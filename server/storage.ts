@@ -171,56 +171,79 @@ export class MemStorage implements IStorage {
   private addTableEntities(): void {
     const tableEntities = [
       {
-        name: 'agg_daily',
+        name: 'brightscript_sla_pgm',
         type: 'table',
         teamId: 1, // PGM
-        description: 'Daily aggregation table for transaction data',
+        description: 'Brightscript SLA monitoring for PGM team',
         slaTarget: 95.0,
         currentSla: 98.5,
         status: 'Passed',
         refreshFrequency: 'Daily',
         lastRefreshed: new Date('2025-06-27T14:30:00Z'),
         owner: 'John Smith',
-        ownerEmail: 'john.smith@company.com'
+        ownerEmail: 'john.smith@company.com',
+        schema_name: 'abc',
+        table_name: 'agg_channel_brightscript_error_daily'
       },
       {
-        name: 'app_hourly',
+        name: 'brightscript_sla_core',
         type: 'table', 
-        teamId: 1, // PGM
-        description: 'Hourly application metrics table',
+        teamId: 2, // Core
+        description: 'Brightscript SLA monitoring for Core team',
         slaTarget: 92.0,
         currentSla: 96.2,
         status: 'Passed',
         refreshFrequency: 'Hourly',
         lastRefreshed: new Date('2025-06-28T14:00:00Z'),
         owner: 'Jane Doe',
-        ownerEmail: 'jane.doe@company.com'
+        ownerEmail: 'jane.doe@company.com',
+        schema_name: 'abc',
+        table_name: 'agg_accounts_channel_ux_daily'
       },
       {
-        name: 'user_events',
-        type: 'table',
-        teamId: 2, // Core
-        description: 'User event tracking table',
-        slaTarget: 90.0,
-        currentSla: null,
-        status: 'Pending',
-        refreshFrequency: 'Real-time',
-        lastRefreshed: null,
-        owner: 'Mike Johnson',
-        ownerEmail: 'mike.johnson@company.com'
-      },
-      {
-        name: 'payment_logs',
+        name: 'accounts_channel_ux_vp',
         type: 'table',
         teamId: 3, // Viewer Product
-        description: 'Payment transaction logs',
-        slaTarget: 99.0,
-        currentSla: 85.2,
+        description: 'Accounts channel UX monitoring for Viewer Product team',
+        slaTarget: 90.0,
+        currentSla: 88.7,
         status: 'Failed',
-        refreshFrequency: 'Real-time',
+        refreshFrequency: 'Daily',
         lastRefreshed: new Date('2025-06-28T12:15:00Z'),
+        owner: 'Mike Johnson',
+        ownerEmail: 'mike.johnson@company.com',
+        schema_name: 'abc',
+        table_name: 'agg_account_device_subscription_daily'
+      },
+      {
+        name: 'channel_analytics_iot',
+        type: 'table',
+        teamId: 4, // IOT
+        description: 'Channel analytics for IOT devices',
+        slaTarget: 93.0,
+        currentSla: 94.1,
+        status: 'Passed',
+        refreshFrequency: 'Hourly',
+        lastRefreshed: new Date('2025-06-28T16:45:00Z'),
         owner: 'Sarah Wilson',
-        ownerEmail: 'sarah.wilson@company.com'
+        ownerEmail: 'sarah.wilson@company.com',
+        schema_name: 'abc',
+        table_name: 'agg_iot_device_channel_daily'
+      },
+      {
+        name: 'subscription_metrics_cdm',
+        type: 'table',
+        teamId: 5, // CDM
+        description: 'Subscription metrics for CDM team',
+        slaTarget: 97.0,
+        currentSla: null,
+        status: 'Pending',
+        refreshFrequency: 'Daily',
+        lastRefreshed: null,
+        owner: 'Alex Chen',
+        ownerEmail: 'alex.chen@company.com',
+        schema_name: 'abc',
+        table_name: 'agg_subscription_revenue_daily'
       }
     ];
 
@@ -232,27 +255,27 @@ export class MemStorage implements IStorage {
         nextRefresh: entity.lastRefreshed ? new Date(entity.lastRefreshed.getTime() + 24 * 60 * 60 * 1000) : new Date(),
         createdAt: new Date(),
         updatedAt: new Date(),
-        // Set null for optional fields
-        tenant_name: null,
-        team_name: null,
-        schema_name: null,
-        table_name: null,
-        table_description: null,
-        table_schedule: null,
-        table_dependency: null,
-        dag_name: null,
+        // Set null for fields not provided in entity data, but preserve existing values
+        tenant_name: entity.tenant_name || null,
+        team_name: entity.team_name || null,
+        schema_name: entity.schema_name || null,
+        table_name: entity.table_name || null,
+        table_description: entity.table_description || null,
+        table_schedule: entity.table_schedule || null,
+        table_dependency: entity.table_dependency || null,
+        dag_name: null, // Tables don't have DAG fields
         dag_description: null,
         dag_schedule: null,
         dag_dependency: null,
-        expected_runtime_minutes: null,
-        donemarker_location: null,
-        donemarker_lookback: null,
-        owner_email: null,
-        user_email: null,
-        is_active: true,
+        expected_runtime_minutes: entity.expected_runtime_minutes || null,
+        donemarker_location: entity.donemarker_location || null,
+        donemarker_lookback: entity.donemarker_lookback || null,
+        owner_email: entity.owner_email || null,
+        user_email: entity.user_email || null,
+        is_active: entity.is_active !== undefined ? entity.is_active : true,
         lastRun: entity.lastRefreshed,
         lastStatus: entity.status,
-        notification_preferences: []
+        notification_preferences: entity.notification_preferences || []
       };
       this.entities.set(id, fullEntity);
     });
