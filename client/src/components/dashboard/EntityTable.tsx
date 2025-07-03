@@ -65,8 +65,8 @@ interface HeadCell {
   width?: string;
 }
 
-const getHeadCells = (showActions: boolean): HeadCell[] => [
-  { id: 'name', label: 'Entity Name', numeric: false, disablePadding: true, sortable: true },
+const getHeadCells = (showActions: boolean, type: 'table' | 'dag'): HeadCell[] => [
+  { id: 'name', label: type === 'table' ? 'Table Name' : 'DAG Name', numeric: false, disablePadding: true, sortable: true },
   { id: 'teamId', label: 'Team', numeric: false, disablePadding: false, sortable: true },
   { id: 'status', label: 'Status', numeric: false, disablePadding: false, sortable: true },
   { id: 'currentSla', label: 'Current SLA', numeric: true, disablePadding: false, sortable: true },
