@@ -306,7 +306,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
       
       // Convert form data to entity format
       const entityData = {
-        name: entityType === 'table' ? data.table_name : data.dag_name,
+        name: data.entity_name, // Use entity_name from form
         description: entityType === 'table' ? data.table_description : data.dag_description,
         type: entityType,
         teamId: entity.teamId, // Keep existing team
@@ -384,6 +384,26 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
           {entityType === 'table' ? (
             /* TABLE FIELDS */
             <>
+              <Controller
+                name="entity_name"
+                control={control}
+                render={({ field: { onChange, value, onBlur, ref } }) => (
+                  <TextField
+                    value={value}
+                    onChange={onChange}
+                    onBlur={onBlur}
+                    ref={ref}
+                    label={fieldDefinitions.entity_name.label + " *"}
+                    required
+                    fullWidth
+                    margin="normal"
+                    error={!!errors.entity_name}
+                    helperText={errors.entity_name?.message}
+                    placeholder={fieldDefinitions.entity_name.placeholder}
+                  />
+                )}
+              />
+              
               <Controller
                 name="tenant_name"
                 control={control}
@@ -543,6 +563,26 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
           ) : (
             /* DAG FIELDS */
             <>
+              <Controller
+                name="entity_name"
+                control={control}
+                render={({ field: { onChange, value, onBlur, ref } }) => (
+                  <TextField
+                    value={value}
+                    onChange={onChange}
+                    onBlur={onBlur}
+                    ref={ref}
+                    label={fieldDefinitions.entity_name.label + " *"}
+                    required
+                    fullWidth
+                    margin="normal"
+                    error={!!errors.entity_name}
+                    helperText={errors.entity_name?.message}
+                    placeholder={fieldDefinitions.entity_name.placeholder}
+                  />
+                )}
+              />
+              
               <Controller
                 name="tenant_name"
                 control={control}
