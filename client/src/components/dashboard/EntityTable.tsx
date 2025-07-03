@@ -377,7 +377,7 @@ const EntityTable = ({
               {getHeadCells(showActions, type).map((headCell) => (
                 <TableCell
                   key={headCell.id}
-                  align={headCell.numeric ? 'right' : 'left'}
+                  align={headCell.numeric ? 'right' : headCell.id === 'actions' ? 'center' : 'left'}
                   padding={headCell.disablePadding ? 'none' : 'normal'}
                   sortDirection={orderBy === headCell.id ? order : false}
                   sx={{ 

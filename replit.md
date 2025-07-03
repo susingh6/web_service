@@ -113,6 +113,13 @@ Preferred communication style: Simple, everyday language.
 
 ## Changelog
 
+- July 3, 2025: Enhanced EntityTable with dual column display and standardized spacing
+  - Added separate Entity Name and type-specific name columns (DAG Name/Table Name) for better data organization
+  - Implemented standardized column widths across all table columns for consistent visual spacing
+  - Fixed Actions header alignment to center-align with action icons for improved consistency
+  - Table entities now display both general entity name and formatted table name (schema.table format)
+  - DAG entities display both entity name and specific DAG name as separate columns
+  - Applied consistent 180px-200px width styling to primary columns with proportional sizing for other columns
 - June 29, 2025: Completed comprehensive code deduplication across validation and cache management utilities
   - Created centralized validation utilities (validateTenant, validateTeam, validateDag) eliminating duplicate validation logic
   - Added updateCacheWithNewValue utility to consolidate duplicate cache management code across AddEntityModal and EditEntityModal
