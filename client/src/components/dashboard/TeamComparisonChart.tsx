@@ -13,14 +13,24 @@ import {
 } from 'recharts';
 
 // Generate tenant-specific team data
-const generateTeamData = (entities: any[], teams: any[]) => {
+const generateTeamData = (entities: any[], teams: any[], selectedTenant?: string) => {
   if (!entities || !teams || entities.length === 0 || teams.length === 0) {
     return [];
   }
 
+  // Filter entities by tenant if specified
+  let filteredEntities = entities;
+  if (selectedTenant) {
+    filteredEntities = entities.filter(entity => entity.tenant_name === selectedTenant);
+  }
+
+  // Get teams that have entities in the filtered tenant
+  const relevantTeamIds = new Set(filteredEntities.map(entity => entity.teamId));
+  const relevantTeams = teams.filter(team => relevantTeamIds.has(team.id));
+
   // Group entities by team and calculate averages
-  const teamStats = teams.map(team => {
-    const teamEntities = entities.filter(entity => entity.teamId === team.id);
+  const teamStats = relevantTeams.map(team => {
+    const teamEntities = filteredEntities.filter(entity => entity.teamId === team.id);
     const tables = teamEntities.filter(entity => entity.type === 'table');
     const dags = teamEntities.filter(entity => entity.type === 'dag');
     
@@ -44,15 +54,17 @@ interface TeamComparisonChartProps {
   data?: any[];
   entities?: any[];
   teams?: any[];
+  selectedTenant?: string;
 }
 
 const TeamComparisonChart = ({
   data,
   entities = [],
   teams = [],
+  selectedTenant,
 }: TeamComparisonChartProps) => {
   // Use provided data or generate from entities/teams
-  const chartData = data || generateTeamData(entities, teams);
+  const chartData = data || generateTeamData(entities, teams, selectedTenant);
   const theme = useTheme();
   
   const CustomTooltip = ({ active, payload, label }: TooltipProps<number, string>) => {
