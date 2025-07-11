@@ -170,10 +170,7 @@ export function requestLoggingMiddleware(req: Request, res: Response, next: Next
     ? Object.entries(req.params).map(([key, value]) => `${key}=${value}`).join(', ')
     : '';
   
-  // Add team name if available from route processing
-  const teamInfo = req.teamName ? `team=${req.teamName}` : '';
-  
-  const allParams = [queryParams, routeParams, teamInfo].filter(Boolean).join(', ');
+  const allParams = [queryParams, routeParams].filter(Boolean).join(', ');
   
   if (allParams) {
     parameterString = ` - Parameters: ${allParams}`;
