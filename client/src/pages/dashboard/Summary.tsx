@@ -211,53 +211,7 @@ const Summary = () => {
     }
   };
 
-  const handleTestEntityUpdate = async () => {
-    try {
-      // Select a random entity from the current tenant to update
-      const tenantEntities = entities.filter(e => e.tenant_name === selectedTenant.name);
-      if (tenantEntities.length === 0) {
-        toast({
-          title: 'No Entities',
-          description: 'No entities available to update for this tenant',
-          variant: 'destructive',
-        });
-        return;
-      }
 
-      const randomEntity = tenantEntities[Math.floor(Math.random() * tenantEntities.length)];
-      const team = teams.find(t => t.id === randomEntity.teamId);
-      
-      const response = await fetch('/api/test/simulate-entity-update', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          entityName: randomEntity.name,
-          entityType: randomEntity.type,
-          teamName: team?.name || 'Unknown',
-          tenantName: selectedTenant.name,
-        }),
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        toast({
-          title: 'Test Update Sent',
-          description: `Simulated update for ${result.entityName} - watch for real-time changes!`,
-          variant: 'default',
-        });
-      } else {
-        throw new Error('Failed to send test update');
-      }
-    } catch (error) {
-      toast({
-        title: 'Test Failed',
-        description: `Failed to send test update: ${error}`,
-        variant: 'destructive',
-      });
-    }
-  };
   
   return (
     <Box>
@@ -286,21 +240,6 @@ const Summary = () => {
               </Select>
             </FormControl>
             <DateRangePicker />
-            <Button
-              variant="outlined"
-              size="small"
-              onClick={handleTestEntityUpdate}
-              sx={{ 
-                borderColor: isConnected ? 'success.main' : 'error.main',
-                color: isConnected ? 'success.main' : 'error.main',
-                '&:hover': {
-                  borderColor: isConnected ? 'success.dark' : 'error.dark',
-                  backgroundColor: isConnected ? 'success.light' : 'error.light'
-                }
-              }}
-            >
-              Test Real-time Update
-            </Button>
           </Box>
         </Box>
       )}
