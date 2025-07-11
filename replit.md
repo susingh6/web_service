@@ -113,6 +113,11 @@ Preferred communication style: Simple, everyday language.
 
 ## Changelog
 
+- July 11, 2025: Fixed team dashboard header to remove tenant and date filters - these now belong exclusively to Summary dashboard
+  - Removed DateRangePicker component from TeamDashboard header
+  - Team dashboards now show only team-specific controls (Add Entity, Bulk Upload buttons)
+  - Tenant filtering and date filtering remain exclusively in Summary view as intended
+  - Each team dashboard has clean header with team name and action buttons only
 - July 11, 2025: Completed scalable tenant filtering system with dynamic team performance charts
   - Updated TeamComparisonChart component to use dynamic data instead of hardcoded teams
   - Implemented calculateTeamData function to generate SLA averages from actual entities and teams
