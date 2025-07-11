@@ -38,16 +38,16 @@ const AuthPage = () => {
     <div className="flex min-h-screen">
       {/* Left panel with forms */}
       <div className="flex-1 flex items-center justify-center p-6 bg-background">
-        <Card className="w-full max-w-md">
-          <CardHeader>
+        <Card className="w-full max-w-md min-h-[500px] flex flex-col justify-between">
+          <CardHeader className="pb-8">
             <CardTitle className="text-2xl text-center">SLA Management Tool</CardTitle>
             <CardDescription className="text-center">
               Sign in to access the SLA management platform
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="mt-4 flex flex-col items-center justify-center">
-              <h3 className="text-lg font-semibold mb-4">Log in</h3>
+          <CardContent className="flex-1 flex flex-col justify-center">
+            <div className="flex flex-col items-center justify-center space-y-6">
+              <h3 className="text-lg font-semibold">Log in</h3>
               <Button
                 variant="default"
                 type="button"
@@ -73,17 +73,17 @@ const AuthPage = () => {
                 Authenticate
               </Button>
               
-              <div className="mt-6 text-center">
+              <div className="text-center space-y-2">
                 <p className="text-sm text-muted-foreground">
                   Enterprise SSO authentication with Azure AD
                 </p>
-                <p className="text-xs text-muted-foreground mt-2">
+                <p className="text-xs text-muted-foreground">
                   Click "Authenticate" to access the SLA management platform
                 </p>
               </div>
             </div>
           </CardContent>
-          <CardFooter className="flex justify-center text-sm text-muted-foreground">
+          <CardFooter className="flex justify-center text-sm text-muted-foreground pt-8">
             © {new Date().getFullYear()} SLA Monitoring Tool
           </CardFooter>
         </Card>
