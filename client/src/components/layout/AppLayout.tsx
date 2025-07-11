@@ -3,7 +3,6 @@ import { Box, Container, CssBaseline, ThemeProvider } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import { useLocation } from 'wouter';
 import Header from './Header';
-import Navigation from './Navigation';
 import { useAuth } from '@/hooks/use-auth';
 import theme from '@/lib/theme';
 
@@ -74,7 +73,6 @@ const AppLayout = ({ children }: AppLayoutProps) => {
       <CssBaseline />
       <Box display="flex" flexDirection="column" minHeight="100vh">
         <Header />
-        <Navigation />
         <MainContent>
           <Box sx={{ p: 3, width: '100%' }}>
             {children}
