@@ -72,6 +72,8 @@ export class MemStorage implements IStorage {
   private historyId: number;
   private issueId: number;
   
+  private initializationPromise: Promise<void>;
+
   constructor() {
     this.users = new Map();
     this.teams = new Map();
@@ -87,11 +89,14 @@ export class MemStorage implements IStorage {
     this.issueId = 1;
     
     // Initialize with some demo data
-    // We need to handle async initialization differently
-    // since constructors can't be async
-    this.initDemoData().catch(err => {
+    this.initializationPromise = this.initDemoData().catch(err => {
       console.error('Error initializing demo data:', err);
     });
+  }
+
+  // Ensure initialization is complete before any operations
+  private async ensureInitialized(): Promise<void> {
+    await this.initializationPromise;
   }
   
   private async initDemoData() {
@@ -457,6 +462,7 @@ export class MemStorage implements IStorage {
   
   // Team operations
   async getTeams(): Promise<Team[]> {
+    await this.ensureInitialized();
     return Array.from(this.teams.values());
   }
   
@@ -503,6 +509,7 @@ export class MemStorage implements IStorage {
   
   // Entity operations
   async getEntities(): Promise<Entity[]> {
+    await this.ensureInitialized();
     return Array.from(this.entities.values());
   }
   

@@ -104,7 +104,6 @@ export const devConfig = {
     cacheRefresh: '/api/cache/refresh',
     incrementalUpdate: '/api/cache/incremental-update',
     recentChanges: '/api/cache/recent-changes',
-    recentChanges: '/api/cache/recent-changes',
   },
   
   // WebSocket configuration
