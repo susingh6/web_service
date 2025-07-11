@@ -69,7 +69,7 @@ const AuthPage = () => {
                     <path d="M0 0h10.931v10.931H0zM12.069 0H23v10.931H12.069zM0 12.069h10.931V23H0zM12.069 12.069H23V23H12.069z" />
                   </svg>
                 )}
-                Authenticate
+                Log in
               </Button>
               
               <div className="mt-6 text-center">
@@ -77,7 +77,7 @@ const AuthPage = () => {
                   Enterprise SSO authentication with Azure AD
                 </p>
                 <p className="text-xs text-muted-foreground mt-2">
-                  Click authenticate to access the SLA management platform
+                  Click "Log in" to access the SLA management platform
                 </p>
               </div>
             </div>
