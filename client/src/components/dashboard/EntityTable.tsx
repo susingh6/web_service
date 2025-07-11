@@ -31,6 +31,7 @@ import {
   TrendingFlat,
   Assignment,
   Notifications,
+  FiberNew,
 } from '@mui/icons-material';
 import { visuallyHidden } from '@mui/utils';
 import { useAppDispatch } from '@/lib/store';
@@ -38,6 +39,7 @@ import { selectEntity } from '@/features/sla/slices/entitiesSlice';
 import { format } from 'date-fns';
 import { Entity } from '@shared/schema';
 import { getEntityTrend } from '@/lib/trendCache';
+import { config } from '@/config';
 
 type EntityStatus = 'Pending' | 'Failed' | 'Passed';
 
@@ -64,6 +66,19 @@ interface HeadCell {
   sortable: boolean;
   width?: string;
 }
+
+// Check if entity was recently updated (within last 6 hours)
+const isEntityRecent = (entity: Entity): boolean => {
+  if (!entity.lastRefreshed && !entity.updatedAt) return false;
+  
+  const updateTime = entity.lastRefreshed || entity.updatedAt;
+  if (!updateTime) return false;
+  
+  const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000);
+  const entityUpdateTime = new Date(updateTime);
+  
+  return entityUpdateTime >= sixHoursAgo;
+};
 
 const getHeadCells = (showActions: boolean, type: 'table' | 'dag'): HeadCell[] => [
   { id: 'name', label: 'Entity Name', numeric: false, disablePadding: true, sortable: true, width: '180px' },
@@ -432,9 +447,35 @@ const EntityTable = ({
                     </TableCell>
                     
                     <TableCell padding="none" sx={{ width: '180px' }}>
-                      <Typography variant="body2" fontWeight={500}>
-                        {entity.name}
-                      </Typography>
+                      <Box display="flex" alignItems="center" gap={1}>
+                        <Typography variant="body2" fontWeight={500}>
+                          {entity.name}
+                        </Typography>
+                        {isEntityRecent(entity) && (
+                          <Chip
+                            label="NEW"
+                            size="small"
+                            icon={<FiberNew fontSize="small" />}
+                            sx={{
+                              backgroundColor: '#e3f2fd',
+                              color: '#1976d2',
+                              fontWeight: 700,
+                              fontSize: '0.65rem',
+                              height: '20px',
+                              minWidth: '50px',
+                              borderRadius: '10px',
+                              '& .MuiChip-label': {
+                                paddingLeft: '4px',
+                                paddingRight: '6px',
+                              },
+                              '& .MuiChip-icon': {
+                                marginLeft: '4px',
+                                marginRight: '-2px',
+                              },
+                            }}
+                          />
+                        )}
+                      </Box>
                     </TableCell>
                     
                     <TableCell sx={{ width: '200px' }}>

@@ -23,6 +23,7 @@ import TeamDashboard from '@/components/dashboard/TeamDashboard';
 import { useToast } from '@/hooks/use-toast';
 import { queryClient } from '@/lib/queryClient';
 import { getTenants, getDefaultTenant, preloadTenantCache, type Tenant } from '@/lib/tenantCache';
+import { useWebSocket } from '@/hooks/useWebSocket';
 
 const Summary = () => {
   const dispatch = useAppDispatch();
@@ -45,6 +46,43 @@ const Summary = () => {
   const [tenants, setTenants] = useState<Tenant[]>(getTenants);
   const [openTeamTabs, setOpenTeamTabs] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState('summary');
+  
+  // WebSocket connection for real-time updates
+  const { isConnected } = useWebSocket({
+    onEntityUpdated: (data) => {
+      console.log('Entity updated via WebSocket:', data);
+      // Invalidate and refetch entities to show updated data
+      queryClient.invalidateQueries({ queryKey: ['entities'] });
+      dispatch(fetchEntities({}));
+      dispatch(fetchDashboardSummary({ tenantName: selectedTenant.name }));
+      
+      // Show toast notification about the update
+      toast({
+        title: "Entity Updated",
+        description: `${data.entityName} has been updated and is now marked as NEW`,
+        variant: "default",
+      });
+    },
+    onCacheUpdated: (data) => {
+      console.log('Cache updated via WebSocket:', data);
+      // Refresh all dashboard data
+      dispatch(fetchDashboardSummary({ tenantName: selectedTenant.name }));
+      dispatch(fetchEntities({}));
+      dispatch(fetchTeams());
+      
+      toast({
+        title: "Data Refreshed",
+        description: "Dashboard data has been updated with latest information",
+        variant: "default",
+      });
+    },
+    onConnect: () => {
+      console.log('WebSocket connected - real-time updates enabled');
+    },
+    onDisconnect: () => {
+      console.log('WebSocket disconnected - real-time updates disabled');
+    }
+  });
   
   // Fetch dashboard data and preload tenant cache
   useEffect(() => {
@@ -172,6 +210,54 @@ const Summary = () => {
       });
     }
   };
+
+  const handleTestEntityUpdate = async () => {
+    try {
+      // Select a random entity from the current tenant to update
+      const tenantEntities = entities.filter(e => e.tenant_name === selectedTenant.name);
+      if (tenantEntities.length === 0) {
+        toast({
+          title: 'No Entities',
+          description: 'No entities available to update for this tenant',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const randomEntity = tenantEntities[Math.floor(Math.random() * tenantEntities.length)];
+      const team = teams.find(t => t.id === randomEntity.teamId);
+      
+      const response = await fetch('/api/test/simulate-entity-update', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          entityName: randomEntity.name,
+          entityType: randomEntity.type,
+          teamName: team?.name || 'Unknown',
+          tenantName: selectedTenant.name,
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        toast({
+          title: 'Test Update Sent',
+          description: `Simulated update for ${result.entityName} - watch for real-time changes!`,
+          variant: 'default',
+        });
+      } else {
+        throw new Error('Failed to send test update');
+      }
+    } catch (error) {
+      toast({
+        title: 'Test Failed',
+        description: `Failed to send test update: ${error}`,
+        variant: 'destructive',
+      });
+    }
+  };
   
   return (
     <Box>
@@ -200,6 +286,21 @@ const Summary = () => {
               </Select>
             </FormControl>
             <DateRangePicker />
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={handleTestEntityUpdate}
+              sx={{ 
+                borderColor: isConnected ? 'success.main' : 'error.main',
+                color: isConnected ? 'success.main' : 'error.main',
+                '&:hover': {
+                  borderColor: isConnected ? 'success.dark' : 'error.dark',
+                  backgroundColor: isConnected ? 'success.light' : 'error.light'
+                }
+              }}
+            >
+              Test Real-time Update
+            </Button>
           </Box>
         </Box>
       )}

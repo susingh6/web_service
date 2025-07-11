@@ -1,5 +1,15 @@
 export const devConfig = {
   baseUrl: '',
+  
+  // WebSocket configuration
+  websocket: {
+    path: '/ws',
+    events: {
+      cacheUpdated: 'cache_updated',
+      entityUpdated: 'entity_updated',
+    },
+  },
+  
   endpoints: {
     // Authentication
     auth: {
@@ -92,6 +102,19 @@ export const devConfig = {
     trendRefreshHours: 6,
     cacheStatus: '/api/cache/status',
     cacheRefresh: '/api/cache/refresh',
+    incrementalUpdate: '/api/cache/incremental-update',
+    recentChanges: '/api/cache/recent-changes',
+    recentChanges: '/api/cache/recent-changes',
+  },
+  
+  // WebSocket configuration
+  websocket: {
+    path: '/ws',
+    events: {
+      cacheUpdated: 'cache-updated',
+      entityUpdated: 'entity-updated',
+      entitiesUpdated: 'entities-updated',
+    },
   },
   
   // Development settings

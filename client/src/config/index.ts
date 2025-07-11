@@ -72,6 +72,16 @@ interface ApiConfig {
     trendRefreshHours: number;
     cacheStatus: string;
     cacheRefresh: string;
+    incrementalUpdate: string;
+    recentChanges: string;
+  };
+  websocket: {
+    path: string;
+    events: {
+      cacheUpdated: string;
+      entityUpdated: string;
+      entitiesUpdated: string;
+    };
   };
   debug: boolean;
   logLevel: string;

@@ -1,7 +1,10 @@
 import { storage } from "./storage";
 import { Entity, Team } from "@shared/schema";
 import { config } from "./config";
-import { WebSocketServer } from "ws";
+import { WebSocketServer, WebSocket } from "ws";
+import { Worker } from 'worker_threads';
+import path from 'path';
+import type { CacheRefreshData } from './cache-worker';
 
 interface DashboardMetrics {
   overallCompliance: number;
@@ -14,6 +17,10 @@ interface DashboardMetrics {
 
 interface EntityChange {
   entityId: number;
+  entityName: string;
+  entityType: string;
+  teamName: string;
+  tenantName: string;
   type: 'updated' | 'created' | 'deleted';
   entity: Entity;
   previousSla?: number;
@@ -35,6 +42,8 @@ class DataCache {
   private cache: CachedData | null = null;
   private refreshInterval: NodeJS.Timer | null = null;
   private readonly CACHE_DURATION_MS = config.cache.refreshIntervalHours * 60 * 60 * 1000; // Configurable hours
+  private wss: WebSocketServer | null = null;
+  private cacheWorker: Worker | null = null;
 
   constructor() {
     this.initializeCache();
@@ -49,10 +58,81 @@ class DataCache {
   private startAutoRefresh(): void {
     this.refreshInterval = setInterval(() => {
       console.log(`Auto-refreshing cache (${config.cache.refreshIntervalHours}-hour interval)...`);
-      this.refreshCache();
+      this.refreshCacheWithWorker();
     }, this.CACHE_DURATION_MS);
   }
 
+  // WebSocket management
+  setupWebSocket(wss: WebSocketServer): void {
+    this.wss = wss;
+    console.log('WebSocket server attached to cache system');
+  }
+
+  private broadcastToClients(event: string, data: any): void {
+    if (!this.wss) return;
+
+    const message = JSON.stringify({ event, data, timestamp: new Date().toISOString() });
+    
+    this.wss.clients.forEach((client) => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(message);
+      }
+    });
+  }
+
+  // Worker thread cache refresh (non-blocking)
+  private async refreshCacheWithWorker(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (this.cacheWorker) {
+        this.cacheWorker.terminate();
+      }
+
+      const workerPath = path.join(__dirname, 'cache-worker.ts');
+      this.cacheWorker = new Worker(workerPath);
+
+      this.cacheWorker.on('message', (message: { type: string; data?: CacheRefreshData; error?: string }) => {
+        if (message.type === 'success' && message.data) {
+          // Update cache with worker data
+          const oldCache = this.cache;
+          this.cache = {
+            ...message.data,
+            recentChanges: this.cache?.recentChanges || []
+          };
+
+          console.log(`[Worker] Cache refreshed successfully: ${message.data.entities.length} entities, ${message.data.teams.length} teams, ${message.data.tenants.length} tenants`);
+          
+          // Broadcast cache update to all connected clients
+          this.broadcastToClients('cache-updated', {
+            entitiesCount: message.data.entities.length,
+            teamsCount: message.data.teams.length,
+            tenantsCount: message.data.tenants.length,
+            lastUpdated: message.data.lastUpdated
+          });
+
+          this.cacheWorker?.terminate();
+          this.cacheWorker = null;
+          resolve();
+        } else if (message.type === 'error') {
+          console.error('[Worker] Cache refresh failed:', message.error);
+          this.cacheWorker?.terminate();
+          this.cacheWorker = null;
+          reject(new Error(message.error || 'Cache refresh failed'));
+        }
+      });
+
+      this.cacheWorker.on('error', (error) => {
+        console.error('[Worker] Cache worker error:', error);
+        this.cacheWorker?.terminate();
+        this.cacheWorker = null;
+        reject(error);
+      });
+
+      // Start the worker
+      this.cacheWorker.postMessage({ type: 'refresh' });
+    });
+  }
+
+  // Fallback synchronous cache refresh for initial load
   private async refreshCache(): Promise<void> {
     try {
       // Load all entities, teams, and tenants
@@ -78,7 +158,8 @@ class DataCache {
         tenants,
         metrics: {}, // Empty for dynamic calculations
         last30DayMetrics,
-        lastUpdated: new Date()
+        lastUpdated: new Date(),
+        recentChanges: [] // Initialize empty recent changes
       };
 
       console.log(`Cache refreshed successfully: ${entities.length} entities, ${teams.length} teams, ${tenants.length} tenants`);
@@ -102,6 +183,82 @@ class DataCache {
       tablesCount: tables.length,
       dagsCount: dags.length
     };
+  }
+
+  // Incremental cache updates for poller notifications
+  updateEntity(entityName: string, entityType: string, teamName: string, updates: Partial<Entity>): boolean {
+    if (!this.cache) return false;
+
+    // Find the team
+    const team = this.cache.teams.find(t => t.name === teamName);
+    if (!team) return false;
+
+    // Find the entity
+    const entityIndex = this.cache.entities.findIndex(e => 
+      e.name === entityName && 
+      e.type === entityType &&
+      e.teamId === team.id
+    );
+
+    if (entityIndex === -1) return false;
+
+    const oldEntity = this.cache.entities[entityIndex];
+    const updatedEntity = { ...oldEntity, ...updates };
+    
+    // Update the entity in cache
+    this.cache.entities[entityIndex] = updatedEntity;
+
+    // Track the change
+    const change: EntityChange = {
+      entityId: oldEntity.id,
+      entityName,
+      entityType,
+      teamName,
+      tenantName: oldEntity.tenant_name || '',
+      type: 'updated',
+      entity: updatedEntity,
+      previousSla: oldEntity.currentSla,
+      newSla: updatedEntity.currentSla,
+      timestamp: new Date()
+    };
+
+    // Add to recent changes (keep only last 6 hours)
+    const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000);
+    this.cache.recentChanges = this.cache.recentChanges.filter(c => c.timestamp >= sixHoursAgo);
+    this.cache.recentChanges.push(change);
+
+    // Broadcast to WebSocket clients
+    this.broadcastToClients('entity-updated', {
+      entityId: oldEntity.id,
+      entityName,
+      entityType,
+      teamName,
+      tenantName: oldEntity.tenant_name,
+      changes: updates,
+      timestamp: new Date().toISOString()
+    });
+
+    console.log(`[Incremental Update] Entity ${entityName} (${entityType}) updated for team ${teamName}`);
+    return true;
+  }
+
+  // Get recent changes for dashboard updates
+  getRecentChanges(tenantName?: string, teamName?: string): EntityChange[] {
+    if (!this.cache) return [];
+
+    let changes = this.cache.recentChanges;
+
+    // Filter by tenant if specified
+    if (tenantName) {
+      changes = changes.filter(c => c.tenantName === tenantName);
+    }
+
+    // Filter by team if specified
+    if (teamName) {
+      changes = changes.filter(c => c.teamName === teamName);
+    }
+
+    return changes.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
   }
 
   // Public methods to get cached data

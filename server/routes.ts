@@ -1,5 +1,6 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
+import { WebSocketServer } from "ws";
 import { storage } from "./storage";
 import { dataCache } from "./cache";
 import { insertEntitySchema, insertTeamSchema, insertEntityHistorySchema, insertIssueSchema, insertUserSchema, insertNotificationTimelineSchema } from "@shared/schema";
@@ -935,6 +936,137 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Cache management endpoints
+  app.post('/api/cache/incremental-update', async (req: Request, res: Response) => {
+    try {
+      const { entityName, entityType, teamName, tenantName, ...updates } = req.body;
+      
+      // Validate required fields
+      if (!entityName || !entityType || !teamName) {
+        return res.status(400).json({ 
+          message: 'Missing required fields: entityName, entityType, teamName' 
+        });
+      }
+
+      // Update cache incrementally
+      const success = dataCache.updateEntity(entityName, entityType, teamName, updates);
+      
+      if (success) {
+        res.json({ 
+          success: true, 
+          message: `Entity ${entityName} updated successfully`,
+          entityName,
+          entityType,
+          teamName,
+          tenantName
+        });
+      } else {
+        res.status(404).json({ 
+          message: `Entity ${entityName} (${entityType}) not found in team ${teamName}` 
+        });
+      }
+    } catch (error) {
+      console.error('Cache incremental update error:', error);
+      res.status(500).json({ message: 'Failed to update cache' });
+    }
+  });
+
+  app.get('/api/cache/recent-changes', async (req: Request, res: Response) => {
+    try {
+      const { tenantName, teamName } = req.query;
+      
+      const recentChanges = dataCache.getRecentChanges(
+        tenantName as string, 
+        teamName as string
+      );
+      
+      res.json({
+        changes: recentChanges,
+        count: recentChanges.length
+      });
+    } catch (error) {
+      console.error('Recent changes error:', error);
+      res.status(500).json({ message: 'Failed to fetch recent changes' });
+    }
+  });
+
+  // Test endpoint to simulate poller updates
+  app.post('/api/test/simulate-entity-update', async (req: Request, res: Response) => {
+    try {
+      const { entityName, entityType, teamName, tenantName } = req.body;
+      
+      // Validate required fields
+      if (!entityName || !entityType || !teamName) {
+        return res.status(400).json({ 
+          message: 'Missing required fields: entityName, entityType, teamName' 
+        });
+      }
+
+      // Simulate a poller update with new SLA data
+      const mockUpdates = {
+        currentSla: Math.round((Math.random() * 30 + 70) * 10) / 10, // Random SLA between 70-100%
+        status: Math.random() > 0.3 ? 'Passed' : 'Failed', // 70% pass rate
+        lastRefreshed: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      // Update cache incrementally
+      const success = dataCache.updateEntity(entityName, entityType, teamName, mockUpdates);
+      
+      if (success) {
+        res.json({ 
+          success: true, 
+          message: `Entity ${entityName} updated successfully via test simulation`,
+          entityName,
+          entityType,
+          teamName,
+          tenantName,
+          updates: mockUpdates
+        });
+      } else {
+        res.status(404).json({ 
+          message: `Entity ${entityName} (${entityType}) not found in team ${teamName}` 
+        });
+      }
+    } catch (error) {
+      console.error('Test entity update error:', error);
+      res.status(500).json({ message: 'Failed to simulate entity update' });
+    }
+  });
+
   const httpServer = createServer(app);
+
+  // Setup WebSocket server
+  const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
+  
+  wss.on('connection', (ws) => {
+    console.log('WebSocket client connected');
+    
+    ws.on('message', (message) => {
+      try {
+        const data = JSON.parse(message.toString());
+        console.log('WebSocket message received:', data);
+        
+        // Handle different message types if needed
+        if (data.type === 'ping') {
+          ws.send(JSON.stringify({ type: 'pong', timestamp: new Date().toISOString() }));
+        }
+      } catch (error) {
+        console.error('WebSocket message parse error:', error);
+      }
+    });
+    
+    ws.on('close', () => {
+      console.log('WebSocket client disconnected');
+    });
+    
+    ws.on('error', (error) => {
+      console.error('WebSocket error:', error);
+    });
+  });
+
+  // Connect WebSocket to cache system
+  dataCache.setupWebSocket(wss);
+
   return httpServer;
 }
