@@ -565,7 +565,7 @@ const EntityTable = ({
                           )}
                           
                           <Tooltip title={`${entity.type === 'dag' ? 'DAG' : 'Table'} Details`}>
-                            <IconButton size="small" color="inherit" onClick={() => handleHistoryClick(entity)}>
+                            <IconButton size="small" color="inherit" onClick={() => onViewDetails(entity)}>
                               <History fontSize="small" />
                             </IconButton>
                           </Tooltip>
