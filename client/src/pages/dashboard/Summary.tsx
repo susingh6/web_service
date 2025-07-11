@@ -92,7 +92,9 @@ const Summary = () => {
   useEffect(() => {
     dispatch(fetchDashboardSummary({ tenantName: selectedTenant.name }));
     dispatch(fetchEntities({})); // Load ALL entities for team dashboards
-    // Teams are only loaded when user clicks "+" button
+    // Load teams data for chart display (silent load for summary page)
+    dispatch(fetchTeams());
+    setTeamsLoaded(true);
     
     // Preload tenant cache for future use
     preloadTenantCache().then(() => {
