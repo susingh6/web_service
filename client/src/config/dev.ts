@@ -1,12 +1,13 @@
 export const devConfig = {
   baseUrl: '',
   endpoints: {
-    // Authentication
+    // Authentication - FastAPI endpoints
     auth: {
-      login: '/api/login',
-      logout: '/api/logout',
+      login: '/api/v1/auth/login',
+      logout: '/api/v1/auth/logout',
       register: '/api/register',
       user: '/api/user',
+      validate: '/api/v1/auth/validate',
     },
     
     // Core entities
@@ -79,4 +80,20 @@ export const devConfig = {
   debug: true,
   logLevel: 'debug',
   enableMockData: true,
+  
+  // Azure Authentication Configuration
+  azure: {
+    clientId: import.meta.env.VITE_AZURE_CLIENT_ID || '',
+    authority: import.meta.env.VITE_AZURE_AUTHORITY || '',
+    scopes: ['User.Read', 'profile', 'openid', 'email'],
+    redirectUri: window.location.origin,
+    postLogoutRedirectUri: window.location.origin + '/auth',
+  },
+  
+  // FastAPI Authentication Configuration
+  fastapi: {
+    baseUrl: import.meta.env.VITE_FASTAPI_BASE_URL || 'http://localhost:8080',
+    clientId: import.meta.env.VITE_FASTAPI_CLIENT_ID || '',
+    clientSecret: import.meta.env.VITE_FASTAPI_CLIENT_SECRET || '',
+  },
 }; 

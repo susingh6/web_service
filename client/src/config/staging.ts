@@ -2,12 +2,13 @@
 export const stagingConfig = {
   baseUrl: 'https://staging-api.sla-management.com',
   endpoints: {
-    // Authentication
+    // Authentication - FastAPI endpoints
     auth: {
-      login: '/api/login',
-      logout: '/api/logout',
+      login: '/api/v1/auth/login',
+      logout: '/api/v1/auth/logout',
       register: '/api/register',
       user: '/api/user',
+      validate: '/api/v1/auth/validate',
     },
     
     // Core entities
@@ -80,4 +81,20 @@ export const stagingConfig = {
   debug: false,
   logLevel: 'info',
   enableMockData: false,
+  
+  // Azure Authentication Configuration
+  azure: {
+    clientId: import.meta.env.VITE_AZURE_CLIENT_ID || '',
+    authority: import.meta.env.VITE_AZURE_AUTHORITY || '',
+    scopes: ['User.Read', 'profile', 'openid', 'email'],
+    redirectUri: window.location.origin,
+    postLogoutRedirectUri: window.location.origin + '/auth',
+  },
+  
+  // FastAPI Authentication Configuration
+  fastapi: {
+    baseUrl: import.meta.env.VITE_FASTAPI_BASE_URL || 'https://staging-api.sla-management.com',
+    clientId: import.meta.env.VITE_FASTAPI_CLIENT_ID || '',
+    clientSecret: import.meta.env.VITE_FASTAPI_CLIENT_SECRET || '',
+  },
 }; 

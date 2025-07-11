@@ -14,6 +14,7 @@ interface ApiConfig {
       logout: string;
       register: string;
       user: string;
+      validate: string;
     };
     entities: string;
     teams: string;
@@ -64,6 +65,18 @@ interface ApiConfig {
     red: {
       max: number;
     };
+  };
+  azure: {
+    clientId: string;
+    authority: string;
+    scopes: string[];
+    redirectUri: string;
+    postLogoutRedirectUri: string;
+  };
+  fastapi: {
+    baseUrl: string;
+    clientId: string;
+    clientSecret: string;
   };
   debug: boolean;
   logLevel: string;
