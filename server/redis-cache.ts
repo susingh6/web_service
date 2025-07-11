@@ -303,9 +303,14 @@ export class RedisCache {
   }
 
   private async refreshCacheWithWorker(): Promise<void> {
-    // Implement distributed locking to prevent multiple pods from refreshing simultaneously
+    if (!this.useRedis || !this.redis) {
+      await this.refreshFallbackData();
+      return;
+    }
+
+    // Implement distributed locking with stale lock detection
     const lockKey = CACHE_KEYS.CACHE_LOCK;
-    const lockValue = `${process.pid}-${Date.now()}`;
+    const lockValue = `${process.env.POD_NAME || 'unknown'}_${process.pid}_${Date.now()}`;
     
     try {
       // Try to acquire lock with expiration
@@ -318,37 +323,77 @@ export class RedisCache {
       );
 
       if (!lockAcquired) {
-        // Cache refresh already in progress by another instance
-        return;
+        // Check if existing lock is stale
+        const existingLock = await this.redis.get(lockKey);
+        if (existingLock) {
+          const lockTimestamp = parseInt(existingLock.split('_')[2]);
+          const lockAge = Date.now() - lockTimestamp;
+          
+          if (lockAge > this.LOCK_TIMEOUT) {
+            // Lock is stale, force acquire with conditional delete
+            const deletedStale = await this.redis.eval(`
+              if redis.call("get", KEYS[1]) == ARGV[1] then
+                redis.call("del", KEYS[1])
+                return redis.call("set", KEYS[1], ARGV[2], "PX", ARGV[3], "NX")
+              else
+                return 0
+              end
+            `, 1, lockKey, existingLock, lockValue, this.LOCK_TIMEOUT);
+            
+            if (!deletedStale) {
+              // Another pod acquired the lock, abort
+              return;
+            }
+          } else {
+            // Lock is valid, another pod is refreshing
+            return;
+          }
+        }
       }
 
-      // Cache refresh lock acquired, starting refresh
-      
-      // Use worker thread for heavy cache refresh work
-      return new Promise((resolve, reject) => {
-        if (this.cacheWorker) {
-          this.cacheWorker.terminate();
-        }
+      // Lock acquired, prevent multiple worker threads
+      if (this.cacheWorker) {
+        this.cacheWorker.terminate();
+        this.cacheWorker = null;
+      }
 
+      // Use worker thread for heavy cache refresh work with timeout
+      const refreshPromise = new Promise((resolve, reject) => {
         this.cacheWorker = new Worker('./server/cache-worker.ts', {
           workerData: { redisUrl: process.env.REDIS_URL || 'redis://localhost:6379' }
         });
 
+        // Set worker timeout to prevent hanging
+        const workerTimeout = setTimeout(() => {
+          if (this.cacheWorker) {
+            this.cacheWorker.terminate();
+            this.cacheWorker = null;
+          }
+          reject(new Error('Cache worker timeout'));
+        }, this.LOCK_TIMEOUT - 30000); // 30 seconds before lock expires
+
         this.cacheWorker.on('message', async (message: { type: string; data?: any; error?: string }) => {
+          clearTimeout(workerTimeout);
+          
           if (message.type === 'success' && message.data) {
             try {
-              // Store all cache data in Redis
-              await this.storeCacheData(message.data);
+              // Store all cache data atomically
+              await this.storeCacheDataAtomic(message.data);
               
               // Broadcast refresh notification
               await this.redis.publish(CACHE_KEYS.REFRESH_CHANNEL, JSON.stringify({
                 type: 'cache_refreshed',
                 timestamp: new Date().toISOString(),
-                podId: process.pid
+                podId: process.env.POD_NAME || 'unknown'
               }));
 
-              // Cache refreshed successfully and broadcast to all pods
-              resolve();
+              // Broadcast to WebSocket clients
+              this.broadcastToClients('cache_refreshed', {
+                lastUpdated: message.data.lastUpdated,
+                entitiesCount: message.data.entities.length
+              });
+
+              resolve(undefined);
             } catch (error) {
               console.error('Error storing cache data:', error);
               reject(error);
@@ -360,19 +405,36 @@ export class RedisCache {
         });
 
         this.cacheWorker.on('error', (error) => {
+          clearTimeout(workerTimeout);
           console.error('Cache worker error:', error);
           reject(error);
         });
       });
+
+      await refreshPromise;
+      
     } catch (error) {
       console.error('Cache refresh error:', error);
-      throw error;
+      // Fallback to in-memory refresh
+      await this.refreshFallbackData();
     } finally {
-      // Release lock
-      const currentLock = await this.redis.get(lockKey);
-      if (currentLock === lockValue) {
-        await this.redis.del(lockKey);
-        // Cache refresh lock released
+      // Release lock only if we own it (conditional delete)
+      try {
+        await this.redis.eval(`
+          if redis.call("get", KEYS[1]) == ARGV[1] then
+            return redis.call("del", KEYS[1])
+          else
+            return 0
+          end
+        `, 1, lockKey, lockValue);
+      } catch (lockError) {
+        console.error('Failed to release cache lock:', lockError);
+      }
+      
+      // Clean up worker
+      if (this.cacheWorker) {
+        this.cacheWorker.terminate();
+        this.cacheWorker = null;
       }
     }
   }
@@ -393,6 +455,64 @@ export class RedisCache {
     
     await pipeline.exec();
     // Cache data stored in Redis successfully
+  }
+
+  private async storeCacheDataAtomic(data: any): Promise<void> {
+    if (!this.redis) throw new Error('Redis not available');
+    
+    // Use Redis transaction (MULTI/EXEC) for atomic cache updates
+    const multi = this.redis.multi();
+    const expireTime = Math.floor(this.CACHE_DURATION_MS / 1000) + 300; // Add 5 minute buffer
+    
+    // Store all cache data atomically with expiration
+    multi.setex(CACHE_KEYS.ENTITIES, expireTime, JSON.stringify(data.entities));
+    multi.setex(CACHE_KEYS.TEAMS, expireTime, JSON.stringify(data.teams));
+    multi.setex(CACHE_KEYS.TENANTS, expireTime, JSON.stringify(data.tenants));
+    multi.setex(CACHE_KEYS.METRICS, expireTime, JSON.stringify(data.metrics));
+    multi.setex(CACHE_KEYS.LAST_30_DAY_METRICS, expireTime, JSON.stringify(data.last30DayMetrics));
+    multi.setex(CACHE_KEYS.RECENT_CHANGES, expireTime, JSON.stringify(data.recentChanges || []));
+    multi.setex(CACHE_KEYS.LAST_UPDATED, expireTime, JSON.stringify(data.lastUpdated));
+    
+    const results = await multi.exec();
+    
+    // Check if all operations succeeded
+    if (!results || results.some(result => result[0] !== null)) {
+      throw new Error('Atomic cache storage failed');
+    }
+    
+    // Cache data stored atomically in Redis successfully
+  }
+
+  private async getCacheRefreshData(): Promise<any> {
+    // This method should fetch fresh data from storage
+    // For now, use the same logic as refreshFallbackData
+    const entities = await storage.getEntities();
+    const teams = await storage.getTeams();
+    const tenants = await storage.getTenants();
+    
+    // Calculate metrics for each tenant
+    const metrics: Record<string, DashboardMetrics> = {};
+    const last30DayMetrics: Record<string, DashboardMetrics> = {};
+    
+    for (const tenant of tenants) {
+      const tenantEntities = entities.filter(e => e.tenant_name === tenant.name);
+      const tenantTables = tenantEntities.filter(e => e.type === 'table');
+      const tenantDags = tenantEntities.filter(e => e.type === 'dag');
+      
+      const tenantMetrics = this.calculateMetrics(tenantEntities, tenantTables, tenantDags);
+      metrics[tenant.name] = tenantMetrics;
+      last30DayMetrics[tenant.name] = tenantMetrics;
+    }
+    
+    return {
+      entities,
+      teams,
+      tenants,
+      metrics,
+      last30DayMetrics,
+      lastUpdated: new Date(),
+      recentChanges: []
+    };
   }
 
   // Public methods for accessing cached data
