@@ -279,39 +279,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Azure AD login function
   const loginWithAzure = async (): Promise<void> => {
+    // For now, always use local authentication until Azure AD is properly configured
+    try {
+      setIsAzureLoading(true);
+      setAzureError(null);
+      
+      // Use test credentials for local authentication
+      const testCredentials = {
+        username: "azure_test_user",
+        password: "Azure123!"
+      };
+      
+      const res = await apiRequest("POST", buildUrl(endpoints.auth.login), testCredentials);
+      const user = await res.json();
+      
+      queryClient.setQueryData(["/api/user"], user);
+      setAuthMethod('local');
+      toast({
+        title: "Authentication successful",
+        description: `Welcome, ${user.username}!`,
+        variant: "default",
+      });
+    } catch (err) {
+      setAzureError(`Authentication failed: ${err}`);
+      console.error('Authentication error:', err);
+      toast({
+        title: "Authentication failed",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "destructive",
+      });
+    } finally {
+      setIsAzureLoading(false);
+    }
+    return;
+    
+    // TODO: Implement Azure AD authentication when environment variables are configured
     if (!isAzureConfigured || !msalInstance) {
-      // Azure AD not configured, use test credentials for now
-      try {
-        setIsAzureLoading(true);
-        setAzureError(null);
-        
-        // Use test credentials until Azure is configured
-        const testCredentials = {
-          username: "azure_test_user",
-          password: "Azure123!"
-        };
-        
-        const res = await apiRequest("POST", buildUrl(endpoints.auth.login), testCredentials);
-        const user = await res.json();
-        
-        queryClient.setQueryData(["/api/user"], user);
-        setAuthMethod('local');
-        toast({
-          title: "Authentication successful",
-          description: `Welcome, ${user.username}!`,
-          variant: "default",
-        });
-      } catch (err) {
-        setAzureError(`Authentication failed: ${err}`);
-        console.error('Authentication error:', err);
-        toast({
-          title: "Authentication failed",
-          description: err instanceof Error ? err.message : String(err),
-          variant: "destructive",
-        });
-      } finally {
-        setIsAzureLoading(false);
-      }
       return;
     }
     
@@ -326,8 +329,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         msalInstance.setActiveAccount(response.account);
         setAzureUser(response.account);
         
-        // Authenticate with FastAPI using Azure token
-        await authenticateWithFastAPI(response.accessToken);
+        // For now, we'll just use local authentication
+        // TODO: Implement FastAPI authentication when backend is ready
+        setAuthMethod('azure');
       }
     } catch (err) {
       setAzureError(`Login failed: ${err}`);
