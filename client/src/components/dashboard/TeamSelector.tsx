@@ -64,6 +64,13 @@ const TeamSelector = ({ teams, openTeamTabs, onAddTeamTab }: TeamSelectorProps) 
           vertical: 'top',
           horizontal: 'center',
         }}
+        PaperProps={{
+          style: {
+            maxHeight: 300, // Limit height to show scrollbar
+            width: 200, // Set fixed width for better UX
+            overflowY: 'auto', // Enable vertical scrolling
+          },
+        }}
       >
         {availableTeams.length > 0 ? (
           availableTeams.map((team) => (
