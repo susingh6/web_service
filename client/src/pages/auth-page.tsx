@@ -45,9 +45,12 @@ const AuthPage = () => {
               Sign in to access the SLA management platform
             </CardDescription>
           </CardHeader>
-          <CardContent className="flex-1 flex flex-col justify-center">
-            <div className="flex flex-col items-center justify-center space-y-6">
-              <h3 className="text-lg font-semibold">Log in</h3>
+          <CardContent className="flex-1 flex flex-col justify-center items-center">
+            <div className="w-full space-y-8">
+              <div className="text-center">
+                <h3 className="text-lg font-semibold">Log in</h3>
+              </div>
+              
               <Button
                 variant="default"
                 type="button"
