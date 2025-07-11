@@ -528,9 +528,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
       );
       
       if (entitiesWithNewDags.length > 0) {
-        console.log(`Found ${entitiesWithNewDags.length} DAGs that need backend validation:`, 
-          entitiesWithNewDags.map(e => (e as DagEntity).dag_name)
-        );
+        // Found DAGs that need backend validation
       }
       
       // Use centralized API configuration for bulk entity creation

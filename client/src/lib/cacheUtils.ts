@@ -86,7 +86,7 @@ export const updateCacheWithNewValue = (
     const updatedValues = [...existingValues, newValue];
     localStorage.setItem(cacheKey, JSON.stringify(updatedValues));
     localStorage.setItem(`${cacheKey}_time`, Date.now().toString());
-    console.log(`Cache updated with validated ${cacheKey.slice(0, -1)}:`, newValue);
+    // Cache updated with validated value
     return updatedValues;
   }
   return existingValues;

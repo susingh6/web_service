@@ -31,14 +31,14 @@ const initializeDefaultCache = (): void => {
  * This ensures that modals open quickly without needing to fetch data
  */
 export const preloadAllCacheData = async (): Promise<void> => {
-  console.log('Preloading cache data for faster modal loading...');
+  // Preloading cache data for faster modal loading
   
   // Initialize with defaults first for instant access
   initializeDefaultCache();
   
   // Skip API calls for now since we don't have real endpoints configured
   // Just use the default values that were already initialized
-  console.log('Cache preloading complete');
+  // Cache preloading complete
   
   // TODO: Replace with real API endpoints when backend is fully configured
   // await Promise.all([
@@ -52,5 +52,5 @@ export const preloadAllCacheData = async (): Promise<void> => {
 export const refreshCacheInBackground = async (): Promise<void> => {
   // Skip background refresh for now since we don't have real endpoints configured
   // TODO: Replace with real API endpoints when backend is fully configured
-  console.log('Background cache refresh skipped - using defaults');
+  // Background cache refresh skipped - using defaults
 };

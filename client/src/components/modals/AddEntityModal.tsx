@@ -92,7 +92,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
         setDagOptions(getFromCacheGeneric<string[]>('dags', ['agg_daily', 'agg_hourly', 'PGM_Freeview_Play_Agg_Daily', 'CHN_agg', 'CHN_billing']));
       }
       
-      console.log('Modal opened - using cached values without additional API calls');
+      // Modal opened - using cached values without additional API calls
     }
   }, [open, entityType]);
   
@@ -167,7 +167,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
   };
   
   const onSubmit = async (data: any) => {
-    console.log('Form data:', data);
+    // Form data submitted
     setValidationError(null);
     
     try {
@@ -209,7 +209,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
       // Use centralized API configuration for entity creation
       const endpoint = buildUrl(endpoints.entities);
         
-      console.log(`Submitting ${entityType} to endpoint: ${endpoint}`);
+      // Submitting entity to endpoint
       
       // Make the API call to create the entity using centralized apiRequest
       const response = await apiRequest('POST', endpoint, entityData);

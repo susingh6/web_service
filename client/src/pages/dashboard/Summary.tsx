@@ -51,7 +51,7 @@ const Summary = () => {
   // WebSocket connection for real-time updates
   const { isConnected } = useWebSocket({
     onEntityUpdated: (data) => {
-      console.log('Entity updated via WebSocket:', data);
+      // Entity updated via WebSocket
       // Invalidate and refetch entities to show updated data
       queryClient.invalidateQueries({ queryKey: ['entities'] });
       dispatch(fetchEntities({}));
@@ -65,7 +65,7 @@ const Summary = () => {
       });
     },
     onCacheUpdated: (data) => {
-      console.log('Cache updated via WebSocket:', data);
+      // Cache updated via WebSocket
       // Refresh all dashboard data
       dispatch(fetchDashboardSummary({ tenantName: selectedTenant.name }));
       dispatch(fetchEntities({}));
@@ -81,10 +81,10 @@ const Summary = () => {
       });
     },
     onConnect: () => {
-      console.log('WebSocket connected - real-time updates enabled');
+      // WebSocket connected - real-time updates enabled
     },
     onDisconnect: () => {
-      console.log('WebSocket disconnected - real-time updates disabled');
+      // WebSocket disconnected - real-time updates disabled
     }
   });
   
@@ -123,7 +123,7 @@ const Summary = () => {
       setSelectedTenant(tenant);
       // DO NOT clear team tabs - tenant filter only affects Summary tab data
       // Refresh Summary dashboard data with new tenant
-      console.log(`Switching to tenant: ${tenant.name}`);
+      // Switching to tenant
       
       // Invalidate cached dashboard data to force fresh fetch
       queryClient.invalidateQueries({ queryKey: ['/api/dashboard/summary'] });

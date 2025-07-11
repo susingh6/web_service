@@ -49,9 +49,7 @@ const TeamDashboard = () => {
   // Debug logging for team lookup
   useEffect(() => {
     if (id && teams.length > 0) {
-      console.log('TeamDashboard: Looking for team with ID/name:', id);
-      console.log('Available teams:', teams.map(t => ({ id: t.id, name: t.name })));
-      console.log('Found team:', team);
+      // TeamDashboard: Looking for team with ID/name
     }
   }, [id, teams, team]);
   

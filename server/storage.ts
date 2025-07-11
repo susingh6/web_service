@@ -142,7 +142,7 @@ export class MemStorage implements IStorage {
       const mockDags = JSON.parse(fileData) as Entity[];
       
       if (mockDags && Array.isArray(mockDags)) {
-        console.log(`Loading ${mockDags.length} mock DAGs from data file...`);
+        // Loading mock DAGs from data file
         
         // Reset entity ID if needed to accommodate the mock data IDs
         this.entityId = Math.max(...mockDags.map(dag => dag.id), 0) + 1;
@@ -175,7 +175,7 @@ export class MemStorage implements IStorage {
           });
         });
         
-        console.log(`Successfully loaded ${mockDags.length} mock DAGs into storage.`);
+        // Successfully loaded mock DAGs into storage
       }
     } catch (error) {
       console.error('Failed to load mock DAG data:', error);

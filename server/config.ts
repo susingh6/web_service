@@ -23,7 +23,7 @@ export const config = {
   // Log test mode status on startup
   logTestMode: () => {
     if (testMode) {
-      console.log('🧪 Running in TEST MODE - using mock data');
+      // Running in TEST MODE - using mock data
     }
   }
 };

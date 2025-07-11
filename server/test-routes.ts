@@ -47,7 +47,7 @@ export function setupTestRoutes(app: Express) {
     try {
       // Direct password hash without scrypt for testing
       const passwordHash = await hashPassword("Azure123!");
-      console.log("Created test user with password hash:", passwordHash);
+      // Created test user with password hash
       
       // Create or update test user with known fixed hash
       const testUser = {
@@ -61,12 +61,12 @@ export function setupTestRoutes(app: Express) {
       // Delete existing user if any
       let existingUser = await storage.getUserByUsername("azure_test_user");
       if (existingUser) {
-        console.log("Existing test user found with ID:", existingUser.id);
+        // Existing test user found
         // We don't have a delete method, so we'll just overwrite
       }
       
       const user = await storage.createUser(testUser);
-      console.log("Created/updated test user with ID:", user.id);
+      // Created/updated test user
       
       res.json({
         message: "Test user created successfully",

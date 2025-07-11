@@ -29,12 +29,12 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const wsUrl = `${protocol}//${window.location.host}${config.websocket.path}`;
       
-      console.log('Connecting to WebSocket:', wsUrl);
+      // Connecting to WebSocket
       
       ws.current = new WebSocket(wsUrl);
 
       ws.current.onopen = () => {
-        console.log('WebSocket connected');
+        // WebSocket connected
         setIsConnected(true);
         setConnectionError(null);
         reconnectAttempts.current = 0;
@@ -44,7 +44,7 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
       ws.current.onmessage = (event) => {
         try {
           const message: WebSocketMessage = JSON.parse(event.data);
-          console.log('WebSocket message received:', message);
+          // WebSocket message received
           
           // Call general message handler
           options.onMessage?.(message);
@@ -58,7 +58,7 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
               options.onEntityUpdated?.(message.data);
               break;
             default:
-              console.log('Unknown WebSocket event:', message.event);
+              // Unknown WebSocket event
           }
         } catch (error) {
           console.error('Error parsing WebSocket message:', error);
@@ -66,14 +66,14 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
       };
 
       ws.current.onclose = () => {
-        console.log('WebSocket disconnected');
+        // WebSocket disconnected
         setIsConnected(false);
         options.onDisconnect?.();
         
         // Attempt to reconnect
         if (reconnectAttempts.current < maxReconnectAttempts) {
           const delay = Math.min(1000 * Math.pow(2, reconnectAttempts.current), 30000);
-          console.log(`Reconnecting in ${delay}ms (attempt ${reconnectAttempts.current + 1}/${maxReconnectAttempts})`);
+          // Reconnecting
           
           reconnectTimeoutRef.current = setTimeout(() => {
             reconnectAttempts.current++;

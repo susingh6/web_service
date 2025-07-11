@@ -298,7 +298,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setAuthMethod('local');
       
       const endTime = performance.now();
-      console.log(`Authentication completed in ${endTime - startTime}ms`);
+      // Authentication completed
       
       toast({
         title: "Authentication successful",

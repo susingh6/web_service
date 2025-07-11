@@ -52,7 +52,7 @@ export const useUpdateTaskPriority = () => {
         return await response.json();
       } catch (error) {
         // Fall back to mock data if API fails or doesn't exist yet
-        console.log('Using mock update for task:', taskId);
+        // Using mock update for task
         return mockTaskService.updateTaskPriority(taskId, priority);
       }
     },

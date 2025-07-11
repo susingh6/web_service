@@ -70,7 +70,7 @@ export class RedisCache {
 
   private setupEventHandlers(): void {
     this.redis.on('connect', () => {
-      console.log('Redis main client connected');
+      // Redis main client connected
     });
 
     this.redis.on('error', (err) => {
@@ -78,7 +78,7 @@ export class RedisCache {
     });
 
     this.subscriber.on('connect', () => {
-      console.log('Redis subscriber connected');
+      // Redis subscriber connected
       this.setupSubscriptions();
     });
 
@@ -94,10 +94,10 @@ export class RedisCache {
 
     this.subscriber.on('message', (channel, message) => {
       if (channel === CACHE_KEYS.REFRESH_CHANNEL) {
-        console.log('Cache refresh notification received');
+        // Cache refresh notification received
         this.broadcastToClients('cache_refreshed', JSON.parse(message));
       } else if (channel === CACHE_KEYS.CHANGES_CHANNEL) {
-        console.log('Entity change notification received');
+        // Entity change notification received
         this.broadcastToClients('entity_changed', JSON.parse(message));
       }
     });
@@ -148,23 +148,23 @@ export class RedisCache {
       // Ping test
       await this.redis.ping();
       
-      console.log('Redis connection successful');
+      // Redis connection successful
       this.useRedis = true;
       
       // Check if cache exists, if not initialize it
       const cacheExists = await this.redis.exists(CACHE_KEYS.ENTITIES);
       
       if (!cacheExists) {
-        console.log('Redis cache not found, initializing...');
+        // Redis cache not found, initializing
         await this.refreshCacheWithWorker();
       } else {
-        console.log('Redis cache found, validating...');
+        // Redis cache found, validating
         await this.validateCache();
       }
 
       this.startAutoRefresh();
       this.isInitialized = true;
-      console.log('Redis cache system initialized successfully');
+      // Redis cache system initialized successfully
       
     } catch (error) {
       // Clean up failed connections
@@ -181,14 +181,14 @@ export class RedisCache {
   }
 
   private async initializeFallback(): Promise<void> {
-    console.log('Initializing fallback in-memory cache...');
+    // Initializing fallback in-memory cache
     this.useRedis = false;
     
     // Initialize fallback data directly
     await this.refreshFallbackData();
     
     this.isInitialized = true;
-    console.log('Fallback cache system initialized successfully');
+    // Fallback cache system initialized successfully
   }
 
   private async refreshFallbackData(): Promise<void> {
@@ -223,7 +223,7 @@ export class RedisCache {
         recentChanges: []
       };
       
-      console.log(`Fallback cache refreshed successfully: ${entities.length} entities, ${teams.length} teams, ${tenants.length} tenants`);
+      // Fallback cache refreshed successfully
     } catch (error) {
       console.error('Failed to refresh fallback data:', error);
       throw error;
@@ -251,7 +251,7 @@ export class RedisCache {
     try {
       const lastUpdated = await this.redis.get(CACHE_KEYS.LAST_UPDATED);
       if (!lastUpdated) {
-        console.log('Cache validation failed: no last updated timestamp');
+        // Cache validation failed: no last updated timestamp
         await this.refreshCacheWithWorker();
         return;
       }
@@ -261,10 +261,10 @@ export class RedisCache {
       const timeDiff = now.getTime() - lastUpdateTime.getTime();
 
       if (timeDiff > this.CACHE_DURATION_MS) {
-        console.log('Cache validation failed: cache is stale');
+        // Cache validation failed: cache is stale
         await this.refreshCacheWithWorker();
       } else {
-        console.log('Cache validation passed: cache is fresh');
+        // Cache validation passed: cache is fresh
       }
     } catch (error) {
       console.error('Cache validation error:', error);
@@ -278,16 +278,16 @@ export class RedisCache {
     }
 
     this.refreshInterval = setInterval(async () => {
-      console.log('Auto-refresh triggered');
+      // Auto-refresh triggered
       await this.refreshCacheWithWorker();
     }, this.CACHE_DURATION_MS);
 
-    console.log(`Auto-refresh scheduled every ${config.cache.refreshIntervalHours} hours`);
+    // Auto-refresh scheduled
   }
 
   setupWebSocket(wss: WebSocketServer): void {
     this.wss = wss;
-    console.log('WebSocket server attached to Redis cache');
+    // WebSocket server attached to Redis cache
   }
 
   private broadcastToClients(event: string, data: any): void {
@@ -318,11 +318,11 @@ export class RedisCache {
       );
 
       if (!lockAcquired) {
-        console.log('Cache refresh already in progress by another instance');
+        // Cache refresh already in progress by another instance
         return;
       }
 
-      console.log('Cache refresh lock acquired, starting refresh...');
+      // Cache refresh lock acquired, starting refresh
       
       // Use worker thread for heavy cache refresh work
       return new Promise((resolve, reject) => {
@@ -347,7 +347,7 @@ export class RedisCache {
                 podId: process.pid
               }));
 
-              console.log('Cache refreshed successfully and broadcast to all pods');
+              // Cache refreshed successfully and broadcast to all pods
               resolve();
             } catch (error) {
               console.error('Error storing cache data:', error);
@@ -372,7 +372,7 @@ export class RedisCache {
       const currentLock = await this.redis.get(lockKey);
       if (currentLock === lockValue) {
         await this.redis.del(lockKey);
-        console.log('Cache refresh lock released');
+        // Cache refresh lock released
       }
     }
   }
@@ -392,7 +392,7 @@ export class RedisCache {
     pipeline.setex(CACHE_KEYS.LAST_UPDATED, expireTime, JSON.stringify(data.lastUpdated));
     
     await pipeline.exec();
-    console.log('Cache data stored in Redis successfully');
+    // Cache data stored in Redis successfully
   }
 
   // Public methods for accessing cached data
@@ -517,7 +517,7 @@ export class RedisCache {
   async updateEntity(entityName: string, entityType: string, teamName: string, updates: Partial<Entity>): Promise<boolean> {
     if (!this.useRedis || !this.redis) {
       // For fallback mode, we can't update entities (read-only)
-      console.log(`Cannot update entity ${entityName} in fallback mode`);
+      // Cannot update entity in fallback mode
       return false;
     }
     
@@ -586,7 +586,7 @@ export class RedisCache {
       // Broadcast change to all pods
       await this.redis.publish(CACHE_KEYS.CHANGES_CHANNEL, JSON.stringify(change));
       
-      console.log(`Entity ${entityName} updated successfully in Redis cache`);
+      // Entity updated successfully in Redis cache
       return true;
     } catch (error) {
       console.error('Error updating entity in Redis:', error);
@@ -666,7 +666,7 @@ export class RedisCache {
   }
 
   async forceRefresh(): Promise<void> {
-    console.log('Force refresh requested');
+    // Force refresh requested
     if (!this.useRedis || !this.redis) {
       await this.refreshFallbackData();
       return;
@@ -691,7 +691,7 @@ export class RedisCache {
       this.subscriber.disconnect();
     }
     
-    console.log('Redis cache destroyed');
+    // Redis cache destroyed
   }
 }
 

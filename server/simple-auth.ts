@@ -28,7 +28,7 @@ async function authenticateWithFastAPI(username: string, password: string): Prom
     
     return null;
   } catch (error) {
-    console.error('FastAPI authentication failed:', error);
+    // FastAPI authentication failed
     return null;
   }
 }
@@ -71,18 +71,16 @@ export function setupSimpleAuth(app: Express) {
   passport.use(
     new LocalStrategy(async (username, password, done) => {
       try {
-        console.log(`Login attempt for user: ${username}`);
+        // Login attempt
         const user = await storage.getUserByUsername(username);
         
         if (!user) {
-          console.log(`User not found: ${username}`);
+          // User not found
           return done(null, false);
         }
         
         // Debug log the password details
-        console.log(`Login attempt details:`);
-        console.log(`- Provided password: ${password}`);
-        console.log(`- Stored password in DB: ${user.password}`);
+        // Login attempt details available for debugging
         
         // For development with plain passwords - TEMPORARY
         // In production, this would be proper password comparison
@@ -227,11 +225,11 @@ export function setupSimpleAuth(app: Express) {
       
       if (user) {
         // For testing, overwrite the existing user to ensure the password is correct
-        console.log("User already exists, updating password to ensure it works");
+        // User already exists, updating password
         // In a real app, we would update the user here
       } else {
         user = await storage.createUser(testUser);
-        console.log("Created test user with ID:", user.id);
+        // Created test user
       }
       
       res.json({

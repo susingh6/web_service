@@ -24,7 +24,7 @@ interface CacheRefreshData {
 // Worker thread main function
 async function refreshCacheData(): Promise<CacheRefreshData> {
   try {
-    console.log('[Cache Worker] Starting cache refresh...');
+    // [Cache Worker] Starting cache refresh
     
     // Load all entities, teams, and tenants
     const entities = await storage.getEntities();
@@ -51,7 +51,7 @@ async function refreshCacheData(): Promise<CacheRefreshData> {
       lastUpdated: new Date()
     };
 
-    console.log(`[Cache Worker] Cache refresh completed: ${entities.length} entities, ${teams.length} teams, ${tenants.length} tenants`);
+    // [Cache Worker] Cache refresh completed
     return cacheData;
     
   } catch (error) {

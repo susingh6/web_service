@@ -640,7 +640,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
       });
       
-      console.log(`Generated 30-day trends for ${trends.length} entities`);
+      // Generated 30-day trends
       res.json(trends);
     } catch (error) {
       console.error("Error fetching 30-day trends:", error);
@@ -778,7 +778,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         updatedAt: new Date().toISOString()
       };
 
-      console.log(`Task ${taskId} priority updated to ${priority}`);
+      // Task priority updated
       res.json(updatedTask);
     } catch (error) {
       console.error("Error updating task priority:", error);
@@ -898,7 +898,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = await storage.getUserByUsername("azure_test_user");
       if (user) {
         // For debugging, we'll actually show the password hash
-        console.log("Test user found with hash:", user.password);
+        // Test user found
         res.status(200).json({
           message: "Test user exists",
           user: {
@@ -930,7 +930,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const existingUser = await storage.getUserByUsername("azure_test_user");
       if (existingUser) {
         // If we had a deleteUser method, we'd use it here
-        console.log("Found existing user, will recreate with new password");
+        // Found existing user
       }
       
       // Create a new test user with plain text password for testing
@@ -943,7 +943,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
       
       const user = await storage.createUser(testUser);
-      console.log("Created test user with ID:", user.id);
+      // Created test user
       
       res.status(200).json({
         message: "Test user created/reset successfully",
@@ -1023,7 +1023,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     ws.on('message', (message) => {
       try {
         const data = JSON.parse(message.toString());
-        console.log('WebSocket message received:', data);
+        // WebSocket message received
         
         // Handle different message types if needed
         if (data.type === 'ping') {
@@ -1035,7 +1035,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
     
     ws.on('close', () => {
-      console.log('WebSocket client disconnected');
+      // Client disconnected - no logging needed
     });
     
     ws.on('error', (error) => {

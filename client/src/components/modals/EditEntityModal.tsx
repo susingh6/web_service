@@ -132,15 +132,15 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
       try {
         // First try to get detailed entity data from the API
         const detailsEndpoint = endpoints.entity.details(entity.id);
-        console.log(`Fetching entity details from: ${detailsEndpoint}`);
+        // Fetching entity details from endpoint
         
         const response = await apiRequest('GET', detailsEndpoint);
         const detailsData = await response.json();
         
-        console.log('Entity details from API:', detailsData);
+        // Entity details from API
         return detailsData;
       } catch (error) {
-        console.log('Entity details API not available, using existing entity data');
+        // Entity details API not available, using existing entity data
         // Fallback to basic entity data with enhanced mock data structure
         return {
           ...entity,
@@ -230,7 +230,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
   // Reset form when entity details are loaded
   useEffect(() => {
     if (open && entityDetails && !isLoadingEntityDetails) {
-      console.log('Resetting form with entity details:', entityDetails);
+      // Resetting form with entity details
       
       // Map entity details to form fields
       const formData = entityType === 'table' ? {

@@ -29,17 +29,17 @@ export async function get30DayTrends(): Promise<TrendData[]> {
   const cached = getCachedTrends();
   
   if (cached && !isCacheExpired(cached.timestamp)) {
-    console.log('Using cached 30-day trend data');
+    // Using cached 30-day trend data
     return cached.data;
   }
   
   // If there's already a pending request, wait for it instead of making a new one
   if (pendingRequest) {
-    console.log('Waiting for pending trend request to complete');
+    // Waiting for pending trend request to complete
     return await pendingRequest;
   }
   
-  console.log('Cache expired or missing, fetching fresh 30-day trend data');
+  // Cache expired or missing, fetching fresh 30-day trend data
   pendingRequest = fetchAndCache30DayTrends();
   
   try {
@@ -63,7 +63,7 @@ export async function getEntityTrend(entityId: number): Promise<TrendData | null
  * Force refresh of 30-day trend cache
  */
 export async function refresh30DayTrends(): Promise<TrendData[]> {
-  console.log('Force refreshing 30-day trend cache');
+  // Force refreshing 30-day trend cache
   return await fetchAndCache30DayTrends();
 }
 
@@ -115,7 +115,7 @@ async function fetchAndCache30DayTrends(): Promise<TrendData[]> {
     
     localStorage.setItem(CACHE_KEY, JSON.stringify(cacheEntry));
     
-    console.log(`Cached 30-day trends for ${trends.length} entities`);
+    // Cached 30-day trends for entities
     return trends;
     
   } catch (error) {
@@ -124,12 +124,12 @@ async function fetchAndCache30DayTrends(): Promise<TrendData[]> {
     // Return cached data if available, even if expired
     const cached = getCachedTrends();
     if (cached) {
-      console.log('API failed, using expired cache data');
+      // API failed, using expired cache data
       return cached.data;
     }
     
     // Return empty array if no cache available
-    console.log('No cache available, returning empty trends');
+    // No cache available, returning empty trends
     return [];
   }
 }
@@ -139,7 +139,7 @@ async function fetchAndCache30DayTrends(): Promise<TrendData[]> {
  */
 export function clearTrendCache(): void {
   localStorage.removeItem(CACHE_KEY);
-  console.log('30-day trend cache cleared');
+  // 30-day trend cache cleared
 }
 
 /**
