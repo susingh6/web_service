@@ -86,12 +86,53 @@ const TeamDashboard = ({
   
   return (
     <Box sx={{ p: 3 }}>
-      {/* Header with title and action buttons */}
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h5" component="h2" fontWeight={600}>
-          {teamName} Team Dashboard
+      {/* Team Header Section */}
+      <Box sx={{ mb: 3 }}>
+        <Typography variant="h4" component="h1" fontWeight={600} sx={{ mb: 1 }}>
+          {teamName}
         </Typography>
-        
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          Team responsible for core data analytics
+        </Typography>
+        <Box display="flex" gap={1}>
+          <Box sx={{ 
+            bgcolor: 'success.main', 
+            color: 'white', 
+            px: 1, 
+            py: 0.5, 
+            borderRadius: 1, 
+            fontSize: '0.75rem',
+            fontWeight: 500
+          }}>
+            Active
+          </Box>
+          <Box sx={{ 
+            bgcolor: 'info.main', 
+            color: 'white', 
+            px: 1, 
+            py: 0.5, 
+            borderRadius: 1, 
+            fontSize: '0.75rem',
+            fontWeight: 500
+          }}>
+            Monitoring
+          </Box>
+          <Box sx={{ 
+            bgcolor: 'warning.main', 
+            color: 'white', 
+            px: 1, 
+            py: 0.5, 
+            borderRadius: 1, 
+            fontSize: '0.75rem',
+            fontWeight: 500
+          }}>
+            SLA
+          </Box>
+        </Box>
+      </Box>
+      
+      {/* Header with action buttons */}
+      <Box display="flex" justifyContent="flex-end" alignItems="center" mb={3}>
         <Box display="flex" gap={2} alignItems="center">
           <DateRangePicker />
           

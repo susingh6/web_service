@@ -113,10 +113,11 @@ Preferred communication style: Simple, everyday language.
 
 ## Changelog
 
-- July 11, 2025: Implemented proper filter separation between Summary and Team dashboards
+- July 11, 2025: Restored missing team header section and implemented proper filter separation
+  - Added missing team header section: large team name, description, and status badges (Active, Monitoring, SLA)
   - Tenant filter now appears exclusively in Summary dashboard (only when Summary tab is active)
   - Each team dashboard has its own dedicated date filter separate from Summary
-  - Team dashboards show: team name, team-specific date filter, Add Entity button, Bulk Upload button
+  - Team dashboards show: team header section, team-specific date filter, Add Entity button, Bulk Upload button
   - Summary dashboard shows: "Overall SLA Performance" title, tenant filter, summary date filter
   - Achieved complete separation of global filters (tenant) vs team-specific filters (date)
 - July 11, 2025: Completed scalable tenant filtering system with dynamic team performance charts
