@@ -47,8 +47,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Teams endpoints - using cache
   app.get("/api/teams", async (req, res) => {
     try {
+      const { teamName } = req.query;
       const teams = await redisCache.getAllTeams();
-      res.json(teams);
+      
+      // If team name is provided, filter teams or log the specific team request
+      if (teamName) {
+        const filteredTeams = teams.filter(team => team.name === teamName);
+        res.json(filteredTeams);
+      } else {
+        res.json(teams);
+      }
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch teams from cache" });
     }

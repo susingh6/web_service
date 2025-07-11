@@ -68,7 +68,10 @@ const Summary = () => {
       // Refresh all dashboard data
       dispatch(fetchDashboardSummary({ tenantName: selectedTenant.name }));
       dispatch(fetchEntities({}));
-      dispatch(fetchTeams());
+      // Only refresh teams if we already have team tabs open
+      if (openTeamTabs.length > 0) {
+        dispatch(fetchTeams());
+      }
       
       toast({
         title: "Data Refreshed",
@@ -88,7 +91,7 @@ const Summary = () => {
   useEffect(() => {
     dispatch(fetchDashboardSummary({ tenantName: selectedTenant.name }));
     dispatch(fetchEntities({})); // Load ALL entities for team dashboards
-    dispatch(fetchTeams());
+    // Teams are only loaded when user clicks "+" button
     
     // Preload tenant cache for future use
     preloadTenantCache().then(() => {
@@ -130,6 +133,9 @@ const Summary = () => {
   const handleAddTeamTab = (teamName: string) => {
     if (!openTeamTabs.includes(teamName)) {
       setOpenTeamTabs([...openTeamTabs, teamName]);
+      // Load team data when user clicks "+" button
+      // This will trigger API call with team name parameter for structured logging
+      dispatch(fetchTeams(teamName));
     }
     setActiveTab(teamName);
   };

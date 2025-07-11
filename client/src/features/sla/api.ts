@@ -3,8 +3,12 @@ import { apiRequest } from '@/lib/queryClient';
 import { endpoints } from '@/config';
 
 export const teamsApi = {
-  getAll: async () => {
-    const res = await apiRequest('GET', endpoints.teams);
+  getAll: async (teamName?: string) => {
+    let url = endpoints.teams;
+    if (teamName) {
+      url += `?teamName=${encodeURIComponent(teamName)}`;
+    }
+    const res = await apiRequest('GET', url);
     return await res.json();
   },
 };

@@ -49,8 +49,8 @@ export const fetchEntity = createAsyncThunk(
 
 export const fetchTeams = createAsyncThunk(
   'entities/fetchTeams',
-  async () => {
-    return await teamsApi.getAll();
+  async (teamName?: string) => {
+    return await teamsApi.getAll(teamName);
   }
 );
 
