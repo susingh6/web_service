@@ -327,5 +327,6 @@ class DataCache {
   }
 }
 
-// Export singleton instance
+// Export both class and singleton instance
+export { DataCache };
 export const dataCache = new DataCache();

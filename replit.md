@@ -113,6 +113,19 @@ Preferred communication style: Simple, everyday language.
 
 ## Changelog
 
+- July 11, 2025: Implemented Redis-based distributed caching system with automatic fallback for multi-pod Kubernetes deployment
+  - Created RedisCache class in server/redis-cache.ts with full Redis integration and automatic fallback to in-memory cache
+  - Added distributed locking to prevent multiple pods from refreshing cache simultaneously using Redis
+  - Implemented Redis pub/sub system for real-time cache updates across all pods
+  - Added comprehensive hybrid cache system that maintains all existing functionality (6-hour refresh, incremental updates, WebSocket)
+  - Created Docker Compose configuration with Redis, PostgreSQL, and dual app instances for testing multi-pod scenarios
+  - Added Dockerfile for containerized deployment with proper health checks and non-root user security
+  - Created comprehensive README-REDIS-SETUP.md with Kubernetes deployment instructions and monitoring guidelines
+  - System automatically detects Redis availability and falls back to in-memory cache when Redis is unavailable
+  - All existing cache functionality preserved - no breaking changes to existing features
+  - Added /api/health endpoint for container health checks and load balancer monitoring
+  - Cache status endpoint now shows Redis connection status and fallback mode information
+  - Ready for production deployment with horizontal scaling support across multiple pods
 - July 11, 2025: Cleaned up redundant code introduced during recent bug fixes and enhancements
   - Removed unused handleHistoryClick function from EntityTable.tsx after History button behavior change
   - Removed unused /api/test/simulate-entity-update backend endpoint after test UI button removal

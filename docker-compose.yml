@@ -1,0 +1,135 @@
+version: '3.8'
+
+services:
+  # Redis Cache Service
+  redis:
+    image: redis:7-alpine
+    container_name: sla-redis
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - sla-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # PostgreSQL Database Service
+  postgres:
+    image: postgres:15-alpine
+    container_name: sla-postgres
+    environment:
+      POSTGRES_DB: sla_management
+      POSTGRES_USER: sla_user
+      POSTGRES_PASSWORD: sla_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - sla-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sla_user -d sla_management"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # SLA Management App - Instance 1
+  sla-app-1:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sla-app-1
+    environment:
+      - NODE_ENV=production
+      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql://sla_user:sla_password@postgres:5432/sla_management
+      - CACHE_REFRESH_INTERVAL_HOURS=6
+      - SESSION_SECRET=your-secret-session-key-here
+      - PORT=3000
+    ports:
+      - "3000:3000"
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - sla-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # SLA Management App - Instance 2 (demonstrates multi-pod setup)
+  sla-app-2:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sla-app-2
+    environment:
+      - NODE_ENV=production
+      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql://sla_user:sla_password@postgres:5432/sla_management
+      - CACHE_REFRESH_INTERVAL_HOURS=6
+      - SESSION_SECRET=your-secret-session-key-here
+      - PORT=3000
+    ports:
+      - "3001:3000"
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - sla-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Redis Commander (Optional - for Redis GUI)
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: redis-commander
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    ports:
+      - "8081:8081"
+    depends_on:
+      - redis
+    networks:
+      - sla-network
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+    driver: local
+  postgres_data:
+    driver: local
+
+networks:
+  sla-network:
+    driver: bridge
+
+# Usage Instructions:
+# 1. Start all services: docker-compose up -d
+# 2. View logs: docker-compose logs -f sla-app-1
+# 3. Access applications:
+#    - Instance 1: http://localhost:3000
+#    - Instance 2: http://localhost:3001  
+#    - Redis GUI: http://localhost:8081
+# 4. Stop services: docker-compose down
+# 5. Remove volumes: docker-compose down -v

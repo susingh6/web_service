@@ -2,7 +2,7 @@ import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer } from "ws";
 import { storage } from "./storage";
-import { dataCache } from "./cache";
+import { redisCache } from "./redis-cache";
 import { insertEntitySchema, insertTeamSchema, insertEntityHistorySchema, insertIssueSchema, insertUserSchema, insertNotificationTimelineSchema } from "@shared/schema";
 import { z } from "zod";
 import { setupSimpleAuth } from "./simple-auth";
@@ -47,7 +47,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Teams endpoints - using cache
   app.get("/api/teams", async (req, res) => {
     try {
-      const teams = dataCache.getAllTeams();
+      const teams = await redisCache.getAllTeams();
       res.json(teams);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch teams from cache" });
@@ -57,7 +57,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Tenants endpoints - using cache
   app.get("/api/tenants", async (req, res) => {
     try {
-      const tenants = dataCache.getAllTenants();
+      const tenants = await redisCache.getAllTenants();
       res.json(tenants);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch tenants from cache" });
@@ -67,7 +67,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Debug endpoint to check team data - using cache
   app.get("/api/debug/teams", async (req, res) => {
     try {
-      const teams = dataCache.getAllTeams();
+      const teams = await redisCache.getAllTeams();
       res.json({
         total: teams.length,
         teams: teams.map(t => ({ id: t.id, name: t.name, description: t.description })),
@@ -78,10 +78,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Health check endpoint
+  app.get('/api/health', (req: Request, res: Response) => {
+    res.status(200).json({ 
+      status: 'healthy', 
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      cache: 'redis-fallback-ready'
+    });
+  });
+
   // Cache management endpoints
   app.get("/api/cache/status", async (req, res) => {
     try {
-      const status = dataCache.getCacheStatus();
+      const status = await redisCache.getCacheStatus();
       res.json(status);
     } catch (error) {
       res.status(500).json({ message: "Failed to get cache status" });
@@ -172,12 +182,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Entities endpoints - using cache
   app.get("/api/entities", async (req, res) => {
     try {
-      let entities = dataCache.getAllEntities();
+      let entities = await redisCache.getAllEntities();
       
       // Filter by tenant if tenant parameter is provided
       if (req.query.tenant) {
         const tenantName = req.query.tenant as string;
-        entities = dataCache.getEntitiesByTenant(tenantName);
+        entities = await redisCache.getEntitiesByTenant(tenantName);
       }
       
       // Additional filters
@@ -949,7 +959,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Update cache incrementally
-      const success = dataCache.updateEntity(entityName, entityType, teamName, updates);
+      const success = await redisCache.updateEntity(entityName, entityType, teamName, updates);
       
       if (success) {
         res.json({ 
@@ -975,7 +985,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { tenantName, teamName } = req.query;
       
-      const recentChanges = dataCache.getRecentChanges(
+      const recentChanges = await redisCache.getRecentChanges(
         tenantName as string, 
         teamName as string
       );
@@ -1024,7 +1034,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Connect WebSocket to cache system
-  dataCache.setupWebSocket(wss);
+  redisCache.setupWebSocket(wss);
 
   return httpServer;
 }

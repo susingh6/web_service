@@ -1,5 +1,5 @@
 import { Worker } from 'worker_threads';
-import { parentPort } from 'worker_threads';
+import { parentPort, workerData } from 'worker_threads';
 import { storage } from './storage';
 import { Entity, Team } from '@shared/schema';
 
