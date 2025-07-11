@@ -249,10 +249,7 @@ const EntityTable = ({
     setPage(0);
   };
 
-  const handleHistoryClick = (entity: Entity) => {
-    dispatch(selectEntity(entity));
-    onViewHistory(entity);
-  };
+
 
   const isSelected = (id: number) => selected.indexOf(id) !== -1;
 

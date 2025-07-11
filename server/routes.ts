@@ -990,49 +990,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Test endpoint to simulate poller updates
-  app.post('/api/test/simulate-entity-update', async (req: Request, res: Response) => {
-    try {
-      const { entityName, entityType, teamName, tenantName } = req.body;
-      
-      // Validate required fields
-      if (!entityName || !entityType || !teamName) {
-        return res.status(400).json({ 
-          message: 'Missing required fields: entityName, entityType, teamName' 
-        });
-      }
 
-      // Simulate a poller update with new SLA data
-      const mockUpdates = {
-        currentSla: Math.round((Math.random() * 30 + 70) * 10) / 10, // Random SLA between 70-100%
-        status: Math.random() > 0.3 ? 'Passed' : 'Failed', // 70% pass rate
-        lastRefreshed: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-
-      // Update cache incrementally
-      const success = dataCache.updateEntity(entityName, entityType, teamName, mockUpdates);
-      
-      if (success) {
-        res.json({ 
-          success: true, 
-          message: `Entity ${entityName} updated successfully via test simulation`,
-          entityName,
-          entityType,
-          teamName,
-          tenantName,
-          updates: mockUpdates
-        });
-      } else {
-        res.status(404).json({ 
-          message: `Entity ${entityName} (${entityType}) not found in team ${teamName}` 
-        });
-      }
-    } catch (error) {
-      console.error('Test entity update error:', error);
-      res.status(500).json({ message: 'Failed to simulate entity update' });
-    }
-  });
 
   const httpServer = createServer(app);
 

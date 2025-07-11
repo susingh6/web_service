@@ -113,6 +113,10 @@ Preferred communication style: Simple, everyday language.
 
 ## Changelog
 
+- July 11, 2025: Cleaned up redundant code introduced during recent bug fixes and enhancements
+  - Removed unused handleHistoryClick function from EntityTable.tsx after History button behavior change
+  - Removed unused /api/test/simulate-entity-update backend endpoint after test UI button removal
+  - Eliminated redundant code while maintaining all functional improvements
 - July 11, 2025: Fixed mock data tenant assignments to properly tag entities with correct tenant names
   - Updated table entities in server/storage.ts to include tenant_name field for proper filtering
   - Fixed entity creation logic to preserve tenant_name from entity data instead of hardcoding
