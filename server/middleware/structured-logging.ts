@@ -16,9 +16,11 @@ export interface SessionContext {
   session_id: string;
   user_id: number | null;
   email: string | null;
-  session_type: 'azure_ad' | 'local' | 'client_credentials';
+  session_type: 'azure_ad' | 'local' | 'client_credentials' | 'api';
   roles: string | null;
   notification_id: string | null;
+  name?: string;
+  expires_at?: string;
 }
 
 export interface StructuredLogEvent {
@@ -103,24 +105,42 @@ export function sessionContextMiddleware(req: Request, res: Response, next: Next
   
   // Extract session context from user session or headers
   if (req.user) {
-    // User is authenticated via passport
-    req.sessionContext = {
-      session_id: req.sessionID || 'local_session',
-      user_id: req.user.id,
-      email: req.user.email,
-      session_type: 'local',
-      roles: req.user.team || null,
-      notification_id: null
-    };
+    // User is authenticated via passport - check if we have FastAPI session data
+    const fastApiSession = (req.user as any).fastApiSession;
+    if (fastApiSession) {
+      // Use FastAPI session context
+      req.sessionContext = {
+        session_id: fastApiSession.session.session_id,
+        user_id: fastApiSession.user.user_id,
+        email: fastApiSession.user.email,
+        session_type: fastApiSession.user.type,
+        roles: Array.isArray(fastApiSession.user.roles) ? fastApiSession.user.roles.join(',') : fastApiSession.user.roles,
+        notification_id: fastApiSession.user.notification_id,
+        name: fastApiSession.user.name,
+        expires_at: fastApiSession.session.expires_at
+      };
+    } else {
+      // Fallback to local session
+      req.sessionContext = {
+        session_id: req.sessionID || 'local_session',
+        user_id: req.user.id,
+        email: req.user.email,
+        session_type: 'local',
+        roles: req.user.team || null,
+        notification_id: null
+      };
+    }
   } else if (req.headers['x-session-id']) {
-    // FastAPI session token provided
+    // FastAPI session token provided via headers
     req.sessionContext = {
       session_id: req.headers['x-session-id'] as string,
       user_id: req.headers['x-user-id'] ? parseInt(req.headers['x-user-id'] as string) : null,
       email: req.headers['x-user-email'] as string || null,
       session_type: req.headers['x-session-type'] as any || 'client_credentials',
       roles: req.headers['x-user-roles'] as string || null,
-      notification_id: req.headers['x-notification-id'] as string || null
+      notification_id: req.headers['x-notification-id'] as string || null,
+      name: req.headers['x-user-name'] as string || null,
+      expires_at: req.headers['x-session-expires'] as string || null
     };
   } else {
     // Anonymous session
@@ -145,6 +165,7 @@ export function requestLoggingMiddleware(req: Request, res: Response, next: Next
     
   const event = `${req.method} ${req.path}${queryParams}`;
   
+  // Log the incoming request
   structuredLogger.info(
     event,
     req.sessionContext,

@@ -5,6 +5,33 @@ import session from "express-session";
 import MemoryStore from "memorystore";
 import { storage } from "./storage";
 import { User } from "@shared/schema";
+import { structuredLogger, logAuthenticationEvent } from "./middleware/structured-logging";
+
+// FastAPI authentication function
+async function authenticateWithFastAPI(username: string, password: string): Promise<any> {
+  try {
+    // Create basic auth header
+    const credentials = Buffer.from(`${username}:${password}`).toString('base64');
+    
+    const response = await fetch('http://localhost:8080/api/v1/auth/login', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${credentials}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (response.ok) {
+      const sessionData = await response.json();
+      return sessionData;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('FastAPI authentication failed:', error);
+    return null;
+  }
+}
 
 declare global {
   namespace Express {
@@ -111,18 +138,54 @@ export function setupSimpleAuth(app: Express) {
   });
 
   // Login route
-  app.post("/api/login", (req: Request, res: Response, next: NextFunction) => {
-    passport.authenticate("local", (err: Error | null, user: Express.User | false, info: { message: string }) => {
-      if (err) return next(err);
-      if (!user) return res.status(401).json({ message: "Invalid username or password" });
+  app.post("/api/login", async (req: Request, res: Response, next: NextFunction) => {
+    passport.authenticate("local", async (err: Error | null, user: Express.User | false, info: { message: string }) => {
+      if (err) {
+        logAuthenticationEvent("login", req.body.username, undefined, req.requestId, false);
+        return next(err);
+      }
+      if (!user) {
+        logAuthenticationEvent("login", req.body.username, undefined, req.requestId, false);
+        return res.status(401).json({ message: "Invalid username or password" });
+      }
       
-      req.login(user, (loginErr) => {
-        if (loginErr) return next(loginErr);
+      try {
+        // Try to authenticate with FastAPI and get enriched session context
+        const fastApiSession = await authenticateWithFastAPI(req.body.username, req.body.password);
         
-        // Don't send the password back to the client
-        const { password, ...userWithoutPassword } = user;
-        return res.json(userWithoutPassword);
-      });
+        // If FastAPI authentication succeeds, enrich the user object
+        if (fastApiSession) {
+          (user as any).fastApiSession = fastApiSession;
+          logAuthenticationEvent("login", req.body.username, {
+            session_id: fastApiSession.session.session_id,
+            user_id: fastApiSession.user.user_id,
+            email: fastApiSession.user.email,
+            session_type: fastApiSession.user.type,
+            roles: Array.isArray(fastApiSession.user.roles) ? fastApiSession.user.roles.join(',') : fastApiSession.user.roles,
+            notification_id: fastApiSession.user.notification_id
+          }, req.requestId, true);
+        } else {
+          logAuthenticationEvent("login", req.body.username, undefined, req.requestId, true);
+        }
+        
+        req.login(user, (loginErr) => {
+          if (loginErr) return next(loginErr);
+          
+          // Don't send the password back to the client
+          const { password, ...userWithoutPassword } = user;
+          return res.json(userWithoutPassword);
+        });
+      } catch (error) {
+        // FastAPI authentication failed, but local auth succeeded
+        logAuthenticationEvent("login", req.body.username, undefined, req.requestId, true);
+        req.login(user, (loginErr) => {
+          if (loginErr) return next(loginErr);
+          
+          // Don't send the password back to the client
+          const { password, ...userWithoutPassword } = user;
+          return res.json(userWithoutPassword);
+        });
+      }
     })(req, res, next);
   });
 
