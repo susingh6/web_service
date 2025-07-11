@@ -91,7 +91,8 @@ const Summary = () => {
   // Fetch dashboard data and preload tenant cache
   useEffect(() => {
     dispatch(fetchDashboardSummary({ tenantName: selectedTenant.name }));
-    dispatch(fetchEntities({})); // Load ALL entities for team dashboards
+    // Always load ALL entities for Summary dashboard - don't filter by team
+    dispatch(fetchEntities({})); // Load ALL entities for summary dashboard
     // Load teams data for chart display (silent load for summary page)
     dispatch(fetchTeams());
     setTeamsLoaded(true);

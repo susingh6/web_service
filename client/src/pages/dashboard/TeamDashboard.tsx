@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Box, Typography, Tabs, Tab, Card, CardContent, Chip, Paper, Button } from '@mui/material';
 import { Add as AddIcon, Upload as UploadIcon } from '@mui/icons-material';
 import { useAppDispatch, useAppSelector } from '@/lib/store';
@@ -44,15 +44,27 @@ const TeamDashboard = ({
   // Get current team info by name
   const team = teams.find((t: Team) => t.name === teamName);
   
+  // Local state for team entities to avoid affecting Summary dashboard
+  const [teamEntities, setTeamEntities] = useState<Entity[]>([]);
+  
   // Fetch data when team is found
   useEffect(() => {
     if (team?.id) {
-      dispatch(fetchEntities({ teamId: team.id }));
+      // Fetch team entities directly without updating Redux store
+      const fetchTeamEntities = async () => {
+        try {
+          const response = await fetch(`/api/entities?teamId=${team.id}`);
+          const data = await response.json();
+          setTeamEntities(data);
+        } catch (error) {
+          // Handle error silently - team data will remain empty
+        }
+      };
+      fetchTeamEntities();
     }
-  }, [dispatch, team?.id]);
+  }, [team?.id]);
   
-  // Filter entities for this team
-  const teamEntities = entities.filter((entity) => entity.teamId === team?.id);
+  // Filter entities for this team from local state
   const tables = teamEntities.filter((entity) => entity.type === 'table');
   const dags = teamEntities.filter((entity) => entity.type === 'dag');
   
