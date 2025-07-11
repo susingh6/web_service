@@ -195,7 +195,8 @@ export class MemStorage implements IStorage {
         owner: 'John Smith',
         ownerEmail: 'john.smith@company.com',
         schema_name: 'abc',
-        table_name: 'agg_channel_brightscript_error_daily'
+        table_name: 'agg_channel_brightscript_error_daily',
+        tenant_name: 'Data Engineering'
       },
       {
         name: 'brightscript_sla_core',
@@ -210,7 +211,8 @@ export class MemStorage implements IStorage {
         owner: 'Jane Doe',
         ownerEmail: 'jane.doe@company.com',
         schema_name: 'abc',
-        table_name: 'agg_accounts_channel_ux_daily'
+        table_name: 'agg_accounts_channel_ux_daily',
+        tenant_name: 'Data Engineering'
       },
       {
         name: 'accounts_channel_ux_vp',
@@ -225,7 +227,8 @@ export class MemStorage implements IStorage {
         owner: 'Mike Johnson',
         ownerEmail: 'mike.johnson@company.com',
         schema_name: 'abc',
-        table_name: 'agg_account_device_subscription_daily'
+        table_name: 'agg_account_device_subscription_daily',
+        tenant_name: 'Data Engineering'
       },
       {
         name: 'channel_analytics_iot',
@@ -240,7 +243,8 @@ export class MemStorage implements IStorage {
         owner: 'Sarah Wilson',
         ownerEmail: 'sarah.wilson@company.com',
         schema_name: 'abc',
-        table_name: 'agg_iot_device_channel_daily'
+        table_name: 'agg_iot_device_channel_daily',
+        tenant_name: 'Data Engineering'
       },
       {
         name: 'subscription_metrics_cdm',
@@ -255,7 +259,8 @@ export class MemStorage implements IStorage {
         owner: 'Alex Chen',
         ownerEmail: 'alex.chen@company.com',
         schema_name: 'abc',
-        table_name: 'agg_subscription_revenue_daily'
+        table_name: 'agg_subscription_revenue_daily',
+        tenant_name: 'Data Engineering'
       }
     ];
 
@@ -303,7 +308,7 @@ export class MemStorage implements IStorage {
         createdAt: new Date(),
         updatedAt: new Date(),
         // Set null for fields not provided in entity data, but preserve existing values
-        tenant_name: 'Data Engineering', // Tag all existing tables under Data Engineering tenant
+        tenant_name: entity.tenant_name || 'Data Engineering', // Use entity's tenant or default to Data Engineering
         team_name: entity.team_name || null,
         schema_name: entity.schema_name || null,
         table_name: entity.table_name || null,

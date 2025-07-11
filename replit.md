@@ -113,6 +113,15 @@ Preferred communication style: Simple, everyday language.
 
 ## Changelog
 
+- July 11, 2025: Fixed mock data tenant assignments to properly tag entities with correct tenant names
+  - Updated table entities in server/storage.ts to include tenant_name field for proper filtering
+  - Fixed entity creation logic to preserve tenant_name from entity data instead of hardcoding
+  - All Data Engineering entities (5 tables + 5 DAGs) now properly tagged with "Data Engineering" tenant
+  - All Ad Engineering entities (1 table + 1 DAG) now properly tagged with "Ad Engineering" tenant
+  - Cache refresh working correctly showing 12 total entities with proper tenant filtering
+  - Data Engineering tenant shows 10 entities with 86.2% overall compliance
+  - Ad Engineering tenant shows 2 entities with 90.9% overall compliance
+  - Tenant switching now displays real data with proper SLA metrics and team assignments
 - July 11, 2025: Implemented comprehensive server-side caching system for instant tenant switching
   - Created server/cache.ts with DataCache class that caches ALL tenant and team data on startup and every 6 hours
   - Updated backend routes to use cached data instead of direct storage queries for teams, tenants, and entities
