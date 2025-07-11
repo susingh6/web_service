@@ -7,6 +7,7 @@ import ChartCard from '@/components/dashboard/ChartCard';
 import ComplianceTrendChart from '@/components/dashboard/ComplianceTrendChart';
 import EntityPerformanceChart from '@/components/dashboard/EntityPerformanceChart';
 import EntityTable from '@/components/dashboard/EntityTable';
+import DateRangePicker from '@/components/dashboard/DateRangePicker';
 import { Entity } from '@shared/schema';
 
 interface TeamDashboardProps {
@@ -92,6 +93,8 @@ const TeamDashboard = ({
         </Typography>
         
         <Box display="flex" gap={2} alignItems="center">
+          <DateRangePicker />
+          
           <Button
             variant="outlined"
             startIcon={<AddIcon />}

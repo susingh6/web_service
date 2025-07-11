@@ -172,31 +172,34 @@ const Summary = () => {
   
   return (
     <Box>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
-        <Typography variant="h4" component="h1" fontWeight={600} fontFamily="Inter, sans-serif">
-          Overall SLA Performance
-        </Typography>
-        
-        <Box display="flex" alignItems="center" gap={2}>
-          <FormControl variant="outlined" size="small" sx={{ minWidth: 200 }}>
-            <InputLabel id="tenant-filter-label">Tenant</InputLabel>
-            <Select
-              labelId="tenant-filter-label"
-              id="tenant-filter"
-              value={selectedTenant.name}
-              onChange={handleTenantChange}
-              label="Tenant"
-            >
-              {tenants.map((tenant) => (
-                <MenuItem key={tenant.id} value={tenant.name}>
-                  {tenant.name}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          <DateRangePicker />
+      {/* Only show title and filters when Summary tab is active */}
+      {activeTab === 'summary' && (
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
+          <Typography variant="h4" component="h1" fontWeight={600} fontFamily="Inter, sans-serif">
+            Overall SLA Performance
+          </Typography>
+          
+          <Box display="flex" alignItems="center" gap={2}>
+            <FormControl variant="outlined" size="small" sx={{ minWidth: 200 }}>
+              <InputLabel id="tenant-filter-label">Tenant</InputLabel>
+              <Select
+                labelId="tenant-filter-label"
+                id="tenant-filter"
+                value={selectedTenant.name}
+                onChange={handleTenantChange}
+                label="Tenant"
+              >
+                {tenants.map((tenant) => (
+                  <MenuItem key={tenant.id} value={tenant.name}>
+                    {tenant.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <DateRangePicker />
+          </Box>
         </Box>
-      </Box>
+      )}
       
       {/* Dynamic Tabs System */}
       <Box sx={{ mb: 4, bgcolor: 'background.paper', borderRadius: 1 }}>
