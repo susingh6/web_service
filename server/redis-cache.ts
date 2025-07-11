@@ -3,7 +3,7 @@ import { WebSocketServer } from 'ws';
 import { Worker } from 'worker_threads';
 import { config } from './config';
 import { Entity, Team } from '@shared/schema';
-import { DataCache } from './cache';
+import { storage } from './storage';
 
 // Types
 interface DashboardMetrics {
@@ -61,7 +61,7 @@ export class RedisCache {
   private wss: WebSocketServer | null = null;
   private cacheWorker: Worker | null = null;
   private isInitialized = false;
-  private fallbackCache: DataCache | null = null;
+  private fallbackData: CachedData | null = null;
   private useRedis = false;
 
   constructor() {
@@ -180,12 +180,71 @@ export class RedisCache {
     }
   }
 
-  private initializeFallback(): void {
+  private async initializeFallback(): Promise<void> {
     console.log('Initializing fallback in-memory cache...');
-    this.fallbackCache = new DataCache();
     this.useRedis = false;
+    
+    // Initialize fallback data directly
+    await this.refreshFallbackData();
+    
     this.isInitialized = true;
     console.log('Fallback cache system initialized successfully');
+  }
+
+  private async refreshFallbackData(): Promise<void> {
+    try {
+      // Fetch data directly from storage
+      const entities = await storage.getEntities();
+      const teams = await storage.getTeams();
+      const tenants = await storage.getTenants();
+      
+      // Calculate metrics for each tenant
+      const metrics: Record<string, DashboardMetrics> = {};
+      const last30DayMetrics: Record<string, DashboardMetrics> = {};
+      
+      for (const tenant of tenants) {
+        const tenantEntities = entities.filter(e => e.tenant_name === tenant.name);
+        const tenantTables = tenantEntities.filter(e => e.type === 'table');
+        const tenantDags = tenantEntities.filter(e => e.type === 'dag');
+        
+        const tenantMetrics = this.calculateMetrics(tenantEntities, tenantTables, tenantDags);
+        metrics[tenant.name] = tenantMetrics;
+        last30DayMetrics[tenant.name] = tenantMetrics; // Use same metrics for 30-day
+      }
+      
+      // Store in fallback data
+      this.fallbackData = {
+        entities,
+        teams,
+        tenants,
+        metrics,
+        last30DayMetrics,
+        lastUpdated: new Date(),
+        recentChanges: []
+      };
+      
+      console.log(`Fallback cache refreshed successfully: ${entities.length} entities, ${teams.length} teams, ${tenants.length} tenants`);
+    } catch (error) {
+      console.error('Failed to refresh fallback data:', error);
+      throw error;
+    }
+  }
+
+  private calculateMetrics(entities: Entity[], tables: Entity[], dags: Entity[]): DashboardMetrics {
+    const calculateCompliance = (entityList: Entity[]) => {
+      if (entityList.length === 0) return 0;
+      const total = entityList.reduce((sum, entity) => sum + (entity.currentSla || 0), 0);
+      return Math.round((total / entityList.length) * 10) / 10;
+    };
+
+    return {
+      overallCompliance: calculateCompliance(entities),
+      tablesCompliance: calculateCompliance(tables),
+      dagsCompliance: calculateCompliance(dags),
+      entitiesCount: entities.length,
+      tablesCount: tables.length,
+      dagsCount: dags.length
+    };
   }
 
   private async validateCache(): Promise<void> {
@@ -228,9 +287,6 @@ export class RedisCache {
 
   setupWebSocket(wss: WebSocketServer): void {
     this.wss = wss;
-    if (this.fallbackCache) {
-      this.fallbackCache.setupWebSocket(wss);
-    }
     console.log('WebSocket server attached to Redis cache');
   }
 
@@ -342,7 +398,7 @@ export class RedisCache {
   // Public methods for accessing cached data
   async getAllEntities(): Promise<Entity[]> {
     if (!this.useRedis || !this.redis) {
-      return this.fallbackCache ? this.fallbackCache.getAllEntities() : [];
+      return this.fallbackData ? this.fallbackData.entities : [];
     }
     
     try {
@@ -350,13 +406,13 @@ export class RedisCache {
       return data ? JSON.parse(data) : [];
     } catch (error) {
       console.error('Error getting entities from Redis:', error);
-      return this.fallbackCache ? this.fallbackCache.getAllEntities() : [];
+      return this.fallbackData ? this.fallbackData.entities : [];
     }
   }
 
   async getAllTeams(): Promise<Team[]> {
     if (!this.useRedis || !this.redis) {
-      return this.fallbackCache ? this.fallbackCache.getAllTeams() : [];
+      return this.fallbackData ? this.fallbackData.teams : [];
     }
     
     try {
@@ -364,13 +420,13 @@ export class RedisCache {
       return data ? JSON.parse(data) : [];
     } catch (error) {
       console.error('Error getting teams from Redis:', error);
-      return this.fallbackCache ? this.fallbackCache.getAllTeams() : [];
+      return this.fallbackData ? this.fallbackData.teams : [];
     }
   }
 
   async getAllTenants(): Promise<Array<{ id: number; name: string; description?: string }>> {
     if (!this.useRedis || !this.redis) {
-      return this.fallbackCache ? this.fallbackCache.getAllTenants() : [];
+      return this.fallbackData ? this.fallbackData.tenants : [];
     }
     
     try {
@@ -378,13 +434,13 @@ export class RedisCache {
       return data ? JSON.parse(data) : [];
     } catch (error) {
       console.error('Error getting tenants from Redis:', error);
-      return this.fallbackCache ? this.fallbackCache.getAllTenants() : [];
+      return this.fallbackData ? this.fallbackData.tenants : [];
     }
   }
 
   async getEntitiesByTenant(tenantName: string): Promise<Entity[]> {
     if (!this.useRedis || !this.redis) {
-      return this.fallbackCache ? this.fallbackCache.getEntitiesByTenant(tenantName) : [];
+      return this.fallbackData ? this.fallbackData.entities.filter(entity => entity.tenant_name === tenantName) : [];
     }
     
     try {
@@ -392,7 +448,7 @@ export class RedisCache {
       return entities.filter(entity => entity.tenant_name === tenantName);
     } catch (error) {
       console.error('Error filtering entities by tenant:', error);
-      return this.fallbackCache ? this.fallbackCache.getEntitiesByTenant(tenantName) : [];
+      return this.fallbackData ? this.fallbackData.entities.filter(entity => entity.tenant_name === tenantName) : [];
     }
   }
 
@@ -408,7 +464,7 @@ export class RedisCache {
 
   async getDashboardMetrics(tenantName: string): Promise<DashboardMetrics | null> {
     if (!this.useRedis || !this.redis) {
-      return this.fallbackCache ? this.fallbackCache.getDashboardMetrics(tenantName) : null;
+      return this.fallbackData ? this.fallbackData.metrics[tenantName] || null : null;
     }
     
     try {
@@ -419,13 +475,14 @@ export class RedisCache {
       return metrics[tenantName] || null;
     } catch (error) {
       console.error('Error getting dashboard metrics:', error);
-      return this.fallbackCache ? this.fallbackCache.getDashboardMetrics(tenantName) : null;
+      return this.fallbackData ? this.fallbackData.metrics[tenantName] || null : null;
     }
   }
 
   async calculateMetricsForDateRange(tenantName: string, startDate: Date, endDate: Date): Promise<DashboardMetrics | null> {
     if (!this.useRedis || !this.redis) {
-      return this.fallbackCache ? this.fallbackCache.calculateMetricsForDateRange(tenantName, startDate, endDate) : null;
+      // For fallback, use the same metrics as we don't have date range calculation
+      return this.fallbackData ? this.fallbackData.metrics[tenantName] || null : null;
     }
     
     // For date range queries, we need to calculate fresh metrics
@@ -452,14 +509,16 @@ export class RedisCache {
       };
     } catch (error) {
       console.error('Error calculating date range metrics:', error);
-      return this.fallbackCache ? this.fallbackCache.calculateMetricsForDateRange(tenantName, startDate, endDate) : null;
+      return this.fallbackData ? this.fallbackData.metrics[tenantName] || null : null;
     }
   }
 
   // Incremental cache update for pollers
   async updateEntity(entityName: string, entityType: string, teamName: string, updates: Partial<Entity>): Promise<boolean> {
     if (!this.useRedis || !this.redis) {
-      return this.fallbackCache ? this.fallbackCache.updateEntity(entityName, entityType, teamName, updates) : false;
+      // For fallback mode, we can't update entities (read-only)
+      console.log(`Cannot update entity ${entityName} in fallback mode`);
+      return false;
     }
     
     try {
@@ -537,7 +596,7 @@ export class RedisCache {
 
   async getRecentChanges(tenantName?: string, teamName?: string): Promise<EntityChange[]> {
     if (!this.useRedis || !this.redis) {
-      return this.fallbackCache ? this.fallbackCache.getRecentChanges(tenantName, teamName) : [];
+      return this.fallbackData ? this.fallbackData.recentChanges : [];
     }
     
     try {
@@ -569,7 +628,13 @@ export class RedisCache {
       return {
         isInitialized: this.isInitialized,
         mode: 'fallback',
-        fallbackCache: this.fallbackCache ? this.fallbackCache.getCacheStatus() : null,
+        fallbackCache: this.fallbackData ? {
+          isLoaded: true,
+          lastUpdated: this.fallbackData.lastUpdated,
+          entitiesCount: this.fallbackData.entities.length,
+          teamsCount: this.fallbackData.teams.length,
+          tenantsCount: this.fallbackData.tenants.length
+        } : null,
         redis: 'not_connected'
       };
     }
@@ -603,9 +668,7 @@ export class RedisCache {
   async forceRefresh(): Promise<void> {
     console.log('Force refresh requested');
     if (!this.useRedis || !this.redis) {
-      if (this.fallbackCache) {
-        return this.fallbackCache.forceRefresh();
-      }
+      await this.refreshFallbackData();
       return;
     }
     await this.refreshCacheWithWorker();
