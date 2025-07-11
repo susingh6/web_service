@@ -209,6 +209,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(400).json({ message: "Invalid team ID" });
         }
         entities = entities.filter(entity => entity.teamId === teamId);
+        
+        // Get team name for logging
+        const teams = await redisCache.getAllTeams();
+        const team = teams.find(t => t.id === teamId);
+        const teamName = team ? team.name : 'Unknown';
+        
+        // Add team name to request for logging middleware
+        req.teamName = teamName;
       } else if (req.query.type) {
         const type = req.query.type as string;
         if (type !== 'table' && type !== 'dag') {

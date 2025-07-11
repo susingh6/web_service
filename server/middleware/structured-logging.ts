@@ -8,6 +8,7 @@ declare global {
       sessionContext?: SessionContext;
       requestId?: string;
       startTime?: number;
+      teamName?: string;
     }
   }
 }
@@ -169,12 +170,13 @@ export function requestLoggingMiddleware(req: Request, res: Response, next: Next
     ? Object.entries(req.params).map(([key, value]) => `${key}=${value}`).join(', ')
     : '';
   
-  if (queryParams && routeParams) {
-    parameterString = ` - Parameters: ${queryParams}, ${routeParams}`;
-  } else if (queryParams) {
-    parameterString = ` - Parameters: ${queryParams}`;
-  } else if (routeParams) {
-    parameterString = ` - Parameters: ${routeParams}`;
+  // Add team name if available from route processing
+  const teamInfo = req.teamName ? `team=${req.teamName}` : '';
+  
+  const allParams = [queryParams, routeParams, teamInfo].filter(Boolean).join(', ');
+  
+  if (allParams) {
+    parameterString = ` - Parameters: ${allParams}`;
   }
     
   const event = `${req.method} ${req.path}${parameterString}`;
