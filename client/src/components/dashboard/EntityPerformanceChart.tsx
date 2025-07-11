@@ -149,52 +149,100 @@ const EntityPerformanceChart = ({ entities, days = 30, filter = 'all' }: EntityP
   };
   
   return (
-    <ResponsiveContainer width="100%" height="100%">
-      <LineChart
-        data={chartData}
-        margin={{ top: 5, right: 30, left: 5, bottom: 5 }}
-      >
-        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-        <XAxis 
-          dataKey="dateFormatted"
-          interval="preserveStartEnd"
-          tick={{ fontSize: 12, fill: theme.palette.text.secondary }}
-        />
-        <YAxis 
-          domain={[80, 100]} 
-          ticks={[80, 85, 90, 95, 100]}
-          tick={{ fontSize: 12, fill: theme.palette.text.secondary }}
-          tickFormatter={(value) => `${value}%`}
-        />
-        <Tooltip content={<CustomTooltip />} />
-        
-        {/* Target line */}
-        <Line
-          type="monotone"
-          dataKey={(item) => filteredEntities[0]?.slaTarget || 95}
-          stroke={theme.palette.error.main}
-          strokeDasharray="5 5"
-          strokeWidth={1}
-          dot={false}
-          activeDot={false}
-          name="Target"
-        />
-        
-        {/* Entity lines */}
-        {filteredEntities.map((entity, index) => (
-          <Line
-            key={entity.id}
-            type="monotone"
-            dataKey={entity.name}
-            stroke={colors[index % colors.length]}
-            strokeWidth={2}
-            dot={{ r: 2 }}
-            activeDot={{ r: 4 }}
-            name={entity.name}
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <Box sx={{ flex: 1, minHeight: 0 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart
+            data={chartData}
+            margin={{ top: 5, right: 30, left: 5, bottom: 5 }}
+          >
+            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+            <XAxis 
+              dataKey="dateFormatted"
+              interval="preserveStartEnd"
+              tick={{ fontSize: 12, fill: theme.palette.text.secondary }}
+            />
+            <YAxis 
+              domain={[80, 100]} 
+              ticks={[80, 85, 90, 95, 100]}
+              tick={{ fontSize: 12, fill: theme.palette.text.secondary }}
+              tickFormatter={(value) => `${value}%`}
+            />
+            <Tooltip content={<CustomTooltip />} />
+            
+            {/* Target line */}
+            <Line
+              type="monotone"
+              dataKey={(item) => filteredEntities[0]?.slaTarget || 95}
+              stroke={theme.palette.error.main}
+              strokeDasharray="5 5"
+              strokeWidth={1}
+              dot={false}
+              activeDot={false}
+              name="Target"
+            />
+            
+            {/* Entity lines */}
+            {filteredEntities.map((entity, index) => (
+              <Line
+                key={entity.id}
+                type="monotone"
+                dataKey={entity.name}
+                stroke={colors[index % colors.length]}
+                strokeWidth={2}
+                dot={{ r: 2 }}
+                activeDot={{ r: 4 }}
+                name={entity.name}
+              />
+            ))}
+          </LineChart>
+        </ResponsiveContainer>
+      </Box>
+      
+      {/* Legend */}
+      <Box sx={{ 
+        p: 2, 
+        borderTop: `1px solid ${theme.palette.divider}`,
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: 2,
+        justifyContent: 'center',
+        alignItems: 'center'
+      }}>
+        {/* Target line legend */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Box 
+            sx={{ 
+              width: 20, 
+              height: 2, 
+              backgroundColor: theme.palette.error.main,
+              borderStyle: 'dashed',
+              borderWidth: '1px 0',
+              borderColor: theme.palette.error.main,
+            }} 
           />
+          <Typography variant="body2" color="text.secondary">
+            Target
+          </Typography>
+        </Box>
+        
+        {/* Entity legends */}
+        {filteredEntities.map((entity, index) => (
+          <Box key={entity.id} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Box 
+              sx={{ 
+                width: 20, 
+                height: 2, 
+                backgroundColor: colors[index % colors.length],
+              }} 
+            />
+            <Typography variant="body2" color="text.secondary">
+              {entity.name}
+            </Typography>
+          </Box>
         ))}
-      </LineChart>
-    </ResponsiveContainer>
+      </Box>
+    </Box>
   );
 };
 
