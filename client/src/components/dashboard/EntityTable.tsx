@@ -117,8 +117,8 @@ const EntityTable = ({
   showActions = true, // Default to showing actions
 }: EntityTableProps) => {
   const dispatch = useAppDispatch();
-  const [order, setOrder] = useState<'asc' | 'desc'>('asc');
-  const [orderBy, setOrderBy] = useState<keyof Entity>('name');
+  const [order, setOrder] = useState<'asc' | 'desc'>('desc');
+  const [orderBy, setOrderBy] = useState<keyof Entity>('lastRefreshed');
   const [selected, setSelected] = useState<number[]>([]);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
@@ -178,6 +178,15 @@ const EntityTable = ({
       
       if (aValue === undefined || bValue === undefined) {
         return 0;
+      }
+      
+      // Handle date strings specially (like lastRefreshed)
+      if (orderBy === 'lastRefreshed' || orderBy === 'updatedAt' || orderBy === 'createdAt') {
+        const aDate = new Date(aValue as string);
+        const bDate = new Date(bValue as string);
+        return order === 'asc' 
+          ? aDate.getTime() - bDate.getTime() 
+          : bDate.getTime() - aDate.getTime();
       }
       
       // Handle dates specially
