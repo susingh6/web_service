@@ -47,6 +47,7 @@ const AuthPage = () => {
           </CardHeader>
           <CardContent>
             <div className="mt-4 flex flex-col items-center justify-center">
+              <h3 className="text-lg font-semibold mb-4">Log in</h3>
               <Button
                 variant="default"
                 type="button"
@@ -69,7 +70,7 @@ const AuthPage = () => {
                     <path d="M0 0h10.931v10.931H0zM12.069 0H23v10.931H12.069zM0 12.069h10.931V23H0zM12.069 12.069H23V23H12.069z" />
                   </svg>
                 )}
-                Log in
+                Authenticate
               </Button>
               
               <div className="mt-6 text-center">
@@ -77,7 +78,7 @@ const AuthPage = () => {
                   Enterprise SSO authentication with Azure AD
                 </p>
                 <p className="text-xs text-muted-foreground mt-2">
-                  Click "Log in" to access the SLA management platform
+                  Click "Authenticate" to access the SLA management platform
                 </p>
               </div>
             </div>
