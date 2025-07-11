@@ -2,24 +2,7 @@ import { Worker } from 'worker_threads';
 import { parentPort, workerData } from 'worker_threads';
 import { storage } from './storage';
 import { Entity, Team } from '@shared/schema';
-
-interface DashboardMetrics {
-  overallCompliance: number;
-  tablesCompliance: number;
-  dagsCompliance: number;
-  entitiesCount: number;
-  tablesCount: number;
-  dagsCount: number;
-}
-
-interface CacheRefreshData {
-  entities: Entity[];
-  teams: Team[];
-  tenants: Array<{ id: number; name: string; description?: string }>;
-  metrics: Record<string, DashboardMetrics>;
-  last30DayMetrics: Record<string, DashboardMetrics>;
-  lastUpdated: Date;
-}
+import { DashboardMetrics, CacheRefreshData, calculateMetrics } from '@shared/cache-types';
 
 // Worker thread main function
 async function refreshCacheData(): Promise<CacheRefreshData> {
@@ -60,22 +43,7 @@ async function refreshCacheData(): Promise<CacheRefreshData> {
   }
 }
 
-function calculateMetrics(entities: Entity[], tables: Entity[], dags: Entity[]): DashboardMetrics {
-  const calculateCompliance = (entityList: Entity[]) => {
-    if (entityList.length === 0) return 0;
-    const total = entityList.reduce((sum, entity) => sum + (entity.currentSla || 0), 0);
-    return Math.round((total / entityList.length) * 10) / 10;
-  };
-
-  return {
-    overallCompliance: calculateCompliance(entities),
-    tablesCompliance: calculateCompliance(tables),
-    dagsCompliance: calculateCompliance(dags),
-    entitiesCount: entities.length,
-    tablesCount: tables.length,
-    dagsCount: dags.length
-  };
-}
+// calculateMetrics function now imported from shared/cache-types.ts
 
 // Worker thread message handler
 if (parentPort) {

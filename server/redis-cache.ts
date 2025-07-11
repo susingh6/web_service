@@ -4,39 +4,7 @@ import { Worker } from 'worker_threads';
 import { config } from './config';
 import { Entity, Team } from '@shared/schema';
 import { storage } from './storage';
-
-// Types
-interface DashboardMetrics {
-  overallCompliance: number;
-  tablesCompliance: number;
-  dagsCompliance: number;
-  entitiesCount: number;
-  tablesCount: number;
-  dagsCount: number;
-}
-
-interface EntityChange {
-  entityId: number;
-  entityName: string;
-  entityType: string;
-  teamName: string;
-  tenantName: string;
-  type: 'updated' | 'created' | 'deleted';
-  entity: Entity;
-  previousSla?: number;
-  newSla?: number;
-  timestamp: Date;
-}
-
-interface CachedData {
-  entities: Entity[];
-  teams: Team[];
-  tenants: Array<{ id: number; name: string; description?: string }>;
-  metrics: Record<string, DashboardMetrics>;
-  last30DayMetrics: Record<string, DashboardMetrics>;
-  lastUpdated: Date;
-  recentChanges: EntityChange[];
-}
+import { DashboardMetrics, EntityChange, CachedData, calculateMetrics } from '@shared/cache-types';
 
 // Cache keys
 const CACHE_KEYS = {
@@ -193,35 +161,8 @@ export class RedisCache {
 
   private async refreshFallbackData(): Promise<void> {
     try {
-      // Fetch data directly from storage
-      const entities = await storage.getEntities();
-      const teams = await storage.getTeams();
-      const tenants = await storage.getTenants();
-      
-      // Calculate metrics for each tenant
-      const metrics: Record<string, DashboardMetrics> = {};
-      const last30DayMetrics: Record<string, DashboardMetrics> = {};
-      
-      for (const tenant of tenants) {
-        const tenantEntities = entities.filter(e => e.tenant_name === tenant.name);
-        const tenantTables = tenantEntities.filter(e => e.type === 'table');
-        const tenantDags = tenantEntities.filter(e => e.type === 'dag');
-        
-        const tenantMetrics = this.calculateMetrics(tenantEntities, tenantTables, tenantDags);
-        metrics[tenant.name] = tenantMetrics;
-        last30DayMetrics[tenant.name] = tenantMetrics; // Use same metrics for 30-day
-      }
-      
-      // Store in fallback data
-      this.fallbackData = {
-        entities,
-        teams,
-        tenants,
-        metrics,
-        last30DayMetrics,
-        lastUpdated: new Date(),
-        recentChanges: []
-      };
+      // Reuse the cache refresh data logic
+      this.fallbackData = await this.getCacheRefreshData();
       
       // Fallback cache refreshed successfully
     } catch (error) {
@@ -231,20 +172,7 @@ export class RedisCache {
   }
 
   private calculateMetrics(entities: Entity[], tables: Entity[], dags: Entity[]): DashboardMetrics {
-    const calculateCompliance = (entityList: Entity[]) => {
-      if (entityList.length === 0) return 0;
-      const total = entityList.reduce((sum, entity) => sum + (entity.currentSla || 0), 0);
-      return Math.round((total / entityList.length) * 10) / 10;
-    };
-
-    return {
-      overallCompliance: calculateCompliance(entities),
-      tablesCompliance: calculateCompliance(tables),
-      dagsCompliance: calculateCompliance(dags),
-      entitiesCount: entities.length,
-      tablesCount: tables.length,
-      dagsCount: dags.length
-    };
+    return calculateMetrics(entities, tables, dags);
   }
 
   private async validateCache(): Promise<void> {
@@ -439,24 +367,6 @@ export class RedisCache {
     }
   }
 
-  private async storeCacheData(data: any): Promise<void> {
-    const pipeline = this.redis.pipeline();
-    
-    // Store all cache data with expiration
-    const expireTime = Math.floor(this.CACHE_DURATION_MS / 1000) + 300; // Add 5 minute buffer
-    
-    pipeline.setex(CACHE_KEYS.ENTITIES, expireTime, JSON.stringify(data.entities));
-    pipeline.setex(CACHE_KEYS.TEAMS, expireTime, JSON.stringify(data.teams));
-    pipeline.setex(CACHE_KEYS.TENANTS, expireTime, JSON.stringify(data.tenants));
-    pipeline.setex(CACHE_KEYS.METRICS, expireTime, JSON.stringify(data.metrics));
-    pipeline.setex(CACHE_KEYS.LAST_30_DAY_METRICS, expireTime, JSON.stringify(data.last30DayMetrics));
-    pipeline.setex(CACHE_KEYS.RECENT_CHANGES, expireTime, JSON.stringify(data.recentChanges || []));
-    pipeline.setex(CACHE_KEYS.LAST_UPDATED, expireTime, JSON.stringify(data.lastUpdated));
-    
-    await pipeline.exec();
-    // Cache data stored in Redis successfully
-  }
-
   private async storeCacheDataAtomic(data: any): Promise<void> {
     if (!this.redis) throw new Error('Redis not available');
     
@@ -483,9 +393,8 @@ export class RedisCache {
     // Cache data stored atomically in Redis successfully
   }
 
-  private async getCacheRefreshData(): Promise<any> {
-    // This method should fetch fresh data from storage
-    // For now, use the same logic as refreshFallbackData
+  private async getCacheRefreshData(): Promise<CachedData> {
+    // Reuse the same logic as refreshFallbackData but return structured data
     const entities = await storage.getEntities();
     const teams = await storage.getTeams();
     const tenants = await storage.getTenants();

@@ -113,6 +113,17 @@ Preferred communication style: Simple, everyday language.
 
 ## Changelog
 
+- July 11, 2025: Completed comprehensive codebase deduplication removing duplicate and redundant code patterns
+  - Removed duplicate TeamDashboard component from client/src/components/dashboard/TeamDashboard.tsx
+  - Consolidated duplicate cache data storage methods in server/redis-cache.ts (removed storeCacheData, kept atomic version)
+  - Created shared/cache-types.ts to centralize DashboardMetrics, EntityChange, and CachedData interfaces
+  - Consolidated duplicate calculateMetrics functions from redis-cache.ts and cache-worker.ts into shared utility
+  - Removed duplicate getCacheRefreshData logic by reusing refreshFallbackData method
+  - Removed unnecessary React imports from component files (Vite handles JSX transformation automatically)
+  - Fixed redundant interface definitions across server cache files
+  - Eliminated duplicate data fetching logic in cache refresh methods
+  - Cleaned up extra blank lines and formatting inconsistencies
+  - Achieved significant code reduction while maintaining identical functionality
 - July 11, 2025: Fixed critical deadlock and concurrency issues in Redis cache system for multi-pod deployment
   - Implemented stale lock detection and automatic recovery to prevent indefinite waits
   - Added conditional lock release using Lua scripts to prevent releasing other pods' locks
