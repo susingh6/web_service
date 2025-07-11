@@ -1,15 +1,6 @@
 export const devConfig = {
   baseUrl: '',
   
-  // WebSocket configuration
-  websocket: {
-    path: '/ws',
-    events: {
-      cacheUpdated: 'cache_updated',
-      entityUpdated: 'entity_updated',
-    },
-  },
-  
   endpoints: {
     // Authentication
     auth: {
