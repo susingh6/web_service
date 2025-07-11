@@ -1020,8 +1020,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
   
   wss.on('connection', (ws) => {
-    console.log('WebSocket client connected');
-    
     ws.on('message', (message) => {
       try {
         const data = JSON.parse(message.toString());
