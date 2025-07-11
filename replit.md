@@ -113,6 +113,12 @@ Preferred communication style: Simple, everyday language.
 
 ## Changelog
 
+- July 11, 2025: Fixed critical team filtering bug where team tab selection incorrectly affected Summary dashboard data
+  - Separated team tab data management from Summary dashboard using local state instead of shared Redux store
+  - Summary dashboard now always shows ALL team data for selected tenant regardless of which team tabs are open
+  - Team tabs use independent data fetching that doesn't interfere with Summary dashboard metrics
+  - Only tenant filter changes Summary dashboard data, team tabs only affect their own content
+  - Resolved user frustration where selecting PGM tab caused Summary charts to show only PGM data instead of all teams
 - July 11, 2025: Completed comprehensive codebase deduplication removing duplicate and redundant code patterns
   - Removed duplicate TeamDashboard component from client/src/components/dashboard/TeamDashboard.tsx
   - Consolidated duplicate cache data storage methods in server/redis-cache.ts (removed storeCacheData, kept atomic version)
