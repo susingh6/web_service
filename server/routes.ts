@@ -100,7 +100,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/cache/refresh", async (req, res) => {
     try {
-      await dataCache.forceRefresh();
+      await redisCache.forceRefresh();
       res.json({ message: "Cache refreshed successfully" });
     } catch (error) {
       res.status(500).json({ message: "Failed to refresh cache" });
@@ -124,14 +124,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (startDate && endDate) {
         const start = new Date(startDate);
         const end = new Date(endDate);
-        metrics = dataCache.calculateMetricsForDateRange(tenantName, start, end);
+        metrics = await redisCache.calculateMetricsForDateRange(tenantName, start, end);
       } else {
         // Use cached 30-day metrics by default
-        metrics = dataCache.getDashboardMetrics(tenantName);
+        metrics = await redisCache.getDashboardMetrics(tenantName);
       }
 
-      const entities = dataCache.getEntitiesByTenant(tenantName);
-      const teams = dataCache.getTeamsByTenant(tenantName);
+      const entities = await redisCache.getEntitiesByTenant(tenantName);
+      const teams = await redisCache.getTeamsByTenant(tenantName);
 
       res.json({
         metrics,
@@ -142,7 +142,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         dateRange: startDate && endDate ? { startDate, endDate } : "last30Days"
       });
     } catch (error) {
-      res.status(500).json({ message: "Failed to fetch dashboard summary from cache" });
+      console.error('Dashboard summary error:', error);
+      res.status(500).json({ 
+        message: "Failed to fetch dashboard summary from cache",
+        error: error.message 
+      });
     }
   });
   
