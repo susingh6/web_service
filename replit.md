@@ -113,25 +113,6 @@ Preferred communication style: Simple, everyday language.
 
 ## Changelog
 
-- July 11, 2025: Added horizontal scrollable tabs for team navigation with many teams
-  - Updated Tabs component to use variant="scrollable" with automatic scroll buttons
-  - Added mobile-friendly scrolling with allowScrollButtonsMobile prop  
-  - Tabs now expand to fill available space with flexGrow: 1
-  - Scroll buttons appear automatically when tabs overflow the available width
-  - Improved UX for environments with many teams without overwhelming the interface
-- July 11, 2025: Fixed Team Performance chart to only show teams from selected tenant in Summary dashboard
-  - Updated TeamComparisonChart component to accept selectedTenant parameter
-  - Modified generateTeamData function to filter entities by tenant first, then get relevant teams
-  - Summary dashboard tenant filter now properly affects Team Performance chart
-  - Data Engineering shows only its teams (PGM, Core, Viewer Product, IOT, CDM)
-  - Ad Engineering shows only its teams (Ad Serving, Ad Data Activation)
-  - Team tabs remain independent of tenant filter as intended
-- July 11, 2025: Updated EntityTable default sorting to show newest entries first
-  - Changed default sort order from ascending to descending (desc)
-  - Changed default sort column from 'name' to 'lastRefreshed'
-  - Added special handling for date strings in sorting logic (lastRefreshed, updatedAt, createdAt)
-  - Recently updated entities now appear at the top of entity lists
-  - Real-time updates via WebSocket move updated entities to top with "NEW" tags
 - July 11, 2025: Fixed mock data tenant assignments to properly tag entities with correct tenant names
   - Updated table entities in server/storage.ts to include tenant_name field for proper filtering
   - Fixed entity creation logic to preserve tenant_name from entity data instead of hardcoding
