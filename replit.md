@@ -122,6 +122,9 @@ Preferred communication style: Simple, everyday language.
   - Team dashboards show: compact team header section, team-specific date filter, Add Entity button, Bulk Upload button
   - Summary dashboard shows: "Overall SLA Performance" title, tenant filter, summary date filter
   - Achieved complete separation of global filters (tenant) vs team-specific filters (date)
+  - Fixed team selector (+) to show all teams regardless of tenant filter
+  - Team tabs no longer disappear when changing tenant filter
+  - Issue identified: Summary tab data not updating when switching tenants (Redux store state management issue)
 - July 11, 2025: Completed scalable tenant filtering system with dynamic team performance charts
   - Updated TeamComparisonChart component to use dynamic data instead of hardcoded teams
   - Implemented calculateTeamData function to generate SLA averages from actual entities and teams
