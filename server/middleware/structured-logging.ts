@@ -188,9 +188,17 @@ export function requestLoggingMiddleware(req: Request, res: Response, next: Next
   res.send = function(data) {
     const duration = req.startTime ? Date.now() - req.startTime : 0;
     
-    // Enhanced parameter logging for team endpoints
+    // Enhanced parameter logging for team endpoints and entities with teamId
     let enhancedParameterString = parameterString;
-    if (req.path.includes('/teams/') && req.params.id) {
+    
+    // Handle team name lookup for teamId parameters
+    if (req.query.teamId && req.teamName) {
+      // Update the parameter string to include team name
+      enhancedParameterString = parameterString.replace(
+        `teamId=${req.query.teamId}`,
+        `teamId=${req.query.teamId}, team=${req.teamName}`
+      );
+    } else if (req.path.includes('/teams/') && req.params.id) {
       try {
         // Try to parse the response data to get team name
         let responseData;
