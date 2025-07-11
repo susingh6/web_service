@@ -79,6 +79,11 @@ const Summary = () => {
       setSelectedTenant(tenant);
       // DO NOT clear team tabs - tenant filter only affects Summary tab data
       // Refresh Summary dashboard data with new tenant
+      console.log(`Switching to tenant: ${tenant.name}`);
+      
+      // Invalidate cached dashboard data to force fresh fetch
+      queryClient.invalidateQueries({ queryKey: ['/api/dashboard/summary'] });
+      
       dispatch(fetchDashboardSummary(tenant.name));
       // Do NOT refetch entities - we need all entities for team dashboards
     }
