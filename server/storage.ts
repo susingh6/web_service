@@ -107,7 +107,7 @@ export class MemStorage implements IStorage {
     });
     
     // Create demo teams with the new team names
-    const teamNames = ['PGM', 'Core', 'Viewer Product', 'IOT', 'CDM'];
+    const teamNames = ['PGM', 'Core', 'Viewer Product', 'IOT', 'CDM', 'Ad Serving', 'Ad Data Activation'];
     teamNames.forEach(name => {
       this.createTeam({
         name,
@@ -264,7 +264,7 @@ export class MemStorage implements IStorage {
       {
         name: 'ad_performance_daily',
         type: 'table',
-        teamId: 1, // PGM team
+        teamId: 6, // Ad Serving team
         description: 'Daily ad performance metrics and analytics',
         slaTarget: 95.0,
         currentSla: 92.3,
@@ -280,7 +280,7 @@ export class MemStorage implements IStorage {
       {
         name: 'campaign_optimization_dag',
         type: 'dag',
-        teamId: 2, // Core team
+        teamId: 7, // Ad Data Activation team
         description: 'Daily campaign optimization and bidding adjustments',
         slaTarget: 88.0,
         currentSla: 89.5,
