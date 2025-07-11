@@ -142,15 +142,8 @@ const Summary = () => {
   };
 
   const handleAddTeamTab = (teamName: string) => {
-    console.log('handleAddTeamTab called with:', teamName);
-    console.log('Current openTeamTabs:', openTeamTabs);
-    console.log('Available teams:', teams);
-    
     if (!openTeamTabs.includes(teamName)) {
-      console.log('Adding team tab for:', teamName);
       setOpenTeamTabs([...openTeamTabs, teamName]);
-      // Don't refetch teams - we already have all teams loaded
-      // The fetchTeams(teamName) was overriding the full teams list
     }
     setActiveTab(teamName);
   };

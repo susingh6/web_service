@@ -32,7 +32,6 @@ const TeamSelector = ({ teams, openTeamTabs, onAddTeamTab, onLoadTeams }: TeamSe
   };
 
   const handleSelectTeam = (teamName: string) => {
-    console.log('TeamSelector handleSelectTeam called with:', teamName);
     onAddTeamTab(teamName);
     handleClose();
   };
