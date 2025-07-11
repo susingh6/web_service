@@ -210,7 +210,7 @@ const Summary = () => {
           <ChartCard
             title="Team Performance Comparison"
             loading={metricsLoading}
-            chart={<TeamComparisonChart />}
+            chart={<TeamComparisonChart entities={entities} teams={teams} />}
           />
         </Box>
       </Box>

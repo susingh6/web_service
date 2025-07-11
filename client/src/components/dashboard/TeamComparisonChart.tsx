@@ -12,42 +12,47 @@ import {
   TooltipProps
 } from 'recharts';
 
-// Demo data - in a real app, this would come from an API
-const generateDemoData = () => [
-  {
-    name: 'PGM',
-    tables: 94.6,
-    dags: 91.8,
-  },
-  {
-    name: 'Core',
-    tables: 87.2,
-    dags: 90.5,
-  },
-  {
-    name: 'Viewer Product',
-    tables: 96.7,
-    dags: 97.3,
-  },
-  {
-    name: 'IOT',
-    tables: 82.9,
-    dags: 78.4,
-  },
-  {
-    name: 'CDM',
-    tables: 88.5,
-    dags: 85.2,
-  },
-];
+// Generate tenant-specific team data
+const generateTeamData = (entities: any[], teams: any[]) => {
+  if (!entities || !teams || entities.length === 0 || teams.length === 0) {
+    return [];
+  }
+
+  // Group entities by team and calculate averages
+  const teamStats = teams.map(team => {
+    const teamEntities = entities.filter(entity => entity.teamId === team.id);
+    const tables = teamEntities.filter(entity => entity.type === 'table');
+    const dags = teamEntities.filter(entity => entity.type === 'dag');
+    
+    const calcAvg = (items: any[]) => {
+      if (items.length === 0) return 0;
+      const sum = items.reduce((acc, item) => acc + (item.currentSla || 0), 0);
+      return parseFloat((sum / items.length).toFixed(1));
+    };
+    
+    return {
+      name: team.name,
+      tables: calcAvg(tables),
+      dags: calcAvg(dags),
+    };
+  }).filter(team => team.tables > 0 || team.dags > 0); // Only include teams with data
+
+  return teamStats;
+};
 
 interface TeamComparisonChartProps {
   data?: any[];
+  entities?: any[];
+  teams?: any[];
 }
 
 const TeamComparisonChart = ({
-  data = generateDemoData(),
+  data,
+  entities = [],
+  teams = [],
 }: TeamComparisonChartProps) => {
+  // Use provided data or generate from entities/teams
+  const chartData = data || generateTeamData(entities, teams);
   const theme = useTheme();
   
   const CustomTooltip = ({ active, payload, label }: TooltipProps<number, string>) => {
@@ -96,7 +101,7 @@ const TeamComparisonChart = ({
   return (
     <ResponsiveContainer width="100%" height="100%">
       <BarChart
-        data={data}
+        data={chartData}
         margin={{ top: 5, right: 30, left: 5, bottom: 5 }}
       >
         <CartesianGrid strokeDasharray="3 3" vertical={false} />
