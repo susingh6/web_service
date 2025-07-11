@@ -1,6 +1,7 @@
 import { storage } from "./storage";
 import { Entity, Team } from "@shared/schema";
 import { config } from "./config";
+import { WebSocketServer } from "ws";
 
 interface DashboardMetrics {
   overallCompliance: number;
@@ -11,6 +12,15 @@ interface DashboardMetrics {
   dagsCount: number;
 }
 
+interface EntityChange {
+  entityId: number;
+  type: 'updated' | 'created' | 'deleted';
+  entity: Entity;
+  previousSla?: number;
+  newSla?: number;
+  timestamp: Date;
+}
+
 interface CachedData {
   entities: Entity[];
   teams: Team[];
@@ -18,6 +28,7 @@ interface CachedData {
   metrics: Record<string, DashboardMetrics>;
   last30DayMetrics: Record<string, DashboardMetrics>; // Default 30-day cache
   lastUpdated: Date;
+  recentChanges: EntityChange[]; // Track changes within 6-hour window
 }
 
 class DataCache {
