@@ -52,6 +52,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Tenants endpoints
+  app.get("/api/tenants", async (req, res) => {
+    try {
+      const tenants = await storage.getTenants();
+      res.json(tenants);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch tenants" });
+    }
+  });
+
   // Debug endpoint to check team data
   app.get("/api/debug/teams", async (req, res) => {
     try {

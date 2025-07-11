@@ -17,6 +17,7 @@ interface ApiConfig {
     };
     entities: string;
     teams: string;
+    tenants: string;
     dashboard: {
       summary: string;
       teamPerformance: (teamId: number) => string;
@@ -64,6 +65,11 @@ interface ApiConfig {
     red: {
       max: number;
     };
+  };
+  cacheConfig: {
+    tenantRefreshHours: number;
+    entityRefreshHours: number;
+    trendRefreshHours: number;
   };
   debug: boolean;
   logLevel: string;

@@ -7,6 +7,13 @@ import {
   notificationTimelines, type NotificationTimeline, type InsertNotificationTimeline
 } from "@shared/schema";
 
+// Tenant interface for tenant management
+export interface Tenant {
+  id: number;
+  name: string;
+  description?: string;
+}
+
 // Define the storage interface
 export interface IStorage {
   // User operations
@@ -21,6 +28,9 @@ export interface IStorage {
   getTeam(id: number): Promise<Team | undefined>;
   getTeamByName(name: string): Promise<Team | undefined>;
   createTeam(team: InsertTeam): Promise<Team>;
+  
+  // Tenant operations
+  getTenants(): Promise<Tenant[]>;
   
   // Entity operations
   getEntities(): Promise<Entity[]>;
@@ -154,7 +164,9 @@ export class MemStorage implements IStorage {
             // Ensure all required properties have valid values
             description: dag.description || null,
             currentSla: dag.currentSla || null,
-            lastRefreshed: dag.lastRun ? new Date(dag.lastRun) : null
+            lastRefreshed: dag.lastRun ? new Date(dag.lastRun) : null,
+            // Tag all existing DAGs under Data Engineering tenant
+            tenant_name: 'Data Engineering'
           });
         });
         
@@ -256,7 +268,7 @@ export class MemStorage implements IStorage {
         createdAt: new Date(),
         updatedAt: new Date(),
         // Set null for fields not provided in entity data, but preserve existing values
-        tenant_name: entity.tenant_name || null,
+        tenant_name: 'Data Engineering', // Tag all existing tables under Data Engineering tenant
         team_name: entity.team_name || null,
         schema_name: entity.schema_name || null,
         table_name: entity.table_name || null,
@@ -383,6 +395,23 @@ export class MemStorage implements IStorage {
     };
     this.teams.set(id, team);
     return team;
+  }
+  
+  // Tenant operations
+  async getTenants(): Promise<Tenant[]> {
+    // Return predefined tenant values for demo purposes
+    return [
+      {
+        id: 1,
+        name: 'Data Engineering',
+        description: 'Data Engineering team and related entities'
+      },
+      {
+        id: 2,
+        name: 'Ad Engineering',
+        description: 'Ad Engineering team and related entities'
+      }
+    ];
   }
   
   // Entity operations

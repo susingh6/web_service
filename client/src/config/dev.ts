@@ -12,6 +12,7 @@ export const devConfig = {
     // Core entities
     entities: '/api/entities',
     teams: '/api/teams',
+    tenants: '/api/tenants',
     
     // Dashboard
     dashboard: {
@@ -82,6 +83,13 @@ export const devConfig = {
     red: {
       max: 74, // Below 75% shows red
     },
+  },
+  
+  // Cache configuration
+  cacheConfig: {
+    tenantRefreshHours: 6,
+    entityRefreshHours: 6,
+    trendRefreshHours: 6,
   },
   
   // Development settings

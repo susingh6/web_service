@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Box, Grid, Button, Typography, Tabs, Tab } from '@mui/material';
+import { Box, Grid, Button, Typography, Tabs, Tab, Select, MenuItem, FormControl, InputLabel } from '@mui/material';
 import { Add as AddIcon, Upload as UploadIcon } from '@mui/icons-material';
 import { useAppDispatch, useAppSelector } from '@/lib/store';
 import { fetchDashboardSummary } from '@/features/sla/slices/dashboardSlice';
@@ -18,6 +18,7 @@ import EditEntityModal from '@/components/modals/EditEntityModal';
 import ConfirmDialog from '@/components/modals/ConfirmDialog';
 import { useToast } from '@/hooks/use-toast';
 import { queryClient } from '@/lib/queryClient';
+import { getTenants, getDefaultTenant, preloadTenantCache, type Tenant } from '@/lib/tenantCache';
 
 const Summary = () => {
   const dispatch = useAppDispatch();
@@ -34,20 +35,45 @@ const Summary = () => {
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
   const [selectedEntity, setSelectedEntity] = useState<Entity | null>(null);
   const [chartFilter, setChartFilter] = useState('All');
+  const [selectedTenant, setSelectedTenant] = useState<Tenant>(getDefaultTenant);
+  const [tenants, setTenants] = useState<Tenant[]>(getTenants);
   
-  // Fetch dashboard data
+  // Fetch dashboard data and preload tenant cache
   useEffect(() => {
     dispatch(fetchDashboardSummary());
     dispatch(fetchEntities({}));
     dispatch(fetchTeams());
+    
+    // Preload tenant cache for future use
+    preloadTenantCache().then(() => {
+      setTenants(getTenants());
+    });
   }, [dispatch]);
   
-  // Filter entities based on tab
-  const tables = entities.filter((entity) => entity.type === 'table');
-  const dags = entities.filter((entity) => entity.type === 'dag');
+  // Filter entities based on tab and tenant
+  const filterEntitiesByTenant = (entities: Entity[]) => {
+    // For now, since we don't have tenant_name in mock data, we'll tag all existing entities under "Data Engineering"
+    // In production, this would filter by entity.tenant_name === selectedTenant.name
+    if (selectedTenant.name === 'Data Engineering') {
+      return entities; // Show all entities for Data Engineering
+    }
+    return []; // No entities for other tenants yet
+  };
+  
+  const filteredEntities = filterEntitiesByTenant(entities);
+  const tables = filteredEntities.filter((entity) => entity.type === 'table');
+  const dags = filteredEntities.filter((entity) => entity.type === 'dag');
   
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
+  };
+  
+  const handleTenantChange = (event: any) => {
+    const tenantName = event.target.value;
+    const tenant = tenants.find(t => t.name === tenantName);
+    if (tenant) {
+      setSelectedTenant(tenant);
+    }
   };
   
   const handleAddEntity = () => {
@@ -112,6 +138,22 @@ const Summary = () => {
         </Typography>
         
         <Box display="flex" alignItems="center" gap={2}>
+          <FormControl variant="outlined" size="small" sx={{ minWidth: 200 }}>
+            <InputLabel id="tenant-filter-label">Tenant</InputLabel>
+            <Select
+              labelId="tenant-filter-label"
+              id="tenant-filter"
+              value={selectedTenant.name}
+              onChange={handleTenantChange}
+              label="Tenant"
+            >
+              {tenants.map((tenant) => (
+                <MenuItem key={tenant.id} value={tenant.name}>
+                  {tenant.name}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
           <DateRangePicker />
         </Box>
       </Box>
