@@ -281,6 +281,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loginWithAzure = async (): Promise<void> => {
     // For now, always use local authentication until Azure AD is properly configured
     try {
+      const startTime = performance.now();
       setIsAzureLoading(true);
       setAzureError(null);
       
@@ -295,6 +296,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       queryClient.setQueryData(["/api/user"], user);
       setAuthMethod('local');
+      
+      const endTime = performance.now();
+      console.log(`Authentication completed in ${endTime - startTime}ms`);
+      
       toast({
         title: "Authentication successful",
         description: `Welcome, ${user.username}!`,
