@@ -185,64 +185,7 @@ export function requestLoggingMiddleware(req: Request, res: Response, next: Next
   res.send = function(data) {
     const duration = req.startTime ? Date.now() - req.startTime : 0;
     
-    // Enhanced parameter logging for team endpoints and entities with teamId
-    let enhancedParameterString = parameterString;
-    
-    // Handle team name lookup for teamId parameters
-    if (req.query.teamId) {
-      const teamId = parseInt(req.query.teamId as string);
-      if (!isNaN(teamId)) {
-        // Simple synchronous lookup - use a basic mapping for known teams
-        const teamMapping: { [key: number]: string } = {
-          1: 'PGM',
-          2: 'Core', 
-          3: 'Viewer Product',
-          4: 'IOT',
-          5: 'CDM',
-          6: 'Ad Serving',
-          7: 'Ad Data Activation'
-        };
-        
-        const teamName = teamMapping[teamId] || 'Unknown';
-        
-        // Update the parameter string to include team name
-        if (parameterString.includes(`teamId=${req.query.teamId}`)) {
-          enhancedParameterString = parameterString.replace(
-            `teamId=${req.query.teamId}`,
-            `teamId=${req.query.teamId}, team=${teamName}`
-          );
-        } else {
-          // If no existing parameters, add team info
-          enhancedParameterString = ` - Parameters: teamId=${req.query.teamId}, team=${teamName}`;
-        }
-      }
-    }
-    
-    // Handle other cases (non-teamId requests)
-    if (req.path.includes('/teams/') && req.params.id) {
-      try {
-        // Try to parse the response data to get team name
-        let responseData;
-        if (typeof data === 'string') {
-          responseData = JSON.parse(data);
-        } else if (data && typeof data === 'object') {
-          responseData = data;
-        } else {
-          responseData = null;
-        }
-        
-        if (responseData && responseData.name) {
-          enhancedParameterString = ` - Parameters: team=${responseData.name} (id=${req.params.id})`;
-        } else {
-          enhancedParameterString = ` - Parameters: id=${req.params.id}`;
-        }
-      } catch (error) {
-        // Fallback to original parameter string if parsing fails
-        enhancedParameterString = ` - Parameters: id=${req.params.id}`;
-      }
-    }
-    
-    const responseEvent = `${req.method} ${req.path}${enhancedParameterString} - status: ${res.statusCode}`;
+    const responseEvent = `${req.method} ${req.path}${parameterString} - status: ${res.statusCode}`;
     
     structuredLogger.info(
       responseEvent,

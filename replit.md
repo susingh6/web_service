@@ -113,6 +113,10 @@ Preferred communication style: Simple, everyday language.
 
 ## Changelog
 
+- July 11, 2025: Cleaned up duplicate code from team name logging enhancement attempts
+  - Removed all duplicate enhanced parameter logging code from structured-logging.ts
+  - Restored structured logging middleware to clean production-ready state
+  - No functional changes - all existing logging functionality preserved
 - July 11, 2025: Removed all console.log statements from entire codebase for clean production-ready logging
   - Eliminated all console.log statements from server code (routes, authentication, cache, storage, etc.)
   - Removed all console.log statements from client code (components, hooks, utilities, pages)
