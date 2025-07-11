@@ -144,8 +144,8 @@ const Summary = () => {
   const handleAddTeamTab = (teamName: string) => {
     if (!openTeamTabs.includes(teamName)) {
       setOpenTeamTabs([...openTeamTabs, teamName]);
-      // Load team data with specific team name for structured logging
-      dispatch(fetchTeams(teamName));
+      // Don't refetch teams - we already have all teams loaded
+      // The fetchTeams(teamName) was overriding the full teams list
     }
     setActiveTab(teamName);
   };
