@@ -1,11 +1,10 @@
-import { useEffect, useMemo } from 'react';
-import { Box, Typography, Grid } from '@mui/material';
-import { useAppDispatch, useAppSelector } from '@/lib/store';
-import { fetchEntities } from '@/features/sla/slices/entitiesSlice';
-import { fetchDashboardSummary } from '@/features/sla/slices/dashboardSlice';
+import { useMemo, useState } from 'react';
+import { Box, Typography, Tabs, Tab } from '@mui/material';
+import { useAppSelector } from '@/lib/store';
 import MetricCard from '@/components/dashboard/MetricCard';
 import ChartCard from '@/components/dashboard/ChartCard';
 import ComplianceTrendChart from '@/components/dashboard/ComplianceTrendChart';
+import EntityPerformanceChart from '@/components/dashboard/EntityPerformanceChart';
 import EntityTable from '@/components/dashboard/EntityTable';
 import { Entity } from '@shared/schema';
 
@@ -24,8 +23,12 @@ const TeamDashboard = ({
   onDeleteEntity, 
   onViewDetails 
 }: TeamDashboardProps) => {
-  const dispatch = useAppDispatch();
   const { list: entities, teams } = useAppSelector((state) => state.entities);
+  
+  // State for chart filters and tabs
+  const [chartFilter, setChartFilter] = useState('All');
+  const [tabValue, setTabValue] = useState(0);
+  const [performanceFilter, setPerformanceFilter] = useState('All');
   
   // Find the team ID for this team
   const currentTeam = teams.find(team => team.name === teamName);
@@ -67,6 +70,10 @@ const TeamDashboard = ({
     };
   }, [teamEntities, tables, dags]);
   
+  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+    setTabValue(newValue);
+  };
+  
   return (
     <Box sx={{ p: 3 }}>
       <Typography variant="h5" component="h2" fontWeight={600} mb={3}>
@@ -74,65 +81,111 @@ const TeamDashboard = ({
       </Typography>
       
       {/* Team-specific Metrics */}
-      <Grid container spacing={3} mb={4}>
-        <Grid item xs={12} sm={6} md={3}>
-          <MetricCard
-            title="Overall SLA Compliance"
-            value={teamMetrics.overallCompliance}
-            suffix="%"
-            progress={teamMetrics.overallCompliance}
-            infoTooltip={`Average SLA compliance for ${teamName} team`}
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <MetricCard
-            title="Tables SLA Compliance"
-            value={teamMetrics.tablesCompliance}
-            suffix="%"
-            progress={teamMetrics.tablesCompliance}
-            infoTooltip={`Average SLA compliance for ${teamName} team tables`}
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <MetricCard
-            title="DAGs SLA Compliance"
-            value={teamMetrics.dagsCompliance}
-            suffix="%"
-            progress={teamMetrics.dagsCompliance}
-            infoTooltip={`Average SLA compliance for ${teamName} team DAGs`}
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <MetricCard
-            title="Entities Monitored"
-            value={teamMetrics.entitiesCount}
-            suffix=""
-            subtitle={`${tables.length} Tables • ${dags.length} DAGs`}
-          />
-        </Grid>
-      </Grid>
-      
-      {/* Team Compliance Trend Chart */}
-      <Box mb={4}>
-        <ChartCard
-          title={`${teamName} Team Compliance Trend`}
-          filters={['All', 'Tables', 'DAGs']}
-          chart={<ComplianceTrendChart filter="all" />}
-        />
+      <Box display="flex" flexWrap="wrap" gap={3} mb={4}>
+        {[
+          { 
+            title: "Overall SLA Compliance", 
+            value: teamMetrics.overallCompliance || 0, 
+            suffix: "%", 
+            progress: teamMetrics.overallCompliance || 0,
+            infoTooltip: `Average SLA compliance for ${teamName} team`
+          },
+          { 
+            title: "Tables SLA Compliance", 
+            value: teamMetrics.tablesCompliance || 0, 
+            suffix: "%", 
+            progress: teamMetrics.tablesCompliance || 0,
+            infoTooltip: `Average SLA compliance for ${teamName} team tables`
+          },
+          { 
+            title: "DAGs SLA Compliance", 
+            value: teamMetrics.dagsCompliance || 0, 
+            suffix: "%", 
+            progress: teamMetrics.dagsCompliance || 0,
+            infoTooltip: `Average SLA compliance for ${teamName} team DAGs`
+          },
+          { 
+            title: "Entities Monitored", 
+            value: teamMetrics.entitiesCount || 0, 
+            suffix: "",
+            subtitle: `${tables.length} Tables • ${dags.length} DAGs`
+          }
+        ].map((card, idx) => (
+          <Box key={card.title} flex="1 1 250px" minWidth="250px">
+            <MetricCard {...card} />
+          </Box>
+        ))}
       </Box>
       
-      {/* Team Entities Table */}
-      <Box>
-        <EntityTable
-          entities={teamEntities}
-          type="all"
-          teams={teams}
-          onEditEntity={onEditEntity}
-          onDeleteEntity={onDeleteEntity}
-          onViewHistory={() => {}}
-          onViewDetails={onViewDetails}
-          showActions={true}
+      {/* Charts */}
+      <Box display="flex" flexWrap="wrap" gap={3} mb={4}>
+        <Box flex="1 1 500px" minWidth="500px">
+          <ChartCard
+            title="Compliance Trend"
+            filters={['All', 'Tables', 'DAGs']}
+            onFilterChange={setChartFilter}
+            chart={<ComplianceTrendChart filter={chartFilter.toLowerCase() as 'all' | 'tables' | 'dags'} />}
+          />
+        </Box>
+        
+        <Box flex="1 1 500px" minWidth="500px">
+          <ChartCard
+            title="Top 5 Entities Performance"
+            filters={['All', 'Tables', 'DAGs']}
+            onFilterChange={setPerformanceFilter}
+            chart={<EntityPerformanceChart entities={teamEntities} filter={performanceFilter} />}
+          />
+        </Box>
+      </Box>
+      
+      {/* Tables/DAGs Sub-tabs */}
+      <Tabs value={tabValue} onChange={handleTabChange} sx={{ mb: 3 }}>
+        <Tab 
+          label="Tables" 
+          sx={{ 
+            fontWeight: 500, 
+            textTransform: 'none',
+            '&.Mui-selected': { fontWeight: 600 } 
+          }} 
         />
+        <Tab 
+          label="DAGs" 
+          sx={{ 
+            fontWeight: 500, 
+            textTransform: 'none',
+            '&.Mui-selected': { fontWeight: 600 } 
+          }} 
+        />
+      </Tabs>
+      
+      <Box role="tabpanel" hidden={tabValue !== 0}>
+        {tabValue === 0 && (
+          <EntityTable
+            entities={tables}
+            type="table"
+            teams={teams}
+            onEditEntity={onEditEntity}
+            onDeleteEntity={onDeleteEntity}
+            onViewHistory={() => {}}
+            onViewDetails={onViewDetails}
+            showActions={true}
+          />
+        )}
+      </Box>
+      
+      <Box role="tabpanel" hidden={tabValue !== 1}>
+        {tabValue === 1 && (
+          <EntityTable
+            entities={dags}
+            type="dag"
+            teams={teams}
+            onEditEntity={onEditEntity}
+            onDeleteEntity={onDeleteEntity}
+            onViewHistory={() => {}}
+            onViewDetails={onViewDetails}
+            showActions={true}
+          />
+        )}
       </Box>
     </Box>
   );
