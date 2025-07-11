@@ -208,7 +208,7 @@ const TeamDashboard = ({
               filters={['All', 'Tables', 'DAGs']}
               onFilterChange={setEntitiesChartFilter}
               loading={isLoading}
-              chart={<EntityPerformanceChart entities={teamEntities} filter={entitiesChartFilter} />}
+              chart={<EntityPerformanceChart entities={teamEntities} filter={entitiesChartFilter.toLowerCase() as 'all' | 'tables' | 'dags'} />}
             />
           </Box>
         </Box>
