@@ -113,6 +113,13 @@ Preferred communication style: Simple, everyday language.
 
 ## Changelog
 
+- July 11, 2025: Completed scalable tenant filtering system with dynamic team performance charts
+  - Updated TeamComparisonChart component to use dynamic data instead of hardcoded teams
+  - Implemented calculateTeamData function to generate SLA averages from actual entities and teams
+  - Team Performance chart now filters teams based on selected tenant with real-time data updates
+  - System designed for scalability - same code works for any number of tenants in the future
+  - Current tenants: "Data Engineering" (PGM, Core, Viewer Product, IOT, CDM) and "Ad Engineering" (Ad Serving, Ad Data Activation)
+  - Architecture supports adding unlimited tenants without code changes - just requires data updates
 - July 11, 2025: Implemented comprehensive FastAPI authentication system with Azure AD SSO integration
   - Added FastAPI authentication types and interfaces for user and session management
   - Implemented session ID extraction from response headers instead of body for better security
