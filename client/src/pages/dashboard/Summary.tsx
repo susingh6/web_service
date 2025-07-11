@@ -128,8 +128,8 @@ const Summary = () => {
       // Invalidate cached dashboard data to force fresh fetch
       queryClient.invalidateQueries({ queryKey: ['/api/dashboard/summary'] });
       
-      dispatch(fetchDashboardSummary({ tenantName: tenant.name }));
-      // Do NOT refetch entities - we need all entities for team dashboards
+      // The useEffect will handle the API calls when selectedTenant changes
+      // No need to make manual API calls here to avoid duplicates
     }
   };
 
