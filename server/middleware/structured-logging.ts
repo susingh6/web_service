@@ -159,24 +159,59 @@ export function sessionContextMiddleware(req: Request, res: Response, next: Next
 
 // Middleware to log incoming requests with structured format
 export function requestLoggingMiddleware(req: Request, res: Response, next: NextFunction): void {
+  // Format query parameters and route parameters for logging
+  let parameterString = '';
   const queryParams = Object.keys(req.query).length > 0 
-    ? ` - Parameters: ${Object.entries(req.query).map(([key, value]) => `${key}=${value}`).join(', ')}`
+    ? Object.entries(req.query).map(([key, value]) => `${key}=${value}`).join(', ')
     : '';
-    
-  const event = `${req.method} ${req.path}${queryParams}`;
   
-  // Log the incoming request
-  structuredLogger.info(
-    event,
-    req.sessionContext,
-    req.requestId
-  );
+  const routeParams = Object.keys(req.params).length > 0 
+    ? Object.entries(req.params).map(([key, value]) => `${key}=${value}`).join(', ')
+    : '';
+  
+  if (queryParams && routeParams) {
+    parameterString = ` - Parameters: ${queryParams}, ${routeParams}`;
+  } else if (queryParams) {
+    parameterString = ` - Parameters: ${queryParams}`;
+  } else if (routeParams) {
+    parameterString = ` - Parameters: ${routeParams}`;
+  }
+    
+  const event = `${req.method} ${req.path}${parameterString}`;
+  
+  // Log the incoming request (don't log initial request, only response)
   
   // Log response when it finishes
   const originalSend = res.send;
   res.send = function(data) {
     const duration = req.startTime ? Date.now() - req.startTime : 0;
-    const responseEvent = `${req.method} ${req.path} - status: ${res.statusCode}`;
+    
+    // Enhanced parameter logging for team endpoints
+    let enhancedParameterString = parameterString;
+    if (req.path.includes('/teams/') && req.params.id) {
+      try {
+        // Try to parse the response data to get team name
+        let responseData;
+        if (typeof data === 'string') {
+          responseData = JSON.parse(data);
+        } else if (data && typeof data === 'object') {
+          responseData = data;
+        } else {
+          responseData = null;
+        }
+        
+        if (responseData && responseData.name) {
+          enhancedParameterString = ` - Parameters: team=${responseData.name} (id=${req.params.id})`;
+        } else {
+          enhancedParameterString = ` - Parameters: id=${req.params.id}`;
+        }
+      } catch (error) {
+        // Fallback to original parameter string if parsing fails
+        enhancedParameterString = ` - Parameters: id=${req.params.id}`;
+      }
+    }
+    
+    const responseEvent = `${req.method} ${req.path}${enhancedParameterString} - status: ${res.statusCode}`;
     
     structuredLogger.info(
       responseEvent,
