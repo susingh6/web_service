@@ -66,7 +66,7 @@ const TeamSelector = ({ teams, openTeamTabs, onAddTeamTab }: TeamSelectorProps) 
         }}
         PaperProps={{
           style: {
-            maxHeight: 300, // Limit height to show scrollbar
+            maxHeight: 200, // Limit height to show scrollbar with fewer teams
             width: 200, // Set fixed width for better UX
             overflowY: 'auto', // Enable vertical scrolling
           },
