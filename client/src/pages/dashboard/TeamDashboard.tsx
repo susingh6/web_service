@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Box, Grid, Typography, Tabs, Tab, Card, CardContent, Chip, Paper, Button } from '@mui/material';
+import { Box, Typography, Tabs, Tab, Card, CardContent, Chip, Paper, Button } from '@mui/material';
 import { Add as AddIcon, Upload as UploadIcon } from '@mui/icons-material';
-import { useParams } from 'wouter';
 import { useAppDispatch, useAppSelector } from '@/lib/store';
-import { fetchEntities, fetchTeams } from '@/features/sla/slices/entitiesSlice';
+import { fetchEntities } from '@/features/sla/slices/entitiesSlice';
 import { Entity, Team } from '@shared/schema';
 import MetricCard from '@/components/dashboard/MetricCard';
 import ChartCard from '@/components/dashboard/ChartCard';
@@ -11,51 +10,42 @@ import EntityTable from '@/components/dashboard/EntityTable';
 import DateRangePicker from '@/components/dashboard/DateRangePicker';
 import ComplianceTrendChart from '@/components/dashboard/ComplianceTrendChart';
 import EntityPerformanceChart from '@/components/dashboard/EntityPerformanceChart';
-import EntityDetailsModal from '@/components/modals/EntityDetailsModal';
-import EditEntityModal from '@/components/modals/EditEntityModal';
-import AddEntityModal from '@/components/modals/AddEntityModal';
-import BulkUploadModal from '@/components/modals/BulkUploadModal';
-import ConfirmDialog from '@/components/modals/ConfirmDialog';
-import TaskManagementModal from '@/components/modals/TaskManagementModal';
-import { NotificationTimelineModal } from '@/components/notifications/timeline/NotificationTimelineModal';
-import { useToast } from '@/hooks/use-toast';
-import { queryClient } from '@/lib/queryClient';
 
-const TeamDashboard = () => {
-  const { id } = useParams<{ id: string }>();
+interface TeamDashboardProps {
+  teamName: string;
+  tenantName: string;
+  onEditEntity: (entity: Entity) => void;
+  onDeleteEntity: (id: number) => void;
+  onViewDetails: (entity: Entity) => void;
+  onAddEntity: () => void;
+  onBulkUpload: () => void;
+  onNotificationTimeline: (entity: Entity) => void;
+  onViewTasks: (entity: Entity) => void;
+}
+
+const TeamDashboard = ({ 
+  teamName, 
+  tenantName, 
+  onEditEntity, 
+  onDeleteEntity, 
+  onViewDetails, 
+  onAddEntity, 
+  onBulkUpload, 
+  onNotificationTimeline, 
+  onViewTasks 
+}: TeamDashboardProps) => {
   const dispatch = useAppDispatch();
-  const { toast } = useToast();
-  
   const { list: entities, teams, isLoading } = useAppSelector((state) => state.entities);
   
   const [tabValue, setTabValue] = useState(0);
-  const [selectedEntity, setSelectedEntity] = useState<Entity | null>(null);
-  const [openDetailsDrawer, setOpenDetailsDrawer] = useState(false);
-  const [openEditModal, setOpenEditModal] = useState(false);
-  const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
-  const [openAddModal, setOpenAddModal] = useState(false);
-  const [openBulkModal, setOpenBulkModal] = useState(false);
-  const [openTasksModal, setOpenTasksModal] = useState(false);
-  const [openNotificationTimelineModal, setOpenNotificationTimelineModal] = useState(false);
   const [chartFilter, setChartFilter] = useState('All');
   const [entitiesChartFilter, setEntitiesChartFilter] = useState('All');
   
-  // Get current team info - try both ID and name lookup
-  const team = teams.find((t: Team) => {
-    const teamId = parseInt(id || '0');
-    return t.id === teamId || t.name.toLowerCase() === (id || '').toLowerCase();
-  });
+  // Get current team info by name
+  const team = teams.find((t: Team) => t.name === teamName);
   
-  // Debug logging for team lookup
+  // Fetch data when team is found
   useEffect(() => {
-    if (id && teams.length > 0) {
-      // TeamDashboard: Looking for team with ID/name
-    }
-  }, [id, teams, team]);
-  
-  // Fetch data
-  useEffect(() => {
-    dispatch(fetchTeams());
     if (team?.id) {
       dispatch(fetchEntities({ teamId: team.id }));
     }
@@ -81,96 +71,19 @@ const TeamDashboard = () => {
     setTabValue(newValue);
   };
   
-  const handleAddEntity = () => {
-    setOpenAddModal(true);
-  };
-  
-  const handleBulkUpload = () => {
-    setOpenBulkModal(true);
-  };
-  
-  const handleViewDetails = (entity: Entity) => {
-    setSelectedEntity(entity);
-    setOpenDetailsDrawer(true);
-  };
-  
-  const handleEditEntity = (entity: Entity) => {
-    setSelectedEntity(entity);
-    setOpenEditModal(true);
-  };
-  
-  const handleDeleteEntity = (id: number) => {
-    const entity = entities.find(e => e.id === id);
-    if (entity) {
-      setSelectedEntity(entity);
-      setOpenDeleteDialog(true);
-    }
-  };
-
-  const handleViewTasks = (entity: Entity) => {
-    setSelectedEntity(entity);
-    setOpenTasksModal(true);
-  };
-
-  const handleSetNotificationTimeline = (entity: Entity) => {
-    setSelectedEntity(entity);
-    setOpenNotificationTimelineModal(true);
-  };
-  
-  const handleConfirmDelete = async () => {
-    try {
-      if (!selectedEntity) return;
-      
-      // This would be a real API call in production
-      // await dispatch(deleteEntity(selectedEntity.id)).unwrap();
-      
-      toast({
-        title: 'Success',
-        description: `${selectedEntity.name} has been deleted.`,
-        variant: 'default',
-      });
-      
-      // Refresh data
-      queryClient.invalidateQueries({ queryKey: ['/api/entities'] });
-      
-      setOpenDeleteDialog(false);
-      setSelectedEntity(null);
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: `Failed to delete: ${error}`,
-        variant: 'destructive',
-      });
-    }
-  };
-  
-  if (isLoading) {
+  // Show loading state when team is not found
+  if (!team) {
     return (
-      <Box p={4} display="flex" justifyContent="center">
-        <Typography>Loading team data...</Typography>
-      </Box>
-    );
-  }
-  
-  if (!team && teams.length > 0) {
-    return (
-      <Box p={4}>
-        <Typography variant="h5" color="error">Team not found</Typography>
-        <Typography variant="body2" sx={{ mt: 2 }}>
-          Looking for team: "{id}"
-        </Typography>
-        <Typography variant="body2" sx={{ mt: 1 }}>
-          Available teams: {teams.map(t => `${t.name} (ID: ${t.id})`).join(', ')}
-        </Typography>
-        <Typography variant="body2" sx={{ mt: 1, fontStyle: 'italic' }}>
-          Try visiting: /teams/1 or /teams/pgm
+      <Box sx={{ p: 3 }}>
+        <Typography variant="h6" color="text.secondary">
+          Loading team dashboard for {teamName}...
         </Typography>
       </Box>
     );
   }
   
   return (
-    <Box>
+    <Box sx={{ p: 3 }}>
       <Box mb={4}>
         <Paper elevation={0} sx={{ p: 3, borderRadius: 2, mb: 4 }}>
           <Box display="flex" justifyContent="space-between" alignItems="flex-start">
@@ -207,7 +120,7 @@ const TeamDashboard = () => {
                 variant="contained"
                 color="primary"
                 startIcon={<AddIcon />}
-                onClick={handleAddEntity}
+                onClick={onAddEntity}
               >
                 Add Entity
               </Button>
@@ -216,7 +129,7 @@ const TeamDashboard = () => {
                 variant="outlined"
                 color="primary"
                 startIcon={<UploadIcon />}
-                onClick={handleBulkUpload}
+                onClick={onBulkUpload}
               >
                 Bulk Upload
               </Button>
@@ -246,13 +159,20 @@ const TeamDashboard = () => {
             { 
               title: "DAGs SLA Compliance", 
               value: dagsComplianceAvg, 
-              trend: -0.3, 
+              trend: 1.5, 
               progress: dagsComplianceAvg, 
               suffix: "%",
               infoTooltip: `Average SLA compliance percentage calculated across all DAG entities for ${team.name} team`
+            },
+            { 
+              title: "Entities Monitored", 
+              value: teamEntities.length, 
+              trend: 0, 
+              suffix: "",
+              subtitle: `${tables.length} Tables • ${dags.length} DAGs`
             }
           ].map((card, idx) => (
-            <Box key={card.title} flex="1 1 300px" minWidth="300px">
+            <Box key={card.title} flex="1 1 250px" minWidth="250px">
               <MetricCard {...card} />
             </Box>
           ))}
@@ -265,6 +185,7 @@ const TeamDashboard = () => {
               title="Compliance Trend"
               filters={['All', 'Tables', 'DAGs']}
               onFilterChange={setChartFilter}
+              loading={isLoading}
               chart={<ComplianceTrendChart filter={chartFilter.toLowerCase() as 'all' | 'tables' | 'dags'} />}
             />
           </Box>
@@ -274,15 +195,14 @@ const TeamDashboard = () => {
               title="Top 5 Entities Performance"
               filters={['All', 'Tables', 'DAGs']}
               onFilterChange={setEntitiesChartFilter}
-              chart={<EntityPerformanceChart entities={teamEntities.slice(0, 5)} filter={entitiesChartFilter.toLowerCase() as 'all' | 'tables' | 'dags'} />}
+              loading={isLoading}
+              chart={<EntityPerformanceChart entities={teamEntities} filter={entitiesChartFilter} />}
             />
           </Box>
         </Box>
-      </Box>
-      
-      {/* Entities Tables */}
-      <Box sx={{ mb: 4, bgcolor: 'background.paper', borderRadius: 1 }}>
-        <Tabs value={tabValue} onChange={handleTabChange} sx={{ borderBottom: 1, borderColor: 'divider' }}>
+        
+        {/* Tables/DAGs Sub-tabs */}
+        <Tabs value={tabValue} onChange={handleTabChange} sx={{ mb: 3 }}>
           <Tab 
             label="Tables" 
             sx={{ 
@@ -307,12 +227,12 @@ const TeamDashboard = () => {
               entities={tables}
               type="table"
               teams={teams}
-              onEditEntity={handleEditEntity}
-              onDeleteEntity={handleDeleteEntity}
-              onViewHistory={handleViewDetails}
-              onViewDetails={handleViewDetails}
-              onSetNotificationTimeline={handleSetNotificationTimeline}
-              showActions={true} // Show actions in team tabs
+              onEditEntity={onEditEntity}
+              onDeleteEntity={onDeleteEntity}
+              onViewHistory={() => {}}
+              onViewDetails={onViewDetails}
+              onSetNotificationTimeline={onNotificationTimeline}
+              showActions={true}
             />
           )}
         </Box>
@@ -323,69 +243,17 @@ const TeamDashboard = () => {
               entities={dags}
               type="dag"
               teams={teams}
-              onEditEntity={handleEditEntity}
-              onDeleteEntity={handleDeleteEntity}
-              onViewHistory={handleViewDetails}
-              onViewDetails={handleViewDetails}
-              onViewTasks={handleViewTasks}
-              onSetNotificationTimeline={handleSetNotificationTimeline}
-              showActions={true} // Show actions in team tabs
+              onEditEntity={onEditEntity}
+              onDeleteEntity={onDeleteEntity}
+              onViewHistory={() => {}}
+              onViewDetails={onViewDetails}
+              onViewTasks={onViewTasks}
+              onSetNotificationTimeline={onNotificationTimeline}
+              showActions={true}
             />
           )}
         </Box>
       </Box>
-      
-      {/* Modals */}
-      <EntityDetailsModal
-        open={openDetailsDrawer}
-        onClose={() => setOpenDetailsDrawer(false)}
-        entity={selectedEntity}
-        teams={teams}
-      />
-      
-      <EditEntityModal
-        open={openEditModal}
-        onClose={() => setOpenEditModal(false)}
-        entity={selectedEntity}
-        teams={teams}
-      />
-      
-      <ConfirmDialog
-        open={openDeleteDialog}
-        onClose={() => setOpenDeleteDialog(false)}
-        onConfirm={handleConfirmDelete}
-        title="Delete Entity"
-        content={`Are you sure you want to delete "${selectedEntity?.name}"? This action cannot be undone.`}
-      />
-      
-      <AddEntityModal
-        open={openAddModal}
-        onClose={() => setOpenAddModal(false)}
-        teams={teams}
-      />
-      
-      <BulkUploadModal
-        open={openBulkModal}
-        onClose={() => setOpenBulkModal(false)}
-      />
-      
-      <TaskManagementModal
-        isOpen={openTasksModal}
-        onClose={() => {
-          setOpenTasksModal(false);
-          setSelectedEntity(null);
-        }}
-        dag={selectedEntity}
-      />
-      
-      <NotificationTimelineModal
-        open={openNotificationTimelineModal}
-        onClose={() => {
-          setOpenNotificationTimelineModal(false);
-          setSelectedEntity(null);
-        }}
-        entity={selectedEntity}
-      />
     </Box>
   );
 };
