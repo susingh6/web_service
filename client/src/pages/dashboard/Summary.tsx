@@ -48,7 +48,7 @@ const Summary = () => {
   
   // Fetch dashboard data and preload tenant cache
   useEffect(() => {
-    dispatch(fetchDashboardSummary(selectedTenant.name));
+    dispatch(fetchDashboardSummary({ tenantName: selectedTenant.name }));
     dispatch(fetchEntities({})); // Load ALL entities for team dashboards
     dispatch(fetchTeams());
     
@@ -84,7 +84,7 @@ const Summary = () => {
       // Invalidate cached dashboard data to force fresh fetch
       queryClient.invalidateQueries({ queryKey: ['/api/dashboard/summary'] });
       
-      dispatch(fetchDashboardSummary(tenant.name));
+      dispatch(fetchDashboardSummary({ tenantName: tenant.name }));
       // Do NOT refetch entities - we need all entities for team dashboards
     }
   };

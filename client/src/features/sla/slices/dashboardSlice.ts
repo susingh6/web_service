@@ -29,8 +29,8 @@ const initialState: DashboardState = {
 // Async thunks
 export const fetchDashboardSummary = createAsyncThunk(
   'dashboard/fetchSummary',
-  async (tenant?: string) => {
-    return await dashboardApi.getSummary(tenant);
+  async (params: { tenantName: string; startDate?: string; endDate?: string }) => {
+    return await dashboardApi.getSummary(params.tenantName, params.startDate, params.endDate);
   }
 );
 

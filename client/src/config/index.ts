@@ -70,6 +70,8 @@ interface ApiConfig {
     tenantRefreshHours: number;
     entityRefreshHours: number;
     trendRefreshHours: number;
+    cacheStatus: string;
+    cacheRefresh: string;
   };
   debug: boolean;
   logLevel: string;

@@ -51,11 +51,24 @@ export const tablesApi = {
 };
 
 export const dashboardApi = {
-  getSummary: async (tenant?: string) => {
+  getSummary: async (tenant?: string, startDate?: string, endDate?: string) => {
     let url = endpoints.dashboard.summary;
+    const params = new URLSearchParams();
+    
     if (tenant) {
-      url += `?tenant=${encodeURIComponent(tenant)}`;
+      params.append('tenant', tenant);
     }
+    if (startDate) {
+      params.append('startDate', startDate);
+    }
+    if (endDate) {
+      params.append('endDate', endDate);
+    }
+    
+    if (params.toString()) {
+      url += `?${params.toString()}`;
+    }
+    
     const res = await apiRequest('GET', url);
     return await res.json();
   },

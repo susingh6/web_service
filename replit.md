@@ -113,18 +113,17 @@ Preferred communication style: Simple, everyday language.
 
 ## Changelog
 
-- July 11, 2025: Restored team header section to match original design with colored entity count badges
-  - Added missing team header section: team name, dynamic description from team data, and entity counts in colored boxes
-  - Team header shows entity counts in colored badges: primary blue for "X Entities", info blue for "Y Tables", secondary for "Z DAGs"
-  - Proper singular/plural handling for entity counts in badges
-  - Tenant filter now appears exclusively in Summary dashboard (only when Summary tab is active)
-  - Each team dashboard has its own dedicated date filter separate from Summary
-  - Team dashboards show: compact team header section, team-specific date filter, Add Entity button, Bulk Upload button
-  - Summary dashboard shows: "Overall SLA Performance" title, tenant filter, summary date filter
-  - Achieved complete separation of global filters (tenant) vs team-specific filters (date)
-  - Fixed team selector (+) to show all teams regardless of tenant filter
-  - Team tabs no longer disappear when changing tenant filter
-  - Issue identified: Summary tab data not updating when switching tenants (Redux store state management issue)
+- July 11, 2025: Implemented comprehensive server-side caching system for instant tenant switching
+  - Created server/cache.ts with DataCache class that caches ALL tenant and team data on startup and every 6 hours
+  - Updated backend routes to use cached data instead of direct storage queries for teams, tenants, and entities
+  - Added cache management endpoints: /api/cache/status and /api/cache/refresh for monitoring and manual refresh
+  - Dashboard summary endpoint now supports both cached (30-day default) and dynamic date range queries
+  - Frontend updated to use cached data for instant tenant switching with no API calls required
+  - Date range filtering triggers fresh data fetch while tenant switching uses pre-cached data
+  - Cache automatically refreshes every 6 hours or can be manually refreshed via API endpoint
+  - System designed for scalability - works with any number of tenants and teams without code changes
+  - All tenant and team data loaded once at startup then filtered from cache for instant performance
+  - Solved Summary tab data update issue by implementing proper cache-based tenant filtering
 - July 11, 2025: Completed scalable tenant filtering system with dynamic team performance charts
   - Updated TeamComparisonChart component to use dynamic data instead of hardcoded teams
   - Implemented calculateTeamData function to generate SLA averages from actual entities and teams

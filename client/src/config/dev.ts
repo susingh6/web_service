@@ -90,6 +90,8 @@ export const devConfig = {
     tenantRefreshHours: 6,
     entityRefreshHours: 6,
     trendRefreshHours: 6,
+    cacheStatus: '/api/cache/status',
+    cacheRefresh: '/api/cache/refresh',
   },
   
   // Development settings

@@ -1,6 +1,7 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { dataCache } from "./cache";
 import { insertEntitySchema, insertTeamSchema, insertEntityHistorySchema, insertIssueSchema, insertUserSchema, insertNotificationTimelineSchema } from "@shared/schema";
 import { z } from "zod";
 import { setupSimpleAuth } from "./simple-auth";
@@ -42,37 +43,95 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Teams endpoints
+  // Teams endpoints - using cache
   app.get("/api/teams", async (req, res) => {
     try {
-      const teams = await storage.getTeams();
+      const teams = dataCache.getAllTeams();
       res.json(teams);
     } catch (error) {
-      res.status(500).json({ message: "Failed to fetch teams" });
+      res.status(500).json({ message: "Failed to fetch teams from cache" });
     }
   });
 
-  // Tenants endpoints
+  // Tenants endpoints - using cache
   app.get("/api/tenants", async (req, res) => {
     try {
-      const tenants = await storage.getTenants();
+      const tenants = dataCache.getAllTenants();
       res.json(tenants);
     } catch (error) {
-      res.status(500).json({ message: "Failed to fetch tenants" });
+      res.status(500).json({ message: "Failed to fetch tenants from cache" });
     }
   });
 
-  // Debug endpoint to check team data
+  // Debug endpoint to check team data - using cache
   app.get("/api/debug/teams", async (req, res) => {
     try {
-      const teams = await storage.getTeams();
+      const teams = dataCache.getAllTeams();
       res.json({
         total: teams.length,
         teams: teams.map(t => ({ id: t.id, name: t.name, description: t.description })),
-        message: "Debug: All teams with IDs"
+        message: "Debug: All teams with IDs from cache"
       });
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch teams for debug" });
+    }
+  });
+
+  // Cache management endpoints
+  app.get("/api/cache/status", async (req, res) => {
+    try {
+      const status = dataCache.getCacheStatus();
+      res.json(status);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to get cache status" });
+    }
+  });
+
+  app.post("/api/cache/refresh", async (req, res) => {
+    try {
+      await dataCache.forceRefresh();
+      res.json({ message: "Cache refreshed successfully" });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to refresh cache" });
+    }
+  });
+
+  // Dashboard endpoints using cache
+  app.get("/api/dashboard/summary", async (req, res) => {
+    try {
+      const tenantName = req.query.tenant as string;
+      const startDate = req.query.startDate as string;
+      const endDate = req.query.endDate as string;
+      
+      if (!tenantName) {
+        return res.status(400).json({ message: "Tenant parameter is required" });
+      }
+
+      let metrics;
+      
+      // If date range is provided, calculate fresh metrics
+      if (startDate && endDate) {
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        metrics = dataCache.calculateMetricsForDateRange(tenantName, start, end);
+      } else {
+        // Use cached 30-day metrics by default
+        metrics = dataCache.getDashboardMetrics(tenantName);
+      }
+
+      const entities = dataCache.getEntitiesByTenant(tenantName);
+      const teams = dataCache.getTeamsByTenant(tenantName);
+
+      res.json({
+        metrics,
+        entities,
+        teams,
+        tenant: tenantName,
+        cached: !startDate && !endDate, // Indicate if data is from cache
+        dateRange: startDate && endDate ? { startDate, endDate } : "last30Days"
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch dashboard summary from cache" });
     }
   });
   
@@ -109,36 +168,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Entities endpoints
+  // Entities endpoints - using cache
   app.get("/api/entities", async (req, res) => {
     try {
-      let entities;
+      let entities = dataCache.getAllEntities();
       
+      // Filter by tenant if tenant parameter is provided
+      if (req.query.tenant) {
+        const tenantName = req.query.tenant as string;
+        entities = dataCache.getEntitiesByTenant(tenantName);
+      }
+      
+      // Additional filters
       if (req.query.teamId) {
         const teamId = parseInt(req.query.teamId as string);
         if (isNaN(teamId)) {
           return res.status(400).json({ message: "Invalid team ID" });
         }
-        entities = await storage.getEntitiesByTeam(teamId);
+        entities = entities.filter(entity => entity.teamId === teamId);
       } else if (req.query.type) {
         const type = req.query.type as string;
         if (type !== 'table' && type !== 'dag') {
           return res.status(400).json({ message: "Type must be 'table' or 'dag'" });
         }
-        entities = await storage.getEntitiesByType(type);
-      } else {
-        entities = await storage.getEntities();
-      }
-      
-      // Filter by tenant if tenant parameter is provided
-      if (req.query.tenant) {
-        const tenantName = req.query.tenant as string;
-        entities = entities.filter(entity => entity.tenant_name === tenantName);
+        entities = entities.filter(entity => entity.type === type);
       }
       
       res.json(entities);
     } catch (error) {
-      res.status(500).json({ message: "Failed to fetch entities" });
+      res.status(500).json({ message: "Failed to fetch entities from cache" });
     }
   });
   
