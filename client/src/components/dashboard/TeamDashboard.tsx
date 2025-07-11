@@ -1,11 +1,13 @@
 import { useMemo, useState } from 'react';
-import { Box, Typography, Tabs, Tab } from '@mui/material';
+import { Box, Typography, Tabs, Tab, Button } from '@mui/material';
+import { Add as AddIcon, Upload as UploadIcon } from '@mui/icons-material';
 import { useAppSelector } from '@/lib/store';
 import MetricCard from '@/components/dashboard/MetricCard';
 import ChartCard from '@/components/dashboard/ChartCard';
 import ComplianceTrendChart from '@/components/dashboard/ComplianceTrendChart';
 import EntityPerformanceChart from '@/components/dashboard/EntityPerformanceChart';
 import EntityTable from '@/components/dashboard/EntityTable';
+import DateRangePicker from '@/components/dashboard/DateRangePicker';
 import { Entity } from '@shared/schema';
 
 interface TeamDashboardProps {
@@ -14,6 +16,10 @@ interface TeamDashboardProps {
   onEditEntity: (entity: Entity) => void;
   onDeleteEntity: (id: number) => void;
   onViewDetails: (entity: Entity) => void;
+  onAddEntity: () => void;
+  onBulkUpload: () => void;
+  onNotificationTimeline: (entity: Entity) => void;
+  onViewTasks: (entity: Entity) => void;
 }
 
 const TeamDashboard = ({ 
@@ -21,7 +27,11 @@ const TeamDashboard = ({
   tenantName, 
   onEditEntity, 
   onDeleteEntity, 
-  onViewDetails 
+  onViewDetails,
+  onAddEntity,
+  onBulkUpload,
+  onNotificationTimeline,
+  onViewTasks
 }: TeamDashboardProps) => {
   const { list: entities, teams } = useAppSelector((state) => state.entities);
   
@@ -76,9 +86,44 @@ const TeamDashboard = ({
   
   return (
     <Box sx={{ p: 3 }}>
-      <Typography variant="h5" component="h2" fontWeight={600} mb={3}>
-        {teamName} Team Dashboard
-      </Typography>
+      {/* Header with title and action buttons */}
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+        <Typography variant="h5" component="h2" fontWeight={600}>
+          {teamName} Team Dashboard
+        </Typography>
+        
+        <Box display="flex" gap={2} alignItems="center">
+          <DateRangePicker />
+          
+          <Button
+            variant="outlined"
+            startIcon={<AddIcon />}
+            onClick={onAddEntity}
+            sx={{
+              textTransform: 'none',
+              fontWeight: 500,
+              borderRadius: 2,
+              px: 3
+            }}
+          >
+            Add Entity
+          </Button>
+          
+          <Button
+            variant="contained"
+            startIcon={<UploadIcon />}
+            onClick={onBulkUpload}
+            sx={{
+              textTransform: 'none',
+              fontWeight: 500,
+              borderRadius: 2,
+              px: 3
+            }}
+          >
+            Bulk Upload
+          </Button>
+        </Box>
+      </Box>
       
       {/* Team-specific Metrics */}
       <Box display="flex" flexWrap="wrap" gap={3} mb={4}>
@@ -139,12 +184,24 @@ const TeamDashboard = ({
       </Box>
       
       {/* Tables/DAGs Sub-tabs */}
-      <Tabs value={tabValue} onChange={handleTabChange} sx={{ mb: 3 }}>
+      <Tabs 
+        value={tabValue} 
+        onChange={handleTabChange} 
+        sx={{ 
+          mb: 3,
+          '& .MuiTabs-indicator': {
+            backgroundColor: 'primary.main'
+          }
+        }}
+      >
         <Tab 
           label="Tables" 
           sx={{ 
             fontWeight: 500, 
             textTransform: 'none',
+            fontSize: '1rem',
+            minHeight: 48,
+            px: 3,
             '&.Mui-selected': { fontWeight: 600 } 
           }} 
         />
@@ -153,6 +210,9 @@ const TeamDashboard = ({
           sx={{ 
             fontWeight: 500, 
             textTransform: 'none',
+            fontSize: '1rem',
+            minHeight: 48,
+            px: 3,
             '&.Mui-selected': { fontWeight: 600 } 
           }} 
         />
@@ -168,6 +228,7 @@ const TeamDashboard = ({
             onDeleteEntity={onDeleteEntity}
             onViewHistory={() => {}}
             onViewDetails={onViewDetails}
+            onSetNotificationTimeline={onNotificationTimeline}
             showActions={true}
           />
         )}
@@ -183,6 +244,8 @@ const TeamDashboard = ({
             onDeleteEntity={onDeleteEntity}
             onViewHistory={() => {}}
             onViewDetails={onViewDetails}
+            onViewTasks={onViewTasks}
+            onSetNotificationTimeline={onNotificationTimeline}
             showActions={true}
           />
         )}

@@ -16,6 +16,8 @@ import BulkUploadModal from '@/components/modals/BulkUploadModal';
 import EntityDetailsModal from '@/components/modals/EntityDetailsModal';
 import EditEntityModal from '@/components/modals/EditEntityModal';
 import ConfirmDialog from '@/components/modals/ConfirmDialog';
+import NotificationTimelineModal from '@/components/notifications/timeline/NotificationTimelineModal';
+import TaskManagementModal from '@/components/modals/TaskManagementModal';
 import TeamSelector from '@/components/dashboard/TeamSelector';
 import TeamDashboard from '@/components/dashboard/TeamDashboard';
 import { useToast } from '@/hooks/use-toast';
@@ -35,6 +37,8 @@ const Summary = () => {
   const [openDetailsDrawer, setOpenDetailsDrawer] = useState(false);
   const [openEditModal, setOpenEditModal] = useState(false);
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
+  const [openNotificationModal, setOpenNotificationModal] = useState(false);
+  const [openTaskModal, setOpenTaskModal] = useState(false);
   const [selectedEntity, setSelectedEntity] = useState<Entity | null>(null);
   const [chartFilter, setChartFilter] = useState('All');
   const [selectedTenant, setSelectedTenant] = useState<Tenant>(getDefaultTenant);
@@ -127,6 +131,16 @@ const Summary = () => {
       setOpenDeleteDialog(true);
     }
   };
+
+  const handleNotificationTimeline = (entity: Entity) => {
+    setSelectedEntity(entity);
+    setOpenNotificationModal(true);
+  };
+
+  const handleViewTasks = (entity: Entity) => {
+    setSelectedEntity(entity);
+    setOpenTaskModal(true);
+  };
   
   const handleConfirmDelete = async () => {
     try {
@@ -199,6 +213,9 @@ const Summary = () => {
               sx={{ 
                 fontWeight: 500, 
                 textTransform: 'none',
+                fontSize: '1rem',
+                minHeight: 48,
+                px: 3,
                 '&.Mui-selected': { fontWeight: 600 } 
               }} 
             />
@@ -230,6 +247,9 @@ const Summary = () => {
                 sx={{ 
                   fontWeight: 500, 
                   textTransform: 'none',
+                  fontSize: '1rem',
+                  minHeight: 48,
+                  px: 3,
                   '&.Mui-selected': { fontWeight: 600 } 
                 }}
               />
@@ -340,6 +360,7 @@ const Summary = () => {
                     onDeleteEntity={handleDeleteEntity}
                     onViewHistory={() => {}}
                     onViewDetails={handleViewDetails}
+                    onSetNotificationTimeline={handleNotificationTimeline}
                     showActions={false}
                   />
                 )}
@@ -355,6 +376,8 @@ const Summary = () => {
                     onDeleteEntity={handleDeleteEntity}
                     onViewHistory={() => {}}
                     onViewDetails={handleViewDetails}
+                    onViewTasks={handleViewTasks}
+                    onSetNotificationTimeline={handleNotificationTimeline}
                     showActions={false}
                   />
                 )}
@@ -373,6 +396,10 @@ const Summary = () => {
                 onEditEntity={handleEditEntity}
                 onDeleteEntity={handleDeleteEntity}
                 onViewDetails={handleViewDetails}
+                onAddEntity={() => setOpenAddModal(true)}
+                onBulkUpload={() => setOpenBulkModal(true)}
+                onNotificationTimeline={handleNotificationTimeline}
+                onViewTasks={handleViewTasks}
               />
             )}
           </Box>
@@ -411,6 +438,26 @@ const Summary = () => {
         onConfirm={handleConfirmDelete}
         title="Delete Entity"
         content={`Are you sure you want to delete "${selectedEntity?.name}"? This action cannot be undone.`}
+      />
+      
+      <NotificationTimelineModal
+        open={openNotificationModal}
+        onClose={() => setOpenNotificationModal(false)}
+        entity={selectedEntity}
+        onSuccess={() => {
+          setOpenNotificationModal(false);
+          toast({
+            title: 'Success',
+            description: 'Notification timeline has been configured.',
+            variant: 'default',
+          });
+        }}
+      />
+      
+      <TaskManagementModal
+        isOpen={openTaskModal}
+        onClose={() => setOpenTaskModal(false)}
+        dag={selectedEntity?.type === 'dag' ? selectedEntity : null}
       />
     </Box>
   );
