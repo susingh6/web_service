@@ -19,7 +19,7 @@ import ConfirmDialog from '@/components/modals/ConfirmDialog';
 import NotificationTimelineModal from '@/components/notifications/timeline/NotificationTimelineModal';
 import TaskManagementModal from '@/components/modals/TaskManagementModal';
 import TeamSelector from '@/components/dashboard/TeamSelector';
-import TeamDashboard from '@/components/dashboard/TeamDashboard';
+import TeamDashboard from '@/pages/dashboard/TeamDashboard';
 import { useToast } from '@/hooks/use-toast';
 import { queryClient } from '@/lib/queryClient';
 import { getTenants, getDefaultTenant, preloadTenantCache, type Tenant } from '@/lib/tenantCache';
@@ -142,7 +142,12 @@ const Summary = () => {
   };
 
   const handleAddTeamTab = (teamName: string) => {
+    console.log('handleAddTeamTab called with:', teamName);
+    console.log('Current openTeamTabs:', openTeamTabs);
+    console.log('Available teams:', teams);
+    
     if (!openTeamTabs.includes(teamName)) {
+      console.log('Adding team tab for:', teamName);
       setOpenTeamTabs([...openTeamTabs, teamName]);
       // Don't refetch teams - we already have all teams loaded
       // The fetchTeams(teamName) was overriding the full teams list
