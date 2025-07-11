@@ -184,71 +184,13 @@ const Summary = () => {
         </Box>
       </Box>
       
-      {/* Metrics Cards */}
-      <Box display="flex" flexWrap="wrap" gap={3} mb={4}>
-        {[
-          { 
-            title: "Overall SLA Compliance", 
-            value: metrics?.overallCompliance || 0, 
-            suffix: "%", 
-            progress: metrics?.overallCompliance || 0,
-            infoTooltip: "Average SLA compliance calculated across all tables and DAGs monitored across all teams"
-          },
-          { 
-            title: "Tables SLA Compliance", 
-            value: metrics?.tablesCompliance || 0, 
-            suffix: "%", 
-            progress: metrics?.tablesCompliance || 0,
-            infoTooltip: "Average SLA compliance percentage calculated across all table entities"
-          },
-          { 
-            title: "DAGs SLA Compliance", 
-            value: metrics?.dagsCompliance || 0, 
-            suffix: "%", 
-            progress: metrics?.dagsCompliance || 0,
-            infoTooltip: "Average SLA compliance percentage calculated across all DAG entities"
-          },
-          { 
-            title: "Entities Monitored", 
-            value: metrics?.entitiesCount || 0, 
-            suffix: "",
-            subtitle: `${tables.length} Tables • ${dags.length} DAGs`
-          }
-        ].map((card, idx) => (
-          <Box key={card.title} flex="1 1 250px" minWidth="250px">
-            <MetricCard {...card} />
-          </Box>
-        ))}
-      </Box>
-      
-      {/* Charts */}
-      <Box display="flex" flexWrap="wrap" gap={3} mb={4}>
-        <Box flex="1 1 500px" minWidth="500px">
-          <ChartCard
-            title="Compliance Trend"
-            filters={['All', 'Tables', 'DAGs']}
-            onFilterChange={setChartFilter}
-            loading={metricsLoading}
-            chart={<ComplianceTrendChart filter={chartFilter.toLowerCase() as 'all' | 'tables' | 'dags'} />}
-          />
-        </Box>
-        
-        <Box flex="1 1 500px" minWidth="500px">
-          <ChartCard
-            title="Team Performance Comparison"
-            loading={metricsLoading}
-            chart={<TeamComparisonChart entities={entities} teams={teams} />}
-          />
-        </Box>
-      </Box>
-      
       {/* Dynamic Tabs System */}
       <Box sx={{ mb: 4, bgcolor: 'background.paper', borderRadius: 1 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', borderBottom: 1, borderColor: 'divider' }}>
           <Tabs 
             value={activeTab} 
             onChange={(_, newValue) => handleDynamicTabChange(newValue)}
-            sx={{ flex: 1 }}
+            sx={{ minWidth: 'auto' }}
           >
             {/* Summary Tab - Always Present (No Close Button) */}
             <Tab 
@@ -294,8 +236,8 @@ const Summary = () => {
             ))}
           </Tabs>
           
-          {/* Team Selector - + Button */}
-          <Box sx={{ px: 2 }}>
+          {/* Team Selector - + Button - Right next to tabs */}
+          <Box sx={{ ml: 1 }}>
             <TeamSelector
               teams={teams.filter(team => 
                 entities.some(entity => entity.teamId === team.id && entity.tenant_name === selectedTenant.name)
@@ -310,6 +252,65 @@ const Summary = () => {
         <Box role="tabpanel" hidden={activeTab !== 'summary'}>
           {activeTab === 'summary' && (
             <Box sx={{ p: 3 }}>
+              {/* Metrics Cards */}
+              <Box display="flex" flexWrap="wrap" gap={3} mb={4}>
+                {[
+                  { 
+                    title: "Overall SLA Compliance", 
+                    value: metrics?.overallCompliance || 0, 
+                    suffix: "%", 
+                    progress: metrics?.overallCompliance || 0,
+                    infoTooltip: "Average SLA compliance calculated across all tables and DAGs monitored across all teams"
+                  },
+                  { 
+                    title: "Tables SLA Compliance", 
+                    value: metrics?.tablesCompliance || 0, 
+                    suffix: "%", 
+                    progress: metrics?.tablesCompliance || 0,
+                    infoTooltip: "Average SLA compliance percentage calculated across all table entities"
+                  },
+                  { 
+                    title: "DAGs SLA Compliance", 
+                    value: metrics?.dagsCompliance || 0, 
+                    suffix: "%", 
+                    progress: metrics?.dagsCompliance || 0,
+                    infoTooltip: "Average SLA compliance percentage calculated across all DAG entities"
+                  },
+                  { 
+                    title: "Entities Monitored", 
+                    value: metrics?.entitiesCount || 0, 
+                    suffix: "",
+                    subtitle: `${tables.length} Tables • ${dags.length} DAGs`
+                  }
+                ].map((card, idx) => (
+                  <Box key={card.title} flex="1 1 250px" minWidth="250px">
+                    <MetricCard {...card} />
+                  </Box>
+                ))}
+              </Box>
+              
+              {/* Charts */}
+              <Box display="flex" flexWrap="wrap" gap={3} mb={4}>
+                <Box flex="1 1 500px" minWidth="500px">
+                  <ChartCard
+                    title="Compliance Trend"
+                    filters={['All', 'Tables', 'DAGs']}
+                    onFilterChange={setChartFilter}
+                    loading={metricsLoading}
+                    chart={<ComplianceTrendChart filter={chartFilter.toLowerCase() as 'all' | 'tables' | 'dags'} />}
+                  />
+                </Box>
+                
+                <Box flex="1 1 500px" minWidth="500px">
+                  <ChartCard
+                    title="Team Performance Comparison"
+                    loading={metricsLoading}
+                    chart={<TeamComparisonChart entities={entities} teams={teams} />}
+                  />
+                </Box>
+              </Box>
+              
+              {/* Tables/DAGs Sub-tabs */}
               <Tabs value={tabValue} onChange={handleTabChange} sx={{ mb: 3 }}>
                 <Tab 
                   label="Tables" 
@@ -339,7 +340,7 @@ const Summary = () => {
                     onDeleteEntity={handleDeleteEntity}
                     onViewHistory={() => {}}
                     onViewDetails={handleViewDetails}
-                    showActions={false} // Hide actions in summary pages
+                    showActions={false}
                   />
                 )}
               </Box>
@@ -354,7 +355,7 @@ const Summary = () => {
                     onDeleteEntity={handleDeleteEntity}
                     onViewHistory={() => {}}
                     onViewDetails={handleViewDetails}
-                    showActions={false} // Hide actions in summary pages
+                    showActions={false}
                   />
                 )}
               </Box>
