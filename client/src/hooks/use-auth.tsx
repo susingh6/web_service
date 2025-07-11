@@ -9,18 +9,18 @@ import { PublicClientApplication, Configuration, AuthenticationResult, AccountIn
 import { User } from "@shared/schema";
 import { getQueryFn, apiRequest, queryClient } from "../lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { buildUrl, endpoints, config } from "@/config/index";
+import { buildUrl, endpoints } from "@/config/index";
 
-// Check if Azure AD is configured using centralized config
-const isAzureConfigured = !!(config.azure.clientId && config.azure.authority);
+// Check if Azure AD is configured
+const isAzureConfigured = !!(import.meta.env.VITE_AZURE_CLIENT_ID && import.meta.env.VITE_AZURE_AUTHORITY);
 
-// MSAL configuration using centralized config
+// MSAL configuration (only if Azure is configured)
 const msalConfig: Configuration | null = isAzureConfigured ? {
   auth: {
-    clientId: config.azure.clientId,
-    authority: config.azure.authority,
-    redirectUri: config.azure.redirectUri,
-    postLogoutRedirectUri: config.azure.postLogoutRedirectUri,
+    clientId: import.meta.env.VITE_AZURE_CLIENT_ID,
+    authority: import.meta.env.VITE_AZURE_AUTHORITY,
+    redirectUri: window.location.origin,
+    postLogoutRedirectUri: window.location.origin,
   },
   cache: {
     cacheLocation: 'sessionStorage',
@@ -38,35 +38,12 @@ if (isAzureConfigured && msalConfig) {
   }
 }
 
-// Azure AD login request scopes using centralized config
+// Azure AD login request scopes
 const loginRequest = {
-  scopes: config.azure.scopes,
+  scopes: ['User.Read', 'profile', 'openid', 'email'],
 };
 
-// Session-based authentication types
-type SessionInfo = {
-  session_id: string;
-  session_type: string;
-  created_at: string;
-  expires_at: string;
-  last_activity: string;
-  storage_type: string;
-};
-
-type FastAPIUser = {
-  user_id: number;
-  email: string;
-  name: string;
-  roles: string[];
-  type: string;
-};
-
-type FastAPIAuthResponse = {
-  user: FastAPIUser;
-  session: SessionInfo;
-};
-
-type AuthUser = User | AccountInfo | FastAPIUser | null | undefined;
+type AuthUser = User | AccountInfo | null | undefined;
 
 // Types for local auth
 type LoginData = {
@@ -86,8 +63,7 @@ type AuthContextType = {
   user: AuthUser;
   isLoading: boolean;
   error: Error | string | null;
-  authMethod: 'azure' | 'local' | 'fastapi' | null;
-  sessionId: string | null;
+  authMethod: 'azure' | 'local' | null;
   
   // Traditional login methods
   loginMutation: UseMutationResult<User, Error, LoginData>;
@@ -107,10 +83,8 @@ export const AuthContext = createContext<AuthContextType | null>(null);
 // Auth Provider component
 export function AuthProvider({ children }: { children: ReactNode }) {
   const { toast } = useToast();
-  const [authMethod, setAuthMethod] = useState<'azure' | 'local' | 'fastapi' | null>(null);
+  const [authMethod, setAuthMethod] = useState<'azure' | 'local' | null>(null);
   const [azureUser, setAzureUser] = useState<AccountInfo | null>(null);
-  const [fastApiUser, setFastApiUser] = useState<FastAPIUser | null>(null);
-  const [sessionId, setSessionId] = useState<string | null>(null);
   const [isAzureLoading, setIsAzureLoading] = useState<boolean>(false);
   const [azureError, setAzureError] = useState<string | null>(null);
 
@@ -124,31 +98,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     queryFn: getQueryFn({ on401: "returnNull" }),
   });
 
-  // Check if user is authenticated on mount
+  // Check if user is authenticated with Azure AD on mount
   useEffect(() => {
-    const initializeAuth = async () => {
+    const initializeAzureAuth = async () => {
       try {
-        // Check if there are any Azure AD accounts in the cache (only if Azure is configured)
-        if (isAzureConfigured && msalInstance) {
+        // Check if there are any accounts in the cache
+        if (msalInstance) {
           const accounts = msalInstance.getAllAccounts();
           
           if (accounts.length > 0) {
             msalInstance.setActiveAccount(accounts[0]);
             setAzureUser(accounts[0]);
             setAuthMethod('azure');
-            return;
           }
         }
-        
-        // TODO: FastAPI session validation will be added here later
-        // For now, local authentication is handled by the existing React Query
-        
       } catch (err) {
-        console.error('Authentication initialization error:', err);
+        console.error('Azure AD authentication initialization error:', err);
       }
     };
 
-    initializeAuth();
+    initializeAzureAuth();
   }, []);
 
   // Traditional login mutation
@@ -199,7 +168,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
   });
 
-  // Azure AD login function - placeholder for future FastAPI integration
+  // Azure AD login function
   const loginWithAzure = async (): Promise<void> => {
     if (!isAzureConfigured || !msalInstance) {
       setAzureError("Azure AD authentication is not configured");
@@ -215,19 +184,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsAzureLoading(true);
       setAzureError(null);
       
-      // Step 1: Get Azure AD token
-      const azureResponse: AuthenticationResult = await msalInstance.loginPopup(loginRequest);
+      // Redirect to Microsoft login page
+      const response: AuthenticationResult = await msalInstance.loginPopup(loginRequest);
       
-      if (azureResponse) {
-        // For now, just set Azure user directly
-        // TODO: Later integrate with FastAPI session exchange
-        msalInstance.setActiveAccount(azureResponse.account);
-        setAzureUser(azureResponse.account);
+      if (response) {
+        msalInstance.setActiveAccount(response.account);
+        setAzureUser(response.account);
         setAuthMethod('azure');
-        
         toast({
           title: "Login successful",
-          description: `Welcome, ${azureResponse.account.name || azureResponse.account.username}!`,
+          description: `Welcome, ${response.account.name || response.account.username}!`,
           variant: "default",
         });
       }
@@ -244,9 +210,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Logout function 
+  // Logout function with improved browser state/cache handling
   const logout = async (): Promise<void> => {
     try {
+      // First, show a toast to indicate logout is in progress
+      toast({
+        title: "Logging out...",
+        description: "Please wait while we log you out.",
+        variant: "default",
+      });
+      
       // Clear React Query cache to prevent stale data
       queryClient.clear();
       queryClient.setQueryData(["/api/user"], null);
@@ -258,44 +231,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setAzureUser(null);
           setAuthMethod(null);
           
-          // Clear any session data
-          localStorage.removeItem('session_id');
-          localStorage.removeItem('session_expires');
-          
-          // Simple redirect for now
+          // Set up MSAL logout request
+          const logoutRequest = {
+            account: msalInstance.getActiveAccount(),
+            postLogoutRedirectUri: window.location.origin + '/auth',
+          };
+
+          // Perform a simple redirect rather than using MSAL's logout
+          // which can sometimes cause issues
           await apiRequest("POST", buildUrl(endpoints.auth.logout));
           window.location.href = '/auth';
+          
+          // The below code is commented out because it can cause issues
+          // msalInstance.logout(logoutRequest);
         } catch (err) {
           console.error('Azure logout error:', err);
+          // Even on error, force redirect to login page
           window.location.href = '/auth';
         }
       } else {
         try {
-          // Send logout request to server (local auth)
+          // Send logout request to server
           await apiRequest("POST", buildUrl(endpoints.auth.logout));
           
           // Update auth state
           setAuthMethod(null);
           
-          // Clear any session data (placeholder for future FastAPI integration)
-          localStorage.removeItem('session_id');
-          localStorage.removeItem('session_expires');
-          
-          // Force page reload to clear any cached state
+          // Force page reload to clear any cached state in React components
           window.location.href = '/auth';
         } catch (err) {
           console.error('Logout error:', err);
+          // Even on error, force redirect to login page
           window.location.href = '/auth';
         }
       }
     } catch (error) {
+      // Catch-all for unexpected errors
       console.error('Unexpected logout error:', error);
+      // Always redirect to auth page in case of any errors
       window.location.href = '/auth';
     }
   };
 
   // Determine the current user based on auth method
-  const user = authMethod === 'fastapi' ? fastApiUser : (authMethod === 'azure' ? azureUser : localUser);
+  const user = authMethod === 'azure' ? azureUser : localUser;
   
   // Determine authentication status
   const isAuthenticated = !!user;
@@ -312,7 +291,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isLoading,
     error,
     authMethod,
-    sessionId,
     loginMutation,
     registerMutation,
     loginWithAzure,

@@ -1,13 +1,12 @@
 export const devConfig = {
   baseUrl: '',
   endpoints: {
-    // Authentication - Local endpoints (FastAPI endpoints can be switched in production)
+    // Authentication
     auth: {
       login: '/api/login',
       logout: '/api/logout',
       register: '/api/register',
       user: '/api/user',
-      validate: '/api/v1/auth/validate',
     },
     
     // Core entities
@@ -80,20 +79,4 @@ export const devConfig = {
   debug: true,
   logLevel: 'debug',
   enableMockData: true,
-  
-  // Azure Authentication Configuration
-  azure: {
-    clientId: import.meta.env.VITE_AZURE_CLIENT_ID || '',
-    authority: import.meta.env.VITE_AZURE_AUTHORITY || '',
-    scopes: ['User.Read', 'profile', 'openid', 'email'],
-    redirectUri: window.location.origin,
-    postLogoutRedirectUri: window.location.origin + '/auth',
-  },
-  
-  // FastAPI Authentication Configuration
-  fastapi: {
-    baseUrl: import.meta.env.VITE_FASTAPI_BASE_URL || 'http://localhost:8080',
-    clientId: import.meta.env.VITE_FASTAPI_CLIENT_ID || '',
-    clientSecret: import.meta.env.VITE_FASTAPI_CLIENT_SECRET || '',
-  },
 }; 

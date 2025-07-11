@@ -1,13 +1,12 @@
 export const prodConfig = {
   baseUrl: 'https://api.sla-management.com',
   endpoints: {
-    // Authentication - FastAPI endpoints
+    // Authentication
     auth: {
-      login: '/api/v1/auth/login',
-      logout: '/api/v1/auth/logout',
+      login: '/api/login',
+      logout: '/api/logout',
       register: '/api/register',
       user: '/api/user',
-      validate: '/api/v1/auth/validate',
     },
     
     // Core entities
@@ -80,20 +79,4 @@ export const prodConfig = {
   debug: false,
   logLevel: 'error',
   enableMockData: false,
-  
-  // Azure Authentication Configuration
-  azure: {
-    clientId: import.meta.env.VITE_AZURE_CLIENT_ID || '',
-    authority: import.meta.env.VITE_AZURE_AUTHORITY || '',
-    scopes: ['User.Read', 'profile', 'openid', 'email'],
-    redirectUri: window.location.origin,
-    postLogoutRedirectUri: window.location.origin + '/auth',
-  },
-  
-  // FastAPI Authentication Configuration
-  fastapi: {
-    baseUrl: import.meta.env.VITE_FASTAPI_BASE_URL || 'https://api.sla-management.com',
-    clientId: import.meta.env.VITE_FASTAPI_CLIENT_ID || '',
-    clientSecret: import.meta.env.VITE_FASTAPI_CLIENT_SECRET || '',
-  },
 }; 
