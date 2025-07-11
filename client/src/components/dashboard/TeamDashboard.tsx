@@ -87,51 +87,46 @@ const TeamDashboard = ({
   return (
     <Box sx={{ p: 3 }}>
       {/* Team Header Section */}
-      <Box sx={{ mb: 3 }}>
-        <Typography variant="h4" component="h1" fontWeight={600} sx={{ mb: 1 }}>
+      <Box sx={{ mb: 2 }}>
+        <Typography variant="h5" component="h1" fontWeight={600} sx={{ mb: 0.5 }}>
           {teamName}
         </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 1, fontSize: '0.875rem' }}>
           {currentTeam?.description || `Team responsible for ${teamName} operations`}
         </Typography>
-        <Box display="flex" alignItems="center" gap={2}>
-          <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.875rem' }}>
-            {teamEntities.length} {teamEntities.length === 1 ? 'Entity' : 'Entities'} • {tables.length} {tables.length === 1 ? 'Table' : 'Tables'} • {dags.length} {dags.length === 1 ? 'DAG' : 'DAGs'}
-          </Typography>
-          <Box display="flex" gap={1}>
-            <Box sx={{ 
-              bgcolor: 'success.main', 
-              color: 'white', 
-              px: 1, 
-              py: 0.5, 
-              borderRadius: 1, 
-              fontSize: '0.75rem',
-              fontWeight: 500
-            }}>
-              Active
-            </Box>
-            <Box sx={{ 
-              bgcolor: 'info.main', 
-              color: 'white', 
-              px: 1, 
-              py: 0.5, 
-              borderRadius: 1, 
-              fontSize: '0.75rem',
-              fontWeight: 500
-            }}>
-              Monitoring
-            </Box>
-            <Box sx={{ 
-              bgcolor: 'warning.main', 
-              color: 'white', 
-              px: 1, 
-              py: 0.5, 
-              borderRadius: 1, 
-              fontSize: '0.75rem',
-              fontWeight: 500
-            }}>
-              SLA
-            </Box>
+        <Box display="flex" alignItems="center" gap={1}>
+          <Box sx={{ 
+            bgcolor: 'primary.main', 
+            color: 'white', 
+            px: 1, 
+            py: 0.25, 
+            borderRadius: '4px', 
+            fontSize: '0.75rem',
+            fontWeight: 500
+          }}>
+            {teamEntities.length} {teamEntities.length === 1 ? 'Entity' : 'Entities'}
+          </Box>
+          <Box sx={{ 
+            bgcolor: 'info.main', 
+            color: 'white', 
+            px: 1, 
+            py: 0.25, 
+            borderRadius: '4px', 
+            fontSize: '0.75rem',
+            fontWeight: 500
+          }}>
+            {tables.length} {tables.length === 1 ? 'Table' : 'Tables'}
+          </Box>
+          <Box sx={{ 
+            bgcolor: 'secondary.main', 
+            color: 'white', 
+            px: 1, 
+            py: 0.25, 
+            borderRadius: '4px', 
+            fontSize: '0.75rem',
+            fontWeight: 500
+          }}>
+            {dags.length} {dags.length === 1 ? 'DAG' : 'DAGs'}
           </Box>
         </Box>
       </Box>
