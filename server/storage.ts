@@ -259,6 +259,41 @@ export class MemStorage implements IStorage {
       }
     ];
 
+    // Add some Ad Engineering entities for testing tenant filtering
+    const adEngineeringEntities = [
+      {
+        name: 'ad_performance_daily',
+        type: 'table',
+        teamId: 1, // PGM team
+        description: 'Daily ad performance metrics and analytics',
+        slaTarget: 95.0,
+        currentSla: 92.3,
+        status: 'Passed',
+        refreshFrequency: 'Daily',
+        lastRefreshed: new Date('2025-06-28T14:30:00Z'),
+        owner: 'Sarah Johnson',
+        ownerEmail: 'sarah.johnson@company.com',
+        schema_name: 'ad_analytics',
+        table_name: 'ad_performance_daily',
+        tenant_name: 'Ad Engineering'
+      },
+      {
+        name: 'campaign_optimization_dag',
+        type: 'dag',
+        teamId: 2, // Core team
+        description: 'Daily campaign optimization and bidding adjustments',
+        slaTarget: 88.0,
+        currentSla: 89.5,
+        status: 'Passed',
+        refreshFrequency: 'Daily',
+        lastRefreshed: new Date('2025-06-28T13:45:00Z'),
+        owner: 'Mike Chen',
+        ownerEmail: 'mike.chen@company.com',
+        dag_name: 'campaign_optimization_daily',
+        tenant_name: 'Ad Engineering'
+      }
+    ];
+
     tableEntities.forEach(entity => {
       const id = this.entityId++;
       const fullEntity: Entity = {
@@ -284,6 +319,53 @@ export class MemStorage implements IStorage {
         donemarker_lookback: entity.donemarker_lookback || null,
         owner_email: entity.owner_email || null,
         user_email: entity.user_email || null,
+        is_active: entity.is_active !== undefined ? entity.is_active : true,
+        lastRun: entity.lastRefreshed,
+        lastStatus: entity.status,
+        notification_preferences: entity.notification_preferences || []
+      };
+      this.entities.set(id, fullEntity);
+    });
+
+    // Add Ad Engineering entities for testing tenant filtering
+    adEngineeringEntities.forEach(entity => {
+      const id = this.entityId++;
+      const fullEntity: Entity = {
+        id,
+        ...entity,
+        nextRefresh: entity.lastRefreshed ? new Date(entity.lastRefreshed.getTime() + 24 * 60 * 60 * 1000) : new Date(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        // Set type-specific fields
+        ...(entity.type === 'table' ? {
+          table_name: entity.table_name || entity.name,
+          table_description: entity.description || 'Table for ad analytics processing',
+          table_schedule: '0 3 * * *', // 3 AM daily
+          table_dependency: 'ad_raw_data,user_segments',
+          dag_name: null,
+          dag_description: null,
+          dag_schedule: null,
+          dag_dependency: null,
+        } : {
+          dag_name: entity.dag_name || entity.name,
+          dag_description: entity.description || 'DAG for ad optimization processing',
+          dag_schedule: '0 3 * * *', // 3 AM daily
+          dag_dependency: 'ad_raw_data,campaign_data',
+          table_name: null,
+          table_description: null,
+          table_schedule: null,
+          table_dependency: null,
+        }),
+        // Common fields
+        team_name: entity.team_name || null,
+        schema_name: entity.schema_name || null,
+        expected_runtime_minutes: entity.expected_runtime_minutes || (entity.type === 'table' ? 25 : 40),
+        donemarker_location: entity.donemarker_location || (entity.type === 'table' 
+          ? 's3://ad-analytics-tables/done_markers/' 
+          : 's3://ad-analytics-dags/campaign_optimization/'),
+        donemarker_lookback: entity.donemarker_lookback || 2,
+        owner_email: entity.owner_email || entity.ownerEmail || null,
+        user_email: entity.user_email || entity.ownerEmail || null,
         is_active: entity.is_active !== undefined ? entity.is_active : true,
         lastRun: entity.lastRefreshed,
         lastStatus: entity.status,

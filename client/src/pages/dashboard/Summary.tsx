@@ -40,24 +40,20 @@ const Summary = () => {
   
   // Fetch dashboard data and preload tenant cache
   useEffect(() => {
-    dispatch(fetchDashboardSummary());
-    dispatch(fetchEntities({}));
+    dispatch(fetchDashboardSummary(selectedTenant.name));
+    dispatch(fetchEntities({ tenant: selectedTenant.name }));
     dispatch(fetchTeams());
     
     // Preload tenant cache for future use
     preloadTenantCache().then(() => {
       setTenants(getTenants());
     });
-  }, [dispatch]);
+  }, [dispatch, selectedTenant.name]);
   
   // Filter entities based on tab and tenant
   const filterEntitiesByTenant = (entities: Entity[]) => {
-    // For now, since we don't have tenant_name in mock data, we'll tag all existing entities under "Data Engineering"
-    // In production, this would filter by entity.tenant_name === selectedTenant.name
-    if (selectedTenant.name === 'Data Engineering') {
-      return entities; // Show all entities for Data Engineering
-    }
-    return []; // No entities for other tenants yet
+    // Filter by tenant_name - entities are already filtered by backend API
+    return entities.filter(entity => entity.tenant_name === selectedTenant.name);
   };
   
   const filteredEntities = filterEntitiesByTenant(entities);
@@ -73,6 +69,9 @@ const Summary = () => {
     const tenant = tenants.find(t => t.name === tenantName);
     if (tenant) {
       setSelectedTenant(tenant);
+      // Refresh data with new tenant
+      dispatch(fetchDashboardSummary(tenant.name));
+      dispatch(fetchEntities({ tenant: tenant.name }));
     }
   };
   

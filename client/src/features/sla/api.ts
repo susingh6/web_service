@@ -10,8 +10,12 @@ export const teamsApi = {
 };
 
 export const entitiesApi = {
-  getAll: async () => {
-    const res = await apiRequest('GET', endpoints.entities);
+  getAll: async (tenant?: string) => {
+    let url = endpoints.entities;
+    if (tenant) {
+      url += `?tenant=${encodeURIComponent(tenant)}`;
+    }
+    const res = await apiRequest('GET', url);
     return await res.json();
   },
   getById: async (id: number) => {
@@ -47,8 +51,12 @@ export const tablesApi = {
 };
 
 export const dashboardApi = {
-  getSummary: async () => {
-    const res = await apiRequest('GET', endpoints.dashboard.summary);
+  getSummary: async (tenant?: string) => {
+    let url = endpoints.dashboard.summary;
+    if (tenant) {
+      url += `?tenant=${encodeURIComponent(tenant)}`;
+    }
+    const res = await apiRequest('GET', url);
     return await res.json();
   },
   getTeamPerformance: async (teamId: number) => {

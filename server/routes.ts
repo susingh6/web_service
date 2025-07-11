@@ -130,6 +130,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         entities = await storage.getEntities();
       }
       
+      // Filter by tenant if tenant parameter is provided
+      if (req.query.tenant) {
+        const tenantName = req.query.tenant as string;
+        entities = entities.filter(entity => entity.tenant_name === tenantName);
+      }
+      
       res.json(entities);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch entities" });
@@ -702,7 +708,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Dashboard summary endpoint
   app.get("/api/dashboard/summary", async (req, res) => {
     try {
-      const entities = await storage.getEntities();
+      let entities = await storage.getEntities();
+      
+      // Filter by tenant if tenant parameter is provided
+      if (req.query.tenant) {
+        const tenantName = req.query.tenant as string;
+        entities = entities.filter(entity => entity.tenant_name === tenantName);
+      }
       
       // Calculate metrics
       const tables = entities.filter(e => e.type === 'table');

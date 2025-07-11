@@ -30,8 +30,13 @@ const initialState: EntitiesState = {
 // Async thunks
 export const fetchEntities = createAsyncThunk(
   'entities/fetchAll',
-  async (params: { teamId?: number; type?: string } = {}) => {
-    return await entitiesApi.getAll(params);
+  async (params: { teamId?: number; type?: string; tenant?: string } = {}) => {
+    if (params.teamId) {
+      return await entitiesApi.getByTeam(params.teamId);
+    } else if (params.type) {
+      return await entitiesApi.getByType(params.type);
+    }
+    return await entitiesApi.getAll(params.tenant);
   }
 );
 
