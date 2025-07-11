@@ -209,10 +209,15 @@ export function requestLoggingMiddleware(req: Request, res: Response, next: Next
         const teamName = teamMapping[teamId] || 'Unknown';
         
         // Update the parameter string to include team name
-        enhancedParameterString = parameterString.replace(
-          `teamId=${req.query.teamId}`,
-          `teamId=${req.query.teamId}, team=${teamName}`
-        );
+        if (parameterString.includes(`teamId=${req.query.teamId}`)) {
+          enhancedParameterString = parameterString.replace(
+            `teamId=${req.query.teamId}`,
+            `teamId=${req.query.teamId}, team=${teamName}`
+          );
+        } else {
+          // If no existing parameters, add team info
+          enhancedParameterString = ` - Parameters: teamId=${req.query.teamId}, team=${teamName}`;
+        }
       }
     }
     
