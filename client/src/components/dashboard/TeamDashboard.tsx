@@ -43,14 +43,13 @@ const TeamDashboard = ({
   // Find the team ID for this team
   const currentTeam = teams.find(team => team.name === teamName);
   
-  // Filter entities for this specific team
+  // Filter entities for this specific team (not filtered by tenant)
   const teamEntities = useMemo(() => {
     if (!currentTeam) return [];
     return entities.filter(entity => 
-      entity.teamId === currentTeam.id && 
-      entity.tenant_name === tenantName
+      entity.teamId === currentTeam.id
     );
-  }, [entities, currentTeam, tenantName]);
+  }, [entities, currentTeam]);
   
   const tables = teamEntities.filter(entity => entity.type === 'table');
   const dags = teamEntities.filter(entity => entity.type === 'dag');

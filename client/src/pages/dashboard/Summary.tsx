@@ -49,7 +49,7 @@ const Summary = () => {
   // Fetch dashboard data and preload tenant cache
   useEffect(() => {
     dispatch(fetchDashboardSummary(selectedTenant.name));
-    dispatch(fetchEntities({ tenant: selectedTenant.name }));
+    dispatch(fetchEntities({})); // Load ALL entities for team dashboards
     dispatch(fetchTeams());
     
     // Preload tenant cache for future use
@@ -77,12 +77,10 @@ const Summary = () => {
     const tenant = tenants.find(t => t.name === tenantName);
     if (tenant) {
       setSelectedTenant(tenant);
-      // Clear open team tabs when changing tenant
-      setOpenTeamTabs([]);
-      setActiveTab('summary');
-      // Refresh data with new tenant
+      // DO NOT clear team tabs - tenant filter only affects Summary tab data
+      // Refresh Summary dashboard data with new tenant
       dispatch(fetchDashboardSummary(tenant.name));
-      dispatch(fetchEntities({ tenant: tenant.name }));
+      // Do NOT refetch entities - we need all entities for team dashboards
     }
   };
 
@@ -262,9 +260,7 @@ const Summary = () => {
           {/* Team Selector - + Button - Right next to tabs */}
           <Box sx={{ ml: 1 }}>
             <TeamSelector
-              teams={teams.filter(team => 
-                entities.some(entity => entity.teamId === team.id && entity.tenant_name === selectedTenant.name)
-              )}
+              teams={teams}
               openTeamTabs={openTeamTabs}
               onAddTeamTab={handleAddTeamTab}
             />
