@@ -19,6 +19,9 @@ interface TrendCacheEntry {
 const CACHE_KEY = 'sla_30day_trends';
 const CACHE_DURATION = 6 * 60 * 60 * 1000; // 6 hours in milliseconds
 
+// Request deduplication - prevent multiple simultaneous API calls
+let pendingRequest: Promise<TrendData[]> | null = null;
+
 /**
  * Get 30-day trend data from cache or fetch fresh data
  */
@@ -30,8 +33,22 @@ export async function get30DayTrends(): Promise<TrendData[]> {
     return cached.data;
   }
   
+  // If there's already a pending request, wait for it instead of making a new one
+  if (pendingRequest) {
+    console.log('Waiting for pending trend request to complete');
+    return await pendingRequest;
+  }
+  
   console.log('Cache expired or missing, fetching fresh 30-day trend data');
-  return await fetchAndCache30DayTrends();
+  pendingRequest = fetchAndCache30DayTrends();
+  
+  try {
+    const result = await pendingRequest;
+    return result;
+  } finally {
+    // Clear the pending request once it's done
+    pendingRequest = null;
+  }
 }
 
 /**

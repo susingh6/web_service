@@ -130,10 +130,16 @@ const EntityTable = ({
   // Load 30-day trend data (independent of global date filter)
   useEffect(() => {
     const loadTrendData = async () => {
-      const trendsMap = new Map();
-      for (const entity of entities) {
-        try {
-          const trend = await getEntityTrend(entity.id);
+      if (entities.length === 0) return;
+      
+      try {
+        // Get all trends at once to avoid multiple API calls
+        const allTrends = await get30DayTrends();
+        const trendsMap = new Map();
+        
+        // Map trends to entities
+        entities.forEach(entity => {
+          const trend = allTrends.find(t => t.entityId === entity.id);
           if (trend) {
             trendsMap.set(entity.id, {
               value: trend.trend,
@@ -141,16 +147,15 @@ const EntityTable = ({
               color: trend.color,
             });
           }
-        } catch (error) {
-          console.error(`Failed to load trend for entity ${entity.id}:`, error);
-        }
+        });
+        
+        setTrendData(trendsMap);
+      } catch (error) {
+        console.error('Failed to load trend data:', error);
       }
-      setTrendData(trendsMap);
     };
 
-    if (entities.length > 0) {
-      loadTrendData();
-    }
+    loadTrendData();
   }, [entities]);
 
   // Apply filters and sorting to entities
