@@ -6,6 +6,7 @@ interface DashboardState {
   metrics: DashboardMetrics | null;
   dateRange: DateRange;
   teamPerformance: TeamPerformance[];
+  selectedTeam: string | null; // null means "All Teams"
   isLoading: boolean;
   error: string | null;
 }
@@ -20,6 +21,7 @@ const initialState: DashboardState = {
   metrics: null,
   dateRange: defaultDateRange,
   teamPerformance: [],
+  selectedTeam: null, // null means "All Teams"
   isLoading: false,
   error: null,
 };
@@ -41,6 +43,9 @@ const dashboardSlice = createSlice({
     },
     setTeamPerformance: (state, action: PayloadAction<TeamPerformance[]>) => {
       state.teamPerformance = action.payload;
+    },
+    setSelectedTeam: (state, action: PayloadAction<string | null>) => {
+      state.selectedTeam = action.payload;
     },
     resetDashboard: () => initialState,
   },
