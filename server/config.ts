@@ -11,6 +11,15 @@ export const config = {
   // Data sources
   mockDataPath: './data',
   
+  // Cache configuration
+  cache: {
+    // Cache refresh interval in hours (configurable)
+    refreshIntervalHours: 6,
+    
+    // Default data range for cached metrics
+    defaultDataRangeDays: 30,
+  },
+  
   // Log test mode status on startup
   logTestMode: () => {
     if (testMode) {

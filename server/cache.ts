@@ -1,5 +1,6 @@
 import { storage } from "./storage";
 import { Entity, Team } from "@shared/schema";
+import { config } from "./config";
 
 interface DashboardMetrics {
   overallCompliance: number;
@@ -22,7 +23,7 @@ interface CachedData {
 class DataCache {
   private cache: CachedData | null = null;
   private refreshInterval: NodeJS.Timer | null = null;
-  private readonly CACHE_DURATION_MS = 6 * 60 * 60 * 1000; // 6 hours
+  private readonly CACHE_DURATION_MS = config.cache.refreshIntervalHours * 60 * 60 * 1000; // Configurable hours
 
   constructor() {
     this.initializeCache();
@@ -36,7 +37,7 @@ class DataCache {
 
   private startAutoRefresh(): void {
     this.refreshInterval = setInterval(() => {
-      console.log("Auto-refreshing cache (6-hour interval)...");
+      console.log(`Auto-refreshing cache (${config.cache.refreshIntervalHours}-hour interval)...`);
       this.refreshCache();
     }, this.CACHE_DURATION_MS);
   }
