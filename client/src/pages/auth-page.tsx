@@ -48,7 +48,7 @@ const AuthPage = () => {
           <CardContent className="flex-1 flex flex-col justify-center items-center">
             <div className="w-full space-y-8">
               <div className="text-center">
-                <h3 className="text-4xl font-bold bg-gradient-to-r from-primary via-primary/80 to-primary/60 bg-clip-text text-transparent italic tracking-wider" style={{ fontFamily: 'cursive' }}>
+                <h3 className="text-4xl font-semibold bg-gradient-to-r from-primary via-primary/80 to-primary/60 bg-clip-text text-transparent tracking-wide" style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic' }}>
                   Log In
                 </h3>
               </div>
