@@ -191,55 +191,28 @@ export function requestLoggingMiddleware(req: Request, res: Response, next: Next
     // Enhanced parameter logging for team endpoints and entities with teamId
     let enhancedParameterString = parameterString;
     
-    // Handle team name lookup for teamId parameters - do it here during response
+    // Handle team name lookup for teamId parameters
     if (req.query.teamId) {
-      // Dynamically lookup team name from cache (async operation)
       const teamId = parseInt(req.query.teamId as string);
       if (!isNaN(teamId)) {
-        // Use a Promise to handle async team name lookup
-        (async () => {
-          try {
-            // Import redisCache here to avoid circular dependencies
-            const { redisCache } = await import('../redis-cache');
-            const teams = await redisCache.getAllTeams();
-            const team = teams.find(t => t.id === teamId);
-            const teamName = team ? team.name : 'Unknown';
-            
-            // Update the parameter string to include team name
-            const finalParameterString = parameterString.replace(
-              `teamId=${req.query.teamId}`,
-              `teamId=${req.query.teamId}, team=${teamName}`
-            );
-            
-            const responseEvent = `${req.method} ${req.path}${finalParameterString} - status: ${res.statusCode}`;
-            
-            structuredLogger.info(
-              responseEvent,
-              req.sessionContext,
-              req.requestId,
-              { 
-                duration_ms: duration,
-                status_code: res.statusCode
-              }
-            );
-          } catch (error) {
-            // Fallback to original parameter string if lookup fails
-            const responseEvent = `${req.method} ${req.path}${parameterString} - status: ${res.statusCode}`;
-            
-            structuredLogger.info(
-              responseEvent,
-              req.sessionContext,
-              req.requestId,
-              { 
-                duration_ms: duration,
-                status_code: res.statusCode
-              }
-            );
-          }
-        })();
+        // Simple synchronous lookup - use a basic mapping for known teams
+        const teamMapping: { [key: number]: string } = {
+          1: 'PGM',
+          2: 'Core', 
+          3: 'Viewer Product',
+          4: 'IOT',
+          5: 'CDM',
+          6: 'Ad Serving',
+          7: 'Ad Data Activation'
+        };
         
-        // Return immediately without logging (async logging will happen above)
-        return originalSend.call(this, data);
+        const teamName = teamMapping[teamId] || 'Unknown';
+        
+        // Update the parameter string to include team name
+        enhancedParameterString = parameterString.replace(
+          `teamId=${req.query.teamId}`,
+          `teamId=${req.query.teamId}, team=${teamName}`
+        );
       }
     }
     
