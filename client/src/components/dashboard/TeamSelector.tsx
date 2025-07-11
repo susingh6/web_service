@@ -13,12 +13,17 @@ interface TeamSelectorProps {
   teams: any[];
   openTeamTabs: string[];
   onAddTeamTab: (teamName: string) => void;
+  onLoadTeams?: () => void;
 }
 
-const TeamSelector = ({ teams, openTeamTabs, onAddTeamTab }: TeamSelectorProps) => {
+const TeamSelector = ({ teams, openTeamTabs, onAddTeamTab, onLoadTeams }: TeamSelectorProps) => {
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
 
   const handleClick = (event: React.MouseEvent<HTMLElement>) => {
+    // Load teams when "+" button is clicked to populate dropdown
+    if (onLoadTeams) {
+      onLoadTeams();
+    }
     setAnchorEl(event.currentTarget);
   };
 

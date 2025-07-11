@@ -46,6 +46,7 @@ const Summary = () => {
   const [tenants, setTenants] = useState<Tenant[]>(getTenants);
   const [openTeamTabs, setOpenTeamTabs] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState('summary');
+  const [teamsLoaded, setTeamsLoaded] = useState(false);
   
   // WebSocket connection for real-time updates
   const { isConnected } = useWebSocket({
@@ -130,11 +131,18 @@ const Summary = () => {
     }
   };
 
+  const handleLoadTeamsForSelector = async () => {
+    if (!teamsLoaded) {
+      // Load all teams when "+" button is clicked to populate the dropdown
+      dispatch(fetchTeams());
+      setTeamsLoaded(true);
+    }
+  };
+
   const handleAddTeamTab = (teamName: string) => {
     if (!openTeamTabs.includes(teamName)) {
       setOpenTeamTabs([...openTeamTabs, teamName]);
-      // Load team data when user clicks "+" button
-      // This will trigger API call with team name parameter for structured logging
+      // Load team data with specific team name for structured logging
       dispatch(fetchTeams(teamName));
     }
     setActiveTab(teamName);
@@ -314,6 +322,7 @@ const Summary = () => {
               teams={teams}
               openTeamTabs={openTeamTabs}
               onAddTeamTab={handleAddTeamTab}
+              onLoadTeams={handleLoadTeamsForSelector}
             />
           </Box>
         </Box>
