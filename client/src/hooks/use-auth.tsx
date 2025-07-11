@@ -128,52 +128,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const initializeAuth = async () => {
       try {
-        // Check for existing session in localStorage
-        const storedSessionId = localStorage.getItem('session_id');
-        const storedExpires = localStorage.getItem('session_expires');
-        
-        if (storedSessionId && storedExpires) {
-          const expiresAt = new Date(storedExpires);
-          const now = new Date();
-          
-          if (now < expiresAt) {
-            // Session is still valid, validate with FastAPI
-            try {
-              const validateResponse = await fetch(`${config.fastapi.baseUrl}${endpoints.auth.validate}`, {
-                method: 'GET',
-                headers: {
-                  'X-Session-ID': storedSessionId,
-                  'Content-Type': 'application/json',
-                },
-              });
-              
-              if (validateResponse.ok) {
-                const userData: FastAPIUser = await validateResponse.json();
-                setFastApiUser(userData);
-                setSessionId(storedSessionId);
-                setAuthMethod('fastapi');
-                return;
-              }
-            } catch (err) {
-              console.error('Session validation error:', err);
-            }
-          }
-          
-          // Session is expired or invalid, clean up
-          localStorage.removeItem('session_id');
-          localStorage.removeItem('session_expires');
-        }
-        
-        // Check if there are any Azure AD accounts in the cache
-        if (msalInstance) {
+        // Check if there are any Azure AD accounts in the cache (only if Azure is configured)
+        if (isAzureConfigured && msalInstance) {
           const accounts = msalInstance.getAllAccounts();
           
           if (accounts.length > 0) {
             msalInstance.setActiveAccount(accounts[0]);
             setAzureUser(accounts[0]);
             setAuthMethod('azure');
+            return;
           }
         }
+        
+        // TODO: FastAPI session validation will be added here later
+        // For now, local authentication is handled by the existing React Query
+        
       } catch (err) {
         console.error('Authentication initialization error:', err);
       }
@@ -230,7 +199,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
   });
 
-  // Azure AD login function with FastAPI session exchange
+  // Azure AD login function - placeholder for future FastAPI integration
   const loginWithAzure = async (): Promise<void> => {
     if (!isAzureConfigured || !msalInstance) {
       setAzureError("Azure AD authentication is not configured");
@@ -249,47 +218,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Step 1: Get Azure AD token
       const azureResponse: AuthenticationResult = await msalInstance.loginPopup(loginRequest);
       
-      if (azureResponse && azureResponse.accessToken) {
-        // Step 2: Exchange Azure token for FastAPI session
-        const basicAuth = btoa(`${config.fastapi.clientId}:${config.fastapi.clientSecret}`);
-        
-        const fastApiResponse = await fetch(`${config.fastapi.baseUrl}${endpoints.auth.login}`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Basic ${basicAuth}`,
-            'Content-Type': 'application/json',
-            'X-Azure-Token': azureResponse.accessToken,
-          },
-          body: JSON.stringify({
-            azure_token: azureResponse.accessToken,
-            user_info: {
-              name: azureResponse.account.name,
-              email: azureResponse.account.username,
-              id: azureResponse.account.localAccountId,
-            },
-          }),
-        });
-        
-        if (!fastApiResponse.ok) {
-          throw new Error(`FastAPI authentication failed: ${fastApiResponse.status}`);
-        }
-        
-        const fastApiData: FastAPIAuthResponse = await fastApiResponse.json();
-        
-        // Step 3: Store session information
+      if (azureResponse) {
+        // For now, just set Azure user directly
+        // TODO: Later integrate with FastAPI session exchange
         msalInstance.setActiveAccount(azureResponse.account);
         setAzureUser(azureResponse.account);
-        setFastApiUser(fastApiData.user);
-        setSessionId(fastApiData.session.session_id);
-        setAuthMethod('fastapi');
-        
-        // Store session ID in localStorage for persistence
-        localStorage.setItem('session_id', fastApiData.session.session_id);
-        localStorage.setItem('session_expires', fastApiData.session.expires_at);
+        setAuthMethod('azure');
         
         toast({
           title: "Login successful",
-          description: `Welcome, ${fastApiData.user.name}!`,
+          description: `Welcome, ${azureResponse.account.name || azureResponse.account.username}!`,
           variant: "default",
         });
       }
@@ -306,93 +244,52 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Logout function with FastAPI session handling
+  // Logout function 
   const logout = async (): Promise<void> => {
     try {
-      // First, show a toast to indicate logout is in progress
-      toast({
-        title: "Logging out...",
-        description: "Please wait while we log you out.",
-        variant: "default",
-      });
-      
       // Clear React Query cache to prevent stale data
       queryClient.clear();
       queryClient.setQueryData(["/api/user"], null);
       queryClient.removeQueries();
       
-      if (authMethod === 'fastapi' && sessionId) {
-        try {
-          // Send logout request to FastAPI with session ID
-          await fetch(`${config.fastapi.baseUrl}${endpoints.auth.logout}`, {
-            method: 'POST',
-            headers: {
-              'X-Session-ID': sessionId,
-              'Content-Type': 'application/json',
-            },
-          });
-          
-          // Clear local storage
-          localStorage.removeItem('session_id');
-          localStorage.removeItem('session_expires');
-          
-          // Clear React state
-          setFastApiUser(null);
-          setSessionId(null);
-          setAzureUser(null);
-          setAuthMethod(null);
-          
-          // Clear Azure state if it exists
-          if (msalInstance) {
-            msalInstance.setActiveAccount(null);
-          }
-          
-          window.location.href = '/auth';
-        } catch (err) {
-          console.error('FastAPI logout error:', err);
-          // Even on error, clean up and redirect
-          localStorage.removeItem('session_id');
-          localStorage.removeItem('session_expires');
-          window.location.href = '/auth';
-        }
-      } else if (authMethod === 'azure' && msalInstance) {
+      if (authMethod === 'azure' && msalInstance) {
         try {
           // Clear React state before MSAL logout
           setAzureUser(null);
           setAuthMethod(null);
           
-          // Clear any FastAPI session data
+          // Clear any session data
           localStorage.removeItem('session_id');
           localStorage.removeItem('session_expires');
           
-          // Perform a simple redirect rather than using MSAL's logout
+          // Simple redirect for now
           await apiRequest("POST", buildUrl(endpoints.auth.logout));
           window.location.href = '/auth';
         } catch (err) {
           console.error('Azure logout error:', err);
-          // Even on error, force redirect to login page
           window.location.href = '/auth';
         }
       } else {
         try {
-          // Send logout request to server
+          // Send logout request to server (local auth)
           await apiRequest("POST", buildUrl(endpoints.auth.logout));
           
           // Update auth state
           setAuthMethod(null);
           
-          // Force page reload to clear any cached state in React components
+          // Clear any session data (placeholder for future FastAPI integration)
+          localStorage.removeItem('session_id');
+          localStorage.removeItem('session_expires');
+          
+          // Force page reload to clear any cached state
           window.location.href = '/auth';
         } catch (err) {
           console.error('Logout error:', err);
-          // Even on error, force redirect to login page
           window.location.href = '/auth';
         }
       }
     } catch (error) {
-      // Catch-all for unexpected errors
       console.error('Unexpected logout error:', error);
-      // Always redirect to auth page in case of any errors
       window.location.href = '/auth';
     }
   };

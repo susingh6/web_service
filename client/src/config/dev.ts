@@ -1,10 +1,10 @@
 export const devConfig = {
   baseUrl: '',
   endpoints: {
-    // Authentication - FastAPI endpoints
+    // Authentication - Local endpoints (FastAPI endpoints can be switched in production)
     auth: {
-      login: '/api/v1/auth/login',
-      logout: '/api/v1/auth/logout',
+      login: '/api/login',
+      logout: '/api/logout',
       register: '/api/register',
       user: '/api/user',
       validate: '/api/v1/auth/validate',
