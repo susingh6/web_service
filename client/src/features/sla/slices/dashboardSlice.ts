@@ -66,6 +66,6 @@ const dashboardSlice = createSlice({
   },
 });
 
-export const { setDateRange, setTeamPerformance, resetDashboard } = dashboardSlice.actions;
+export const { setDateRange, setTeamPerformance, setSelectedTeam, resetDashboard } = dashboardSlice.actions;
 
 export default dashboardSlice.reducer;

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Box, Grid, Button, Typography, Tabs, Tab, Select, MenuItem, FormControl, InputLabel } from '@mui/material';
-import { Add as AddIcon, Upload as UploadIcon } from '@mui/icons-material';
+import { Box, Grid, Button, Typography, Tabs, Tab, Select, MenuItem, FormControl, InputLabel, IconButton } from '@mui/material';
+import { Add as AddIcon, Upload as UploadIcon, Close as CloseIcon } from '@mui/icons-material';
 import { useAppDispatch, useAppSelector } from '@/lib/store';
 import { fetchDashboardSummary } from '@/features/sla/slices/dashboardSlice';
 import { fetchEntities, fetchTeams } from '@/features/sla/slices/entitiesSlice';
@@ -16,6 +16,8 @@ import BulkUploadModal from '@/components/modals/BulkUploadModal';
 import EntityDetailsModal from '@/components/modals/EntityDetailsModal';
 import EditEntityModal from '@/components/modals/EditEntityModal';
 import ConfirmDialog from '@/components/modals/ConfirmDialog';
+import TeamSelector from '@/components/dashboard/TeamSelector';
+import TeamDashboard from '@/components/dashboard/TeamDashboard';
 import { useToast } from '@/hooks/use-toast';
 import { queryClient } from '@/lib/queryClient';
 import { getTenants, getDefaultTenant, preloadTenantCache, type Tenant } from '@/lib/tenantCache';
@@ -37,6 +39,8 @@ const Summary = () => {
   const [chartFilter, setChartFilter] = useState('All');
   const [selectedTenant, setSelectedTenant] = useState<Tenant>(getDefaultTenant);
   const [tenants, setTenants] = useState<Tenant[]>(getTenants);
+  const [openTeamTabs, setOpenTeamTabs] = useState<string[]>([]);
+  const [activeTab, setActiveTab] = useState('summary');
   
   // Fetch dashboard data and preload tenant cache
   useEffect(() => {
@@ -69,10 +73,33 @@ const Summary = () => {
     const tenant = tenants.find(t => t.name === tenantName);
     if (tenant) {
       setSelectedTenant(tenant);
+      // Clear open team tabs when changing tenant
+      setOpenTeamTabs([]);
+      setActiveTab('summary');
       // Refresh data with new tenant
       dispatch(fetchDashboardSummary(tenant.name));
       dispatch(fetchEntities({ tenant: tenant.name }));
     }
+  };
+
+  const handleAddTeamTab = (teamName: string) => {
+    if (!openTeamTabs.includes(teamName)) {
+      setOpenTeamTabs([...openTeamTabs, teamName]);
+    }
+    setActiveTab(teamName);
+  };
+
+  const handleCloseTeamTab = (teamName: string) => {
+    const newOpenTabs = openTeamTabs.filter(tab => tab !== teamName);
+    setOpenTeamTabs(newOpenTabs);
+    // If we're closing the active tab, switch to summary or first available tab
+    if (activeTab === teamName) {
+      setActiveTab(newOpenTabs.length > 0 ? newOpenTabs[0] : 'summary');
+    }
+  };
+
+  const handleDynamicTabChange = (tabName: string) => {
+    setActiveTab(tabName);
   };
   
   const handleAddEntity = () => {
@@ -215,56 +242,140 @@ const Summary = () => {
         </Box>
       </Box>
       
-      {/* Entities Tables */}
+      {/* Dynamic Tabs System */}
       <Box sx={{ mb: 4, bgcolor: 'background.paper', borderRadius: 1 }}>
-        <Tabs value={tabValue} onChange={handleTabChange} sx={{ borderBottom: 1, borderColor: 'divider' }}>
-          <Tab 
-            label="Tables" 
-            sx={{ 
-              fontWeight: 500, 
-              textTransform: 'none',
-              '&.Mui-selected': { fontWeight: 600 } 
-            }} 
-          />
-          <Tab 
-            label="DAGs" 
-            sx={{ 
-              fontWeight: 500, 
-              textTransform: 'none',
-              '&.Mui-selected': { fontWeight: 600 } 
-            }} 
-          />
-        </Tabs>
-        
-        <Box role="tabpanel" hidden={tabValue !== 0}>
-          {tabValue === 0 && (
-            <EntityTable
-              entities={tables}
-              type="table"
-              teams={teams}
-              onEditEntity={handleEditEntity}
-              onDeleteEntity={handleDeleteEntity}
-              onViewHistory={() => {}}
-              onViewDetails={handleViewDetails}
-              showActions={false} // Hide actions in summary pages
+        <Box sx={{ display: 'flex', alignItems: 'center', borderBottom: 1, borderColor: 'divider' }}>
+          <Tabs 
+            value={activeTab} 
+            onChange={(_, newValue) => handleDynamicTabChange(newValue)}
+            sx={{ flex: 1 }}
+          >
+            {/* Summary Tab - Always Present (No Close Button) */}
+            <Tab 
+              value="summary"
+              label="Summary" 
+              sx={{ 
+                fontWeight: 500, 
+                textTransform: 'none',
+                '&.Mui-selected': { fontWeight: 600 } 
+              }} 
             />
+            
+            {/* Dynamic Team Tabs with Close Buttons */}
+            {openTeamTabs.map((teamName) => (
+              <Tab
+                key={teamName}
+                value={teamName}
+                label={
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    {teamName}
+                    <IconButton
+                      size="small"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleCloseTeamTab(teamName);
+                      }}
+                      sx={{ 
+                        ml: 0.5,
+                        p: 0.25,
+                        '&:hover': { bgcolor: 'action.hover' }
+                      }}
+                    >
+                      <CloseIcon fontSize="small" />
+                    </IconButton>
+                  </Box>
+                }
+                sx={{ 
+                  fontWeight: 500, 
+                  textTransform: 'none',
+                  '&.Mui-selected': { fontWeight: 600 } 
+                }}
+              />
+            ))}
+          </Tabs>
+          
+          {/* Team Selector - + Button */}
+          <Box sx={{ px: 2 }}>
+            <TeamSelector
+              teams={teams.filter(team => 
+                entities.some(entity => entity.teamId === team.id && entity.tenant_name === selectedTenant.name)
+              )}
+              openTeamTabs={openTeamTabs}
+              onAddTeamTab={handleAddTeamTab}
+            />
+          </Box>
+        </Box>
+        
+        {/* Summary Tab Content */}
+        <Box role="tabpanel" hidden={activeTab !== 'summary'}>
+          {activeTab === 'summary' && (
+            <Box sx={{ p: 3 }}>
+              <Tabs value={tabValue} onChange={handleTabChange} sx={{ mb: 3 }}>
+                <Tab 
+                  label="Tables" 
+                  sx={{ 
+                    fontWeight: 500, 
+                    textTransform: 'none',
+                    '&.Mui-selected': { fontWeight: 600 } 
+                  }} 
+                />
+                <Tab 
+                  label="DAGs" 
+                  sx={{ 
+                    fontWeight: 500, 
+                    textTransform: 'none',
+                    '&.Mui-selected': { fontWeight: 600 } 
+                  }} 
+                />
+              </Tabs>
+              
+              <Box role="tabpanel" hidden={tabValue !== 0}>
+                {tabValue === 0 && (
+                  <EntityTable
+                    entities={tables}
+                    type="table"
+                    teams={teams}
+                    onEditEntity={handleEditEntity}
+                    onDeleteEntity={handleDeleteEntity}
+                    onViewHistory={() => {}}
+                    onViewDetails={handleViewDetails}
+                    showActions={false} // Hide actions in summary pages
+                  />
+                )}
+              </Box>
+              
+              <Box role="tabpanel" hidden={tabValue !== 1}>
+                {tabValue === 1 && (
+                  <EntityTable
+                    entities={dags}
+                    type="dag"
+                    teams={teams}
+                    onEditEntity={handleEditEntity}
+                    onDeleteEntity={handleDeleteEntity}
+                    onViewHistory={() => {}}
+                    onViewDetails={handleViewDetails}
+                    showActions={false} // Hide actions in summary pages
+                  />
+                )}
+              </Box>
+            </Box>
           )}
         </Box>
         
-        <Box role="tabpanel" hidden={tabValue !== 1}>
-          {tabValue === 1 && (
-            <EntityTable
-              entities={dags}
-              type="dag"
-              teams={teams}
-              onEditEntity={handleEditEntity}
-              onDeleteEntity={handleDeleteEntity}
-              onViewHistory={() => {}}
-              onViewDetails={handleViewDetails}
-              showActions={false} // Hide actions in summary pages
-            />
-          )}
-        </Box>
+        {/* Team Tab Content */}
+        {openTeamTabs.map((teamName) => (
+          <Box key={teamName} role="tabpanel" hidden={activeTab !== teamName}>
+            {activeTab === teamName && (
+              <TeamDashboard
+                teamName={teamName}
+                tenantName={selectedTenant.name}
+                onEditEntity={handleEditEntity}
+                onDeleteEntity={handleDeleteEntity}
+                onViewDetails={handleViewDetails}
+              />
+            )}
+          </Box>
+        ))}
       </Box>
       
       {/* Modals */}
