@@ -311,7 +311,16 @@ const Summary = () => {
           <Tabs 
             value={activeTab} 
             onChange={(_, newValue) => handleDynamicTabChange(newValue)}
-            sx={{ minWidth: 'auto' }}
+            variant="scrollable"
+            scrollButtons="auto"
+            allowScrollButtonsMobile
+            sx={{ 
+              minWidth: 'auto',
+              flexGrow: 1,
+              '& .MuiTabs-scrollButtons': {
+                '&.Mui-disabled': { opacity: 0.3 }
+              }
+            }}
           >
             {/* Summary Tab - Always Present (No Close Button) */}
             <Tab 
