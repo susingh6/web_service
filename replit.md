@@ -113,11 +113,12 @@ Preferred communication style: Simple, everyday language.
 
 ## Changelog
 
-- July 11, 2025: Restored missing team header section and implemented proper filter separation
-  - Added missing team header section: large team name, description, and status badges (Active, Monitoring, SLA)
+- July 11, 2025: Restored complete team header section with dynamic entity counts and proper filter separation
+  - Added missing team header section: large team name, dynamic description from team data, entity counts, and status badges
+  - Team header now shows entity counts: "X Entities • Y Tables • Z DAGs" with proper singular/plural handling
   - Tenant filter now appears exclusively in Summary dashboard (only when Summary tab is active)
   - Each team dashboard has its own dedicated date filter separate from Summary
-  - Team dashboards show: team header section, team-specific date filter, Add Entity button, Bulk Upload button
+  - Team dashboards show: complete team header section, team-specific date filter, Add Entity button, Bulk Upload button
   - Summary dashboard shows: "Overall SLA Performance" title, tenant filter, summary date filter
   - Achieved complete separation of global filters (tenant) vs team-specific filters (date)
 - July 11, 2025: Completed scalable tenant filtering system with dynamic team performance charts
