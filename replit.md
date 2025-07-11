@@ -113,6 +113,24 @@ Preferred communication style: Simple, everyday language.
 
 ## Changelog
 
+- July 11, 2025: Implemented comprehensive FastAPI authentication system with Azure AD SSO integration
+  - Added FastAPI authentication types and interfaces for user and session management
+  - Implemented session ID extraction from response headers instead of body for better security
+  - Created FastAPIClient utility for making authenticated requests with X-Session-ID headers
+  - Added automatic session management with localStorage persistence and expiration handling
+  - Updated authentication flow to support Azure token forwarding to FastAPI backend
+  - Configured centralized endpoints for FastAPI backend (localhost:8080) with proper fallback
+  - Added proper logout handling for FastAPI sessions with backend session invalidation
+  - Implemented automatic session restoration on app reload from localStorage
+  - Updated authentication context to support multiple auth methods: 'azure', 'local', 'fastapi'
+  - Added proper error handling for session expiration with automatic redirect to login
+  - Authentication system now ready for production Azure AD integration with client credentials flow
+- July 11, 2025: Updated authentication UI to use single "Authenticate" button with proper layout
+  - Removed username/password form completely in favor of SSO-only authentication
+  - Added "Log in" heading above authenticate button for better user guidance
+  - Improved card layout with proper height matching between left and right panels
+  - Updated button styling with Azure AD icon and loading states
+  - Enhanced spacing and typography for professional appearance
 - July 3, 2025: Enhanced EntityTable with dual column display and standardized spacing
   - Added separate Entity Name and type-specific name columns (DAG Name/Table Name) for better data organization
   - Implemented standardized column widths across all table columns for consistent visual spacing

@@ -59,6 +59,15 @@ export const devConfig = {
     debug: {
       teams: '/api/debug/teams',
     },
+    
+    // FastAPI backend endpoints
+    fastapi: {
+      baseUrl: 'http://localhost:8080',
+      auth: {
+        login: '/api/v1/auth/login',
+        logout: '/api/v1/auth/logout',
+      },
+    },
   },
   
   // SLA Compliance Color Thresholds
