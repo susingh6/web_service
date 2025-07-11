@@ -113,6 +113,10 @@ Preferred communication style: Simple, everyday language.
 
 ## Changelog
 
+- July 11, 2025: Fixed entity performance chart filter buttons in team dashboards not responding to All/Tables/DAGs filter selection
+  - Added proper filter value conversion from uppercase to lowercase in EntityPerformanceChart component
+  - Chart now correctly filters entities when clicking All, Tables, or DAGs buttons
+  - No impact on existing functionality - minimal targeted fix
 - July 11, 2025: Fixed critical team filtering bug where team tab selection incorrectly affected Summary dashboard data
   - Separated team tab data management from Summary dashboard using local state instead of shared Redux store
   - Summary dashboard now always shows ALL team data for selected tenant regardless of which team tabs are open
