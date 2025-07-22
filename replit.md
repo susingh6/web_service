@@ -113,6 +113,15 @@ Preferred communication style: Simple, everyday language.
 
 ## Changelog
 
+- July 22, 2025: Completed entity ownership functionality with conditional UI elements and automatic updates
+  - Added `is_entity_owner` boolean field to Entity schema with proper database integration
+  - Fixed storage loading logic to preserve entity ownership values from mock data
+  - Updated EntityTable display logic to show correct "Yes/No" entity ownership status
+  - Implemented conditional View Tasks button (DAG entities only, Entity Owner = "Yes" only)  
+  - Implemented conditional Delete button (all entities with Entity Owner = "Yes" only)
+  - Entity ownership changes in EditEntityModal automatically refresh UI via query invalidation
+  - When user changes ownership from "No" to "Yes", View Tasks and Delete buttons appear immediately
+  - Complete ownership-based access control system for task management and deletion operations
 - July 11, 2025: Fixed entity performance chart filter buttons in team dashboards not responding to All/Tables/DAGs filter selection
   - Added proper filter value conversion from uppercase to lowercase in EntityPerformanceChart component
   - Chart now correctly filters entities when clicking All, Tables, or DAGs buttons
