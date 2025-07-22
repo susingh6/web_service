@@ -245,6 +245,7 @@ const TeamDashboard = ({
               onViewDetails={onViewDetails}
               onSetNotificationTimeline={onNotificationTimeline}
               showActions={true}
+              isTeamDashboard={true}
             />
           )}
         </Box>
@@ -262,6 +263,7 @@ const TeamDashboard = ({
               onViewTasks={onViewTasks}
               onSetNotificationTimeline={onNotificationTimeline}
               showActions={true}
+              isTeamDashboard={true}
             />
           )}
         </Box>

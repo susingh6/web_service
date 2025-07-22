@@ -214,7 +214,7 @@ export class MemStorage implements IStorage {
         refreshFrequency: 'Hourly',
         lastRefreshed: new Date('2025-06-28T14:00:00Z'),
         owner: 'Jane Doe',
-        ownerEmail: 'jane.doe@company.com',
+        ownerEmail: null, // No entity owner
         schema_name: 'abc',
         table_name: 'agg_accounts_channel_ux_daily',
         tenant_name: 'Data Engineering'
@@ -246,7 +246,7 @@ export class MemStorage implements IStorage {
         refreshFrequency: 'Hourly',
         lastRefreshed: new Date('2025-06-28T16:45:00Z'),
         owner: 'Sarah Wilson',
-        ownerEmail: 'sarah.wilson@company.com',
+        ownerEmail: null, // No entity owner
         schema_name: 'abc',
         table_name: 'agg_iot_device_channel_daily',
         tenant_name: 'Data Engineering'
@@ -374,8 +374,8 @@ export class MemStorage implements IStorage {
           ? 's3://ad-analytics-tables/done_markers/' 
           : 's3://ad-analytics-dags/campaign_optimization/'),
         donemarker_lookback: entity.donemarker_lookback || 2,
-        owner_email: entity.owner_email || entity.ownerEmail || null,
-        user_email: entity.user_email || entity.ownerEmail || null,
+        owner_email: entity.ownerEmail || null,
+        user_email: entity.ownerEmail || null,
         is_active: entity.is_active !== undefined ? entity.is_active : true,
         lastRun: entity.lastRefreshed,
         lastStatus: entity.status,

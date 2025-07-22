@@ -80,10 +80,10 @@ const isEntityRecent = (entity: Entity): boolean => {
   return entityUpdateTime >= sixHoursAgo;
 };
 
-const getHeadCells = (showActions: boolean, type: 'table' | 'dag'): HeadCell[] => [
+const getHeadCells = (showActions: boolean, type: 'table' | 'dag', isTeamDashboard: boolean = false): HeadCell[] => [
   { id: 'name', label: 'Entity Name', numeric: false, disablePadding: true, sortable: true, width: '180px' },
   { id: type === 'table' ? 'table_name' : 'dag_name', label: type === 'table' ? 'Table Name' : 'DAG Name', numeric: false, disablePadding: false, sortable: true, width: '200px' },
-  { id: 'teamId', label: 'Team', numeric: false, disablePadding: false, sortable: true, width: '120px' },
+  { id: 'teamId', label: isTeamDashboard ? 'Entity Owner' : 'Team', numeric: false, disablePadding: false, sortable: true, width: '120px' },
   { id: 'status', label: 'Status', numeric: false, disablePadding: false, sortable: true, width: '100px' },
   { id: 'currentSla', label: 'Current SLA', numeric: true, disablePadding: false, sortable: true, width: '120px' },
   { id: 'trend', label: '30-Day Trend', numeric: true, disablePadding: false, sortable: false, width: '140px' },
@@ -102,6 +102,7 @@ interface EntityTableProps {
   onViewTasks?: (entity: Entity) => void; // For DAG entities to view tasks
   onSetNotificationTimeline?: (entity: Entity) => void; // For notification timeline setup
   showActions?: boolean; // Controls whether to show action buttons
+  isTeamDashboard?: boolean; // Controls whether to show Entity Owner instead of Team
 }
 
 const EntityTable = ({
@@ -115,6 +116,7 @@ const EntityTable = ({
   onViewTasks,
   onSetNotificationTimeline,
   showActions = true, // Default to showing actions
+  isTeamDashboard = false, // Default to summary dashboard
 }: EntityTableProps) => {
   const dispatch = useAppDispatch();
   const [order, setOrder] = useState<'asc' | 'desc'>('desc');
@@ -400,7 +402,7 @@ const EntityTable = ({
                 />
               </TableCell>
               
-              {getHeadCells(showActions, type).map((headCell) => (
+              {getHeadCells(showActions, type, isTeamDashboard).map((headCell) => (
                 <TableCell
                   key={headCell.id}
                   align={headCell.numeric ? 'right' : headCell.id === 'actions' ? 'center' : 'left'}
@@ -500,7 +502,7 @@ const EntityTable = ({
                     
                     <TableCell sx={{ width: '120px' }}>
                       <Typography variant="body2">
-                        {getTeamName(entity.teamId)}
+                        {isTeamDashboard ? (entity.ownerEmail ? 'Yes' : 'No') : getTeamName(entity.teamId)}
                       </Typography>
                     </TableCell>
                     
