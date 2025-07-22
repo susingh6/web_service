@@ -802,6 +802,22 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
               />
               
               <Controller
+                name="server_name"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label={fieldDefinitions.server_name.label}
+                    fullWidth
+                    margin="normal"
+                    error={!!(errors as any).server_name}
+                    helperText={(errors as any).server_name?.message}
+                    placeholder={fieldDefinitions.server_name.placeholder}
+                  />
+                )}
+              />
+              
+              <Controller
                 name="user_email"
                 control={control}
                 render={({ field }) => (

@@ -52,6 +52,7 @@ export const entities = pgTable("entities", {
   dag_description: text("dag_description"),
   dag_schedule: text("dag_schedule"),
   dag_dependency: json("dag_dependency").$type<string[]>(), // Array of dependencies
+  server_name: text("server_name"), // Airflow server name for DAGs
   
   // Common fields
   expected_runtime_minutes: integer("expected_runtime_minutes"),

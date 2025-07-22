@@ -105,6 +105,7 @@ const dagSchema = baseSchema.shape({
       otherwise: (schema) => schema.optional()
     }),
   dag_dependency: yup.string().optional(),
+  server_name: yup.string().optional(),
 });
 
 const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps) => {
@@ -179,6 +180,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
             dag_description: (entity as any).dag_description || entity.description || 'DAG for daily analytics processing',
             dag_schedule: (entity as any).dag_schedule || '0 2 * * *',
             dag_dependency: (entity as any).dag_dependency || 'raw_data_ingest,user_profile_enrichment',
+            server_name: (entity as any).server_name || '',
           })
         };
       }
@@ -227,6 +229,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
       dag_description: '',
       dag_schedule: '',
       dag_dependency: '',
+      server_name: '',
     },
   });
 
@@ -279,6 +282,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
         dag_description: (entityDetails as any).dag_description || entityDetails.description || '',
         dag_schedule: (entityDetails as any).dag_schedule || '',
         dag_dependency: (entityDetails as any).dag_dependency || '',
+        server_name: (entityDetails as any).server_name || '',
       };
 
       reset(formData);
@@ -728,6 +732,24 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
                   />
                 )}
               />
+              
+              {entityType === 'dag' && (
+                <Controller
+                  name="server_name"
+                  control={control}
+                  render={({ field }) => (
+                    <TextField
+                      {...field}
+                      label={fieldDefinitions.server_name.label}
+                      fullWidth
+                      margin="normal"
+                      error={!!(errors as any).server_name}
+                      helperText={(errors as any).server_name?.message}
+                      placeholder={fieldDefinitions.server_name.placeholder}
+                    />
+                  )}
+                />
+              )}
             </>
           )}
           

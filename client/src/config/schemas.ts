@@ -129,6 +129,15 @@ export const fieldDefinitions = {
     apiField: 'donemarker_lookback'
   },
 
+  server_name: {
+    type: 'string',
+    required: false,
+    label: 'Server Name',
+    placeholder: 'Enter Airflow server name',
+    validation: yup.string().optional(),
+    apiField: 'server_name'
+  },
+
   // Table-specific fields
   schema_name: {
     type: 'string',
@@ -324,6 +333,7 @@ export const buildDagSchema = () => {
     dag_dependency: fieldDefinitions.dag_dependency.validation,
     donemarker_location: fieldDefinitions.donemarker_location.validation,
     donemarker_lookback: fieldDefinitions.donemarker_lookback.validation,
+    server_name: fieldDefinitions.server_name.validation,
   });
 };
 
@@ -376,6 +386,7 @@ export const defaultValues = {
     dag_description: '',
     dag_schedule: '0 2 * * *',
     dag_dependency: '',
+    server_name: '',
   },
   
   auth: {
@@ -427,6 +438,7 @@ export const getFieldsForEntityType = (entityType: 'table' | 'dag') => {
       'dag_description', 
       'dag_schedule',
       'dag_dependency',
+      'server_name',
       ...commonFields.slice(4) // expected_runtime_minutes, donemarker_location, etc.
     ];
   }
@@ -493,6 +505,7 @@ export const bulkUploadFields = {
     'dag_description',
     'dag_schedule',
     'dag_dependency',
+    'server_name',
     'expected_runtime_minutes',
     'user_email',
     'owner_email',
