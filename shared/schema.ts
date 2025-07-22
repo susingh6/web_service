@@ -61,6 +61,7 @@ export const entities = pgTable("entities", {
   owner_email: text("owner_email"),
   user_email: text("user_email"),
   is_active: boolean("is_active"),
+  is_entity_owner: boolean("is_entity_owner").default(false),
   lastRun: timestamp("last_run"),
   lastStatus: text("last_status"),
   

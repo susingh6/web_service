@@ -505,7 +505,7 @@ const EntityTable = ({
                     
                     <TableCell sx={{ width: '120px' }}>
                       <Typography variant="body2">
-                        {isTeamDashboard ? (entity.ownerEmail ? 'Yes' : 'No') : getTeamName(entity.teamId)}
+                        {isTeamDashboard ? (entity.is_entity_owner ? 'Yes' : 'No') : getTeamName(entity.teamId)}
                       </Typography>
                     </TableCell>
                     
