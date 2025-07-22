@@ -56,6 +56,7 @@ const getSchemaForType = (entityType: EntityType) => {
 
 const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
   const [entityType, setEntityType] = useState<EntityType>('table');
+  const [isEntityOwner, setIsEntityOwner] = useState(false);
   
   // State for dynamic options - initialize from cache for instant load
   const [tenantOptions, setTenantOptions] = useState<string[]>(() => getFromCacheGeneric<string[]>('tenants', ['Ad Engineering', 'Data Engineering']));
@@ -248,6 +249,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
 
   const handleClose = () => {
     reset();
+    setIsEntityOwner(false);
     onClose();
   };
 
@@ -444,41 +446,6 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
               />
               
               <Controller
-                name="table_schedule"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    label="Table Schedule"
-                    fullWidth
-                    margin="normal"
-                    required
-                    error={!!(errors as any).table_schedule}
-                    helperText={(errors as any).table_schedule?.message}
-                    placeholder="* * * * * (cron format)"
-                  />
-                )}
-              />
-              
-              <Controller
-                name="expected_runtime_minutes"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    label="Expected Runtime (minutes)"
-                    type="number"
-                    fullWidth
-                    margin="normal"
-                    required
-                    error={!!errors.expected_runtime_minutes}
-                    helperText={errors.expected_runtime_minutes?.message}
-                    inputProps={{ min: 1 }}
-                  />
-                )}
-              />
-              
-              <Controller
                 name="table_dependency"
                 control={control}
                 render={({ field }) => (
@@ -490,24 +457,6 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                     error={!!(errors as any).table_dependency}
                     helperText={(errors as any).table_dependency?.message || "Comma-separated list of table names"}
                     placeholder="schema.table1,schema.table2,schema.table3"
-                  />
-                )}
-              />
-              
-              <Controller
-                name="donemarker_location"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    label={fieldDefinitions.donemarker_location.label}
-                    required={fieldDefinitions.donemarker_location.required}
-                    type={fieldDefinitions.donemarker_location.type}
-                    placeholder={fieldDefinitions.donemarker_location.placeholder}
-                    fullWidth
-                    margin="normal"
-                    error={!!errors.donemarker_location}
-                    helperText={errors.donemarker_location?.message}
                   />
                 )}
               />
@@ -546,24 +495,6 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                   />
                 )}
               />
-
-              <Controller
-                name="owner_email"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    label={fieldDefinitions.owner_email.label}
-                    required={fieldDefinitions.owner_email.required}
-                    type={fieldDefinitions.owner_email.type}
-                    placeholder={fieldDefinitions.owner_email.placeholder}
-                    fullWidth
-                    margin="normal"
-                    error={!!errors.owner_email}
-                    helperText={errors.owner_email?.message}
-                  />
-                )}
-              />
               
               <Controller
                 name="is_active"
@@ -582,6 +513,93 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                   />
                 )}
               />
+
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={isEntityOwner}
+                    onChange={(e) => setIsEntityOwner(e.target.checked)}
+                    color="primary"
+                  />
+                }
+                label="Entity Owner"
+                sx={{ mt: 2 }}
+              />
+
+              {isEntityOwner && (
+                <>
+                  <Controller
+                    name="table_schedule"
+                    control={control}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        label="Table Schedule *"
+                        fullWidth
+                        margin="normal"
+                        required
+                        error={!!(errors as any).table_schedule}
+                        helperText={(errors as any).table_schedule?.message}
+                        placeholder="* * * * * (cron format)"
+                      />
+                    )}
+                  />
+
+                  <Controller
+                    name="expected_runtime_minutes"
+                    control={control}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        label="Expected Runtime (minutes) *"
+                        type="number"
+                        fullWidth
+                        margin="normal"
+                        required
+                        error={!!errors.expected_runtime_minutes}
+                        helperText={errors.expected_runtime_minutes?.message}
+                        inputProps={{ min: 1 }}
+                      />
+                    )}
+                  />
+
+                  <Controller
+                    name="donemarker_location"
+                    control={control}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        label={`${fieldDefinitions.donemarker_location.label} *`}
+                        required
+                        type={fieldDefinitions.donemarker_location.type}
+                        placeholder={fieldDefinitions.donemarker_location.placeholder}
+                        fullWidth
+                        margin="normal"
+                        error={!!errors.donemarker_location}
+                        helperText={errors.donemarker_location?.message}
+                      />
+                    )}
+                  />
+
+                  <Controller
+                    name="owner_email"
+                    control={control}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        label={`${fieldDefinitions.owner_email.label} *`}
+                        required
+                        type={fieldDefinitions.owner_email.type}
+                        placeholder={fieldDefinitions.owner_email.placeholder}
+                        fullWidth
+                        margin="normal"
+                        error={!!errors.owner_email}
+                        helperText={errors.owner_email?.message}
+                      />
+                    )}
+                  />
+                </>
+              )}
             </>
           ) : (
             /* DAG FIELDS */
@@ -751,41 +769,6 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
               />
               
               <Controller
-                name="dag_schedule"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    label="DAG Schedule"
-                    fullWidth
-                    margin="normal"
-                    required
-                    error={!!(errors as any).dag_schedule}
-                    helperText={(errors as any).dag_schedule?.message}
-                    placeholder="* * * * * (cron format)"
-                  />
-                )}
-              />
-              
-              <Controller
-                name="expected_runtime_minutes"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    label="Expected Runtime (minutes)"
-                    type="number"
-                    fullWidth
-                    margin="normal"
-                    required
-                    error={!!errors.expected_runtime_minutes}
-                    helperText={errors.expected_runtime_minutes?.message}
-                    inputProps={{ min: 1 }}
-                  />
-                )}
-              />
-              
-              <Controller
                 name="dag_dependency"
                 control={control}
                 render={({ field }) => (
@@ -797,24 +780,6 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                     error={!!(errors as any).dag_dependency}
                     helperText={(errors as any).dag_dependency?.message || "Comma-separated list of DAG names"}
                     placeholder="dag1,dag2,dag3"
-                  />
-                )}
-              />
-              
-              <Controller
-                name="donemarker_location"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    label={fieldDefinitions.donemarker_location.label}
-                    required={fieldDefinitions.donemarker_location.required}
-                    type={fieldDefinitions.donemarker_location.type}
-                    placeholder={fieldDefinitions.donemarker_location.placeholder}
-                    fullWidth
-                    margin="normal"
-                    error={!!errors.donemarker_location}
-                    helperText={errors.donemarker_location?.message}
                   />
                 )}
               />
@@ -853,24 +818,6 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                   />
                 )}
               />
-
-              <Controller
-                name="owner_email"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    label={fieldDefinitions.owner_email.label}
-                    required={fieldDefinitions.owner_email.required}
-                    type={fieldDefinitions.owner_email.type}
-                    placeholder={fieldDefinitions.owner_email.placeholder}
-                    fullWidth
-                    margin="normal"
-                    error={!!errors.owner_email}
-                    helperText={errors.owner_email?.message}
-                  />
-                )}
-              />
               
               <Controller
                 name="is_active"
@@ -889,6 +836,93 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                   />
                 )}
               />
+
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={isEntityOwner}
+                    onChange={(e) => setIsEntityOwner(e.target.checked)}
+                    color="primary"
+                  />
+                }
+                label="Entity Owner"
+                sx={{ mt: 2 }}
+              />
+
+              {isEntityOwner && (
+                <>
+                  <Controller
+                    name="dag_schedule"
+                    control={control}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        label="DAG Schedule *"
+                        fullWidth
+                        margin="normal"
+                        required
+                        error={!!(errors as any).dag_schedule}
+                        helperText={(errors as any).dag_schedule?.message}
+                        placeholder="* * * * * (cron format)"
+                      />
+                    )}
+                  />
+
+                  <Controller
+                    name="expected_runtime_minutes"
+                    control={control}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        label="Expected Runtime (minutes) *"
+                        type="number"
+                        fullWidth
+                        margin="normal"
+                        required
+                        error={!!errors.expected_runtime_minutes}
+                        helperText={errors.expected_runtime_minutes?.message}
+                        inputProps={{ min: 1 }}
+                      />
+                    )}
+                  />
+
+                  <Controller
+                    name="donemarker_location"
+                    control={control}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        label={`${fieldDefinitions.donemarker_location.label} *`}
+                        required
+                        type={fieldDefinitions.donemarker_location.type}
+                        placeholder={fieldDefinitions.donemarker_location.placeholder}
+                        fullWidth
+                        margin="normal"
+                        error={!!errors.donemarker_location}
+                        helperText={errors.donemarker_location?.message}
+                      />
+                    )}
+                  />
+
+                  <Controller
+                    name="owner_email"
+                    control={control}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        label={`${fieldDefinitions.owner_email.label} *`}
+                        required
+                        type={fieldDefinitions.owner_email.type}
+                        placeholder={fieldDefinitions.owner_email.placeholder}
+                        fullWidth
+                        margin="normal"
+                        error={!!errors.owner_email}
+                        helperText={errors.owner_email?.message}
+                      />
+                    )}
+                  />
+                </>
+              )}
             </>
           )}
         </DialogContent>
