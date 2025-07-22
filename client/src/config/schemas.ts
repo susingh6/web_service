@@ -79,6 +79,15 @@ export const fieldDefinitions = {
     validation: yup.boolean().default(true),
     apiField: 'is_active'
   },
+
+  is_entity_owner: {
+    type: 'boolean',
+    required: false,
+    label: 'Entity Owner',
+    defaultValue: false,
+    validation: yup.boolean().default(false),
+    apiField: 'is_entity_owner'
+  },
   
   notification_preferences: {
     type: 'array',

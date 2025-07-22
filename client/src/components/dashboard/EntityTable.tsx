@@ -135,21 +135,24 @@ const EntityTable = ({
       if (entities.length === 0) return;
       
       try {
-        // Get all trends at once to avoid multiple API calls
-        const allTrends = await get30DayTrends();
+        // Get trends for each entity individually
         const trendsMap = new Map();
         
         // Map trends to entities
-        entities.forEach(entity => {
-          const trend = allTrends.find(t => t.entityId === entity.id);
-          if (trend) {
-            trendsMap.set(entity.id, {
-              value: trend.trend,
-              icon: trend.icon === 'up' ? <TrendingUp /> : trend.icon === 'down' ? <TrendingDown /> : <TrendingFlat />,
-              color: trend.color,
-            });
+        for (const entity of entities) {
+          try {
+            const trend = await getEntityTrend(entity.id);
+            if (trend) {
+              trendsMap.set(entity.id, {
+                value: trend.trend,
+                icon: trend.icon === 'up' ? <TrendingUp /> : trend.icon === 'down' ? <TrendingDown /> : <TrendingFlat />,
+                color: trend.color,
+              });
+            }
+          } catch (error) {
+            // Skip trends that fail to load
           }
-        });
+        }
         
         setTrendData(trendsMap);
       } catch (error) {

@@ -51,13 +51,12 @@ const baseSchema = yup.object().shape({
   tenant_name: yup.string().required('Tenant name is required'),
   team_name: yup.string().required('Team name is required'),
   notification_preferences: yup.array().of(yup.string()).default([]),
+  is_entity_owner: fieldDefinitions.is_entity_owner.validation,
   owner_email: yup.string()
-    .required('Owner email is required')
-    .test('email-validation', 'Invalid email format', function(value) {
-      if (!value) return false;
-      const emails = value.split(',').map(email => email.trim());
-      const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-      return emails.every(email => emailRegex.test(email));
+    .when('is_entity_owner', {
+      is: true,
+      then: (schema) => fieldDefinitions.owner_email.validation,
+      otherwise: (schema) => schema.optional()
     }),
   user_email: yup.string()
     .required('User email is required')
@@ -67,11 +66,17 @@ const baseSchema = yup.object().shape({
     ),
   is_active: yup.boolean().default(true),
   expected_runtime_minutes: yup.number()
-    .required('Expected runtime is required')
-    .positive('Must be positive')
-    .min(1, 'Must be at least 1 minute')
-    .max(1440, 'Must not exceed 1440 minutes (24 hours)'),
-  donemarker_location: yup.string().required('Donemarker location is required'),
+    .when('is_entity_owner', {
+      is: true,
+      then: (schema) => fieldDefinitions.expected_runtime_minutes.validation,
+      otherwise: (schema) => schema.optional()
+    }),
+  donemarker_location: yup.string()
+    .when('is_entity_owner', {
+      is: true,
+      then: (schema) => fieldDefinitions.donemarker_location.validation,
+      otherwise: (schema) => schema.optional()
+    }),
   donemarker_lookback: yup.number().min(0, 'Must be non-negative').optional(),
 });
 
@@ -81,8 +86,11 @@ const tableSchema = baseSchema.shape({
   table_name: yup.string().required('Table name is required'),
   table_description: yup.string().optional(),
   table_schedule: yup.string()
-    .required('Table schedule is required')
-    .matches(/^[\d*\/ ,\-]+$/, 'Invalid cron format'),
+    .when('is_entity_owner', {
+      is: true,
+      then: (schema) => fieldDefinitions.table_schedule.validation,
+      otherwise: (schema) => schema.optional()
+    }),
   table_dependency: yup.string().optional(),
 });
 
@@ -91,8 +99,11 @@ const dagSchema = baseSchema.shape({
   dag_name: yup.string().required('DAG name is required'),
   dag_description: yup.string().optional(),
   dag_schedule: yup.string()
-    .required('DAG schedule is required')
-    .matches(/^[\d*\/ ,\-]+$/, 'Invalid cron format'),
+    .when('is_entity_owner', {
+      is: true,
+      then: (schema) => fieldDefinitions.dag_schedule.validation,
+      otherwise: (schema) => schema.optional()
+    }),
   dag_dependency: yup.string().optional(),
 });
 
@@ -183,6 +194,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
       tenant_name: '',
       team_name: '',
       notification_preferences: [],
+      is_entity_owner: false,
       owner_email: '',
       user_email: '',
       is_active: true,
@@ -204,6 +216,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
       tenant_name: '',
       team_name: '',
       notification_preferences: [],
+      is_entity_owner: false,
       owner_email: '',
       user_email: '',
       is_active: true,
@@ -238,6 +251,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
         tenant_name: entityDetails.tenant_name || '',
         team_name: entityDetails.team_name || '',
         notification_preferences: entityDetails.notification_preferences || [],
+        is_entity_owner: entityDetails.is_entity_owner || false,
         owner_email: entityDetails.owner_email || '',
         user_email: entityDetails.user_email || '',
         is_active: entityDetails.is_active !== undefined ? entityDetails.is_active : true,
@@ -254,6 +268,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
         tenant_name: entityDetails.tenant_name || '',
         team_name: entityDetails.team_name || '',
         notification_preferences: entityDetails.notification_preferences || [],
+        is_entity_owner: entityDetails.is_entity_owner || false,
         owner_email: entityDetails.owner_email || '',
         user_email: entityDetails.user_email || '',
         is_active: entityDetails.is_active !== undefined ? entityDetails.is_active : true,
@@ -530,18 +545,22 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
               <Controller
                 name="table_schedule"
                 control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    label="Table Schedule (Cron) *"
-                    fullWidth
-                    margin="normal"
-                    required
-                    placeholder="e.g., 0 2 * * * (daily at 2 AM)"
-                    error={!!errors.table_schedule}
-                    helperText={errors.table_schedule?.message || "Use cron format: minute hour day month day-of-week"}
-                  />
-                )}
+                render={({ field }) => {
+                  const isEntityOwner = watch('is_entity_owner') as boolean;
+                  return (
+                    <TextField
+                      {...field}
+                      label={fieldDefinitions.table_schedule.label + (isEntityOwner ? " *" : "")}
+                      fullWidth
+                      margin="normal"
+                      required={isEntityOwner}
+                      placeholder={fieldDefinitions.table_schedule.placeholder}
+                      error={!!errors.table_schedule}
+                      helperText={errors.table_schedule?.message}
+                      disabled={!isEntityOwner}
+                    />
+                  );
+                }}
               />
               
               <Controller
@@ -714,18 +733,22 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
               <Controller
                 name="dag_schedule"
                 control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    label="DAG Schedule (Cron) *"
-                    fullWidth
-                    margin="normal"
-                    required
-                    placeholder="e.g., 0 2 * * * (daily at 2 AM)"
-                    error={!!errors.dag_schedule}
-                    helperText={errors.dag_schedule?.message || "Use cron format: minute hour day month day-of-week"}
-                  />
-                )}
+                render={({ field }) => {
+                  const isEntityOwner = watch('is_entity_owner') as boolean;
+                  return (
+                    <TextField
+                      {...field}
+                      label={fieldDefinitions.dag_schedule.label + (isEntityOwner ? " *" : "")}
+                      fullWidth
+                      margin="normal"
+                      required={isEntityOwner}
+                      placeholder={fieldDefinitions.dag_schedule.placeholder}
+                      error={!!errors.dag_schedule}
+                      helperText={errors.dag_schedule?.message}
+                      disabled={!isEntityOwner}
+                    />
+                  );
+                }}
               />
               
               <Controller
@@ -748,21 +771,44 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
           
           {/* COMMON FIELDS FOR BOTH TYPES */}
           <Controller
+            name="is_entity_owner"
+            control={control}
+            render={({ field: { onChange, value } }) => (
+              <Box sx={{ mt: 2 }}>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={value || false}
+                      onChange={(e) => onChange(e.target.checked)}
+                      name="is_entity_owner"
+                    />
+                  }
+                  label={fieldDefinitions.is_entity_owner.label}
+                />
+              </Box>
+            )}
+          />
+          
+          <Controller
             name="owner_email"
             control={control}
-            render={({ field }) => (
-              <TextField
-                {...field}
-                label={fieldDefinitions.owner_email.label + " *"}
-                fullWidth
-                margin="normal"
-                required
-                type="email"
-                error={!!errors.owner_email}
-                helperText={errors.owner_email?.message}
-                placeholder={fieldDefinitions.owner_email.placeholder}
-              />
-            )}
+            render={({ field }) => {
+              const isEntityOwner = watch('is_entity_owner') as boolean;
+              return (
+                <TextField
+                  {...field}
+                  label={fieldDefinitions.owner_email.label + (isEntityOwner ? " *" : "")}
+                  fullWidth
+                  margin="normal"
+                  required={isEntityOwner}
+                  type="email"
+                  error={!!errors.owner_email}
+                  helperText={errors.owner_email?.message}
+                  placeholder={fieldDefinitions.owner_email.placeholder}
+                  disabled={!isEntityOwner}
+                />
+              );
+            }}
           />
           
           <Controller
@@ -785,39 +831,47 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
           <Controller
             name="expected_runtime_minutes"
             control={control}
-            render={({ field }) => (
-              <TextField
-                {...field}
-                label="Expected Runtime (Minutes) *"
-                type="number"
-                fullWidth
-                margin="normal"
-                required
-                inputProps={{
-                  min: 1,
-                  max: 1440,
-                }}
-                error={!!errors.expected_runtime_minutes}
-                helperText={errors.expected_runtime_minutes?.message}
-              />
-            )}
+            render={({ field }) => {
+              const isEntityOwner = watch('is_entity_owner') as boolean;
+              return (
+                <TextField
+                  {...field}
+                  label={fieldDefinitions.expected_runtime_minutes.label + (isEntityOwner ? " *" : "")}
+                  type="number"
+                  fullWidth
+                  margin="normal"
+                  required={isEntityOwner}
+                  inputProps={{
+                    min: 1,
+                    max: 1440,
+                  }}
+                  error={!!errors.expected_runtime_minutes}
+                  helperText={errors.expected_runtime_minutes?.message}
+                  disabled={!isEntityOwner}
+                />
+              );
+            }}
           />
           
           <Controller
             name="donemarker_location"
             control={control}
-            render={({ field }) => (
-              <TextField
-                {...field}
-                label={fieldDefinitions.donemarker_location?.label + " *"}
-                fullWidth
-                margin="normal"
-                required
-                placeholder={fieldDefinitions.donemarker_location?.placeholder}
-                error={!!errors.donemarker_location}
-                helperText={errors.donemarker_location?.message}
-              />
-            )}
+            render={({ field }) => {
+              const isEntityOwner = watch('is_entity_owner') as boolean;
+              return (
+                <TextField
+                  {...field}
+                  label={fieldDefinitions.donemarker_location?.label + (isEntityOwner ? " *" : "")}
+                  fullWidth
+                  margin="normal"
+                  required={isEntityOwner}
+                  placeholder={fieldDefinitions.donemarker_location?.placeholder}
+                  error={!!errors.donemarker_location}
+                  helperText={errors.donemarker_location?.message}
+                  disabled={!isEntityOwner}
+                />
+              );
+            }}
           />
           
           <Controller
