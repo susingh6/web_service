@@ -651,6 +651,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
           dag_schedule: "0 */2 * * *",  // Every 2 hours
           expected_runtime_minutes: 30,
           dag_dependency: "sensor_validation,data_quality_check",  // Example as comma-separated string
+          server_name: "airflow-prod-server",
           donemarker_location: "s3://airflow/markers/device_etl/",
           donemarker_lookback: 0,
           user_email: "alex.johnson@example.com",
@@ -664,6 +665,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
           team_name: "Viewer Product",
           dag_name: "user_segmentation",
           dag_description: "Creates user segments for targeted advertising",
+          server_name: "airflow-staging-server",
           user_email: "sarah.williams@example.com",
           is_active: true,
           is_entity_owner: false  // Not entity owner - schedule, runtime, location, owner_email not required
@@ -803,6 +805,9 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
                   <li>Entity Owner: Boolean (defaults to false if not specified)</li>
                   <li>{fieldDefinitions.donemarker_lookback.label}: Number</li>
                   <li>{fieldDefinitions.is_active.label}: Boolean</li>
+                  {tabValue === 'dags' && (
+                    <li>{fieldDefinitions.server_name.label}: String</li>
+                  )}
                   {tabValue === 'tables' ? (
                     <>
                       <li>{fieldDefinitions.table_description.label}: String</li>

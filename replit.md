@@ -113,6 +113,14 @@ Preferred communication style: Simple, everyday language.
 
 ## Changelog
 
+- July 22, 2025: Added Server Name field to DAG entities with centralized configuration
+  - Added server_name field to Entity schema for airflow server connections
+  - Updated AddEntityModal and EditEntityModal to show Server Name field for DAG entities only
+  - Field positioned between Donemarker Lookback and User Email as requested
+  - Server Name is non-mandatory optional field using centralized field definitions
+  - Updated bulk upload modal to include server_name as optional field for DAGs
+  - Added server_name to DAG sample templates in bulk upload downloads
+  - Field uses centralized API configuration for consistent labeling and validation
 - July 22, 2025: Completed entity ownership functionality with conditional UI elements and automatic updates
   - Added `is_entity_owner` boolean field to Entity schema with proper database integration
   - Fixed storage loading logic to preserve entity ownership values from mock data
