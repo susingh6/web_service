@@ -159,10 +159,15 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
         isActive: selectedTimeline.isActive
       });
       
-      // Filter out AI task triggers for table entities
-      const filteredTriggers = entity?.type === 'table' 
-        ? (selectedTimeline.triggers || []).filter(trigger => trigger.type !== 'ai_tasks_status')
-        : (selectedTimeline.triggers || []);
+      // Filter out AI task and regular task triggers for table entities or entities without ownership
+      let filteredTriggers = selectedTimeline.triggers || [];
+      
+      // Remove AI and regular task triggers if entity is a table OR if entity doesn't have ownership
+      if (entity?.type === 'table' || !entity?.is_entity_owner) {
+        filteredTriggers = filteredTriggers.filter(trigger => 
+          trigger.type !== 'ai_tasks_status' && trigger.type !== 'regular_tasks_status'
+        );
+      }
       
       setTriggers(filteredTriggers);
       setEnabledChannels(selectedTimeline.channels || []);
@@ -429,10 +434,10 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
                   <MenuItem value="sla_threshold_breached">{TRIGGER_TYPE_LABELS.sla_threshold_breached}</MenuItem>
                   <MenuItem value="entity_success">{TRIGGER_TYPE_LABELS.entity_success}</MenuItem>
                   <MenuItem value="entity_failure">{TRIGGER_TYPE_LABELS.entity_failure}</MenuItem>
-                  {entity?.type === 'dag' && (
+                  {entity?.type === 'dag' && entity?.is_entity_owner && (
                     <MenuItem value="ai_tasks_status">{TRIGGER_TYPE_LABELS.ai_tasks_status}</MenuItem>
                   )}
-                  {entity?.type === 'dag' && (
+                  {entity?.type === 'dag' && entity?.is_entity_owner && (
                     <MenuItem value="regular_tasks_status">{TRIGGER_TYPE_LABELS.regular_tasks_status}</MenuItem>
                   )}
                 </Select>
