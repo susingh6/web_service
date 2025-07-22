@@ -778,7 +778,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
               </Typography>
 
               <Typography variant="body2" sx={{ mb: 1 }}>
-                Required only when is_entity_owner is true:
+                Required only when Entity Owner is true:
               </Typography>
               
               <Typography component="div" variant="body2" sx={{ pl: 2, mb: 1 }}>
