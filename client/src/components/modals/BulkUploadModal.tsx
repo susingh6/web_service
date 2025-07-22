@@ -800,7 +800,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
               
               <Typography component="div" variant="body2" sx={{ pl: 2, mb: 1 }}>
                 <ul>
-                  <li>is_entity_owner: Boolean (defaults to false if not specified)</li>
+                  <li>Entity Owner: Boolean (defaults to false if not specified)</li>
                   <li>{fieldDefinitions.donemarker_lookback.label}: Number</li>
                   <li>{fieldDefinitions.is_active.label}: Boolean</li>
                   {tabValue === 'tables' ? (
