@@ -542,26 +542,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
                 )}
               />
               
-              <Controller
-                name="table_schedule"
-                control={control}
-                render={({ field }) => {
-                  const isEntityOwner = watch('is_entity_owner') as boolean;
-                  return (
-                    <TextField
-                      {...field}
-                      label={fieldDefinitions.table_schedule.label + (isEntityOwner ? " *" : "")}
-                      fullWidth
-                      margin="normal"
-                      required={isEntityOwner}
-                      placeholder={fieldDefinitions.table_schedule.placeholder}
-                      error={!!errors.table_schedule}
-                      helperText={errors.table_schedule?.message}
-                      disabled={!isEntityOwner}
-                    />
-                  );
-                }}
-              />
+
               
               <Controller
                 name="table_dependency"
@@ -730,26 +711,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
                 )}
               />
               
-              <Controller
-                name="dag_schedule"
-                control={control}
-                render={({ field }) => {
-                  const isEntityOwner = watch('is_entity_owner') as boolean;
-                  return (
-                    <TextField
-                      {...field}
-                      label={fieldDefinitions.dag_schedule.label + (isEntityOwner ? " *" : "")}
-                      fullWidth
-                      margin="normal"
-                      required={isEntityOwner}
-                      placeholder={fieldDefinitions.dag_schedule.placeholder}
-                      error={!!errors.dag_schedule}
-                      helperText={errors.dag_schedule?.message}
-                      disabled={!isEntityOwner}
-                    />
-                  );
-                }}
-              />
+
               
               <Controller
                 name="dag_dependency"
@@ -769,48 +731,6 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
             </>
           )}
           
-          {/* COMMON FIELDS FOR BOTH TYPES */}
-          <Controller
-            name="is_entity_owner"
-            control={control}
-            render={({ field: { onChange, value } }) => (
-              <Box sx={{ mt: 2 }}>
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={value || false}
-                      onChange={(e) => onChange(e.target.checked)}
-                      name="is_entity_owner"
-                    />
-                  }
-                  label={fieldDefinitions.is_entity_owner.label}
-                />
-              </Box>
-            )}
-          />
-          
-          <Controller
-            name="owner_email"
-            control={control}
-            render={({ field }) => {
-              const isEntityOwner = watch('is_entity_owner') as boolean;
-              return (
-                <TextField
-                  {...field}
-                  label={fieldDefinitions.owner_email.label + (isEntityOwner ? " *" : "")}
-                  fullWidth
-                  margin="normal"
-                  required={isEntityOwner}
-                  type="email"
-                  error={!!errors.owner_email}
-                  helperText={errors.owner_email?.message}
-                  placeholder={fieldDefinitions.owner_email.placeholder}
-                  disabled={!isEntityOwner}
-                />
-              );
-            }}
-          />
-          
           <Controller
             name="user_email"
             control={control}
@@ -826,52 +746,6 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
                 helperText={errors.user_email?.message}
               />
             )}
-          />
-          
-          <Controller
-            name="expected_runtime_minutes"
-            control={control}
-            render={({ field }) => {
-              const isEntityOwner = watch('is_entity_owner') as boolean;
-              return (
-                <TextField
-                  {...field}
-                  label={fieldDefinitions.expected_runtime_minutes.label + (isEntityOwner ? " *" : "")}
-                  type="number"
-                  fullWidth
-                  margin="normal"
-                  required={isEntityOwner}
-                  inputProps={{
-                    min: 1,
-                    max: 1440,
-                  }}
-                  error={!!errors.expected_runtime_minutes}
-                  helperText={errors.expected_runtime_minutes?.message}
-                  disabled={!isEntityOwner}
-                />
-              );
-            }}
-          />
-          
-          <Controller
-            name="donemarker_location"
-            control={control}
-            render={({ field }) => {
-              const isEntityOwner = watch('is_entity_owner') as boolean;
-              return (
-                <TextField
-                  {...field}
-                  label={fieldDefinitions.donemarker_location?.label + (isEntityOwner ? " *" : "")}
-                  fullWidth
-                  margin="normal"
-                  required={isEntityOwner}
-                  placeholder={fieldDefinitions.donemarker_location?.placeholder}
-                  error={!!errors.donemarker_location}
-                  helperText={errors.donemarker_location?.message}
-                  disabled={!isEntityOwner}
-                />
-              );
-            }}
           />
           
           <Controller
@@ -911,6 +785,123 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
               </Box>
             )}
           />
+
+          <Controller
+            name="is_entity_owner"
+            control={control}
+            render={({ field: { onChange, value } }) => (
+              <Box sx={{ mt: 2 }}>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={value || false}
+                      onChange={(e) => onChange(e.target.checked)}
+                      name="is_entity_owner"
+                    />
+                  }
+                  label={fieldDefinitions.is_entity_owner.label}
+                />
+              </Box>
+            )}
+          />
+
+          {watch().is_entity_owner && (
+            <>
+              <Controller
+                name="owner_email"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label={fieldDefinitions.owner_email.label + " *"}
+                    fullWidth
+                    margin="normal"
+                    required
+                    type="email"
+                    error={!!errors.owner_email}
+                    helperText={errors.owner_email?.message}
+                    placeholder={fieldDefinitions.owner_email.placeholder}
+                  />
+                )}
+              />
+
+              <Controller
+                name="expected_runtime_minutes"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label={fieldDefinitions.expected_runtime_minutes.label + " *"}
+                    type="number"
+                    fullWidth
+                    margin="normal"
+                    required
+                    inputProps={{
+                      min: 1,
+                      max: 1440,
+                    }}
+                    error={!!errors.expected_runtime_minutes}
+                    helperText={errors.expected_runtime_minutes?.message}
+                  />
+                )}
+              />
+
+              <Controller
+                name="donemarker_location"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label={fieldDefinitions.donemarker_location?.label + " *"}
+                    fullWidth
+                    margin="normal"
+                    required
+                    placeholder={fieldDefinitions.donemarker_location?.placeholder}
+                    error={!!errors.donemarker_location}
+                    helperText={errors.donemarker_location?.message}
+                  />
+                )}
+              />
+
+              {entityType === 'table' && (
+                <Controller
+                  name="table_schedule"
+                  control={control}
+                  render={({ field }) => (
+                    <TextField
+                      {...field}
+                      label={fieldDefinitions.table_schedule.label + " *"}
+                      fullWidth
+                      margin="normal"
+                      required
+                      placeholder={fieldDefinitions.table_schedule.placeholder}
+                      error={!!errors.table_schedule}
+                      helperText={errors.table_schedule?.message}
+                    />
+                  )}
+                />
+              )}
+
+              {entityType === 'dag' && (
+                <Controller
+                  name="dag_schedule"
+                  control={control}
+                  render={({ field }) => (
+                    <TextField
+                      {...field}
+                      label={fieldDefinitions.dag_schedule.label + " *"}
+                      fullWidth
+                      margin="normal"
+                      required
+                      placeholder={fieldDefinitions.dag_schedule.placeholder}
+                      error={!!errors.dag_schedule}
+                      helperText={errors.dag_schedule?.message}
+                    />
+                  )}
+                />
+              )}
+            </>
+          )}
         </DialogContent>
         
         <DialogActions sx={{ px: 3, py: 2 }}>
