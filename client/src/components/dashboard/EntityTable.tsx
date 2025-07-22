@@ -555,7 +555,7 @@ const EntityTable = ({
                             </IconButton>
                           </Tooltip>
                           
-                          {type === 'dag' && onViewTasks && (
+                          {type === 'dag' && onViewTasks && entity.is_entity_owner && (
                             <Tooltip title="View Tasks">
                               <IconButton size="small" color="info" onClick={() => onViewTasks(entity)}>
                                 <Assignment fontSize="small" />
