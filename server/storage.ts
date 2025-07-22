@@ -171,7 +171,9 @@ export class MemStorage implements IStorage {
             currentSla: dag.currentSla || null,
             lastRefreshed: dag.lastRun ? new Date(dag.lastRun) : null,
             // Tag all existing DAGs under Data Engineering tenant
-            tenant_name: 'Data Engineering'
+            tenant_name: 'Data Engineering',
+            // Explicitly preserve is_entity_owner field from mock data
+            is_entity_owner: dag.is_entity_owner || false
           });
         });
         
