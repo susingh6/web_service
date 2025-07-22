@@ -467,6 +467,37 @@ const EntityTable = ({
                         <Typography variant="body2" fontWeight={500}>
                           {entity.name}
                         </Typography>
+                      </Box>
+                    </TableCell>
+                    
+                    <TableCell sx={{ width: '200px' }}>
+                      <Typography variant="body2" fontWeight={500}>
+                        {type === 'table' 
+                          ? (entity.schema_name && entity.table_name ? `${entity.schema_name}.${entity.table_name}` : entity.table_name || 'N/A')
+                          : entity.dag_name || 'N/A'
+                        }
+                      </Typography>
+                    </TableCell>
+                    
+                    <TableCell sx={{ width: '120px' }}>
+                      <Typography variant="body2">
+                        {isTeamDashboard ? (entity.is_entity_owner ? 'Yes' : 'No') : getTeamName(entity.teamId)}
+                      </Typography>
+                    </TableCell>
+                    
+                    <TableCell sx={{ width: '100px' }}>
+                      <Box display="flex" alignItems="center" gap={1}>
+                        <Chip
+                          label={(STATUS_CONFIG[entity.status] || DEFAULT_STATUS).label}
+                          size="small"
+                          sx={{
+                            backgroundColor: (STATUS_CONFIG[entity.status] || DEFAULT_STATUS).lightBg,
+                            color: `${(STATUS_CONFIG[entity.status] || DEFAULT_STATUS).color}.dark`,
+                            fontWeight: 600,
+                            borderRadius: '16px',
+                            fontSize: '0.75rem',
+                          }}
+                        />
                         {isEntityRecent(entity) && (
                           <Chip
                             label="NEW"
@@ -492,35 +523,6 @@ const EntityTable = ({
                           />
                         )}
                       </Box>
-                    </TableCell>
-                    
-                    <TableCell sx={{ width: '200px' }}>
-                      <Typography variant="body2" fontWeight={500}>
-                        {type === 'table' 
-                          ? (entity.schema_name && entity.table_name ? `${entity.schema_name}.${entity.table_name}` : entity.table_name || 'N/A')
-                          : entity.dag_name || 'N/A'
-                        }
-                      </Typography>
-                    </TableCell>
-                    
-                    <TableCell sx={{ width: '120px' }}>
-                      <Typography variant="body2">
-                        {isTeamDashboard ? (entity.is_entity_owner ? 'Yes' : 'No') : getTeamName(entity.teamId)}
-                      </Typography>
-                    </TableCell>
-                    
-                    <TableCell sx={{ width: '100px' }}>
-                      <Chip
-                        label={(STATUS_CONFIG[entity.status] || DEFAULT_STATUS).label}
-                        size="small"
-                        sx={{
-                          backgroundColor: (STATUS_CONFIG[entity.status] || DEFAULT_STATUS).lightBg,
-                          color: `${(STATUS_CONFIG[entity.status] || DEFAULT_STATUS).color}.dark`,
-                          fontWeight: 600,
-                          borderRadius: '16px',
-                          fontSize: '0.75rem',
-                        }}
-                      />
                     </TableCell>
                     
                     <TableCell align="right" sx={{ width: '120px' }}>

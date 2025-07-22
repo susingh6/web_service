@@ -113,6 +113,11 @@ Preferred communication style: Simple, everyday language.
 
 ## Changelog
 
+- July 22, 2025: Moved NEW symbol from entity name to status column for better clarity
+  - NEW symbol now appears next to status instead of entity name in team and summary dashboards
+  - Makes it clear that the status is what's being updated by the background scheduler
+  - Status column now displays both status chip and NEW indicator when entity is recently updated
+  - Entity name column simplified to show only the entity name without visual indicators
 - July 22, 2025: Added Server Name field to DAG entities with centralized configuration
   - Added server_name field to Entity schema for airflow server connections
   - Updated AddEntityModal and EditEntityModal to show Server Name field for DAG entities only
