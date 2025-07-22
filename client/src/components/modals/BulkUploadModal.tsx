@@ -780,7 +780,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
               <Typography variant="body2" sx={{ mb: 1 }}>
                 Required only when Entity Owner is true:
               </Typography>
-              
+              {/* Entity owner conditional fields */}
               <Typography component="div" variant="body2" sx={{ pl: 2, mb: 1 }}>
                 <ul>
                   <li>{fieldDefinitions.expected_runtime_minutes.label}: Number (must be between 1 and 1440)</li>
