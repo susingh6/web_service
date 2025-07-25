@@ -47,7 +47,7 @@ export const queryClient = new QueryClient({
       queryFn: getQueryFn({ on401: "throw" }),
       refetchInterval: false,
       refetchOnWindowFocus: false,
-      staleTime: Infinity,
+      staleTime: 1000 * 60 * 5, // 5 minutes instead of Infinity
       retry: false,
     },
     mutations: {
@@ -55,3 +55,34 @@ export const queryClient = new QueryClient({
     },
   },
 });
+
+// Helper function to clear all cache
+export const clearAllCache = () => {
+  queryClient.clear();
+};
+
+// Helper function to invalidate specific cache keys
+export const invalidateCache = (keys: string[]) => {
+  keys.forEach(key => {
+    queryClient.invalidateQueries({ queryKey: [key] });
+  });
+};
+
+// Helper function to refresh common cache keys
+export const refreshDashboardCache = () => {
+  const commonKeys = [
+    '/api/dashboard/summary',
+    '/api/entities',
+    '/api/teams',
+    '/api/tenants',
+    '/api/cache/status'
+  ];
+  invalidateCache(commonKeys);
+  console.log('Frontend cache refreshed for dashboard data');
+};
+
+// Make it available globally for browser console access
+if (typeof window !== 'undefined') {
+  (window as any).refreshCache = refreshDashboardCache;
+  (window as any).clearAllCache = clearAllCache;
+}
