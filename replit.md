@@ -113,6 +113,16 @@ Preferred communication style: Simple, everyday language.
 
 ## Changelog
 
+- July 25, 2025: Completed Azure SSO admin role-based access control system
+  - Implemented comprehensive Azure AD admin role validation with centralized authentication endpoints
+  - Only users with admin role from Azure SSO can access the application, others receive clear error messages
+  - Updated User schema to include role field and azureObjectId for Azure AD integration
+  - Created AdminRoute component to replace ProtectedRoute for role-based access protection throughout application
+  - Modified Header component to display "Admin" menu item with click handler and "Logout" for authenticated admin users
+  - Added Azure validation endpoint /api/auth/azure/validate that checks role claims from Azure AD headers/tokens
+  - Test user "azure_test_user" configured with admin role for authentication testing and development
+  - System uses structured logging for all authentication events with success/failure tracking
+  - Error handling provides actionable feedback for non-admin users attempting access
 - July 22, 2025: Moved NEW symbol from entity name to status column for better clarity
   - NEW symbol now appears next to status instead of entity name in team and summary dashboards
   - Makes it clear that the status is what's being updated by the background scheduler

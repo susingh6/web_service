@@ -27,6 +27,11 @@ const Header = () => {
     setNotificationsAnchor(null);
   };
   
+  const handleAdminClick = () => {
+    console.log("Admin menu item clicked - Admin features placeholder");
+    handleUserMenuClose();
+  };
+
   const handleLogout = () => {
     handleUserMenuClose();
     logout();
@@ -140,7 +145,7 @@ const Header = () => {
           transformOrigin={{ horizontal: 'right', vertical: 'top' }}
           anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
         >
-          <MenuItem onClick={handleUserMenuClose}>
+          <MenuItem onClick={handleAdminClick}>
             <Box display="flex" alignItems="center">
               <Typography variant="body2" color="primary" fontWeight={600}>
                 Admin
