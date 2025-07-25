@@ -223,23 +223,37 @@ export function setupSimpleAuth(app: Express) {
       
       // For the test user, simulate admin role
       if (userEmail === 'azure_test_user@example.com' || displayName === 'Azure Test User') {
-        const testUser = {
-          id: 999,
-          username: 'azure_test_user',
-          email: userEmail || 'azure_test_user@example.com',
-          displayName: displayName,
-          team: 'Data Engineering',
-          role: 'admin', // Set admin role for test user
-          azureObjectId: azureObjectId || 'test-object-id'
-        };
+        let testUser = await storage.getUserByUsername('azure_test_user');
+        if (!testUser) {
+          testUser = await storage.createUser({
+            username: 'azure_test_user',
+            password: 'Azure123!',
+            email: userEmail || 'azure_test_user@example.com',
+            displayName: displayName,
+            team: 'Data Engineering'
+          });
+        }
         
-        logAuthenticationEvent("azure-login", testUser.username, undefined, req.requestId, true);
-        
-        return res.json({
-          success: true,
-          user: testUser,
-          message: "Azure SSO validation successful"
+        // Log the user into the Express session
+        req.login(testUser, (err) => {
+          if (err) {
+            logAuthenticationEvent("azure-login", testUser.username, undefined, req.requestId, false);
+            return res.status(500).json({ 
+              success: false,
+              message: "Session creation failed"
+            });
+          }
+          
+          logAuthenticationEvent("azure-login", testUser.username, undefined, req.requestId, true);
+          
+          const { password, ...userWithoutPassword } = testUser;
+          return res.json({
+            success: true,
+            user: { ...userWithoutPassword, role: 'admin' },
+            message: "Azure SSO validation successful"
+          });
         });
+        return; // Important: return here to prevent further execution
       }
       
       // Check if user has admin role from Azure SSO
