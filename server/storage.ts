@@ -203,7 +203,7 @@ export class MemStorage implements IStorage {
         lastRefreshed: new Date('2025-06-27T14:30:00Z'),
         owner: 'John Smith',
         ownerEmail: 'john.smith@company.com',
-        schema_name: 'abc',
+        schema_name: 'data_warehouse',
         table_name: 'agg_channel_brightscript_error_daily',
         tenant_name: 'Data Engineering'
       },
