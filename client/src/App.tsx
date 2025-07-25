@@ -3,6 +3,7 @@ import { Switch, Route } from "wouter";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
 import { AuthProvider } from "@/hooks/use-auth";
+import { useInactivityTimeout } from "@/hooks/use-inactivity-timeout";
 import { Toaster } from "@/components/ui/toaster";
 import { AdminRoute } from "@/lib/admin-route";
 import AppLayout from "./components/layout/AppLayout";
@@ -46,10 +47,17 @@ function Router() {
   );
 }
 
+// Component to handle inactivity timeout
+function InactivityHandler() {
+  useInactivityTimeout();
+  return null;
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
+        <InactivityHandler />
         <AppLayout>
           <Router />
         </AppLayout>

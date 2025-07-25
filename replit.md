@@ -113,6 +113,13 @@ Preferred communication style: Simple, everyday language.
 
 ## Changelog
 
+- July 25, 2025: Implemented 20-minute inactivity timeout with client-side activity tracking
+  - Created useInactivityTimeout hook that monitors user activity (clicks, keypress, scroll, touch, mouse movement)
+  - Automatic logout after 20 minutes of no user interaction with warning at 18 minutes
+  - Warning toast notification appears 2 minutes before session expiration
+  - Activity resets the timer, keeping active users logged in indefinitely
+  - System only affects authenticated users, no impact on login/registration pages
+  - Integrated into main App component for global coverage across all authenticated pages
 - July 25, 2025: Completed Azure SSO admin role-based access control system
   - Implemented comprehensive Azure AD admin role validation with centralized authentication endpoints
   - Only users with admin role from Azure SSO can access the application, others receive clear error messages
