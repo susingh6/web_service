@@ -153,9 +153,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         // Check if there are any accounts in the cache
         if (msalInstance) {
-          const accounts = msalInstance.getAllAccounts();
+          const accounts = msalInstance?.getAllAccounts() || [];
           
-          if (accounts.length > 0) {
+          if (accounts.length > 0 && msalInstance) {
             msalInstance.setActiveAccount(accounts[0]);
             setAzureUser(accounts[0]);
             setAuthMethod('azure');
@@ -277,40 +277,57 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Azure AD login function
+  // Azure AD login function with admin role validation
   const loginWithAzure = async (): Promise<void> => {
-    // For now, always use local authentication until Azure AD is properly configured
     try {
-      const startTime = performance.now();
       setIsAzureLoading(true);
       setAzureError(null);
       
-      // Use test credentials for local authentication
-      const testCredentials = {
-        username: "azure_test_user",
-        password: "Azure123!"
+      // For testing purposes, simulate Azure SSO with admin validation
+      // In production, this would use actual Azure MSAL tokens and claims
+      const mockAzureClaims = {
+        email: "azure_test_user@example.com",
+        name: "Azure Test User", 
+        role: "admin", // Admin role required for access
+        oid: "test-azure-object-id"
       };
       
-      const res = await apiRequest("POST", buildUrl(endpoints.auth.login), testCredentials);
-      const user = await res.json();
+      // Call Azure validation endpoint with centralized config
+      const res = await apiRequest("POST", buildUrl(endpoints.auth.azureValidate || '/api/auth/azure/validate'), {
+        token: "mock-azure-token", // In production, this would be real Azure JWT
+        claims: mockAzureClaims
+      });
       
-      queryClient.setQueryData(["/api/user"], user);
-      setAuthMethod('local');
+      const response = await res.json();
       
-      const endTime = performance.now();
-      // Authentication completed
+      if (!response.success) {
+        // Admin role validation failed
+        setAzureError(response.message);
+        toast({
+          title: "Access Denied",
+          description: response.message,
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Azure admin validation successful
+      queryClient.setQueryData(["/api/user"], response.user);
+      setAuthMethod('azure');
+      setAzureUser(response.user);
       
       toast({
         title: "Authentication successful",
-        description: `Welcome, ${user.username}!`,
+        description: `Welcome, ${response.user.displayName}! You have admin access.`,
         variant: "default",
       });
+      
     } catch (err) {
-      setAzureError(`Authentication failed: ${err}`);
-      console.error('Authentication error:', err);
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      setAzureError(`Azure authentication failed: ${errorMessage}`);
       toast({
-        title: "Authentication failed",
-        description: err instanceof Error ? err.message : String(err),
+        title: "Authentication failed", 
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -369,7 +386,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (authMethod === 'fastapi' && sessionId) {
         try {
           // Logout from FastAPI backend
-          const fastApiConfig = endpoints.fastapi || {
+          const fastApiConfig = (endpoints as any).fastapi || {
             baseUrl: "http://localhost:8080",
             auth: {
               login: "/api/v1/auth/login",

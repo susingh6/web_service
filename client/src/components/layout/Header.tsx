@@ -140,8 +140,13 @@ const Header = () => {
           transformOrigin={{ horizontal: 'right', vertical: 'top' }}
           anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
         >
-          <MenuItem onClick={handleUserMenuClose}>Profile</MenuItem>
-          <MenuItem onClick={handleUserMenuClose}>Settings</MenuItem>
+          <MenuItem onClick={handleUserMenuClose}>
+            <Box display="flex" alignItems="center">
+              <Typography variant="body2" color="primary" fontWeight={600}>
+                Admin
+              </Typography>
+            </Box>
+          </MenuItem>
           <MenuItem onClick={handleLogout}>Logout</MenuItem>
         </Menu>
         

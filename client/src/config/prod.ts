@@ -7,6 +7,7 @@ export const prodConfig = {
       logout: '/api/logout',
       register: '/api/register',
       user: '/api/user',
+      azureValidate: '/api/auth/azure/validate',
     },
     
     // Core entities

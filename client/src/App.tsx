@@ -4,7 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
 import { AuthProvider } from "@/hooks/use-auth";
 import { Toaster } from "@/components/ui/toaster";
-import { ProtectedRoute } from "@/lib/protected-route";
+import { AdminRoute } from "@/lib/admin-route";
 import AppLayout from "./components/layout/AppLayout";
 import NotFound from "@/pages/not-found";
 import AuthPage from "@/pages/auth-page";
@@ -27,9 +27,9 @@ function Router() {
       {/* Auth routes */}
       <Route path="/auth" component={AuthPage} />
       
-      {/* Protected Dashboard routes */}
-      <ProtectedRoute path="/" component={Summary} />
-      <ProtectedRoute 
+      {/* Admin-only Dashboard routes */}
+      <AdminRoute path="/" component={Summary} />
+      <AdminRoute 
         path="/team/:id" 
         component={() => (
           <Suspense fallback={<LazyLoadingFallback />}>

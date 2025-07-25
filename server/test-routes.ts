@@ -55,7 +55,9 @@ export function setupTestRoutes(app: Express) {
         password: passwordHash,
         email: "test@example.com",
         displayName: "Azure Test User",
-        team: "Data Engineering"
+        team: "Data Engineering",
+        role: "admin", // Set admin role for test user
+        azureObjectId: "test-azure-object-id"
       };
       
       // Delete existing user if any

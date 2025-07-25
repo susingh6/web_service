@@ -8,6 +8,7 @@ export const stagingConfig = {
       logout: '/api/logout',
       register: '/api/register',
       user: '/api/user',
+      azureValidate: '/api/auth/azure/validate',
     },
     
     // Core entities

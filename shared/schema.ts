@@ -10,6 +10,8 @@ export const users = pgTable("users", {
   email: text("email"),
   displayName: text("display_name"),
   team: text("team"),
+  role: text("role").default("user"), // admin, user
+  azureObjectId: text("azure_object_id"), // Azure AD object ID
 });
 
 // Teams schema
@@ -111,6 +113,8 @@ export const insertUserSchema = createInsertSchema(users).pick({
   email: true,
   displayName: true,
   team: true,
+  role: true,
+  azureObjectId: true,
 });
 
 export const insertTeamSchema = createInsertSchema(teams).pick({

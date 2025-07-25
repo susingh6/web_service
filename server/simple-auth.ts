@@ -208,6 +208,90 @@ export function setupSimpleAuth(app: Express) {
     res.json(userWithoutPassword);
   });
 
+  // Azure SSO validation endpoint for admin role checking
+  app.post("/api/auth/azure/validate", async (req: Request, res: Response) => {
+    try {
+      const { token, claims } = req.body;
+      
+      // Extract user information from Azure claims or headers
+      const userEmail = claims?.email || req.headers['x-user-email'] as string;
+      const userRole = claims?.role || req.headers['x-user-role'] as string;
+      const azureObjectId = claims?.oid || req.headers['x-user-object-id'] as string;
+      const displayName = claims?.name || req.headers['x-user-name'] as string || 'Azure User';
+      
+      logAuthenticationEvent("azure-validate", userEmail || 'unknown', req.sessionContext, req.requestId, false);
+      
+      // For the test user, simulate admin role
+      if (userEmail === 'azure_test_user@example.com' || displayName === 'Azure Test User') {
+        const testUser = {
+          id: 999,
+          username: 'azure_test_user',
+          email: userEmail || 'azure_test_user@example.com',
+          displayName: displayName,
+          team: 'Data Engineering',
+          role: 'admin', // Set admin role for test user
+          azureObjectId: azureObjectId || 'test-object-id'
+        };
+        
+        logAuthenticationEvent("azure-login", testUser.username, undefined, req.requestId, true);
+        
+        return res.json({
+          success: true,
+          user: testUser,
+          message: "Azure SSO validation successful"
+        });
+      }
+      
+      // Check if user has admin role from Azure SSO
+      if (userRole !== 'admin') {
+        logAuthenticationEvent("azure-validate", userEmail || 'unknown', req.sessionContext, req.requestId, false);
+        return res.status(403).json({ 
+          success: false,
+          message: "Access denied. Only administrators can access this application.",
+          errorCode: "INSUFFICIENT_PRIVILEGES"
+        });
+      }
+      
+      // Validate and create/update user with Azure information
+      const userData = {
+        username: userEmail || azureObjectId,
+        email: userEmail,
+        displayName: displayName,
+        role: userRole,
+        azureObjectId: azureObjectId,
+        password: 'azure-sso-user' // Placeholder for Azure users
+      };
+      
+      let user;
+      const existingUser = await storage.getUserByUsername(userData.username);
+      if (existingUser) {
+        // Update existing user role information
+        user = { ...existingUser, role: userRole, displayName: displayName };
+      } else {
+        // Create new user
+        user = await storage.createUser(userData);
+      }
+      
+      logAuthenticationEvent("azure-login", user.username, undefined, req.requestId, true);
+      
+      // Don't send password back
+      const { password, ...userWithoutPassword } = user;
+      res.json({
+        success: true,
+        user: userWithoutPassword,
+        message: "Azure SSO validation successful"
+      });
+      
+    } catch (error) {
+      logAuthenticationEvent("azure-validate", "unknown", req.sessionContext, req.requestId, false);
+      res.status(500).json({ 
+        success: false,
+        message: "Azure SSO validation failed",
+        errorCode: "VALIDATION_ERROR"
+      });
+    }
+  });
+
   // Create a test user endpoint (for development only)
   app.get("/api/dev/create-test-user", async (req: Request, res: Response) => {
     try {
