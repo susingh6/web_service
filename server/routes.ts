@@ -469,7 +469,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get all tasks for an entity with task_type field
-  app.get("/api/entities/:id/tasks", isAuthenticated, async (req: Request, res: Response) => {
+  app.get("/api/entities/:id/tasks", async (req: Request, res: Response) => {
     try {
       const entityId = parseInt(req.params.id);
       // Return all tasks with task_type field indicating AI or regular
