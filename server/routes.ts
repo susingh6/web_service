@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { WebSocketServer } from "ws";
 import { storage } from "./storage";
 import { redisCache } from "./redis-cache";
-import { insertEntitySchema, insertTeamSchema, insertEntityHistorySchema, insertIssueSchema, insertUserSchema, insertNotificationTimelineSchema, insertSubscriptionSchema } from "@shared/schema";
+import { insertEntitySchema, insertTeamSchema, insertEntityHistorySchema, insertIssueSchema, insertUserSchema, insertNotificationTimelineSchema } from "@shared/schema";
 import { z } from "zod";
 import { setupSimpleAuth } from "./simple-auth";
 import { setupTestRoutes } from "./test-routes";
@@ -1012,124 +1012,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Subscription endpoints
-  app.get("/api/subscriptions", isAuthenticated, async (req: Request, res: Response) => {
-    try {
-      const userId = (req.user as any)?.id;
-      if (!userId) {
-        return res.status(401).json({ message: "User not authenticated" });
-      }
 
-      const subscriptions = await storage.getSubscriptions(userId);
-      res.json(subscriptions);
-    } catch (error) {
-      console.error("Error fetching subscriptions:", error);
-      res.status(500).json({ message: "Failed to fetch subscriptions" });
-    }
-  });
-
-  app.get("/api/subscriptions/entity/:entityId", isAuthenticated, async (req: Request, res: Response) => {
-    try {
-      const entityId = parseInt(req.params.entityId);
-      if (isNaN(entityId)) {
-        return res.status(400).json({ message: "Invalid entity ID" });
-      }
-
-      const subscriptions = await storage.getSubscriptionsByEntity(entityId);
-      res.json(subscriptions);
-    } catch (error) {
-      console.error("Error fetching entity subscriptions:", error);
-      res.status(500).json({ message: "Failed to fetch entity subscriptions" });
-    }
-  });
-
-  app.post("/api/subscriptions", isAuthenticated, async (req: Request, res: Response) => {
-    try {
-      const userId = (req.user as any)?.id;
-      if (!userId) {
-        return res.status(401).json({ message: "User not authenticated" });
-      }
-
-      const result = insertSubscriptionSchema.safeParse({
-        ...req.body,
-        userId
-      });
-      
-      if (!result.success) {
-        return res.status(400).json({ message: "Invalid subscription data", errors: result.error.format() });
-      }
-      
-      const subscription = await storage.createSubscription(result.data);
-      res.status(201).json(subscription);
-    } catch (error) {
-      console.error("Error creating subscription:", error);
-      res.status(500).json({ message: "Failed to create subscription" });
-    }
-  });
-
-  app.put("/api/subscriptions/:id", isAuthenticated, async (req: Request, res: Response) => {
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) {
-        return res.status(400).json({ message: "Invalid subscription ID" });
-      }
-
-      const userId = (req.user as any)?.id;
-      if (!userId) {
-        return res.status(401).json({ message: "User not authenticated" });
-      }
-
-      // Verify the subscription belongs to the user
-      const existingSubscriptions = await storage.getSubscriptions(userId);
-      const existingSubscription = existingSubscriptions.find(sub => sub.id === id);
-      
-      if (!existingSubscription) {
-        return res.status(404).json({ message: "Subscription not found or not owned by user" });
-      }
-
-      const subscription = await storage.updateSubscription(id, req.body);
-      if (!subscription) {
-        return res.status(404).json({ message: "Subscription not found" });
-      }
-
-      res.json(subscription);
-    } catch (error) {
-      console.error("Error updating subscription:", error);
-      res.status(500).json({ message: "Failed to update subscription" });
-    }
-  });
-
-  app.delete("/api/subscriptions/:id", isAuthenticated, async (req: Request, res: Response) => {
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) {
-        return res.status(400).json({ message: "Invalid subscription ID" });
-      }
-
-      const userId = (req.user as any)?.id;
-      if (!userId) {
-        return res.status(401).json({ message: "User not authenticated" });
-      }
-
-      // Verify the subscription belongs to the user
-      const existingSubscriptions = await storage.getSubscriptions(userId);
-      const existingSubscription = existingSubscriptions.find(sub => sub.id === id);
-      
-      if (!existingSubscription) {
-        return res.status(404).json({ message: "Subscription not found or not owned by user" });
-      }
-
-      const deleted = await storage.deleteSubscription(id);
-      if (!deleted) {
-        return res.status(404).json({ message: "Subscription not found" });
-      }
-
-      res.json({ message: "Subscription deleted successfully" });
-    } catch (error) {
-      console.error("Error deleting subscription:", error);
-      res.status(500).json({ message: "Failed to delete subscription" });
-    }
-  });
 
   const httpServer = createServer(app);
 

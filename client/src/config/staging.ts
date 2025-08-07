@@ -57,15 +57,6 @@ export const stagingConfig = {
       delete: (id: string) => `/api/notification-timelines/${id}`,
     },
     
-    // Subscriptions
-    subscriptions: {
-      create: '/api/subscriptions',
-      byUser: '/api/subscriptions',
-      byEntity: (entityId: number) => `/api/subscriptions/entity/${entityId}`,
-      update: (subscriptionId: number) => `/api/subscriptions/${subscriptionId}`,
-      delete: (subscriptionId: number) => `/api/subscriptions/${subscriptionId}`,
-    },
-    
     // Debug endpoints
     debug: {
       teams: '/api/debug/teams',

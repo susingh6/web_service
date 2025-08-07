@@ -10,7 +10,6 @@ import EntityTable from '@/components/dashboard/EntityTable';
 import DateRangePicker from '@/components/dashboard/DateRangePicker';
 import ComplianceTrendChart from '@/components/dashboard/ComplianceTrendChart';
 import EntityPerformanceChart from '@/components/dashboard/EntityPerformanceChart';
-import { SubscriptionModal } from '@/components/modals/SubscriptionModal';
 
 interface TeamDashboardProps {
   teamName: string;
@@ -41,10 +40,6 @@ const TeamDashboard = ({
   const [tabValue, setTabValue] = useState(0);
   const [chartFilter, setChartFilter] = useState('All');
   const [entitiesChartFilter, setEntitiesChartFilter] = useState('All');
-  
-  // Subscription modal state
-  const [subscriptionModalOpen, setSubscriptionModalOpen] = useState(false);
-  const [selectedEntity, setSelectedEntity] = useState<Entity | null>(null);
   
   // Get current team info by name
   const team = teams.find((t: Team) => t.name === teamName);
@@ -86,16 +81,6 @@ const TeamDashboard = ({
   
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
-  };
-  
-  const handleSubscribeToEntity = (entity: Entity) => {
-    setSelectedEntity(entity);
-    setSubscriptionModalOpen(true);
-  };
-  
-  const handleCloseSubscriptionModal = () => {
-    setSubscriptionModalOpen(false);
-    setSelectedEntity(null);
   };
   
   // Show loading state when team is not found
@@ -259,7 +244,6 @@ const TeamDashboard = ({
               onViewHistory={() => {}}
               onViewDetails={onViewDetails}
               onSetNotificationTimeline={onNotificationTimeline}
-              onSubscribeToEntity={handleSubscribeToEntity}
               showActions={true}
               isTeamDashboard={true}
             />
@@ -278,20 +262,12 @@ const TeamDashboard = ({
               onViewDetails={onViewDetails}
               onViewTasks={onViewTasks}
               onSetNotificationTimeline={onNotificationTimeline}
-              onSubscribeToEntity={handleSubscribeToEntity}
               showActions={true}
               isTeamDashboard={true}
             />
           )}
         </Box>
       </Box>
-      
-      {/* Subscription Modal */}
-      <SubscriptionModal
-        isOpen={subscriptionModalOpen}
-        onClose={handleCloseSubscriptionModal}
-        entity={selectedEntity}
-      />
     </Box>
   );
 };
