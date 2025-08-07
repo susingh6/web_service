@@ -32,6 +32,7 @@ import {
   Assignment,
   Notifications,
   FiberNew,
+  NotificationAdd,
 } from '@mui/icons-material';
 import { visuallyHidden } from '@mui/utils';
 import { useAppDispatch } from '@/lib/store';
@@ -101,6 +102,7 @@ interface EntityTableProps {
   onViewDetails: (entity: Entity) => void;
   onViewTasks?: (entity: Entity) => void; // For DAG entities to view tasks
   onSetNotificationTimeline?: (entity: Entity) => void; // For notification timeline setup
+  onSubscribeToEntity?: (entity: Entity) => void; // For subscription management
   showActions?: boolean; // Controls whether to show action buttons
   isTeamDashboard?: boolean; // Controls whether to show Entity Owner instead of Team
 }
@@ -115,6 +117,7 @@ const EntityTable = ({
   onViewDetails,
   onViewTasks,
   onSetNotificationTimeline,
+  onSubscribeToEntity,
   showActions = true, // Default to showing actions
   isTeamDashboard = false, // Default to summary dashboard
 }: EntityTableProps) => {
@@ -569,6 +572,14 @@ const EntityTable = ({
                             <Tooltip title="Notification Timeline">
                               <IconButton size="small" color="secondary" onClick={() => onSetNotificationTimeline(entity)}>
                                 <Notifications fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          )}
+                          
+                          {onSubscribeToEntity && (
+                            <Tooltip title="Subscribe to Notifications">
+                              <IconButton size="small" color="info" onClick={() => onSubscribeToEntity(entity)}>
+                                <NotificationAdd fontSize="small" />
                               </IconButton>
                             </Tooltip>
                           )}

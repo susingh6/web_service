@@ -143,6 +143,24 @@ export const insertNotificationTimelineSchema = createInsertSchema(notificationT
   updatedAt: true,
 });
 
+// Subscriptions schema for entity notification subscriptions
+export const subscriptions = pgTable("subscriptions", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  entityId: integer("entity_id").notNull(),
+  notificationTypes: json("notification_types").$type<string[]>().notNull(), // ['PASSED', 'FAILED', 'PENDING', 'WARNING']
+  channels: json("channels").$type<string[]>().notNull(), // ['email', 'slack', 'pagerduty']
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertSubscriptionSchema = createInsertSchema(subscriptions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Types for use in the application
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -168,3 +186,6 @@ export type InsertIssue = z.infer<typeof insertIssueSchema>;
 
 export type NotificationTimeline = typeof notificationTimelines.$inferSelect;
 export type InsertNotificationTimeline = z.infer<typeof insertNotificationTimelineSchema>;
+
+export type Subscription = typeof subscriptions.$inferSelect;
+export type InsertSubscription = z.infer<typeof insertSubscriptionSchema>;

@@ -50,6 +50,13 @@ interface ApiConfig {
       update: (id: string) => string;
       delete: (id: string) => string;
     };
+    subscriptions: {
+      create: string;
+      byUser: string;
+      byEntity: (entityId: number) => string;
+      update: (subscriptionId: number) => string;
+      delete: (subscriptionId: number) => string;
+    };
     debug: {
       teams: string;
     };

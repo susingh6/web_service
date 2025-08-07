@@ -4,7 +4,8 @@ import {
   entities, type Entity, type InsertEntity,
   entityHistory, type EntityHistory, type InsertEntityHistory,
   issues, type Issue, type InsertIssue,
-  notificationTimelines, type NotificationTimeline, type InsertNotificationTimeline
+  notificationTimelines, type NotificationTimeline, type InsertNotificationTimeline,
+  subscriptions, type Subscription, type InsertSubscription
 } from "@shared/schema";
 
 // Tenant interface for tenant management
@@ -55,6 +56,13 @@ export interface IStorage {
   createNotificationTimeline(timeline: InsertNotificationTimeline): Promise<NotificationTimeline>;
   updateNotificationTimeline(id: string, timeline: Partial<NotificationTimeline>): Promise<NotificationTimeline | undefined>;
   deleteNotificationTimeline(id: string): Promise<boolean>;
+  
+  // Subscription operations
+  getSubscriptions(userId: number): Promise<Subscription[]>;
+  getSubscriptionsByEntity(entityId: number): Promise<Subscription[]>;
+  createSubscription(subscription: InsertSubscription): Promise<Subscription>;
+  updateSubscription(id: number, subscription: Partial<Subscription>): Promise<Subscription | undefined>;
+  deleteSubscription(id: number): Promise<boolean>;
 }
 
 // In-memory storage implementation
@@ -65,12 +73,14 @@ export class MemStorage implements IStorage {
   private entityHistories: Map<number, EntityHistory[]>;
   private entityIssues: Map<number, Issue[]>;
   private notificationTimelines: Map<string, NotificationTimeline>;
+  private subscriptionsData: Map<number, Subscription>;
   
   private userId: number;
   private teamId: number;
   private entityId: number;
   private historyId: number;
   private issueId: number;
+  private subscriptionId: number;
   
   private initializationPromise: Promise<void>;
 
@@ -81,12 +91,14 @@ export class MemStorage implements IStorage {
     this.entityHistories = new Map();
     this.entityIssues = new Map();
     this.notificationTimelines = new Map();
+    this.subscriptionsData = new Map();
     
     this.userId = 1;
     this.teamId = 1;
     this.entityId = 1;
     this.historyId = 1;
     this.issueId = 1;
+    this.subscriptionId = 1;
     
     // Initialize with some demo data
     this.initializationPromise = this.initDemoData().catch(err => {
@@ -668,6 +680,55 @@ export class MemStorage implements IStorage {
 
   async deleteNotificationTimeline(id: string): Promise<boolean> {
     return this.notificationTimelines.delete(id);
+  }
+
+  // Subscription operations
+  async getSubscriptions(userId: number): Promise<Subscription[]> {
+    await this.ensureInitialized();
+    return Array.from(this.subscriptionsData.values())
+      .filter(subscription => subscription.userId === userId);
+  }
+
+  async getSubscriptionsByEntity(entityId: number): Promise<Subscription[]> {
+    await this.ensureInitialized();
+    return Array.from(this.subscriptionsData.values())
+      .filter(subscription => subscription.entityId === entityId);
+  }
+
+  async createSubscription(insertSubscription: InsertSubscription): Promise<Subscription> {
+    await this.ensureInitialized();
+    const id = this.subscriptionId++;
+    const subscription: Subscription = {
+      id,
+      ...insertSubscription,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    
+    this.subscriptionsData.set(id, subscription);
+    return subscription;
+  }
+
+  async updateSubscription(id: number, updates: Partial<Subscription>): Promise<Subscription | undefined> {
+    await this.ensureInitialized();
+    const existingSubscription = this.subscriptionsData.get(id);
+    if (!existingSubscription) {
+      return undefined;
+    }
+
+    const updatedSubscription: Subscription = {
+      ...existingSubscription,
+      ...updates,
+      updatedAt: new Date(),
+    };
+
+    this.subscriptionsData.set(id, updatedSubscription);
+    return updatedSubscription;
+  }
+
+  async deleteSubscription(id: number): Promise<boolean> {
+    await this.ensureInitialized();
+    return this.subscriptionsData.delete(id);
   }
 }
 
