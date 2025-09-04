@@ -391,6 +391,14 @@ export const defaultValues = {
     table_description: '',
     table_schedule: '0 2 * * *',
     table_dependency: '',
+    // Required API fields for table entities
+    slaTarget: 95,
+    status: 'Active',
+    refreshFrequency: 'Daily',
+    owner: '',
+    ownerEmail: '',
+    name: '', // Maps to entity_name for display
+    description: '', // General description field
   },
   
   dag: {

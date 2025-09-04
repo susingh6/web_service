@@ -212,11 +212,22 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
         return;
       }
       
-      // Create the entity object to submit
+      // Create the entity object to submit with proper field mapping
       const entityData = {
         ...data,
+        // Map form fields to API fields
+        name: data.entity_name || data.name, // API expects 'name'
+        description: data.description || '', // General description 
         type: entityType,
         teamId: team.id, // Add team ID for cache invalidation
+        // Ensure required table fields are included
+        ...(entityType === 'table' && {
+          slaTarget: data.slaTarget || 95,
+          status: data.status || 'Active', 
+          refreshFrequency: data.refreshFrequency || 'Daily',
+          owner: data.owner || data.owner_email || '',
+          ownerEmail: data.ownerEmail || data.owner_email || '',
+        })
       };
       
       // Use the entity mutation hook (includes entity-type-specific cache invalidation)
