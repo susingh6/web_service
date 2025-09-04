@@ -877,6 +877,58 @@ export class RedisCache {
     });
   }
 
+  // Entity-type-specific cache invalidation (selective targeting)
+  async invalidateEntityDataByType(
+    teamId: number, 
+    entityType: 'table' | 'dag',
+    refreshSummaryCache: boolean = false
+  ): Promise<void> {
+    const invalidationKeys = [
+      `entities_team_${teamId}`,
+      `entities_type_${entityType}`,
+      `entities_team_${teamId}_type_${entityType}`
+    ];
+
+    // Only refresh summary cache if explicitly requested (not the default)
+    const mainCacheKeys = refreshSummaryCache 
+      ? ['ENTITIES', 'TEAMS', 'METRICS'] 
+      : ['ENTITIES']; // Don't refresh metrics/summary by default
+
+    await this.invalidateCache({
+      keys: invalidationKeys,
+      patterns: [], // Target specific keys only, no broad patterns
+      mainCacheKeys,
+      refreshAffectedData: true
+    });
+  }
+
+  // Background cache rebuilding for specific entity types
+  async rebuildEntityCacheByType(
+    teamId: number, 
+    entityType: 'table' | 'dag'
+  ): Promise<void> {
+    try {
+      // Get fresh data for this specific team and entity type
+      const teamEntities = await storage.getEntitiesByTeam(teamId);
+      const typeEntities = teamEntities.filter(e => e.type === entityType);
+      
+      if (this.useRedis && this.redis) {
+        const expireTime = Math.floor(this.CACHE_DURATION_MS / 1000) + 300;
+        
+        // Update team cache
+        await this.redis.setex(`entities_team_${teamId}`, expireTime, JSON.stringify(teamEntities));
+        
+        // Update type-specific cache
+        await this.redis.setex(`entities_team_${teamId}_type_${entityType}`, expireTime, JSON.stringify(typeEntities));
+      }
+      
+      // Background rebuild completed successfully
+    } catch (error) {
+      console.warn(`Background cache rebuild failed for team ${teamId}, type ${entityType}:`, error);
+      // Fail silently - next request will rebuild via lazy loading
+    }
+  }
+
   async invalidateUserData(): Promise<void> {
     await this.invalidateCache({
       keys: ['all_users'],
@@ -884,6 +936,22 @@ export class RedisCache {
       mainCacheKeys: ['TEAMS'],
       refreshAffectedData: true
     });
+  }
+
+  // Hybrid approach: Invalidate targeted cache + optional background rebuild
+  async invalidateAndRebuildEntityCache(
+    teamId: number,
+    entityType: 'table' | 'dag',
+    backgroundRebuild: boolean = true
+  ): Promise<void> {
+    // Step 1: Immediate targeted invalidation (fast response)
+    await this.invalidateEntityDataByType(teamId, entityType, false);
+    
+    // Step 2: Optional background rebuild (non-blocking)
+    if (backgroundRebuild) {
+      // Run in background without awaiting
+      this.rebuildEntityCacheByType(teamId, entityType);
+    }
   }
 
   destroy(): void {

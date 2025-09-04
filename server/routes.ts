@@ -471,8 +471,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const entity = await storage.createEntity(result.data);
       
-      // Invalidate affected cache entries immediately after entity creation
-      await redisCache.invalidateEntityData(entity.teamId);
+      // Entity-type-specific cache invalidation (targeted approach)
+      await redisCache.invalidateAndRebuildEntityCache(
+        entity.teamId, 
+        entity.type as 'table' | 'dag',
+        true // Enable background rebuild
+      );
       
       res.status(201).json(entity);
     } catch (error) {
@@ -582,8 +586,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Entity not found" });
       }
       
-      // Invalidate affected cache entries immediately after entity update
-      await redisCache.invalidateEntityData(updatedEntity.teamId);
+      // Entity-type-specific cache invalidation (targeted approach)
+      await redisCache.invalidateAndRebuildEntityCache(
+        updatedEntity.teamId, 
+        updatedEntity.type as 'table' | 'dag',
+        true // Enable background rebuild
+      );
       
       res.json(updatedEntity);
     } catch (error) {
@@ -609,8 +617,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(500).json({ message: "Failed to delete entity" });
       }
       
-      // Invalidate affected cache entries immediately after entity deletion
-      await redisCache.invalidateEntityData(entityToDelete.teamId);
+      // Entity-type-specific cache invalidation (targeted approach)
+      await redisCache.invalidateAndRebuildEntityCache(
+        entityToDelete.teamId, 
+        entityToDelete.type as 'table' | 'dag',
+        true // Enable background rebuild
+      );
       
       res.status(204).end();
     } catch (error) {

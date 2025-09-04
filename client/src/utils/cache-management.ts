@@ -14,6 +14,8 @@ export const CACHE_PATTERNS = {
   ENTITIES: {
     LIST: ['/api/entities'],
     BY_TEAM: (teamId: number) => [`/api/entities`, { teamId }],
+    BY_TYPE: (type: string) => [`/api/entities`, { type }],
+    BY_TEAM_AND_TYPE: (teamId: number, type: string) => [`/api/entities`, { teamId, type }],
     DETAILS: (entityId: number) => [`/api/entities/${entityId}`],
     HISTORY: (entityId: number) => [`/api/entities/${entityId}/history`],
   },
@@ -48,6 +50,54 @@ export const INVALIDATION_SCENARIOS = {
     ...CACHE_PATTERNS.TEAMS.LIST,
   ],
   
+  // Entity-type-specific cache invalidation (targeted approach)
+  TABLE_ENTITY_CREATED: (teamId: number) => [
+    ...CACHE_PATTERNS.ENTITIES.BY_TEAM(teamId),
+    ...CACHE_PATTERNS.ENTITIES.BY_TYPE('table'),
+    ...CACHE_PATTERNS.ENTITIES.BY_TEAM_AND_TYPE(teamId, 'table'),
+    // DON'T invalidate summary cache - let it refresh on schedule
+  ],
+  
+  DAG_ENTITY_CREATED: (teamId: number) => [
+    ...CACHE_PATTERNS.ENTITIES.BY_TEAM(teamId),
+    ...CACHE_PATTERNS.ENTITIES.BY_TYPE('dag'),
+    ...CACHE_PATTERNS.ENTITIES.BY_TEAM_AND_TYPE(teamId, 'dag'),
+    // DON'T invalidate summary cache - let it refresh on schedule
+  ],
+  
+  TABLE_ENTITY_UPDATED: (entityId: number, teamId: number) => [
+    ...CACHE_PATTERNS.ENTITIES.BY_TEAM(teamId),
+    ...CACHE_PATTERNS.ENTITIES.BY_TYPE('table'),
+    ...CACHE_PATTERNS.ENTITIES.BY_TEAM_AND_TYPE(teamId, 'table'),
+    ...CACHE_PATTERNS.ENTITIES.DETAILS(entityId),
+    ...CACHE_PATTERNS.ENTITIES.HISTORY(entityId),
+    // DON'T invalidate summary cache - let it refresh on schedule
+  ],
+  
+  DAG_ENTITY_UPDATED: (entityId: number, teamId: number) => [
+    ...CACHE_PATTERNS.ENTITIES.BY_TEAM(teamId),
+    ...CACHE_PATTERNS.ENTITIES.BY_TYPE('dag'),
+    ...CACHE_PATTERNS.ENTITIES.BY_TEAM_AND_TYPE(teamId, 'dag'),
+    ...CACHE_PATTERNS.ENTITIES.DETAILS(entityId),
+    ...CACHE_PATTERNS.ENTITIES.HISTORY(entityId),
+    // DON'T invalidate summary cache - let it refresh on schedule
+  ],
+  
+  TABLE_ENTITY_DELETED: (teamId: number) => [
+    ...CACHE_PATTERNS.ENTITIES.BY_TEAM(teamId),
+    ...CACHE_PATTERNS.ENTITIES.BY_TYPE('table'),
+    ...CACHE_PATTERNS.ENTITIES.BY_TEAM_AND_TYPE(teamId, 'table'),
+    // DON'T invalidate summary cache - let it refresh on schedule
+  ],
+  
+  DAG_ENTITY_DELETED: (teamId: number) => [
+    ...CACHE_PATTERNS.ENTITIES.BY_TEAM(teamId),
+    ...CACHE_PATTERNS.ENTITIES.BY_TYPE('dag'),
+    ...CACHE_PATTERNS.ENTITIES.BY_TEAM_AND_TYPE(teamId, 'dag'),
+    // DON'T invalidate summary cache - let it refresh on schedule
+  ],
+  
+  // Legacy scenarios (kept for backward compatibility)
   ENTITY_CREATED: (teamId: number) => [
     ...CACHE_PATTERNS.ENTITIES.LIST,
     ...CACHE_PATTERNS.ENTITIES.BY_TEAM(teamId),
@@ -107,9 +157,56 @@ export function useCacheManager() {
     queryClient.removeQueries({ queryKey });
   };
 
+  // Background cache rebuilding for entity-specific caches
+  const rebuildEntityCacheBackground = async (teamId: number, entityType: 'table' | 'dag') => {
+    try {
+      // Pre-fetch the data to rebuild the cache
+      await queryClient.prefetchQuery({
+        queryKey: CACHE_PATTERNS.ENTITIES.BY_TEAM_AND_TYPE(teamId, entityType),
+        queryFn: async () => {
+          const response = await fetch(`/api/entities?teamId=${teamId}&type=${entityType}`);
+          if (!response.ok) throw new Error('Failed to fetch entities');
+          return response.json();
+        },
+        staleTime: 5 * 60 * 1000, // 5 minutes
+      });
+      
+      // Also refresh the general team cache
+      await queryClient.prefetchQuery({
+        queryKey: CACHE_PATTERNS.ENTITIES.BY_TEAM(teamId),
+        queryFn: async () => {
+          const response = await fetch(`/api/entities?teamId=${teamId}`);
+          if (!response.ok) throw new Error('Failed to fetch team entities');
+          return response.json();
+        },
+        staleTime: 5 * 60 * 1000, // 5 minutes
+      });
+    } catch (error) {
+      console.warn(`Background cache rebuild failed for team ${teamId}, type ${entityType}:`, error);
+      // Fail silently - next request will rebuild via lazy loading
+    }
+  };
+
+  // Smart invalidation with optional background rebuild
+  const invalidateWithRebuild = async (
+    scenario: keyof typeof INVALIDATION_SCENARIOS,
+    rebuildOptions?: { teamId: number; entityType: 'table' | 'dag' },
+    ...params: any[]
+  ) => {
+    // Invalidate the cache first
+    await invalidateByScenario(scenario, ...params);
+    
+    // Background rebuild if options provided
+    if (rebuildOptions) {
+      rebuildEntityCacheBackground(rebuildOptions.teamId, rebuildOptions.entityType);
+    }
+  };
+
   return {
     invalidateCache,
     invalidateByScenario,
+    invalidateWithRebuild,
+    rebuildEntityCacheBackground,
     setOptimisticData,
     removeOptimisticData,
     queryClient,
@@ -129,6 +226,7 @@ export function useOptimisticMutation<TData, TVariables, TOptimisticData = TData
     invalidationScenario?: {
       scenario: keyof typeof INVALIDATION_SCENARIOS;
       params: any[];
+      rebuildOptions?: { teamId: number; entityType: 'table' | 'dag' };
     };
     rollbackKeys?: (string | object)[][];
   }) => {
@@ -144,10 +242,18 @@ export function useOptimisticMutation<TData, TVariables, TOptimisticData = TData
       
       // Invalidate affected cache entries after successful operation
       if (invalidationScenario) {
-        await cacheManager.invalidateByScenario(
-          invalidationScenario.scenario,
-          ...invalidationScenario.params
-        );
+        if (invalidationScenario.rebuildOptions) {
+          await cacheManager.invalidateWithRebuild(
+            invalidationScenario.scenario,
+            invalidationScenario.rebuildOptions,
+            ...invalidationScenario.params
+          );
+        } else {
+          await cacheManager.invalidateByScenario(
+            invalidationScenario.scenario,
+            ...invalidationScenario.params
+          );
+        }
       }
       
       return result;
@@ -224,9 +330,12 @@ export function useEntityMutation() {
   const { executeWithOptimism } = useOptimisticMutation();
 
   const createEntity = async (entityData: any) => {
+    const entityType = entityData.type as 'table' | 'dag';
+    const scenario = entityType === 'table' ? 'TABLE_ENTITY_CREATED' : 'DAG_ENTITY_CREATED';
+    
     return executeWithOptimism({
       optimisticUpdate: {
-        queryKey: CACHE_PATTERNS.ENTITIES.LIST,
+        queryKey: CACHE_PATTERNS.ENTITIES.BY_TEAM(entityData.teamId),
         updater: (old: any[] | undefined) => old ? [...old, { ...entityData, id: Date.now() }] : [entityData],
       },
       mutationFn: async () => {
@@ -239,14 +348,18 @@ export function useEntityMutation() {
         return response.json();
       },
       invalidationScenario: {
-        scenario: 'ENTITY_CREATED',
+        scenario,
         params: [entityData.teamId],
+        rebuildOptions: { teamId: entityData.teamId, entityType },
       },
-      rollbackKeys: [CACHE_PATTERNS.ENTITIES.LIST],
+      rollbackKeys: [CACHE_PATTERNS.ENTITIES.BY_TEAM(entityData.teamId)],
     });
   };
 
   const updateEntity = async (entityId: number, entityData: any) => {
+    const entityType = entityData.type as 'table' | 'dag';
+    const scenario = entityType === 'table' ? 'TABLE_ENTITY_UPDATED' : 'DAG_ENTITY_UPDATED';
+    
     return executeWithOptimism({
       mutationFn: async () => {
         const response = await fetch(`/api/entities/${entityId}`, {
@@ -258,16 +371,19 @@ export function useEntityMutation() {
         return response.json();
       },
       invalidationScenario: {
-        scenario: 'ENTITY_UPDATED',
+        scenario,
         params: [entityId, entityData.teamId],
+        rebuildOptions: { teamId: entityData.teamId, entityType },
       },
     });
   };
 
-  const deleteEntity = async (entityId: number, teamId: number) => {
+  const deleteEntity = async (entityId: number, teamId: number, entityType: 'table' | 'dag') => {
+    const scenario = entityType === 'table' ? 'TABLE_ENTITY_DELETED' : 'DAG_ENTITY_DELETED';
+    
     return executeWithOptimism({
       optimisticUpdate: {
-        queryKey: CACHE_PATTERNS.ENTITIES.LIST,
+        queryKey: CACHE_PATTERNS.ENTITIES.BY_TEAM(teamId),
         updater: (old: any[] | undefined) => 
           old ? old.filter(entity => entity.id !== entityId) : [],
       },
@@ -279,10 +395,11 @@ export function useEntityMutation() {
         return response.ok;
       },
       invalidationScenario: {
-        scenario: 'ENTITY_DELETED',
+        scenario,
         params: [teamId],
+        rebuildOptions: { teamId, entityType },
       },
-      rollbackKeys: [CACHE_PATTERNS.ENTITIES.LIST],
+      rollbackKeys: [CACHE_PATTERNS.ENTITIES.BY_TEAM(teamId)],
     });
   };
 
