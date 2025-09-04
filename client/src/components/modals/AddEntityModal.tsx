@@ -184,10 +184,15 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
       // Lightweight pre-validation in UI for better UX
       // These validations will be repeated on the server for security
       
-      // Basic validation - just check required fields exist
-      const requiredFields = entityType === 'table' 
-        ? ['entity_name', 'tenant_name', 'team_name', 'owner_email', 'user_email']
-        : ['dag_name', 'tenant_name', 'team_name', 'owner_email', 'user_email'];
+      // Basic validation - check required fields based on entity owner status
+      let requiredFields = entityType === 'table' 
+        ? ['entity_name', 'tenant_name', 'team_name', 'user_email']
+        : ['dag_name', 'tenant_name', 'team_name', 'user_email'];
+      
+      // Only require owner_email if user is marked as entity owner
+      if (isEntityOwner) {
+        requiredFields.push('owner_email');
+      }
       
       for (const field of requiredFields) {
         if (!data[field] || data[field].trim() === '') {
