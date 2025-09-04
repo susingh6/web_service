@@ -53,8 +53,11 @@ const TeamDashboard = ({
   // Local state for team entities to avoid affecting Summary dashboard
   const [teamEntities, setTeamEntities] = useState<Entity[]>([]);
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
-  const [memberDialogOpen, setMemberDialogOpen] = useState(false);
-  const [editingMember, setEditingMember] = useState<any>(null);
+  const [addMemberDialogOpen, setAddMemberDialogOpen] = useState(false);
+  const [removeMemberDialogOpen, setRemoveMemberDialogOpen] = useState(false);
+  const [availableUsers, setAvailableUsers] = useState<any[]>([]);
+  const [selectedUserId, setSelectedUserId] = useState('');
+  const [selectedMemberId, setSelectedMemberId] = useState('');
   const { toast } = useToast();
   
   // Fetch data when team is found
@@ -90,22 +93,6 @@ const TeamDashboard = ({
     }
   }, [teamName]);
 
-  const {
-    control,
-    handleSubmit,
-    reset,
-    formState: { errors },
-  } = useForm({
-    resolver: zodResolver(teamMemberSchema),
-    defaultValues: {
-      id: '',
-      name: '',
-      email: '',
-      role: 'developer',
-      isActive: true,
-    },
-  });
-
   const fetchTeamMembers = async () => {
     if (teamName) {
       try {
@@ -118,32 +105,68 @@ const TeamDashboard = ({
     }
   };
 
-  const handleAddMember = () => {
-    setEditingMember(null);
-    reset({
-      id: '',
-      name: '',
-      email: '',
-      role: 'developer',
-      isActive: true,
-    });
-    setMemberDialogOpen(true);
+  const fetchAvailableUsers = async () => {
+    try {
+      const response = await apiClient.users.getAll();
+      const data = await response.json();
+      setAvailableUsers(data || []);
+    } catch (error) {
+      // Handle error silently
+    }
   };
 
-  const handleEditMember = (member: any) => {
-    setEditingMember(member);
-    reset(member);
-    setMemberDialogOpen(true);
+  const handleAddMember = async () => {
+    await fetchAvailableUsers();
+    setSelectedUserId('');
+    setAddMemberDialogOpen(true);
   };
 
-  const handleDeleteMember = async (memberId: string) => {
+  const handleRemoveMember = () => {
+    setSelectedMemberId('');
+    setRemoveMemberDialogOpen(true);
+  };
+
+  const onAddMember = async () => {
+    if (!selectedUserId) return;
+
+    try {
+      const memberData = {
+        team: teamName,
+        tenant: tenantName,
+        username: 'azure_test_user', // This would come from OAuth context
+        action: 'add' as const,
+        memberId: selectedUserId,
+      };
+
+      await apiClient.teams.updateMembers(teamName, memberData);
+      
+      toast({
+        title: 'Success',
+        description: 'Team member added successfully',
+      });
+      
+      setAddMemberDialogOpen(false);
+      setSelectedUserId('');
+      await fetchTeamMembers();
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to add team member',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const onRemoveMember = async () => {
+    if (!selectedMemberId) return;
+
     try {
       const memberData = {
         team: teamName,
         tenant: tenantName,
         username: 'azure_test_user', // This would come from OAuth context
         action: 'remove' as const,
-        memberId,
+        memberId: selectedMemberId,
       };
 
       await apiClient.teams.updateMembers(teamName, memberData);
@@ -153,40 +176,13 @@ const TeamDashboard = ({
         description: 'Team member removed successfully',
       });
       
+      setRemoveMemberDialogOpen(false);
+      setSelectedMemberId('');
       await fetchTeamMembers();
     } catch (error) {
       toast({
         title: 'Error',
         description: 'Failed to remove team member',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const onSubmitMember = async (data: z.infer<typeof teamMemberSchema>) => {
-    try {
-      const memberData = {
-        team: teamName,
-        tenant: tenantName,
-        username: 'azure_test_user', // This would come from OAuth context
-        action: editingMember ? ('update' as const) : ('add' as const),
-        member: data,
-        memberId: editingMember?.id,
-      };
-
-      await apiClient.teams.updateMembers(teamName, memberData);
-      
-      toast({
-        title: 'Success',
-        description: `Team member ${editingMember ? 'updated' : 'added'} successfully`,
-      });
-      
-      setMemberDialogOpen(false);
-      await fetchTeamMembers();
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: `Failed to ${editingMember ? 'update' : 'add'} team member`,
         variant: 'destructive',
       });
     }
