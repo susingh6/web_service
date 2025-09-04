@@ -4,6 +4,11 @@ import { styled } from '@mui/material/styles';
 import { useLocation } from 'wouter';
 import Header from './Header';
 import { useAuth } from '@/hooks/use-auth';
+import { useWebSocket } from '@/hooks/useWebSocket';
+import { useAppDispatch } from '@/lib/store';
+import { fetchEntities } from '@/features/sla/slices/entitiesSlice';
+import { fetchDashboardSummary } from '@/features/sla/slices/dashboardSlice';
+import { useQueryClient } from '@tanstack/react-query';
 import theme from '@/lib/theme';
 
 const MainContent = styled(Box)(({ theme }) => ({
@@ -20,6 +25,32 @@ interface AppLayoutProps {
 const AppLayout = ({ children }: AppLayoutProps) => {
   const { isAuthenticated, isLoading } = useAuth();
   const [location, setLocation] = useLocation();
+  const dispatch = useAppDispatch();
+  const queryClient = useQueryClient();
+  
+  // WebSocket connection for real-time updates
+  const { isConnected } = useWebSocket({
+    onEntityUpdated: (data: any) => {
+      if (data.type === 'deleted') {
+        // Invalidate React Query cache for immediate UI updates
+        queryClient.invalidateQueries({
+          predicate: (query) => {
+            const queryKey = query.queryKey;
+            return (
+              queryKey.includes('entities') || 
+              queryKey.includes('/api/entities') ||
+              queryKey.includes('dashboard') ||
+              queryKey.includes('/api/dashboard')
+            );
+          }
+        });
+        
+        // Refresh Redux store to ensure consistency
+        dispatch(fetchEntities());
+        dispatch(fetchDashboardSummary({ tenantName: 'Data Engineering' }));
+      }
+    }
+  });
   
   useEffect(() => {
     // Redirect to login if not authenticated

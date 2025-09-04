@@ -618,8 +618,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(500).json({ message: "Failed to delete entity" });
       }
       
-      // Force WebSocket notification to all clients (even if no clients currently connected)
-      // This ensures frontend gets updated when it reconnects or loads
+      // Force WebSocket notification to all clients for real-time frontend updates
       redisCache.forceNotifyClients('entity-updated', {
         entityId: id,
         entityName: entityToDelete.name,
