@@ -17,9 +17,16 @@ export const users = pgTable("users", {
 // Teams schema
 export const teams = pgTable("teams", {
   id: serial("id").primaryKey(),
+  tenant_id: integer("tenant_id").notNull(),
   name: text("name").notNull().unique(),
   description: text("description"),
+  team_members_ids: json("team_members_ids").$type<string[]>(),
+  team_email: json("team_email").$type<string[]>(),
+  team_slack: json("team_slack").$type<string[]>(),
+  team_pagerduty: json("team_pagerduty").$type<string[]>(),
+  team_notify_preference_id: integer("team_notify_preference_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 // SLA Entities schema (covers both Tables and DAGs)
@@ -118,8 +125,31 @@ export const insertUserSchema = createInsertSchema(users).pick({
 });
 
 export const insertTeamSchema = createInsertSchema(teams).pick({
+  tenant_id: true,
   name: true,
   description: true,
+  team_members_ids: true,
+  team_email: true,
+  team_slack: true,
+  team_pagerduty: true,
+});
+
+// Team member management schemas
+export const teamMemberSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  email: z.string().email(),
+  role: z.string().optional(),
+  isActive: z.boolean().default(true),
+});
+
+export const teamDetailsUpdateSchema = z.object({
+  team: z.string(),
+  tenant: z.string(),
+  username: z.string(),
+  action: z.enum(['add', 'remove', 'update']),
+  member: teamMemberSchema.optional(),
+  memberId: z.string().optional(),
 });
 
 export const insertEntitySchema = createInsertSchema(entities).omit({

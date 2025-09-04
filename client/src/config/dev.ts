@@ -15,6 +15,8 @@ export const devConfig = {
     entities: '/api/entities',
     teams: '/api/teams',
     tenants: '/api/tenants',
+    teamDetails: (teamName: string) => `/api/get_team_details/${teamName}`,
+    teamMembers: (teamName: string) => `/api/teams/${teamName}/members`,
     
     // Dashboard
     dashboard: {

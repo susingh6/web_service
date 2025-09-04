@@ -190,6 +190,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to fetch team" });
     }
   });
+
+  // Get team details by team name with member information
+  app.get("/api/get_team_details/:teamName", async (req, res) => {
+    try {
+      const { teamName } = req.params;
+      const team = await storage.getTeamByName(teamName);
+      
+      if (!team) {
+        return res.status(404).json({ message: "Team not found" });
+      }
+
+      // Mock member details based on team_members_ids
+      const memberDetails = (team.team_members_ids || []).map(memberId => ({
+        id: memberId,
+        name: memberId.replace('.', ' ').split(' ').map(word => 
+          word.charAt(0).toUpperCase() + word.slice(1)
+        ).join(' '),
+        email: `${memberId}@company.com`,
+        role: 'developer',
+        isActive: true
+      }));
+
+      const teamDetails = {
+        ...team,
+        members: memberDetails
+      };
+
+      res.json(teamDetails);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch team details" });
+    }
+  });
+
+  // Team member management endpoints
+  app.post("/api/teams/:teamName/members", async (req, res) => {
+    try {
+      const { teamName } = req.params;
+      const memberData = req.body;
+
+      // Get OAuth context (team, tenant, username from session or headers)
+      const oauthContext = {
+        team: teamName,
+        tenant: req.headers['x-tenant'] || 'Data Engineering',
+        username: req.headers['x-username'] || 'azure_test_user'
+      };
+
+      const updatedTeam = await storage.updateTeamMembers(teamName, memberData, oauthContext);
+      
+      if (!updatedTeam) {
+        return res.status(404).json({ message: "Team not found" });
+      }
+
+      res.json(updatedTeam);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to update team members" });
+    }
+  });
   
   // Entities endpoints - using cache
   app.get("/api/entities", async (req, res) => {

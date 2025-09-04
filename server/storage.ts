@@ -28,6 +28,7 @@ export interface IStorage {
   getTeam(id: number): Promise<Team | undefined>;
   getTeamByName(name: string): Promise<Team | undefined>;
   createTeam(team: InsertTeam): Promise<Team>;
+  updateTeamMembers(teamName: string, memberData: any, oauthContext: any): Promise<Team | undefined>;
   
   // Tenant operations
   getTenants(): Promise<Tenant[]>;
@@ -113,13 +114,75 @@ export class MemStorage implements IStorage {
       azureObjectId: "test-azure-object-id"
     });
     
-    // Create demo teams with the new team names
-    const teamNames = ['PGM', 'Core', 'Viewer Product', 'IOT', 'CDM', 'Ad Serving', 'Ad Data Activation'];
-    teamNames.forEach(name => {
-      this.createTeam({
-        name,
-        description: `Team responsible for ${name.toLowerCase()} data and analytics`
-      });
+    // Create demo teams with the new team names and member data
+    const teamData = [
+      { 
+        name: 'PGM', 
+        description: 'Platform Growth & Marketing Team',
+        tenant_id: 1,
+        team_members_ids: ['john.smith', 'sarah.johnson'],
+        team_email: ['pgm-team@company.com'],
+        team_slack: ['#pgm-team'],
+        team_pagerduty: ['pgm-escalation']
+      },
+      { 
+        name: 'Core', 
+        description: 'Core Infrastructure Team',
+        tenant_id: 1,
+        team_members_ids: ['david.wilson', 'michael.brown'],
+        team_email: ['core-team@company.com'],
+        team_slack: ['#core-infrastructure'],
+        team_pagerduty: ['core-escalation']
+      },
+      { 
+        name: 'Viewer Product', 
+        description: 'Viewer Product Team',
+        tenant_id: 2,
+        team_members_ids: ['emily.davis'],
+        team_email: ['viewer-product@company.com'],
+        team_slack: ['#viewer-product'],
+        team_pagerduty: ['viewer-escalation']
+      },
+      { 
+        name: 'IOT', 
+        description: 'Internet of Things Team',
+        tenant_id: 1,
+        team_members_ids: ['alex.chen', 'maria.garcia'],
+        team_email: ['iot-team@company.com'],
+        team_slack: ['#iot-team'],
+        team_pagerduty: ['iot-escalation']
+      },
+      { 
+        name: 'CDM', 
+        description: 'Content Delivery & Management Team',
+        tenant_id: 1,
+        team_members_ids: ['robert.taylor', 'lisa.anderson'],
+        team_email: ['cdm-team@company.com'],
+        team_slack: ['#cdm-team'],
+        team_pagerduty: ['cdm-escalation']
+      },
+      { 
+        name: 'Ad Serving', 
+        description: 'Advertisement Serving Team',
+        tenant_id: 2,
+        team_members_ids: ['carlos.martinez'],
+        team_email: ['ad-serving@company.com'],
+        team_slack: ['#ad-serving'],
+        team_pagerduty: ['ad-serving-escalation']
+      },
+      { 
+        name: 'Ad Data Activation', 
+        description: 'Ad Data Activation Team',
+        tenant_id: 2,
+        team_members_ids: ['ana.rodriguez'],
+        team_email: ['ad-data@company.com'],
+        team_slack: ['#ad-data-activation'],
+        team_pagerduty: ['ad-data-escalation']
+      }
+    ];
+
+    teamData.forEach(teamInfo => {
+      this.createTeam(teamInfo);
     });
     
     // Load mock DAG data using FS instead of require
@@ -616,10 +679,51 @@ export class MemStorage implements IStorage {
       ...insertTeam, 
       id, 
       createdAt: now,
-      description: insertTeam.description || null
+      updatedAt: now,
+      description: insertTeam.description || null,
+      team_members_ids: insertTeam.team_members_ids || [],
+      team_email: insertTeam.team_email || [],
+      team_slack: insertTeam.team_slack || [],
+      team_pagerduty: insertTeam.team_pagerduty || [],
+      team_notify_preference_id: insertTeam.team_notify_preference_id || null
     };
     this.teams.set(id, team);
     return team;
+  }
+
+  async updateTeamMembers(teamName: string, memberData: any, oauthContext: any): Promise<Team | undefined> {
+    const team = await this.getTeamByName(teamName);
+    if (!team) return undefined;
+
+    const { action, member, memberId } = memberData;
+    const now = new Date();
+    
+    let updatedMembers = [...(team.team_members_ids || [])];
+    
+    switch (action) {
+      case 'add':
+        if (member && !updatedMembers.includes(member.id)) {
+          updatedMembers.push(member.id);
+        }
+        break;
+      case 'remove':
+        if (memberId) {
+          updatedMembers = updatedMembers.filter(id => id !== memberId);
+        }
+        break;
+      case 'update':
+        // For update, we maintain the same member list but the member data would be updated elsewhere
+        break;
+    }
+
+    const updatedTeam: Team = {
+      ...team,
+      team_members_ids: updatedMembers,
+      updatedAt: now
+    };
+
+    this.teams.set(team.id, updatedTeam);
+    return updatedTeam;
   }
   
   // Tenant operations

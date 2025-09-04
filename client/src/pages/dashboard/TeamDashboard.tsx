@@ -10,6 +10,7 @@ import EntityTable from '@/components/dashboard/EntityTable';
 import DateRangePicker from '@/components/dashboard/DateRangePicker';
 import ComplianceTrendChart from '@/components/dashboard/ComplianceTrendChart';
 import EntityPerformanceChart from '@/components/dashboard/EntityPerformanceChart';
+import TeamMemberManagement from '@/components/dashboard/TeamMemberManagement';
 
 interface TeamDashboardProps {
   teamName: string;
@@ -213,10 +214,10 @@ const TeamDashboard = ({
           </Box>
         </Box>
         
-        {/* Tables/DAGs Sub-tabs */}
+        {/* Entity and Team Management Tabs */}
         <Tabs value={tabValue} onChange={handleTabChange} sx={{ mb: 3 }}>
           <Tab 
-            label="Tables" 
+            label="Overview" 
             sx={{ 
               fontWeight: 500, 
               textTransform: 'none',
@@ -224,7 +225,23 @@ const TeamDashboard = ({
             }} 
           />
           <Tab 
-            label="DAGs" 
+            label={`Tables (${tables.length})`} 
+            sx={{ 
+              fontWeight: 500, 
+              textTransform: 'none',
+              '&.Mui-selected': { fontWeight: 600 } 
+            }} 
+          />
+          <Tab 
+            label={`DAGs (${dags.length})`} 
+            sx={{ 
+              fontWeight: 500, 
+              textTransform: 'none',
+              '&.Mui-selected': { fontWeight: 600 } 
+            }} 
+          />
+          <Tab 
+            label="Team Members" 
             sx={{ 
               fontWeight: 500, 
               textTransform: 'none',
@@ -233,8 +250,23 @@ const TeamDashboard = ({
           />
         </Tabs>
         
+        {/* Overview Tab */}
         <Box role="tabpanel" hidden={tabValue !== 0}>
           {tabValue === 0 && (
+            <Box>
+              <Typography variant="h6" gutterBottom>
+                Team Overview
+              </Typography>
+              <Typography variant="body2" color="text.secondary" paragraph>
+                This overview shows key metrics and performance indicators for the {teamName} team.
+              </Typography>
+            </Box>
+          )}
+        </Box>
+        
+        {/* Tables Tab */}
+        <Box role="tabpanel" hidden={tabValue !== 1}>
+          {tabValue === 1 && (
             <EntityTable
               entities={tables}
               type="table"
@@ -250,8 +282,9 @@ const TeamDashboard = ({
           )}
         </Box>
         
-        <Box role="tabpanel" hidden={tabValue !== 1}>
-          {tabValue === 1 && (
+        {/* DAGs Tab */}
+        <Box role="tabpanel" hidden={tabValue !== 2}>
+          {tabValue === 2 && (
             <EntityTable
               entities={dags}
               type="dag"
@@ -264,6 +297,16 @@ const TeamDashboard = ({
               onSetNotificationTimeline={onNotificationTimeline}
               showActions={true}
               isTeamDashboard={true}
+            />
+          )}
+        </Box>
+
+        {/* Team Members Tab */}
+        <Box role="tabpanel" hidden={tabValue !== 3}>
+          {tabValue === 3 && (
+            <TeamMemberManagement 
+              teamName={teamName} 
+              tenantName={tenantName} 
             />
           )}
         </Box>

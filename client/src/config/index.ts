@@ -18,6 +18,8 @@ interface ApiConfig {
     entities: string;
     teams: string;
     tenants: string;
+    teamDetails: (teamName: string) => string;
+    teamMembers: (teamName: string) => string;
     dashboard: {
       summary: string;
       teamPerformance: (teamId: number) => string;
