@@ -469,9 +469,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Invalid entity data", errors: result.error.format() });
       }
       
-      const entity = await storage.createEntity(result.data);
+      // Create entity directly in Redis cache (persistent storage)
+      const entity = await redisCache.createEntity(result.data);
       
-      // Entity-type-specific cache invalidation (targeted approach)
+      // Entity-type-specific cache invalidation and rebuild (targeted approach)
       await redisCache.invalidateAndRebuildEntityCache(
         entity.teamId, 
         entity.type as 'table' | 'dag',
@@ -491,7 +492,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Invalid entity ID" });
       }
       
-      const entity = await storage.getEntity(id);
+      const entity = await redisCache.getEntity(id);
       if (!entity) {
         return res.status(404).json({ message: "Entity not found" });
       }
@@ -510,7 +511,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Invalid entity ID" });
       }
       
-      const entity = await storage.getEntity(id);
+      const entity = await redisCache.getEntity(id);
       if (!entity) {
         return res.status(404).json({ message: "Entity not found" });
       }
@@ -581,7 +582,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Invalid entity data", errors: result.error.format() });
       }
       
-      const updatedEntity = await storage.updateEntity(id, result.data);
+      const updatedEntity = await redisCache.updateEntityById(id, result.data);
       if (!updatedEntity) {
         return res.status(404).json({ message: "Entity not found" });
       }
@@ -607,12 +608,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Get entity info before deletion for cache invalidation
-      const entityToDelete = await storage.getEntity(id);
+      const entityToDelete = await redisCache.getEntity(id);
       if (!entityToDelete) {
         return res.status(404).json({ message: "Entity not found" });
       }
       
-      const success = await storage.deleteEntity(id);
+      const success = await redisCache.deleteEntity(id);
       if (!success) {
         return res.status(500).json({ message: "Failed to delete entity" });
       }

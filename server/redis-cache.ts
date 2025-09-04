@@ -545,6 +545,254 @@ export class RedisCache {
   }
 
   // Incremental cache update for pollers
+  async createEntity(entityData: any): Promise<Entity> {
+    if (!this.useRedis || !this.redis) {
+      // Fallback to in-memory cache for creation if Redis unavailable
+      const entities = this.fallbackData ? [...this.fallbackData.entities] : [];
+      const newId = Math.max(...entities.map(e => e.id), 0) + 1;
+      const now = new Date();
+      
+      const entity: Entity = {
+        ...entityData,
+        id: newId,
+        createdAt: now,
+        updatedAt: now,
+        description: entityData.description || null,
+        currentSla: entityData.currentSla || null,
+        lastRefreshed: entityData.lastRefreshed || null
+      };
+      
+      entities.push(entity);
+      
+      // Update fallback data
+      if (this.fallbackData) {
+        this.fallbackData.entities = entities;
+      }
+      
+      return entity;
+    }
+    
+    try {
+      // Get current entities and generate new ID
+      const entities = await this.getAllEntities();
+      const newId = Math.max(...entities.map(e => e.id), 0) + 1;
+      const now = new Date();
+      
+      const entity: Entity = {
+        ...entityData,
+        id: newId,
+        createdAt: now,
+        updatedAt: now,
+        description: entityData.description || null,
+        currentSla: entityData.currentSla || null,
+        lastRefreshed: entityData.lastRefreshed || null
+      };
+      
+      // Add entity to Redis
+      entities.push(entity);
+      const expireTime = Math.floor(this.CACHE_DURATION_MS / 1000) + 300;
+      await this.redis.setex(CACHE_KEYS.ENTITIES, expireTime, JSON.stringify(entities));
+      
+      // Record the change
+      const change: EntityChange = {
+        entityId: entity.id,
+        entityName: entity.name,
+        entityType: entity.type,
+        teamName: entity.team_name || 'Unknown',
+        tenantName: entity.tenant_name || 'Unknown',
+        type: 'created',
+        entity,
+        timestamp: new Date()
+      };
+      
+      // Add to recent changes
+      const recentChanges = await this.getRecentChanges();
+      recentChanges.unshift(change);
+      
+      // Keep only last 50 changes
+      if (recentChanges.length > 50) {
+        recentChanges.splice(50);
+      }
+      
+      await this.redis.setex(CACHE_KEYS.RECENT_CHANGES, expireTime, JSON.stringify(recentChanges));
+      
+      // Broadcast change to all pods
+      await this.redis.publish(CACHE_KEYS.CHANGES_CHANNEL, JSON.stringify(change));
+      
+      return entity;
+    } catch (error) {
+      console.error('Error creating entity in Redis:', error);
+      // Fallback to storage
+      return await storage.createEntity(entityData);
+    }
+  }
+
+  async getEntity(entityId: number): Promise<Entity | undefined> {
+    const entities = await this.getAllEntities();
+    return entities.find(e => e.id === entityId);
+  }
+
+  async deleteEntity(entityId: number): Promise<boolean> {
+    if (!this.useRedis || !this.redis) {
+      // Fallback to in-memory cache for deletion if Redis unavailable
+      if (!this.fallbackData) return false;
+      
+      const entities = [...this.fallbackData.entities];
+      const entityIndex = entities.findIndex(e => e.id === entityId);
+      
+      if (entityIndex === -1) {
+        return false; // Entity not found
+      }
+      
+      // Remove entity from array
+      entities.splice(entityIndex, 1);
+      
+      // Update fallback data
+      this.fallbackData.entities = entities;
+      
+      return true;
+    }
+    
+    try {
+      const entities = await this.getAllEntities();
+      const entityIndex = entities.findIndex(e => e.id === entityId);
+      
+      if (entityIndex === -1) {
+        return false; // Entity not found
+      }
+      
+      const entity = entities[entityIndex];
+      
+      // Remove entity from array
+      entities.splice(entityIndex, 1);
+      
+      // Update entities in Redis
+      const expireTime = Math.floor(this.CACHE_DURATION_MS / 1000) + 300;
+      await this.redis.setex(CACHE_KEYS.ENTITIES, expireTime, JSON.stringify(entities));
+      
+      // Record the change
+      const change: EntityChange = {
+        entityId: entity.id,
+        entityName: entity.name,
+        entityType: entity.type,
+        teamName: entity.team_name || 'Unknown',
+        tenantName: entity.tenant_name || 'Unknown',
+        type: 'deleted',
+        entity,
+        timestamp: new Date()
+      };
+      
+      // Add to recent changes
+      const recentChanges = await this.getRecentChanges();
+      recentChanges.unshift(change);
+      
+      // Keep only last 50 changes
+      if (recentChanges.length > 50) {
+        recentChanges.splice(50);
+      }
+      
+      await this.redis.setex(CACHE_KEYS.RECENT_CHANGES, expireTime, JSON.stringify(recentChanges));
+      
+      // Broadcast change to all pods
+      await this.redis.publish(CACHE_KEYS.CHANGES_CHANNEL, JSON.stringify(change));
+      
+      return true;
+    } catch (error) {
+      console.error('Error deleting entity in Redis:', error);
+      return await storage.deleteEntity(entityId);
+    }
+  }
+
+  async updateEntityById(entityId: number, updates: Partial<Entity>): Promise<Entity | undefined> {
+    if (!this.useRedis || !this.redis) {
+      // Fallback to in-memory cache for update if Redis unavailable
+      if (!this.fallbackData) return undefined;
+      
+      const entities = [...this.fallbackData.entities];
+      const entityIndex = entities.findIndex(e => e.id === entityId);
+      
+      if (entityIndex === -1) {
+        return undefined; // Entity not found
+      }
+      
+      const entity = entities[entityIndex];
+      
+      // Apply updates
+      const updatedEntity = {
+        ...entity,
+        ...updates,
+        updatedAt: new Date(),
+        lastRefreshed: updates.lastRefreshed || entity.lastRefreshed
+      };
+      
+      entities[entityIndex] = updatedEntity;
+      
+      // Update fallback data
+      this.fallbackData.entities = entities;
+      
+      return updatedEntity;
+    }
+    
+    try {
+      const entities = await this.getAllEntities();
+      const entityIndex = entities.findIndex(e => e.id === entityId);
+      
+      if (entityIndex === -1) {
+        return undefined; // Entity not found
+      }
+      
+      const entity = entities[entityIndex];
+      const previousSla = entity.currentSla;
+      
+      // Apply updates
+      const updatedEntity = {
+        ...entity,
+        ...updates,
+        updatedAt: new Date(),
+        lastRefreshed: updates.lastRefreshed || entity.lastRefreshed
+      };
+      
+      entities[entityIndex] = updatedEntity;
+      
+      // Update entities in Redis
+      const expireTime = Math.floor(this.CACHE_DURATION_MS / 1000) + 300;
+      await this.redis.setex(CACHE_KEYS.ENTITIES, expireTime, JSON.stringify(entities));
+      
+      // Record the change
+      const change: EntityChange = {
+        entityId: entity.id,
+        entityName: entity.name,
+        entityType: entity.type,
+        teamName: entity.team_name || 'Unknown',
+        tenantName: entity.tenant_name || 'Unknown',
+        type: 'updated',
+        entity: updatedEntity,
+        previousSla,
+        newSla: updates.currentSla,
+        timestamp: new Date()
+      };
+      
+      // Add to recent changes
+      const recentChanges = await this.getRecentChanges();
+      recentChanges.unshift(change);
+      
+      // Keep only last 50 changes
+      if (recentChanges.length > 50) {
+        recentChanges.splice(50);
+      }
+      
+      await this.redis.setex(CACHE_KEYS.RECENT_CHANGES, expireTime, JSON.stringify(recentChanges));
+      
+      // Broadcast change to all pods
+      await this.redis.publish(CACHE_KEYS.CHANGES_CHANNEL, JSON.stringify(change));
+      
+      return updatedEntity;
+    } catch (error) {
+      console.error('Error updating entity by ID in Redis:', error);
+      return await storage.updateEntity(entityId, updates);
+    }
+  }
+
   async updateEntity(entityName: string, entityType: string, teamName: string, updates: Partial<Entity>): Promise<boolean> {
     if (!this.useRedis || !this.redis) {
       // For fallback mode, we can't update entities (read-only)
