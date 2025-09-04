@@ -20,7 +20,6 @@ export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
-  updateUser(id: number, user: Partial<User>): Promise<User | undefined>;
   getUsers(): Promise<User[]>;
   getUserRoles(): Promise<UserRole[]>;
   
@@ -114,79 +113,6 @@ export class MemStorage implements IStorage {
       role: "admin", // Set admin role for test user
       azureObjectId: "test-azure-object-id"
     });
-
-    // Create mock users that correspond to team member IDs
-    const mockUsers = [
-      {
-        username: "john.smith",
-        password: "fd8c4a1ca56057251afbd0fd4b308a15113651c3e557c44eb58b8284e6d7fd4c1212a99dc7784c5cbb5072a2c138185c806394074e6c5f599209185e9576ea2e.e33fe34bf418a28b",
-        email: "john.smith@company.com",
-        displayName: "John Smith",
-        team: "PGM",
-        role: "user"
-      },
-      {
-        username: "sarah.johnson",
-        password: "fd8c4a1ca56057251afbd0fd4b308a15113651c3e557c44eb58b8284e6d7fd4c1212a99dc7784c5cbb5072a2c138185c806394074e6c5f599209185e9576ea2e.e33fe34bf418a28b",
-        email: "sarah.johnson@company.com",
-        displayName: "Sarah Johnson",
-        team: "PGM",
-        role: "user"
-      },
-      {
-        username: "mike.chen",
-        password: "fd8c4a1ca56057251afbd0fd4b308a15113651c3e557c44eb58b8284e6d7fd4c1212a99dc7784c5cbb5072a2c138185c806394074e6c5f599209185e9576ea2e.e33fe34bf418a28b",
-        email: "mike.chen@company.com",
-        displayName: "Mike Chen",
-        team: "Core",
-        role: "user"
-      },
-      {
-        username: "ana.rodriguez",
-        password: "fd8c4a1ca56057251afbd0fd4b308a15113651c3e557c44eb58b8284e6d7fd4c1212a99dc7784c5cbb5072a2c138185c806394074e6c5f599209185e9576ea2e.e33fe34bf418a28b",
-        email: "ana.rodriguez@company.com",
-        displayName: "Ana Rodriguez",
-        team: "Ad Data Activation",
-        role: "user"
-      },
-      {
-        username: "david.kim",
-        password: "fd8c4a1ca56057251afbd0fd4b308a15113651c3e557c44eb58b8284e6d7fd4c1212a99dc7784c5cbb5072a2c138185c806394074e6c5f599209185e9576ea2e.e33fe34bf418a28b",
-        email: "david.kim@company.com",
-        displayName: "David Kim",
-        team: "IOT",
-        role: "user"
-      },
-      {
-        username: "emily.wang",
-        password: "fd8c4a1ca56057251afbd0fd4b308a15113651c3e557c44eb58b8284e6d7fd4c1212a99dc7784c5cbb5072a2c138185c806394074e6c5f599209185e9576ea2e.e33fe34bf418a28b",
-        email: "emily.wang@company.com",
-        displayName: "Emily Wang",
-        team: "Viewer Product",
-        role: "user"
-      },
-      {
-        username: "carlos.martinez",
-        password: "fd8c4a1ca56057251afbd0fd4b308a15113651c3e557c44eb58b8284e6d7fd4c1212a99dc7784c5cbb5072a2c138185c806394074e6c5f599209185e9576ea2e.e33fe34bf418a28b",
-        email: "carlos.martinez@company.com",
-        displayName: "Carlos Martinez",
-        team: "Core",
-        role: "user"
-      },
-      {
-        username: "lisa.thompson",
-        password: "fd8c4a1ca56057251afbd0fd4b308a15113651c3e557c44eb58b8284e6d7fd4c1212a99dc7784c5cbb5072a2c138185c806394074e6c5f599209185e9576ea2e.e33fe34bf418a28b",
-        email: "lisa.thompson@company.com",
-        displayName: "Lisa Thompson",
-        team: "PGM",
-        role: "user"
-      }
-    ];
-
-    // Create all mock users
-    mockUsers.forEach(userData => {
-      this.createUser(userData);
-    });
     
     // Create demo teams with the new team names and member data
     const teamData = [
@@ -194,7 +120,7 @@ export class MemStorage implements IStorage {
         name: 'PGM', 
         description: 'Platform Growth & Marketing Team',
         tenant_id: 1,
-        team_members_ids: ['john.smith', 'sarah.johnson', 'lisa.thompson'],
+        team_members_ids: ['john.smith', 'sarah.johnson'],
         team_email: ['pgm-team@company.com'],
         team_slack: ['#pgm-team'],
         team_pagerduty: ['pgm-escalation']
@@ -203,7 +129,7 @@ export class MemStorage implements IStorage {
         name: 'Core', 
         description: 'Core Infrastructure Team',
         tenant_id: 1,
-        team_members_ids: ['mike.chen', 'carlos.martinez'],
+        team_members_ids: ['david.wilson', 'michael.brown'],
         team_email: ['core-team@company.com'],
         team_slack: ['#core-infrastructure'],
         team_pagerduty: ['core-escalation']
@@ -212,7 +138,7 @@ export class MemStorage implements IStorage {
         name: 'Viewer Product', 
         description: 'Viewer Product Team',
         tenant_id: 2,
-        team_members_ids: ['emily.wang'],
+        team_members_ids: ['emily.davis'],
         team_email: ['viewer-product@company.com'],
         team_slack: ['#viewer-product'],
         team_pagerduty: ['viewer-escalation']
@@ -221,7 +147,7 @@ export class MemStorage implements IStorage {
         name: 'IOT', 
         description: 'Internet of Things Team',
         tenant_id: 1,
-        team_members_ids: ['david.kim'],
+        team_members_ids: ['alex.chen', 'maria.garcia'],
         team_email: ['iot-team@company.com'],
         team_slack: ['#iot-team'],
         team_pagerduty: ['iot-escalation']
@@ -230,7 +156,7 @@ export class MemStorage implements IStorage {
         name: 'CDM', 
         description: 'Content Delivery & Management Team',
         tenant_id: 1,
-        team_members_ids: [],
+        team_members_ids: ['robert.taylor', 'lisa.anderson'],
         team_email: ['cdm-team@company.com'],
         team_slack: ['#cdm-team'],
         team_pagerduty: ['cdm-escalation']
@@ -239,7 +165,7 @@ export class MemStorage implements IStorage {
         name: 'Ad Serving', 
         description: 'Advertisement Serving Team',
         tenant_id: 2,
-        team_members_ids: [],
+        team_members_ids: ['carlos.martinez'],
         team_email: ['ad-serving@company.com'],
         team_slack: ['#ad-serving'],
         team_pagerduty: ['ad-serving-escalation']
@@ -690,20 +616,7 @@ export class MemStorage implements IStorage {
   }
 
   async getUsers(): Promise<User[]> {
-    await this.ensureInitialized();
     return Array.from(this.users.values());
-  }
-
-  async updateUser(id: number, updateData: Partial<User>): Promise<User | undefined> {
-    await this.ensureInitialized();
-    const user = this.users.get(id);
-    if (!user) {
-      return undefined;
-    }
-
-    const updatedUser: User = { ...user, ...updateData };
-    this.users.set(id, updatedUser);
-    return updatedUser;
   }
 
   async getUserRoles(): Promise<UserRole[]> {

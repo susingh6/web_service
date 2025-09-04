@@ -2,7 +2,7 @@ import Redis from 'ioredis';
 import { WebSocketServer } from 'ws';
 import { Worker } from 'worker_threads';
 import { config } from './config';
-import { Entity, Team, User } from '@shared/schema';
+import { Entity, Team } from '@shared/schema';
 import { storage } from './storage';
 import { DashboardMetrics, EntityChange, CachedData, calculateMetrics } from '@shared/cache-types';
 
@@ -11,7 +11,6 @@ const CACHE_KEYS = {
   ENTITIES: 'sla:entities',
   TEAMS: 'sla:teams',
   TENANTS: 'sla:tenants',
-  USERS: 'sla:users',
   METRICS: 'sla:metrics',
   LAST_30_DAY_METRICS: 'sla:last30DayMetrics',
   LAST_UPDATED: 'sla:lastUpdated',
@@ -379,7 +378,6 @@ export class RedisCache {
     multi.setex(CACHE_KEYS.ENTITIES, expireTime, JSON.stringify(data.entities));
     multi.setex(CACHE_KEYS.TEAMS, expireTime, JSON.stringify(data.teams));
     multi.setex(CACHE_KEYS.TENANTS, expireTime, JSON.stringify(data.tenants));
-    multi.setex(CACHE_KEYS.USERS, expireTime, JSON.stringify(data.users || []));
     multi.setex(CACHE_KEYS.METRICS, expireTime, JSON.stringify(data.metrics));
     multi.setex(CACHE_KEYS.LAST_30_DAY_METRICS, expireTime, JSON.stringify(data.last30DayMetrics));
     multi.setex(CACHE_KEYS.RECENT_CHANGES, expireTime, JSON.stringify(data.recentChanges || []));
@@ -400,7 +398,6 @@ export class RedisCache {
     const entities = await storage.getEntities();
     const teams = await storage.getTeams();
     const tenants = await storage.getTenants();
-    const users = await storage.getUsers();
     
     // Calculate metrics for each tenant
     const metrics: Record<string, DashboardMetrics> = {};
@@ -420,7 +417,6 @@ export class RedisCache {
       entities,
       teams,
       tenants,
-      users,
       metrics,
       last30DayMetrics,
       lastUpdated: new Date(),
@@ -468,25 +464,6 @@ export class RedisCache {
     } catch (error) {
       console.error('Error getting tenants from Redis:', error);
       return this.fallbackData ? this.fallbackData.tenants : [];
-    }
-  }
-
-  async getAllUsers(): Promise<User[]> {
-    if (!this.useRedis || !this.redis) {
-      return this.fallbackData ? this.fallbackData.users : [];
-    }
-    
-    try {
-      const data = await this.redis.get(CACHE_KEYS.USERS);
-      return data ? JSON.parse(data) : [];
-    } catch (error) {
-      console.error('Error getting users from Redis:', error);
-      // Fallback to direct storage access
-      try {
-        return await storage.getUsers();
-      } catch (storageError) {
-        return this.fallbackData ? this.fallbackData.users : [];
-      }
     }
   }
 

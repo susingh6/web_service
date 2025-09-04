@@ -35,18 +35,6 @@ export const apiClient = {
     
     updateMembers: (teamName: string, memberData: any) =>
       apiRequest('POST', buildUrl(endpoints.teamMembers, teamName), memberData),
-    
-    update: (teamName: string, teamData: any) =>
-      apiRequest('PATCH', buildUrl(endpoints.teamUpdate, teamName), teamData),
-  },
-
-  // Users
-  users: {
-    getAll: () =>
-      apiRequest('GET', buildUrl(endpoints.users)),
-    
-    update: (userId: number, userData: any) =>
-      apiRequest('PATCH', buildUrl(endpoints.userById, userId), userData),
   },
 
   // Entities

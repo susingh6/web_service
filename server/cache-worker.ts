@@ -1,7 +1,7 @@
 import { Worker } from 'worker_threads';
 import { parentPort, workerData } from 'worker_threads';
 import { storage } from './storage';
-import { Entity, Team, User } from '@shared/schema';
+import { Entity, Team } from '@shared/schema';
 import { DashboardMetrics, CacheRefreshData, calculateMetrics } from '@shared/cache-types';
 
 // Worker thread main function
@@ -9,11 +9,10 @@ async function refreshCacheData(): Promise<CacheRefreshData> {
   try {
     // [Cache Worker] Starting cache refresh
     
-    // Load all entities, teams, tenants, and users
+    // Load all entities, teams, and tenants
     const entities = await storage.getEntities();
     const teams = await storage.getTeams();
     const tenants = await storage.getTenants();
-    const users = await storage.getUsers();
 
     // Calculate metrics for each tenant (default 30-day cache)
     const last30DayMetrics: Record<string, DashboardMetrics> = {};
@@ -32,7 +31,6 @@ async function refreshCacheData(): Promise<CacheRefreshData> {
       entities,
       teams,
       tenants,
-      users,
       metrics: {}, // Empty for dynamic calculations
       last30DayMetrics,
       lastUpdated: new Date()

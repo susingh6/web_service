@@ -12,8 +12,10 @@ import ComplianceTrendChart from '@/components/dashboard/ComplianceTrendChart';
 import EntityPerformanceChart from '@/components/dashboard/EntityPerformanceChart';
 import { apiClient } from '@/config/api';
 import { useForm, Controller } from 'react-hook-form';
-import { User } from '@shared/schema';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { teamMemberSchema } from '@shared/schema';
 import { useToast } from '@/hooks/use-toast';
+import { z } from 'zod';
 
 interface TeamDashboardProps {
   teamName: string;
@@ -50,11 +52,9 @@ const TeamDashboard = ({
   
   // Local state for team entities to avoid affecting Summary dashboard
   const [teamEntities, setTeamEntities] = useState<Entity[]>([]);
-  const [teamMembers, setTeamMembers] = useState<User[]>([]);
+  const [teamMembers, setTeamMembers] = useState<any[]>([]);
   const [memberDialogOpen, setMemberDialogOpen] = useState(false);
-  const [editingMember, setEditingMember] = useState<User | null>(null);
-  const [addMemberDialogOpen, setAddMemberDialogOpen] = useState(false);
-  const [availableUsers, setAvailableUsers] = useState<User[]>([]);
+  const [editingMember, setEditingMember] = useState<any>(null);
   const { toast } = useToast();
   
   // Fetch data when team is found
@@ -96,11 +96,13 @@ const TeamDashboard = ({
     reset,
     formState: { errors },
   } = useForm({
+    resolver: zodResolver(teamMemberSchema),
     defaultValues: {
-      user_email: '',
-      user_slack: '',
-      user_pagerduty: '',
-      is_active: true,
+      id: '',
+      name: '',
+      email: '',
+      role: 'developer',
+      isActive: true,
     },
   });
 
@@ -116,71 +118,35 @@ const TeamDashboard = ({
     }
   };
 
-  const handleAddMember = async () => {
-    try {
-      const response = await apiClient.users.getAll();
-      const users = await response.json();
-      setAvailableUsers(users);
-      setAddMemberDialogOpen(true);
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to load available users',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const handleSelectUser = async (user: User) => {
-    try {
-      const memberData = {
-        team: teamName,
-        tenant: tenantName,
-        username: 'azure_test_user',
-        action: 'add' as const,
-        userId: user.id,
-      };
-
-      await apiClient.teams.update(teamName, memberData);
-      
-      toast({
-        title: 'Success',
-        description: 'Team member added successfully',
-      });
-      
-      setAddMemberDialogOpen(false);
-      await fetchTeamMembers();
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to add team member',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const handleEditMember = (member: User) => {
-    setEditingMember(member);
+  const handleAddMember = () => {
+    setEditingMember(null);
     reset({
-      user_email: member.email || '',
-      user_slack: '', // Not in current schema
-      user_pagerduty: '', // Not in current schema  
-      is_active: true, // Default value
+      id: '',
+      name: '',
+      email: '',
+      role: 'developer',
+      isActive: true,
     });
     setMemberDialogOpen(true);
   };
 
-  const handleDeleteMember = async (userId: number) => {
+  const handleEditMember = (member: any) => {
+    setEditingMember(member);
+    reset(member);
+    setMemberDialogOpen(true);
+  };
+
+  const handleDeleteMember = async (memberId: string) => {
     try {
       const memberData = {
         team: teamName,
         tenant: tenantName,
-        username: 'azure_test_user',
+        username: 'azure_test_user', // This would come from OAuth context
         action: 'remove' as const,
-        userId,
+        memberId,
       };
 
-      await apiClient.teams.update(teamName, memberData);
+      await apiClient.teams.updateMembers(teamName, memberData);
       
       toast({
         title: 'Success',
@@ -197,21 +163,22 @@ const TeamDashboard = ({
     }
   };
 
-  const onSubmitMember = async (data: any) => {
-    if (!editingMember) return;
-    
+  const onSubmitMember = async (data: z.infer<typeof teamMemberSchema>) => {
     try {
-      const userData = {
-        email: data.user_email,
-        displayName: data.user_slack, // Use displayName for slack
-        // Note: current schema doesn't have pagerduty or is_active fields
+      const memberData = {
+        team: teamName,
+        tenant: tenantName,
+        username: 'azure_test_user', // This would come from OAuth context
+        action: editingMember ? ('update' as const) : ('add' as const),
+        member: data,
+        memberId: editingMember?.id,
       };
 
-      await apiClient.users.update(editingMember.id, userData);
+      await apiClient.teams.updateMembers(teamName, memberData);
       
       toast({
         title: 'Success',
-        description: 'User updated successfully',
+        description: `Team member ${editingMember ? 'updated' : 'added'} successfully`,
       });
       
       setMemberDialogOpen(false);
@@ -219,7 +186,7 @@ const TeamDashboard = ({
     } catch (error) {
       toast({
         title: 'Error',
-        description: 'Failed to update user',
+        description: `Failed to ${editingMember ? 'update' : 'add'} team member`,
         variant: 'destructive',
       });
     }
@@ -311,7 +278,7 @@ const TeamDashboard = ({
                     teamMembers.map((member) => (
                       <Box key={member.id} display="flex" alignItems="center" gap={0.5}>
                         <Chip 
-                          label={member.username || member.displayName}
+                          label={member.name}
                           size="small"
                           variant="outlined"
                           sx={{ 
@@ -489,64 +456,39 @@ const TeamDashboard = ({
           )}
         </Box>
 
-        {/* Add Member Dialog - User Selection */}
-        <Dialog open={addMemberDialogOpen} onClose={() => setAddMemberDialogOpen(false)} maxWidth="sm" fullWidth>
-          <DialogTitle>Add Team Member</DialogTitle>
-          <DialogContent>
-            <Typography variant="body2" color="text.secondary" mb={2}>
-              Select a user to add to the team:
-            </Typography>
-            <Box maxHeight={300} overflow="auto">
-              {availableUsers.map((user) => (
-                <Box 
-                  key={user.id}
-                  display="flex" 
-                  alignItems="center" 
-                  justifyContent="space-between"
-                  p={1}
-                  border="1px solid"
-                  borderColor="divider"
-                  borderRadius={1}
-                  mb={1}
-                  sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}
-                  onClick={() => handleSelectUser(user)}
-                >
-                  <Box>
-                    <Typography variant="body2" fontWeight="medium">
-                      {user.username || user.displayName}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {user.email}
-                    </Typography>
-                  </Box>
-                  <Button size="small" variant="outlined">
-                    Add
-                  </Button>
-                </Box>
-              ))}
-            </Box>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setAddMemberDialogOpen(false)}>Cancel</Button>
-          </DialogActions>
-        </Dialog>
-
-        {/* Edit Member Dialog - User Details */}
+        {/* Add/Edit Member Dialog */}
         <Dialog open={memberDialogOpen} onClose={() => setMemberDialogOpen(false)} maxWidth="sm" fullWidth>
           <form onSubmit={handleSubmit(onSubmitMember)}>
             <DialogTitle>
-              Edit User: {editingMember?.username || editingMember?.displayName}
+              {editingMember ? 'Edit Team Member' : 'Add Team Member'}
             </DialogTitle>
             <DialogContent>
               <Box display="flex" flexDirection="column" gap={3} pt={1}>
                 <Controller
-                  name="user_email"
+                  name="id"
                   control={control}
                   render={({ field }) => (
                     <TextField
                       {...field}
-                      label="Email"
-                      type="email"
+                      label="Member ID"
+                      error={!!errors.id}
+                      helperText={errors.id?.message}
+                      fullWidth
+                      size="small"
+                      disabled={!!editingMember}
+                    />
+                  )}
+                />
+                
+                <Controller
+                  name="name"
+                  control={control}
+                  render={({ field }) => (
+                    <TextField
+                      {...field}
+                      label="Full Name"
+                      error={!!errors.name}
+                      helperText={errors.name?.message}
                       fullWidth
                       size="small"
                     />
@@ -554,16 +496,36 @@ const TeamDashboard = ({
                 />
                 
                 <Controller
-                  name="user_slack"
+                  name="email"
                   control={control}
                   render={({ field }) => (
                     <TextField
                       {...field}
-                      label="Display Name / Slack Handle"
+                      label="Email"
+                      type="email"
+                      error={!!errors.email}
+                      helperText={errors.email?.message}
                       fullWidth
                       size="small"
-                      placeholder="Display name or @username"
                     />
+                  )}
+                />
+                
+                <Controller
+                  name="role"
+                  control={control}
+                  render={({ field }) => (
+                    <FormControl fullWidth size="small">
+                      <InputLabel>Role</InputLabel>
+                      <Select {...field} label="Role">
+                        <MenuItem value="admin">Admin</MenuItem>
+                        <MenuItem value="manager">Manager</MenuItem>
+                        <MenuItem value="lead">Technical Lead</MenuItem>
+                        <MenuItem value="developer">Developer</MenuItem>
+                        <MenuItem value="analyst">Data Analyst</MenuItem>
+                        <MenuItem value="ops">Operations</MenuItem>
+                      </Select>
+                    </FormControl>
                   )}
                 />
               </Box>
@@ -571,7 +533,7 @@ const TeamDashboard = ({
             <DialogActions>
               <Button onClick={() => setMemberDialogOpen(false)}>Cancel</Button>
               <Button type="submit" variant="contained">
-                Update User
+                {editingMember ? 'Update' : 'Add'} Member
               </Button>
             </DialogActions>
           </form>
