@@ -74,21 +74,25 @@ const TeamDashboard = ({
   });
   
   // Fetch data when team is found
+  // Use React Query for team entities so cache invalidation works
+  const { data: teamEntitiesFromQuery = [], isLoading: isLoadingTeamEntities } = useQuery({
+    queryKey: ['/api/entities', { teamId: team?.id }],
+    queryFn: async () => {
+      if (!team?.id) return [];
+      const response = await fetch(`/api/entities?teamId=${team.id}`);
+      if (!response.ok) throw new Error('Failed to fetch team entities');
+      return response.json();
+    },
+    enabled: !!team?.id,
+    staleTime: 30 * 1000, // 30 seconds
+  });
+
+  // Update local state when query data changes
   useEffect(() => {
-    if (team?.id) {
-      // Fetch team entities directly without updating Redux store
-      const fetchTeamEntities = async () => {
-        try {
-          const response = await fetch(`/api/entities?teamId=${team.id}`);
-          const data = await response.json();
-          setTeamEntities(data);
-        } catch (error) {
-          // Handle error silently - team data will remain empty
-        }
-      };
-      fetchTeamEntities();
+    if (teamEntitiesFromQuery) {
+      setTeamEntities(teamEntitiesFromQuery);
     }
-  }, [team?.id]);
+  }, [teamEntitiesFromQuery]);
 
 
   const fetchAvailableUsers = async () => {
