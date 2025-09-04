@@ -83,7 +83,7 @@ const isEntityRecent = (entity: Entity): boolean => {
 const getHeadCells = (showActions: boolean, type: 'table' | 'dag', isTeamDashboard: boolean = false): HeadCell[] => [
   { id: 'name', label: 'Entity Name', numeric: false, disablePadding: true, sortable: true, width: '180px' },
   { id: type === 'table' ? 'table_name' : 'dag_name', label: type === 'table' ? 'Table Name' : 'DAG Name', numeric: false, disablePadding: false, sortable: true, width: '200px' },
-  { id: 'teamId', label: isTeamDashboard ? 'Entity Owner' : 'Team', numeric: false, disablePadding: false, sortable: true, width: '120px' },
+  { id: isTeamDashboard ? 'is_active' as keyof Entity : 'teamId', label: isTeamDashboard ? 'Active' : 'Team', numeric: false, disablePadding: false, sortable: true, width: '120px' },
   { id: 'status', label: 'Status', numeric: false, disablePadding: false, sortable: true, width: '100px' },
   { id: 'currentSla', label: 'Current SLA', numeric: true, disablePadding: false, sortable: true, width: '120px' },
   { id: 'trend', label: '30-Day Trend', numeric: true, disablePadding: false, sortable: false, width: '140px' },
@@ -183,6 +183,17 @@ const EntityTable = ({
     
     // Apply sorting
     result = result.sort((a, b) => {
+      // For team dashboard, group by entity ownership status first
+      if (isTeamDashboard) {
+        const aIsOwner = a.is_entity_owner ? 1 : 0;
+        const bIsOwner = b.is_entity_owner ? 1 : 0;
+        
+        // Entity owners come first (higher value)
+        if (aIsOwner !== bIsOwner) {
+          return bIsOwner - aIsOwner;
+        }
+      }
+      
       const aValue = a[orderBy];
       const bValue = b[orderBy];
       
@@ -220,7 +231,7 @@ const EntityTable = ({
     });
     
     setFilteredEntities(result);
-  }, [entities, filterStatus, searchQuery, order, orderBy, teams]);
+  }, [entities, filterStatus, searchQuery, order, orderBy, teams, isTeamDashboard]);
 
   const handleRequestSort = (property: keyof Entity) => {
     const isAsc = orderBy === property && order === 'asc';
@@ -440,11 +451,34 @@ const EntityTable = ({
           <TableBody>
             {filteredEntities
               .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-              .map((entity) => {
+              .map((entity, index, pageEntities) => {
                 const isItemSelected = isSelected(entity.id);
                 const trendData = getTrendData(entity);
                 
-                return (
+                // For team dashboard, add group headers to separate entity owners from non-owners
+                const shouldShowGroupHeader = isTeamDashboard && index === 0 || 
+                  (isTeamDashboard && index > 0 && 
+                   pageEntities[index - 1].is_entity_owner !== entity.is_entity_owner);
+                
+                const groupHeaderRow = shouldShowGroupHeader ? (
+                  <TableRow key={`group-header-${entity.is_entity_owner ? 'owners' : 'non-owners'}`}>
+                    <TableCell 
+                      colSpan={getHeadCells(showActions, type, isTeamDashboard).length + 1}
+                      sx={{ 
+                        backgroundColor: 'action.hover',
+                        borderTop: '2px solid',
+                        borderColor: 'divider',
+                        py: 1,
+                      }}
+                    >
+                      <Typography variant="subtitle2" fontWeight={600} color="text.secondary">
+                        {entity.is_entity_owner ? 'Entity Owners' : 'Non-Entity Owners'}
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                ) : null;
+                
+                const entityRow = (
                   <TableRow
                     hover
                     role="checkbox"
@@ -481,7 +515,7 @@ const EntityTable = ({
                     
                     <TableCell sx={{ width: '120px' }}>
                       <Typography variant="body2">
-                        {isTeamDashboard ? (entity.is_entity_owner ? 'Yes' : 'No') : getTeamName(entity.teamId)}
+                        {isTeamDashboard ? (entity.is_active ? 'Yes' : 'No') : getTeamName(entity.teamId)}
                       </Typography>
                     </TableCell>
                     
@@ -589,7 +623,10 @@ const EntityTable = ({
                     )}
                   </TableRow>
                 );
-              })}
+                
+                // Return both group header (if exists) and entity row
+                return groupHeaderRow ? [groupHeaderRow, entityRow] : entityRow;
+              }).flat()}
             
             {emptyRows > 0 && (
               <TableRow style={{ height: 53 * emptyRows }}>
