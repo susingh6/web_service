@@ -18,7 +18,9 @@ async function refreshCacheData(): Promise<CacheRefreshData> {
     const last30DayMetrics: Record<string, DashboardMetrics> = {};
     
     for (const tenant of tenants) {
-      const tenantEntities = entities.filter(e => e.tenant_name === tenant.name);
+      const allTenantEntities = entities.filter(e => e.tenant_name === tenant.name);
+      // Only consider entity owners for metrics calculations
+      const tenantEntities = allTenantEntities.filter(e => e.is_entity_owner === true);
       const tenantTables = tenantEntities.filter(e => e.type === 'table');
       const tenantDags = tenantEntities.filter(e => e.type === 'dag');
 

@@ -28,9 +28,11 @@ const generateTeamData = (entities: any[], teams: any[], selectedTenant?: string
   const relevantTeamIds = new Set(filteredEntities.map(entity => entity.teamId));
   const relevantTeams = teams.filter(team => relevantTeamIds.has(team.id));
 
-  // Group entities by team and calculate averages
+  // Group entities by team and calculate averages - only consider entity owners
   const teamStats = relevantTeams.map(team => {
-    const teamEntities = filteredEntities.filter(entity => entity.teamId === team.id);
+    const teamEntities = filteredEntities.filter(entity => 
+      entity.teamId === team.id && entity.is_entity_owner === true
+    );
     const tables = teamEntities.filter(entity => entity.type === 'table');
     const dags = teamEntities.filter(entity => entity.type === 'dag');
     

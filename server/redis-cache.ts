@@ -517,7 +517,9 @@ export class RedisCache {
     // For date range queries, we need to calculate fresh metrics
     // This bypasses the cache and calculates from current data
     try {
-      const entities = await this.getEntitiesByTenant(tenantName);
+      const allEntities = await this.getEntitiesByTenant(tenantName);
+      // Only consider entity owners for metrics calculations
+      const entities = allEntities.filter(e => e.is_entity_owner === true);
       
       const tables = entities.filter(e => e.type === 'table');
       const dags = entities.filter(e => e.type === 'dag');
