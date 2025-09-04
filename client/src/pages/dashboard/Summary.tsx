@@ -51,17 +51,28 @@ const Summary = () => {
   // WebSocket connection for real-time updates
   const { isConnected } = useWebSocket({
     onEntityUpdated: (data) => {
-      // Entity updated via WebSocket
-      // Invalidate and refetch entities to show updated data
+      // Entity updated via WebSocket - handle create/update/delete
+      // Invalidate ALL entity-related queries
       queryClient.invalidateQueries({ queryKey: ['entities'] });
+      queryClient.invalidateQueries({ predicate: (query) => 
+        query.queryKey[0] === 'entities' || query.queryKey.includes('entities')
+      });
+      
       dispatch(fetchEntities({}));
       dispatch(fetchDashboardSummary({ tenantName: selectedTenant.name }));
       
-      // Show toast notification about the update
+      // Show appropriate toast notification based on operation type
+      const operation = data.type || 'updated';
+      const messages = {
+        created: `${data.entityName} has been created successfully`,
+        updated: `${data.entityName} has been updated successfully`,
+        deleted: `${data.entityName} has been deleted successfully`
+      };
+      
       toast({
-        title: "Entity Updated",
-        description: `${data.entityName} has been updated and is now marked as NEW`,
-        variant: "default",
+        title: `Entity ${operation.charAt(0).toUpperCase() + operation.slice(1)}`,
+        description: messages[operation] || messages.updated,
+        variant: operation === 'deleted' ? "destructive" : "default",
       });
     },
     onCacheUpdated: (data) => {
