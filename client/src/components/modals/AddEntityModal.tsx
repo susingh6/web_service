@@ -512,7 +512,10 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 control={
                   <Switch
                     checked={isEntityOwner}
-                    onChange={(e) => setIsEntityOwner(e.target.checked)}
+                    onChange={(e) => {
+                      console.log('🔘 Entity Owner toggle clicked:', e.target.checked);
+                      setIsEntityOwner(e.target.checked);
+                    }}
                     color="primary"
                   />
                 }
@@ -860,7 +863,10 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 control={
                   <Switch
                     checked={isEntityOwner}
-                    onChange={(e) => setIsEntityOwner(e.target.checked)}
+                    onChange={(e) => {
+                      console.log('🔘 Entity Owner toggle clicked:', e.target.checked);
+                      setIsEntityOwner(e.target.checked);
+                    }}
                     color="primary"
                   />
                 }
