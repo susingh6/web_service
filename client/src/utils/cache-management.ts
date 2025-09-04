@@ -126,7 +126,7 @@ export function useOptimisticMutation<TData, TVariables, TOptimisticData = TData
       queryKey: (string | object)[];
       updater: TOptimisticData | ((old: TOptimisticData | undefined) => TOptimisticData);
     };
-    mutationFn: (variables: TVariables) => Promise<TData>;
+    mutationFn: () => Promise<TData>;
     invalidationScenario?: {
       scenario: keyof typeof INVALIDATION_SCENARIOS;
       params: any[];

@@ -848,13 +848,21 @@ export class MemStorage implements IStorage {
     
     switch (action) {
       case 'add':
-        if (member && !updatedMembers.includes(member.id)) {
-          updatedMembers.push(member.id);
+        if (memberId && !updatedMembers.includes(memberId)) {
+          // Convert user ID to username for addition
+          const user = await this.getUser(parseInt(memberId));
+          if (user && !updatedMembers.includes(user.username)) {
+            updatedMembers.push(user.username);
+          }
         }
         break;
       case 'remove':
         if (memberId) {
-          updatedMembers = updatedMembers.filter(id => id !== memberId);
+          // Convert user ID to username for removal
+          const user = await this.getUser(parseInt(memberId));
+          if (user) {
+            updatedMembers = updatedMembers.filter(username => username !== user.username);
+          }
         }
         break;
       case 'update':
