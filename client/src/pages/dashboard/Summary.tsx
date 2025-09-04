@@ -80,7 +80,6 @@ const Summary = () => {
         deleted: `${data.entityName} has been deleted successfully`
       };
       
-      console.log(`🔄 [UI REFRESH] ${operation.toUpperCase()} - Entity: ${data.entityName} - Forcing Redux store refresh`);
       
       toast({
         title: `Entity ${operation.charAt(0).toUpperCase() + operation.slice(1)}`,
