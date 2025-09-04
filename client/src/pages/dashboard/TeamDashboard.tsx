@@ -259,7 +259,7 @@ const TeamDashboard = ({
                 </Box>
                 <Box display="flex" flexWrap="wrap" gap={0.5}>
                   {teamMembers.length > 0 ? (
-                    teamMembers.map((member) => (
+                    teamMembers.map((member: any) => (
                       <Chip 
                         key={member.id}
                         label={member.displayName || member.username}
@@ -444,7 +444,7 @@ const TeamDashboard = ({
                   }}
                 >
                   {availableUsers
-                    .filter(user => !teamMembers.some(member => member.id === user.id))
+                    .filter(user => !teamMembers.some((member: any) => member.id === user.id))
                     .map((user) => (
                       <MenuItem key={user.id} value={user.id}>
                         <Box>
@@ -490,7 +490,7 @@ const TeamDashboard = ({
                     },
                   }}
                 >
-                  {teamMembers.map((member) => (
+                  {teamMembers.map((member: any) => (
                     <MenuItem key={member.id} value={member.id}>
                       <Box>
                         <Typography variant="body2">{member.name}</Typography>
