@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Typography, Tabs, Tab, Card, CardContent, Chip, Paper, Button } from '@mui/material';
-import { Add as AddIcon, Upload as UploadIcon } from '@mui/icons-material';
+import { Add as AddIcon, Upload as UploadIcon, Person as PersonIcon } from '@mui/icons-material';
 import { useAppDispatch, useAppSelector } from '@/lib/store';
 import { fetchEntities } from '@/features/sla/slices/entitiesSlice';
 import { Entity, Team } from '@shared/schema';
@@ -10,7 +10,7 @@ import EntityTable from '@/components/dashboard/EntityTable';
 import DateRangePicker from '@/components/dashboard/DateRangePicker';
 import ComplianceTrendChart from '@/components/dashboard/ComplianceTrendChart';
 import EntityPerformanceChart from '@/components/dashboard/EntityPerformanceChart';
-import TeamMemberManagement from '@/components/dashboard/TeamMemberManagement';
+import { apiClient } from '@/config/api';
 
 interface TeamDashboardProps {
   teamName: string;
@@ -47,6 +47,7 @@ const TeamDashboard = ({
   
   // Local state for team entities to avoid affecting Summary dashboard
   const [teamEntities, setTeamEntities] = useState<Entity[]>([]);
+  const [teamMembers, setTeamMembers] = useState<any[]>([]);
   
   // Fetch data when team is found
   useEffect(() => {
@@ -64,6 +65,22 @@ const TeamDashboard = ({
       fetchTeamEntities();
     }
   }, [team?.id]);
+
+  // Fetch team details with members when teamName is available
+  useEffect(() => {
+    if (teamName) {
+      const fetchTeamDetails = async () => {
+        try {
+          const response = await apiClient.teams.getDetails(teamName);
+          const data = await response.json();
+          setTeamMembers(data.members || []);
+        } catch (error) {
+          // Handle error silently - team members will remain empty
+        }
+      };
+      fetchTeamDetails();
+    }
+  }, [teamName]);
   
   // Filter entities for this team from local state
   const tables = teamEntities.filter((entity) => entity.type === 'table');
@@ -107,23 +124,53 @@ const TeamDashboard = ({
               <Typography variant="body1" color="text.secondary" sx={{ mt: 1 }}>
                 {team.description || `Team dashboard for ${team.name}`}
               </Typography>
-              <Box display="flex" alignItems="center" mt={2}>
+              <Box display="flex" alignItems="center" mt={2} gap={1} flexWrap="wrap">
                 <Chip 
                   label={`${teamEntities.length} Entities`} 
                   size="small" 
-                  sx={{ mr: 1, bgcolor: 'primary.light', color: 'white' }} 
+                  sx={{ bgcolor: 'primary.light', color: 'white' }} 
                 />
                 <Chip 
                   label={`${tables.length} Tables`} 
                   size="small" 
-                  sx={{ mr: 1, bgcolor: 'info.light', color: 'white' }} 
+                  sx={{ bgcolor: 'info.light', color: 'white' }} 
                 />
                 <Chip 
                   label={`${dags.length} DAGs`} 
                   size="small" 
                   sx={{ bgcolor: 'secondary.light', color: 'white' }} 
                 />
+                <Chip 
+                  icon={<PersonIcon fontSize="small" />}
+                  label={`${teamMembers.length} Members`} 
+                  size="small" 
+                  sx={{ bgcolor: 'success.light', color: 'white' }} 
+                />
               </Box>
+              
+              {/* Team Members Section */}
+              {teamMembers.length > 0 && (
+                <Box mt={2}>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                    Team Members:
+                  </Typography>
+                  <Box display="flex" flexWrap="wrap" gap={0.5}>
+                    {teamMembers.map((member) => (
+                      <Chip 
+                        key={member.id}
+                        label={member.name}
+                        size="small"
+                        variant="outlined"
+                        sx={{ 
+                          fontSize: '0.75rem',
+                          height: '24px',
+                          '& .MuiChip-label': { px: 1 }
+                        }}
+                      />
+                    ))}
+                  </Box>
+                </Box>
+              )}
             </Box>
             
             <Box display="flex" alignItems="center" gap={2}>
@@ -214,10 +261,10 @@ const TeamDashboard = ({
           </Box>
         </Box>
         
-        {/* Entity and Team Management Tabs */}
+        {/* Tables/DAGs Sub-tabs */}
         <Tabs value={tabValue} onChange={handleTabChange} sx={{ mb: 3 }}>
           <Tab 
-            label="Overview" 
+            label="Tables" 
             sx={{ 
               fontWeight: 500, 
               textTransform: 'none',
@@ -225,23 +272,7 @@ const TeamDashboard = ({
             }} 
           />
           <Tab 
-            label={`Tables (${tables.length})`} 
-            sx={{ 
-              fontWeight: 500, 
-              textTransform: 'none',
-              '&.Mui-selected': { fontWeight: 600 } 
-            }} 
-          />
-          <Tab 
-            label={`DAGs (${dags.length})`} 
-            sx={{ 
-              fontWeight: 500, 
-              textTransform: 'none',
-              '&.Mui-selected': { fontWeight: 600 } 
-            }} 
-          />
-          <Tab 
-            label="Team Members" 
+            label="DAGs" 
             sx={{ 
               fontWeight: 500, 
               textTransform: 'none',
@@ -250,23 +281,8 @@ const TeamDashboard = ({
           />
         </Tabs>
         
-        {/* Overview Tab */}
         <Box role="tabpanel" hidden={tabValue !== 0}>
           {tabValue === 0 && (
-            <Box>
-              <Typography variant="h6" gutterBottom>
-                Team Overview
-              </Typography>
-              <Typography variant="body2" color="text.secondary" paragraph>
-                This overview shows key metrics and performance indicators for the {teamName} team.
-              </Typography>
-            </Box>
-          )}
-        </Box>
-        
-        {/* Tables Tab */}
-        <Box role="tabpanel" hidden={tabValue !== 1}>
-          {tabValue === 1 && (
             <EntityTable
               entities={tables}
               type="table"
@@ -282,9 +298,8 @@ const TeamDashboard = ({
           )}
         </Box>
         
-        {/* DAGs Tab */}
-        <Box role="tabpanel" hidden={tabValue !== 2}>
-          {tabValue === 2 && (
+        <Box role="tabpanel" hidden={tabValue !== 1}>
+          {tabValue === 1 && (
             <EntityTable
               entities={dags}
               type="dag"
@@ -297,16 +312,6 @@ const TeamDashboard = ({
               onSetNotificationTimeline={onNotificationTimeline}
               showActions={true}
               isTeamDashboard={true}
-            />
-          )}
-        </Box>
-
-        {/* Team Members Tab */}
-        <Box role="tabpanel" hidden={tabValue !== 3}>
-          {tabValue === 3 && (
-            <TeamMemberManagement 
-              teamName={teamName} 
-              tenantName={tenantName} 
             />
           )}
         </Box>
