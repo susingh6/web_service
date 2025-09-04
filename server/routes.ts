@@ -389,15 +389,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         entities = entities.filter(entity => entity.type === type);
       }
       
-      // Add metadata about the response
-      const responseData = {
-        entities,
-        totalCount: entities.length,
-        cached: true, // Indicate this is cached data
-        dateFilter: req.query.date_filter || null
-      };
-      
-      res.json(responseData);
+      // Maintain backward compatibility: return array for existing clients
+      // Add metadata only when specifically requested
+      if (req.query.include_metadata === 'true') {
+        res.json({
+          entities,
+          totalCount: entities.length,
+          cached: true,
+          dateFilter: req.query.date_filter || null
+        });
+      } else {
+        // Default: return just the entities array (backward compatible)
+        res.json(entities);
+      }
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch entities from cache" });
     }

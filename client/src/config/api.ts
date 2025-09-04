@@ -128,18 +128,18 @@ export const apiClient = {
       if (params.type) queryParams.set('type', params.type);
       if (params.dateFilter) queryParams.set('date_filter', params.dateFilter);
       
-      const url = queryParams.toString() ? 
-        `${endpoints.entities}?${queryParams}` : 
-        endpoints.entities;
-        
+      // Request metadata to get consistent response format
+      queryParams.set('include_metadata', 'true');
+      
+      const url = `${endpoints.entities}?${queryParams}`;
       const response = await apiRequest('GET', url);
       const data = await response.json();
       
-      // Normalize response format to match custom endpoint
+      // Return consistent format
       return {
-        entities: data.entities || data, // Handle both response formats
-        totalCount: data.totalCount || (Array.isArray(data) ? data.length : data.entities?.length || 0),
-        cached: data.cached ?? true,
+        entities: data.entities,
+        totalCount: data.totalCount,
+        cached: data.cached,
         dateFilter: data.dateFilter
       };
     },
