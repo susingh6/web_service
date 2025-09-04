@@ -206,10 +206,16 @@ const Summary = () => {
   };
   
   const handleDeleteEntity = (id: number) => {
+    console.log('🗑️ [HANDLER] Delete entity called with ID:', id);
+    console.log('🗑️ [HANDLER] Available entities:', entities.map(e => ({ id: e.id, name: e.name, is_entity_owner: e.is_entity_owner })));
     const entity = entities.find(e => e.id === id);
+    console.log('🗑️ [HANDLER] Found entity:', entity);
     if (entity) {
+      console.log('🗑️ [HANDLER] Setting entity and opening dialog');
       setSelectedEntity(entity);
       setOpenDeleteDialog(true);
+    } else {
+      console.log('🗑️ [HANDLER] Entity not found - cannot delete');
     }
   };
 

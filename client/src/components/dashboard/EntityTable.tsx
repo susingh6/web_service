@@ -614,7 +614,11 @@ const EntityTable = ({
                           </Tooltip>
                           
                           <Tooltip title="Delete">
-                            <IconButton size="small" color="error" onClick={() => onDeleteEntity(entity.id)}>
+                            <IconButton size="small" color="error" onClick={() => {
+                              console.log('🗑️ [DELETE CLICK] Entity:', { id: entity.id, name: entity.name, is_entity_owner: entity.is_entity_owner });
+                              console.log('🗑️ [DELETE CLICK] onDeleteEntity available:', typeof onDeleteEntity);
+                              onDeleteEntity(entity.id);
+                            }}>
                               <Delete fontSize="small" />
                             </IconButton>
                           </Tooltip>
