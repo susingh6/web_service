@@ -277,7 +277,7 @@ const TeamDashboard = ({
                     teamMembers.map((member) => (
                       <Chip 
                         key={member.id}
-                        label={member.name}
+                        label={member.displayName || member.username}
                         size="small"
                         variant="outlined"
                         sx={{ 
