@@ -33,8 +33,17 @@ export const apiClient = {
     getDetails: (teamName: string) =>
       apiRequest('GET', buildUrl(endpoints.teamDetails, teamName)),
     
+    getMembers: (teamName: string) =>
+      apiRequest('GET', buildUrl(endpoints.users.getTeamMembers, teamName)),
+    
     updateMembers: (teamName: string, memberData: any) =>
       apiRequest('POST', buildUrl(endpoints.teamMembers, teamName), memberData),
+  },
+
+  // Users
+  users: {
+    getAll: () =>
+      apiRequest('GET', buildUrl(endpoints.users.getAll)),
   },
 
   // Entities

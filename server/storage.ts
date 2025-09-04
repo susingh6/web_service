@@ -113,6 +113,140 @@ export class MemStorage implements IStorage {
       role: "admin", // Set admin role for test user
       azureObjectId: "test-azure-object-id"
     });
+
+    // Create mock users for all team members
+    const mockUsers = [
+      // PGM Team Members
+      {
+        username: "john.smith",
+        password: "dummy-hash",
+        email: "john.smith@company.com",
+        displayName: "John Smith",
+        team: "PGM",
+        role: "developer",
+        azureObjectId: null
+      },
+      {
+        username: "sarah.johnson",
+        password: "dummy-hash",
+        email: "sarah.johnson@company.com",
+        displayName: "Sarah Johnson",
+        team: "PGM",
+        role: "manager",
+        azureObjectId: null
+      },
+      // Core Team Members
+      {
+        username: "david.wilson",
+        password: "dummy-hash",
+        email: "david.wilson@company.com",
+        displayName: "David Wilson",
+        team: "Core",
+        role: "lead",
+        azureObjectId: null
+      },
+      {
+        username: "michael.brown",
+        password: "dummy-hash",
+        email: "michael.brown@company.com",
+        displayName: "Michael Brown",
+        team: "Core",
+        role: "developer",
+        azureObjectId: null
+      },
+      // Viewer Product Team Members
+      {
+        username: "emily.davis",
+        password: "dummy-hash",
+        email: "emily.davis@company.com",
+        displayName: "Emily Davis",
+        team: "Viewer Product",
+        role: "analyst",
+        azureObjectId: null
+      },
+      // IOT Team Members
+      {
+        username: "alex.chen",
+        password: "dummy-hash",
+        email: "alex.chen@company.com",
+        displayName: "Alex Chen",
+        team: "IOT",
+        role: "developer",
+        azureObjectId: null
+      },
+      {
+        username: "maria.garcia",
+        password: "dummy-hash",
+        email: "maria.garcia@company.com",
+        displayName: "Maria Garcia",
+        team: "IOT",
+        role: "ops",
+        azureObjectId: null
+      },
+      // CDM Team Members
+      {
+        username: "robert.taylor",
+        password: "dummy-hash",
+        email: "robert.taylor@company.com",
+        displayName: "Robert Taylor",
+        team: "CDM",
+        role: "developer",
+        azureObjectId: null
+      },
+      {
+        username: "lisa.anderson",
+        password: "dummy-hash",
+        email: "lisa.anderson@company.com",
+        displayName: "Lisa Anderson",
+        team: "CDM",
+        role: "manager",
+        azureObjectId: null
+      },
+      // Ad Serving Team Members
+      {
+        username: "carlos.martinez",
+        password: "dummy-hash",
+        email: "carlos.martinez@company.com",
+        displayName: "Carlos Martinez",
+        team: "Ad Serving",
+        role: "lead",
+        azureObjectId: null
+      },
+      // Additional users for dropdown functionality
+      {
+        username: "jennifer.wilson",
+        password: "dummy-hash",
+        email: "jennifer.wilson@company.com",
+        displayName: "Jennifer Wilson",
+        team: null,
+        role: "developer",
+        azureObjectId: null
+      },
+      {
+        username: "kevin.moore",
+        password: "dummy-hash",
+        email: "kevin.moore@company.com",
+        displayName: "Kevin Moore",
+        team: null,
+        role: "analyst",
+        azureObjectId: null
+      },
+      {
+        username: "rachel.kim",
+        password: "dummy-hash",
+        email: "rachel.kim@company.com",
+        displayName: "Rachel Kim",
+        team: null,
+        role: "manager",
+        azureObjectId: null
+      }
+    ];
+
+    // Create all mock users
+    for (const userData of mockUsers) {
+      await this.createUser(userData);
+    }
+
     
     // Create demo teams with the new team names and member data
     const teamData = [
@@ -616,7 +750,19 @@ export class MemStorage implements IStorage {
   }
 
   async getUsers(): Promise<User[]> {
+    await this.ensureInitialized();
     return Array.from(this.users.values());
+  }
+
+  async getTeamMembers(teamName: string): Promise<User[]> {
+    await this.ensureInitialized();
+    const team = await this.getTeamByName(teamName);
+    if (!team || !team.team_members_ids) {
+      return [];
+    }
+    
+    const allUsers = await this.getUsers();
+    return allUsers.filter(user => team.team_members_ids!.includes(user.username));
   }
 
   async getUserRoles(): Promise<UserRole[]> {

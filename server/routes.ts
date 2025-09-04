@@ -195,31 +195,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/get_team_details/:teamName", async (req, res) => {
     try {
       const { teamName } = req.params;
-      const team = await storage.getTeamByName(teamName);
       
-      if (!team) {
-        return res.status(404).json({ message: "Team not found" });
+      // Use cache key for team details
+      const cacheKey = `team_details_${teamName}`;
+      let teamDetails = await redisCache.get(cacheKey);
+      
+      if (!teamDetails) {
+        const team = await storage.getTeamByName(teamName);
+        
+        if (!team) {
+          return res.status(404).json({ message: "Team not found" });
+        }
+
+        // Get actual team members from storage
+        const members = await storage.getTeamMembers(teamName);
+
+        teamDetails = {
+          ...team,
+          members: members
+        };
+
+        // Cache for 6 hours like other data
+        await redisCache.set(cacheKey, teamDetails, 6 * 60 * 60);
       }
-
-      // Mock member details based on team_members_ids
-      const memberDetails = (team.team_members_ids || []).map(memberId => ({
-        id: memberId,
-        name: memberId.replace('.', ' ').split(' ').map(word => 
-          word.charAt(0).toUpperCase() + word.slice(1)
-        ).join(' '),
-        email: `${memberId}@company.com`,
-        role: 'developer',
-        isActive: true
-      }));
-
-      const teamDetails = {
-        ...team,
-        members: memberDetails
-      };
 
       res.json(teamDetails);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch team details" });
+    }
+  });
+
+  // Get team members endpoint with caching
+  app.get("/api/get_team_members/:teamName", async (req, res) => {
+    try {
+      const { teamName } = req.params;
+      
+      // Use cache key for team members
+      const cacheKey = `team_members_${teamName}`;
+      let members = await redisCache.get(cacheKey);
+      
+      if (!members) {
+        members = await storage.getTeamMembers(teamName);
+        
+        // Cache for 6 hours like other data
+        await redisCache.set(cacheKey, members, 6 * 60 * 60);
+      }
+
+      res.json(members);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch team members" });
+    }
+  });
+
+  // Get all users endpoint with caching
+  app.get("/api/get_user", async (req, res) => {
+    try {
+      const cacheKey = 'all_users';
+      let users = await redisCache.get(cacheKey);
+      
+      if (!users) {
+        users = await storage.getUsers();
+        
+        // Cache for 6 hours like other data
+        await redisCache.set(cacheKey, users, 6 * 60 * 60);
+      }
+
+      res.json(users);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch users" });
     }
   });
 
@@ -241,6 +284,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!updatedTeam) {
         return res.status(404).json({ message: "Team not found" });
       }
+
+      // Clear related cache entries
+      await redisCache.del(`team_details_${teamName}`);
+      await redisCache.del(`team_members_${teamName}`);
 
       res.json(updatedTeam);
     } catch (error) {

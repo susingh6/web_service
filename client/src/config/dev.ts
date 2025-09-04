@@ -18,6 +18,12 @@ export const devConfig = {
     teamDetails: (teamName: string) => `/api/get_team_details/${teamName}`,
     teamMembers: (teamName: string) => `/api/teams/${teamName}/members`,
     
+    // User endpoints
+    users: {
+      getAll: '/api/get_user',
+      getTeamMembers: (teamName: string) => `/api/get_team_members/${teamName}`,
+    },
+    
     // Dashboard
     dashboard: {
       summary: '/api/dashboard/summary',
