@@ -194,7 +194,7 @@ export class MemStorage implements IStorage {
         name: 'PGM', 
         description: 'Platform Growth & Marketing Team',
         tenant_id: 1,
-        team_members_ids: ['john.smith', 'sarah.johnson'],
+        team_members_ids: ['john.smith', 'sarah.johnson', 'lisa.thompson'],
         team_email: ['pgm-team@company.com'],
         team_slack: ['#pgm-team'],
         team_pagerduty: ['pgm-escalation']
@@ -203,7 +203,7 @@ export class MemStorage implements IStorage {
         name: 'Core', 
         description: 'Core Infrastructure Team',
         tenant_id: 1,
-        team_members_ids: ['david.wilson', 'michael.brown'],
+        team_members_ids: ['mike.chen', 'carlos.martinez'],
         team_email: ['core-team@company.com'],
         team_slack: ['#core-infrastructure'],
         team_pagerduty: ['core-escalation']
@@ -212,7 +212,7 @@ export class MemStorage implements IStorage {
         name: 'Viewer Product', 
         description: 'Viewer Product Team',
         tenant_id: 2,
-        team_members_ids: ['emily.davis'],
+        team_members_ids: ['emily.wang'],
         team_email: ['viewer-product@company.com'],
         team_slack: ['#viewer-product'],
         team_pagerduty: ['viewer-escalation']
@@ -221,7 +221,7 @@ export class MemStorage implements IStorage {
         name: 'IOT', 
         description: 'Internet of Things Team',
         tenant_id: 1,
-        team_members_ids: ['alex.chen', 'maria.garcia'],
+        team_members_ids: ['david.kim'],
         team_email: ['iot-team@company.com'],
         team_slack: ['#iot-team'],
         team_pagerduty: ['iot-escalation']
@@ -230,7 +230,7 @@ export class MemStorage implements IStorage {
         name: 'CDM', 
         description: 'Content Delivery & Management Team',
         tenant_id: 1,
-        team_members_ids: ['robert.taylor', 'lisa.anderson'],
+        team_members_ids: [],
         team_email: ['cdm-team@company.com'],
         team_slack: ['#cdm-team'],
         team_pagerduty: ['cdm-escalation']
@@ -239,7 +239,7 @@ export class MemStorage implements IStorage {
         name: 'Ad Serving', 
         description: 'Advertisement Serving Team',
         tenant_id: 2,
-        team_members_ids: ['carlos.martinez'],
+        team_members_ids: [],
         team_email: ['ad-serving@company.com'],
         team_slack: ['#ad-serving'],
         team_pagerduty: ['ad-serving-escalation']
