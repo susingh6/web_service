@@ -219,6 +219,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
         description: entityType === 'dag' ? data.dag_description : data.description,
         type: entityType,
         teamId: team.id, // Add team ID for cache invalidation
+        is_entity_owner: isEntityOwner, // CRITICAL: Map the ownership state to the entity field
         // Ensure required table fields are included
         ...(entityType === 'table' && {
           slaTarget: data.slaTarget || 95,
