@@ -138,6 +138,15 @@ export const fieldDefinitions = {
     apiField: 'server_name'
   },
 
+  owner_entity_reference: {
+    type: 'string',
+    required: true,
+    label: 'Owner Entity Reference',
+    placeholder: 'Enter the entity name owned by the actual team',
+    validation: yup.string().required('Owner entity reference is required'),
+    apiField: 'owner_entity_reference'
+  },
+
   // Table-specific fields
   schema_name: {
     type: 'string',
@@ -320,6 +329,7 @@ export const buildTableSchema = () => {
     table_dependency: fieldDefinitions.table_dependency.validation,
     donemarker_location: fieldDefinitions.donemarker_location.validation,
     donemarker_lookback: fieldDefinitions.donemarker_lookback.validation,
+    owner_entity_reference: fieldDefinitions.owner_entity_reference.validation.optional(),
   });
 };
 
@@ -334,6 +344,7 @@ export const buildDagSchema = () => {
     donemarker_location: fieldDefinitions.donemarker_location.validation,
     donemarker_lookback: fieldDefinitions.donemarker_lookback.validation,
     server_name: fieldDefinitions.server_name.validation,
+    owner_entity_reference: fieldDefinitions.owner_entity_reference.validation.optional(),
   });
 };
 
@@ -371,6 +382,7 @@ export const defaultValues = {
     expected_runtime_minutes: 60,
     donemarker_location: '',
     donemarker_lookback: 0,
+    owner_entity_reference: '',
   },
   
   table: {
