@@ -17,6 +17,11 @@ export const devConfig = {
     tenants: '/api/tenants',
     teamDetails: (teamName: string) => `/api/get_team_details/${teamName}`,
     teamMembers: (teamName: string) => `/api/teams/${teamName}/members`,
+    teamUpdate: (teamName: string) => `/api/teams/${teamName}`,
+    
+    // User Management  
+    users: '/api/users',
+    userById: (id: number) => `/api/users/${id}`,
     
     // Dashboard
     dashboard: {
