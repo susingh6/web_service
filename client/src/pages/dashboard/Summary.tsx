@@ -24,10 +24,13 @@ import { useToast } from '@/hooks/use-toast';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 import { getTenants, getDefaultTenant, preloadTenantCache, type Tenant } from '@/lib/tenantCache';
 import { useWebSocket } from '@/hooks/useWebSocket';
+import { useEntityMutation, CACHE_PATTERNS, useCacheManager } from '@/utils/cache-management';
 
 const Summary = () => {
   const dispatch = useAppDispatch();
   const { toast } = useToast();
+  const { deleteEntity } = useEntityMutation();
+  const cacheManager = useCacheManager();
   
   const { metrics, isLoading: metricsLoading } = useAppSelector((state) => state.dashboard);
   const { list: entities, teams, isLoading: entitiesLoading } = useAppSelector((state) => state.entities);
@@ -51,12 +54,22 @@ const Summary = () => {
   // WebSocket connection for real-time updates
   const { isConnected } = useWebSocket({
     onEntityUpdated: (data) => {
-      // Entity updated via WebSocket - handle create/update/delete
-      // Invalidate ALL entity-related queries
-      queryClient.invalidateQueries({ queryKey: ['entities'] });
-      queryClient.invalidateQueries({ predicate: (query) => 
-        query.queryKey[0] === 'entities' || query.queryKey.includes('entities')
-      });
+      // Entity updated via WebSocket - use centralized cache invalidation
+      const operation: 'created' | 'updated' | 'deleted' = data.type || 'updated';
+      const entityType = data.entityType as 'table' | 'dag';
+      const teamId = data.teamId;
+      
+      // Use centralized cache patterns for consistent invalidation
+      const invalidationKeys: (string | object)[][] = [
+        [...CACHE_PATTERNS.ENTITIES.LIST],
+        ...(teamId ? [CACHE_PATTERNS.ENTITIES.BY_TEAM(teamId)] : []),
+        ...(entityType ? [CACHE_PATTERNS.ENTITIES.BY_TYPE(entityType)] : []),
+        ...(teamId && entityType ? [CACHE_PATTERNS.ENTITIES.BY_TEAM_AND_TYPE(teamId, entityType)] : []),
+        CACHE_PATTERNS.DASHBOARD.SUMMARY(selectedTenant.name)
+      ];
+      
+      // Invalidate using cache manager for consistency
+      cacheManager.invalidateCache(invalidationKeys);
       
       // CRITICAL: Force Redux store refresh - this ensures UI updates immediately
       dispatch(fetchEntities({}));
@@ -73,13 +86,11 @@ const Summary = () => {
       }
       
       // Show appropriate toast notification based on operation type
-      const operation = data.type || 'updated';
-      const messages = {
+      const messages: Record<'created' | 'updated' | 'deleted', string> = {
         created: `${data.entityName} has been created successfully`,
         updated: `${data.entityName} has been updated successfully`,
         deleted: `${data.entityName} has been deleted successfully`
       };
-      
       
       toast({
         title: `Entity ${operation.charAt(0).toUpperCase() + operation.slice(1)}`,
@@ -224,18 +235,30 @@ const Summary = () => {
     try {
       if (!selectedEntity) return;
       
-      // Call the delete API
-      await apiRequest("DELETE", `/api/entities/${selectedEntity.id}`);
+      // Safeguard: Check if entity ID looks like a temporary optimistic ID
+      const isOptimisticId = selectedEntity.id > 1000000000000; // Timestamp-based IDs are > 1 trillion
+      if (isOptimisticId) {
+        toast({
+          title: 'Please wait',
+          description: `${selectedEntity.name} is still being created. Please try again in a moment.`,
+          variant: 'default',
+        });
+        setOpenDeleteDialog(false);
+        return;
+      }
+      
+      // Use centralized delete mutation with proper cache management
+      await deleteEntity(
+        selectedEntity.id, 
+        selectedEntity.teamId, 
+        selectedEntity.type as 'table' | 'dag'
+      );
       
       toast({
         title: 'Success',
         description: `${selectedEntity.name} has been deleted.`,
         variant: 'default',
       });
-      
-      // Refresh data - the WebSocket will also handle this automatically
-      queryClient.invalidateQueries({ queryKey: ['/api/entities'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/dashboard/summary'] });
       
       setOpenDeleteDialog(false);
       setSelectedEntity(null);
