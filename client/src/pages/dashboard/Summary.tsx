@@ -205,12 +205,9 @@ const Summary = () => {
     setOpenEditModal(true);
   };
   
-  const handleDeleteEntity = (id: number) => {
-    const entity = entities.find(e => e.id === id);
-    if (entity) {
-      setSelectedEntity(entity);
-      setOpenDeleteDialog(true);
-    }
+  const handleDeleteEntity = (entity: Entity) => {
+    setSelectedEntity(entity);
+    setOpenDeleteDialog(true);
   };
 
   const handleNotificationTimeline = (entity: Entity) => {

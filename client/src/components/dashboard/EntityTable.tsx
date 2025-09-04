@@ -96,7 +96,7 @@ interface EntityTableProps {
   type: 'table' | 'dag';
   teams: { id: number; name: string }[];
   onEditEntity: (entity: Entity) => void;
-  onDeleteEntity: (id: number) => void;
+  onDeleteEntity: (entity: Entity) => void;
   onViewHistory: (entity: Entity) => void;
   onViewDetails: (entity: Entity) => void;
   onViewTasks?: (entity: Entity) => void; // For DAG entities to view tasks
@@ -615,7 +615,7 @@ const EntityTable = ({
                           </Tooltip>
                           
                           <Tooltip title="Delete">
-                            <IconButton size="small" color="error" onClick={() => onDeleteEntity(entity.id)}>
+                            <IconButton size="small" color="error" onClick={() => onDeleteEntity(entity)}>
                               <Delete fontSize="small" />
                             </IconButton>
                           </Tooltip>

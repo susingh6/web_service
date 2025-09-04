@@ -23,7 +23,7 @@ interface TeamDashboardProps {
   teamName: string;
   tenantName: string;
   onEditEntity: (entity: Entity) => void;
-  onDeleteEntity: (id: number) => void;
+  onDeleteEntity: (entity: Entity) => void;
   onViewDetails: (entity: Entity) => void;
   onAddEntity: () => void;
   onBulkUpload: () => void;
