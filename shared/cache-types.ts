@@ -1,4 +1,4 @@
-import { Entity, Team } from './schema';
+import { Entity, Team, User } from './schema';
 
 export interface DashboardMetrics {
   overallCompliance: number;
@@ -26,6 +26,7 @@ export interface CachedData {
   entities: Entity[];
   teams: Team[];
   tenants: Array<{ id: number; name: string; description?: string }>;
+  users: User[];
   metrics: Record<string, DashboardMetrics>;
   last30DayMetrics: Record<string, DashboardMetrics>;
   lastUpdated: Date;
@@ -36,6 +37,7 @@ export interface CacheRefreshData {
   entities: Entity[];
   teams: Team[];
   tenants: Array<{ id: number; name: string; description?: string }>;
+  users: User[];
   metrics: Record<string, DashboardMetrics>;
   last30DayMetrics: Record<string, DashboardMetrics>;
   lastUpdated: Date;

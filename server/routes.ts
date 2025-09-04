@@ -25,13 +25,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // API Routes
   
-  // Users endpoints for notification system
+  // Users endpoints with cache integration
   app.get("/api/users", async (req, res) => {
     try {
-      const users = await storage.getUsers();
+      // Try to get from cache first
+      const users = await redisCache.getAllUsers();
       res.json(users);
     } catch (error) {
-      res.status(500).json({ message: "Failed to fetch users" });
+      console.error('Failed to fetch users from cache:', error);
+      // Fallback to direct storage
+      try {
+        const users = await storage.getUsers();
+        res.json(users);
+      } catch (storageError) {
+        res.status(500).json({ message: "Failed to fetch users" });
+      }
+    }
+  });
+
+  app.patch("/api/users/:id", async (req, res) => {
+    try {
+      const userId = parseInt(req.params.id);
+      const userData = req.body;
+      
+      const updatedUser = await storage.updateUser(userId, userData);
+      if (updatedUser) {
+        // Invalidate cache after update
+        await redisCache.forceRefresh();
+        res.json(updatedUser);
+      } else {
+        res.status(404).json({ message: "User not found" });
+      }
+    } catch (error) {
+      res.status(500).json({ message: "Failed to update user" });
     }
   });
 

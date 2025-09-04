@@ -20,6 +20,7 @@ export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  updateUser(id: number, user: Partial<User>): Promise<User | undefined>;
   getUsers(): Promise<User[]>;
   getUserRoles(): Promise<UserRole[]>;
   
@@ -112,6 +113,79 @@ export class MemStorage implements IStorage {
       team: "Core",
       role: "admin", // Set admin role for test user
       azureObjectId: "test-azure-object-id"
+    });
+
+    // Create mock users that correspond to team member IDs
+    const mockUsers = [
+      {
+        username: "john.smith",
+        password: "fd8c4a1ca56057251afbd0fd4b308a15113651c3e557c44eb58b8284e6d7fd4c1212a99dc7784c5cbb5072a2c138185c806394074e6c5f599209185e9576ea2e.e33fe34bf418a28b",
+        email: "john.smith@company.com",
+        displayName: "John Smith",
+        team: "PGM",
+        role: "user"
+      },
+      {
+        username: "sarah.johnson",
+        password: "fd8c4a1ca56057251afbd0fd4b308a15113651c3e557c44eb58b8284e6d7fd4c1212a99dc7784c5cbb5072a2c138185c806394074e6c5f599209185e9576ea2e.e33fe34bf418a28b",
+        email: "sarah.johnson@company.com",
+        displayName: "Sarah Johnson",
+        team: "PGM",
+        role: "user"
+      },
+      {
+        username: "mike.chen",
+        password: "fd8c4a1ca56057251afbd0fd4b308a15113651c3e557c44eb58b8284e6d7fd4c1212a99dc7784c5cbb5072a2c138185c806394074e6c5f599209185e9576ea2e.e33fe34bf418a28b",
+        email: "mike.chen@company.com",
+        displayName: "Mike Chen",
+        team: "Core",
+        role: "user"
+      },
+      {
+        username: "ana.rodriguez",
+        password: "fd8c4a1ca56057251afbd0fd4b308a15113651c3e557c44eb58b8284e6d7fd4c1212a99dc7784c5cbb5072a2c138185c806394074e6c5f599209185e9576ea2e.e33fe34bf418a28b",
+        email: "ana.rodriguez@company.com",
+        displayName: "Ana Rodriguez",
+        team: "Ad Data Activation",
+        role: "user"
+      },
+      {
+        username: "david.kim",
+        password: "fd8c4a1ca56057251afbd0fd4b308a15113651c3e557c44eb58b8284e6d7fd4c1212a99dc7784c5cbb5072a2c138185c806394074e6c5f599209185e9576ea2e.e33fe34bf418a28b",
+        email: "david.kim@company.com",
+        displayName: "David Kim",
+        team: "IOT",
+        role: "user"
+      },
+      {
+        username: "emily.wang",
+        password: "fd8c4a1ca56057251afbd0fd4b308a15113651c3e557c44eb58b8284e6d7fd4c1212a99dc7784c5cbb5072a2c138185c806394074e6c5f599209185e9576ea2e.e33fe34bf418a28b",
+        email: "emily.wang@company.com",
+        displayName: "Emily Wang",
+        team: "Viewer Product",
+        role: "user"
+      },
+      {
+        username: "carlos.martinez",
+        password: "fd8c4a1ca56057251afbd0fd4b308a15113651c3e557c44eb58b8284e6d7fd4c1212a99dc7784c5cbb5072a2c138185c806394074e6c5f599209185e9576ea2e.e33fe34bf418a28b",
+        email: "carlos.martinez@company.com",
+        displayName: "Carlos Martinez",
+        team: "Core",
+        role: "user"
+      },
+      {
+        username: "lisa.thompson",
+        password: "fd8c4a1ca56057251afbd0fd4b308a15113651c3e557c44eb58b8284e6d7fd4c1212a99dc7784c5cbb5072a2c138185c806394074e6c5f599209185e9576ea2e.e33fe34bf418a28b",
+        email: "lisa.thompson@company.com",
+        displayName: "Lisa Thompson",
+        team: "PGM",
+        role: "user"
+      }
+    ];
+
+    // Create all mock users
+    mockUsers.forEach(userData => {
+      this.createUser(userData);
     });
     
     // Create demo teams with the new team names and member data
@@ -616,7 +690,20 @@ export class MemStorage implements IStorage {
   }
 
   async getUsers(): Promise<User[]> {
+    await this.ensureInitialized();
     return Array.from(this.users.values());
+  }
+
+  async updateUser(id: number, updateData: Partial<User>): Promise<User | undefined> {
+    await this.ensureInitialized();
+    const user = this.users.get(id);
+    if (!user) {
+      return undefined;
+    }
+
+    const updatedUser: User = { ...user, ...updateData };
+    this.users.set(id, updatedUser);
+    return updatedUser;
   }
 
   async getUserRoles(): Promise<UserRole[]> {
