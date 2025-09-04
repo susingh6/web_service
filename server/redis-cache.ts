@@ -705,6 +705,45 @@ export class RedisCache {
     await this.refreshCacheWithWorker();
   }
 
+  // Generic cache methods for additional data
+  async get(key: string): Promise<any> {
+    try {
+      if (!this.useRedis || !this.redis) {
+        return null;
+      }
+      
+      const data = await this.redis.get(key);
+      return data ? JSON.parse(data) : null;
+    } catch (error) {
+      console.error(`Cache get error for key ${key}:`, error);
+      return null;
+    }
+  }
+
+  async set(key: string, value: any, ttlSeconds: number): Promise<void> {
+    try {
+      if (!this.useRedis || !this.redis) {
+        return;
+      }
+      
+      await this.redis.setex(key, ttlSeconds, JSON.stringify(value));
+    } catch (error) {
+      console.error(`Cache set error for key ${key}:`, error);
+    }
+  }
+
+  async del(key: string): Promise<void> {
+    try {
+      if (!this.useRedis || !this.redis) {
+        return;
+      }
+      
+      await this.redis.del(key);
+    } catch (error) {
+      console.error(`Cache del error for key ${key}:`, error);
+    }
+  }
+
   destroy(): void {
     if (this.refreshInterval) {
       clearInterval(this.refreshInterval);
