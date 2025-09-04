@@ -298,7 +298,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Entities endpoints - using cache
+  // Entities endpoints - using cache with pre-defined date filtering
   app.get("/api/entities", async (req, res) => {
     try {
       let entities = await redisCache.getAllEntities();
@@ -307,6 +307,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (req.query.tenant) {
         const tenantName = req.query.tenant as string;
         entities = await redisCache.getEntitiesByTenant(tenantName);
+      }
+      
+      // Pre-defined date filtering (served from cache)
+      if (req.query.date_filter) {
+        const dateFilter = req.query.date_filter as string;
+        const now = new Date();
+        let filterDate: Date;
+        
+        switch (dateFilter.toLowerCase()) {
+          case 'today':
+            filterDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            entities = entities.filter(entity => {
+              if (!entity.lastRefreshed) return false;
+              const entityDate = new Date(entity.lastRefreshed);
+              return entityDate >= filterDate;
+            });
+            break;
+            
+          case 'yesterday':
+            const yesterday = new Date(now);
+            yesterday.setDate(yesterday.getDate() - 1);
+            const startOfYesterday = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
+            const endOfYesterday = new Date(startOfYesterday);
+            endOfYesterday.setHours(23, 59, 59, 999);
+            entities = entities.filter(entity => {
+              if (!entity.lastRefreshed) return false;
+              const entityDate = new Date(entity.lastRefreshed);
+              return entityDate >= startOfYesterday && entityDate <= endOfYesterday;
+            });
+            break;
+            
+          case 'last_7_days':
+            filterDate = new Date(now);
+            filterDate.setDate(filterDate.getDate() - 7);
+            entities = entities.filter(entity => {
+              if (!entity.lastRefreshed) return false;
+              const entityDate = new Date(entity.lastRefreshed);
+              return entityDate >= filterDate;
+            });
+            break;
+            
+          case 'last_30_days':
+            filterDate = new Date(now);
+            filterDate.setDate(filterDate.getDate() - 30);
+            entities = entities.filter(entity => {
+              if (!entity.lastRefreshed) return false;
+              const entityDate = new Date(entity.lastRefreshed);
+              return entityDate >= filterDate;
+            });
+            break;
+            
+          case 'this_month':
+            filterDate = new Date(now.getFullYear(), now.getMonth(), 1);
+            entities = entities.filter(entity => {
+              if (!entity.lastRefreshed) return false;
+              const entityDate = new Date(entity.lastRefreshed);
+              return entityDate >= filterDate;
+            });
+            break;
+            
+          default:
+            return res.status(400).json({ 
+              message: "Invalid date_filter. Supported values: today, yesterday, last_7_days, last_30_days, this_month. Use /api/entities/custom for custom date ranges." 
+            });
+        }
       }
       
       // Additional filters
@@ -324,9 +389,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
         entities = entities.filter(entity => entity.type === type);
       }
       
-      res.json(entities);
+      // Add metadata about the response
+      const responseData = {
+        entities,
+        totalCount: entities.length,
+        cached: true, // Indicate this is cached data
+        dateFilter: req.query.date_filter || null
+      };
+      
+      res.json(responseData);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch entities from cache" });
+    }
+  });
+  
+  // Custom entities endpoint for ad-hoc date range queries (no caching)
+  app.get("/api/entities/custom", async (req, res) => {
+    try {
+      const { start_date, end_date, team_id, tenant } = req.query;
+      
+      // Validate required date parameters
+      if (!start_date || !end_date) {
+        return res.status(400).json({ 
+          message: "start_date and end_date parameters are required for custom date range queries" 
+        });
+      }
+      
+      // Parse and validate dates
+      const startDate = new Date(start_date as string);
+      const endDate = new Date(end_date as string);
+      
+      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+        return res.status(400).json({ 
+          message: "Invalid date format. Use ISO date format (YYYY-MM-DD or YYYY-MM-DDTHH:mm:ssZ)" 
+        });
+      }
+      
+      if (startDate >= endDate) {
+        return res.status(400).json({ 
+          message: "start_date must be earlier than end_date" 
+        });
+      }
+      
+      // Parse optional filters
+      const teamId = team_id ? parseInt(team_id as string) : undefined;
+      const tenantName = tenant as string;
+      
+      if (team_id && isNaN(teamId!)) {
+        return res.status(400).json({ message: "Invalid team_id parameter" });
+      }
+      
+      // Call storage directly - no caching for custom queries
+      const entities = await storage.getEntitiesByDateRange(startDate, endDate, teamId, tenantName);
+      
+      res.json({
+        entities,
+        dateRange: {
+          start: startDate.toISOString(),
+          end: endDate.toISOString()
+        },
+        totalCount: entities.length,
+        cached: false // Indicate this is not cached data
+      });
+      
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch entities for custom date range" });
     }
   });
   

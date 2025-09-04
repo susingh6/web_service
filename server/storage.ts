@@ -38,6 +38,7 @@ export interface IStorage {
   getEntity(id: number): Promise<Entity | undefined>;
   getEntitiesByTeam(teamId: number): Promise<Entity[]>;
   getEntitiesByType(type: string): Promise<Entity[]>;
+  getEntitiesByDateRange(startDate: Date, endDate: Date, teamId?: number, tenant?: string): Promise<Entity[]>;
   createEntity(entity: InsertEntity): Promise<Entity>;
   updateEntity(id: number, entity: Partial<Entity>): Promise<Entity | undefined>;
   deleteEntity(id: number): Promise<boolean>;
@@ -917,6 +918,28 @@ export class MemStorage implements IStorage {
     return Array.from(this.entities.values()).filter(
       (entity) => entity.type === type
     );
+  }
+
+  async getEntitiesByDateRange(startDate: Date, endDate: Date, teamId?: number, tenant?: string): Promise<Entity[]> {
+    let entities = Array.from(this.entities.values());
+    
+    // Filter by date range using lastRefreshed as the primary timestamp
+    entities = entities.filter(entity => {
+      if (!entity.lastRefreshed) return false;
+      const entityDate = new Date(entity.lastRefreshed);
+      return entityDate >= startDate && entityDate <= endDate;
+    });
+    
+    // Apply additional filters if provided
+    if (teamId) {
+      entities = entities.filter(entity => entity.teamId === teamId);
+    }
+    
+    if (tenant) {
+      entities = entities.filter(entity => entity.tenant_name === tenant);
+    }
+    
+    return entities;
   }
   
   async createEntity(insertEntity: InsertEntity): Promise<Entity> {

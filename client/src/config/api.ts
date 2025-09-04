@@ -51,6 +51,99 @@ export const apiClient = {
     getAll: () =>
       apiRequest('GET', buildUrl(endpoints.entities)),
     
+    // Enhanced entity filtering with intelligent routing
+    getAllWithFilters: (params: {
+      tenant?: string;
+      teamId?: number;
+      type?: 'table' | 'dag';
+      dateFilter?: 'today' | 'yesterday' | 'last_7_days' | 'last_30_days' | 'this_month';
+    }) => {
+      const queryParams = new URLSearchParams();
+      
+      if (params.tenant) queryParams.set('tenant', params.tenant);
+      if (params.teamId) queryParams.set('teamId', params.teamId.toString());
+      if (params.type) queryParams.set('type', params.type);
+      if (params.dateFilter) queryParams.set('date_filter', params.dateFilter);
+      
+      const url = queryParams.toString() ? 
+        `${endpoints.entities}?${queryParams}` : 
+        endpoints.entities;
+        
+      return apiRequest('GET', url);
+    },
+    
+    // Custom date range queries (not cached)
+    getByCustomDateRange: (params: {
+      startDate: string; // ISO date string
+      endDate: string;   // ISO date string
+      teamId?: number;
+      tenant?: string;
+    }) => {
+      const queryParams = new URLSearchParams();
+      
+      queryParams.set('start_date', params.startDate);
+      queryParams.set('end_date', params.endDate);
+      if (params.teamId) queryParams.set('team_id', params.teamId.toString());
+      if (params.tenant) queryParams.set('tenant', params.tenant);
+      
+      const url = `/api/entities/custom?${queryParams}`;
+      return apiRequest('GET', url);
+    },
+    
+    // Smart entity fetching - automatically routes to cached or custom endpoint
+    getWithSmartFiltering: async (params: {
+      tenant?: string;
+      teamId?: number;
+      type?: 'table' | 'dag';
+      // Pre-defined ranges use cache (instant)
+      dateFilter?: 'today' | 'yesterday' | 'last_7_days' | 'last_30_days' | 'this_month';
+      // Custom ranges use fresh API call
+      customDateRange?: {
+        startDate: string; // ISO date string  
+        endDate: string;   // ISO date string
+      };
+    }) => {
+      // Route to custom endpoint for custom date ranges
+      if (params.customDateRange) {
+        const response = await apiRequest('GET', `/api/entities/custom?${new URLSearchParams({
+          start_date: params.customDateRange.startDate,
+          end_date: params.customDateRange.endDate,
+          ...(params.teamId && { team_id: params.teamId.toString() }),
+          ...(params.tenant && { tenant: params.tenant })
+        })}`);
+        
+        const data = await response.json();
+        return {
+          entities: data.entities,
+          totalCount: data.totalCount,
+          cached: data.cached,
+          dateRange: data.dateRange
+        };
+      }
+      
+      // Route to cached endpoint for pre-defined ranges (or no date filter)
+      const queryParams = new URLSearchParams();
+      if (params.tenant) queryParams.set('tenant', params.tenant);
+      if (params.teamId) queryParams.set('teamId', params.teamId.toString());
+      if (params.type) queryParams.set('type', params.type);
+      if (params.dateFilter) queryParams.set('date_filter', params.dateFilter);
+      
+      const url = queryParams.toString() ? 
+        `${endpoints.entities}?${queryParams}` : 
+        endpoints.entities;
+        
+      const response = await apiRequest('GET', url);
+      const data = await response.json();
+      
+      // Normalize response format to match custom endpoint
+      return {
+        entities: data.entities || data, // Handle both response formats
+        totalCount: data.totalCount || (Array.isArray(data) ? data.length : data.entities?.length || 0),
+        cached: data.cached ?? true,
+        dateFilter: data.dateFilter
+      };
+    },
+
     getByTeam: (teamId: number) =>
       apiRequest('GET', buildUrl(endpoints.entity.byTeam, teamId)),
     
