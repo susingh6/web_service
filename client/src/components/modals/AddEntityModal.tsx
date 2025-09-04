@@ -154,7 +154,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
       ...configDefaultValues.common,
       ...(entityType === 'table' ? configDefaultValues.table : configDefaultValues.dag)
     },
-  });
+  }) as any; // TypeScript bypass for conditional form fields
 
   // This effect updates the form when entity type changes
   useEffect(() => {
@@ -174,6 +174,10 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
   
   const onSubmit = async (data: any) => {
     // Form data submitted
+    console.log('🚀 FORM SUBMISSION START:', data);
+    console.log('🔍 Entity type:', entityType);
+    console.log('📋 Form validation errors:', errors);
+    console.log('📝 isSubmitting:', isSubmitting);
     setValidationError(null);
     
     try {
@@ -215,9 +219,9 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
       // Create the entity object to submit with proper field mapping
       const entityData = {
         ...data,
-        // Map form fields to API fields
-        name: data.entity_name || data.name, // API expects 'name'
-        description: data.description || '', // General description 
+        // Map form fields to API fields - use correct field for each type
+        name: entityType === 'dag' ? data.dag_name : data.entity_name,
+        description: entityType === 'dag' ? data.dag_description : data.description,
         type: entityType,
         teamId: team.id, // Add team ID for cache invalidation
         // Ensure required table fields are included
@@ -229,6 +233,8 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
           ownerEmail: data.ownerEmail || data.owner_email || '',
         })
       };
+      
+      console.log('📤 Final entity data to submit:', entityData);
       
       // Use the entity mutation hook (includes entity-type-specific cache invalidation)
       await createEntity(entityData);
