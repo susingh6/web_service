@@ -330,16 +330,20 @@ export function useTeamMemberMutation() {
 }
 
 export function useEntityMutation() {
-  const { executeWithOptimism } = useOptimisticMutation();
+  const { executeWithOptimism, cacheManager } = useOptimisticMutation();
 
   const createEntity = async (entityData: any) => {
     const entityType = entityData.type as 'table' | 'dag';
     const scenario = entityType === 'table' ? 'TABLE_ENTITY_CREATED' : 'DAG_ENTITY_CREATED';
     
-    return executeWithOptimism({
+    // Generate optimistic ID for tracking
+    const optimisticId = Date.now();
+    const optimisticEntity = { ...entityData, id: optimisticId };
+    
+    const result = await executeWithOptimism({
       optimisticUpdate: {
         queryKey: CACHE_PATTERNS.ENTITIES.BY_TEAM(entityData.teamId),
-        updater: (old: any[] | undefined) => old ? [...old, { ...entityData, id: Date.now() }] : [entityData],
+        updater: (old: any[] | undefined) => old ? [...old, optimisticEntity] : [optimisticEntity],
       },
       mutationFn: async () => {
         const response = await fetch('/api/entities', {
@@ -357,6 +361,20 @@ export function useEntityMutation() {
       },
       rollbackKeys: [CACHE_PATTERNS.ENTITIES.BY_TEAM(entityData.teamId)],
     });
+
+    // After successful creation, replace optimistic entry with real server response
+    if (result) {
+      cacheManager.setOptimisticData(
+        CACHE_PATTERNS.ENTITIES.BY_TEAM(entityData.teamId),
+        (old: any[] | undefined) => {
+          if (!old) return [result];
+          // Replace optimistic entity with real server response
+          return old.map(entity => entity.id === optimisticId ? result : entity);
+        }
+      );
+    }
+
+    return result;
   };
 
   const updateEntity = async (entityId: number, entityData: any) => {

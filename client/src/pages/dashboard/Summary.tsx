@@ -206,8 +206,6 @@ const Summary = () => {
   };
   
   const handleDeleteEntity = (entity: Entity) => {
-    console.log('🗑️ [DELETE HANDLER] Entity received:', entity);
-    console.log('🗑️ [DELETE HANDLER] Entity ID:', entity.id, typeof entity.id);
     setSelectedEntity(entity);
     setOpenDeleteDialog(true);
   };
@@ -225,9 +223,6 @@ const Summary = () => {
   const handleConfirmDelete = async () => {
     try {
       if (!selectedEntity) return;
-      
-      console.log('🗑️ [CONFIRM DELETE] Selected entity:', selectedEntity);
-      console.log('🗑️ [CONFIRM DELETE] Deleting ID:', selectedEntity.id, typeof selectedEntity.id);
       
       // Call the delete API
       await apiRequest("DELETE", `/api/entities/${selectedEntity.id}`);

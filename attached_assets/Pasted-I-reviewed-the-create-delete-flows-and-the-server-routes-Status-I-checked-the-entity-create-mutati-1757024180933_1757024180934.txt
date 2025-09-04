@@ -1,0 +1,13 @@
+I reviewed the create/delete flows and the server routes.
+Status: I checked the entity create mutation and the delete route. The client adds new entities optimistically with a timestamp ID; the Summary delete handler calls the server directly with that ID, which doesn’t exist server-side yet, causing 404.
+Potential issues to consider before fixing:
+Optimistic IDs not reconciled: New entities are added to the team list with id = Date.now() and no follow-up replacement with the real server ID. Any immediate delete will send the temp ID to the server and 404.
+Mixed deletion paths: Summary.tsx deletes via direct apiRequest("DELETE", /api/entities/:id) instead of using the centralized delete mutation that could special-case optimistic items.
+Race conditions: The invalidation/refetch after creation isn’t instant; if the user deletes quickly, the list may still show the optimistic item with temp ID.
+Duplicate rows risk: Without replacing the optimistic row with the server entity, a subsequent refetch may display both (optimistic + real) until the cache is cleaned.
+Type mismatches: Ensure IDs are consistently numbers across UI and server; if any path stores string IDs, comparisons like entity.id !== entityId can fail and leave ghosts in lists.
+Action availability for optimistic rows: The UI currently enables delete/edit on just-created, optimistic rows; users can trigger operations that the server can’t fulfill yet.
+Key consistency for cache: Team entities use a query key like ['/api/entities', { teamId }]; optimistic updates and invalidations must target the exact same key shape or updates won’t land where expected.
+Server expectations: The server expects integer IDs bound to a persisted entity; it won’t find timestamp IDs used only in the client cache and returns 404 by design.
+WebSocket timing: Real-time updates can reorder when the UI refreshes vs. when the user clicks delete, exacerbating races if the optimistic entry isn’t reconciled.
+If you want, I can implement guardrails to address these: reconcile temp IDs to real IDs on create success, use the centralized delete mutation (treat 404 as success for optimistic rows), and disable delete/edit on optimistic rows until they’re persisted.
