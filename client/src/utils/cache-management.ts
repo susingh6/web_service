@@ -39,8 +39,6 @@ export const INVALIDATION_SCENARIOS = {
     ['team-members', teamName],
     ...CACHE_PATTERNS.TEAMS.DETAILS(teamName),
     ...CACHE_PATTERNS.TEAMS.LIST,
-    ...CACHE_PATTERNS.USERS.ALL,
-    ...CACHE_PATTERNS.DASHBOARD.SUMMARY(),
   ],
   
   TEAM_MEMBER_REMOVED: (teamName: string) => [
@@ -48,7 +46,6 @@ export const INVALIDATION_SCENARIOS = {
     ['team-members', teamName],
     ...CACHE_PATTERNS.TEAMS.DETAILS(teamName),
     ...CACHE_PATTERNS.TEAMS.LIST,
-    ...CACHE_PATTERNS.DASHBOARD.SUMMARY(),
   ],
   
   ENTITY_CREATED: (teamId: number) => [
