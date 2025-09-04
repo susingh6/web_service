@@ -447,39 +447,6 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
               />
               
               <Controller
-                name="table_dependency"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    label={fieldDefinitions.table_dependency.label}
-                    fullWidth
-                    margin="normal"
-                    error={!!(errors as any).table_dependency}
-                    helperText={(errors as any).table_dependency?.message || "Comma-separated list of table names"}
-                    placeholder="schema.table1,schema.table2,schema.table3"
-                  />
-                )}
-              />
-              
-              <Controller
-                name="donemarker_lookback"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    label="Donemarker Lookback (Days)"
-                    type="number"
-                    fullWidth
-                    margin="normal"
-                    error={!!errors.donemarker_lookback}
-                    helperText={errors.donemarker_lookback?.message || "Default is 0"}
-                    inputProps={{ min: 0 }}
-                  />
-                )}
-              />
-              
-              <Controller
                 name="user_email"
                 control={control}
                 render={({ field }) => (
@@ -560,6 +527,39 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                         error={!!errors.expected_runtime_minutes}
                         helperText={errors.expected_runtime_minutes?.message}
                         inputProps={{ min: 1 }}
+                      />
+                    )}
+                  />
+
+                  <Controller
+                    name="table_dependency"
+                    control={control}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        label={fieldDefinitions.table_dependency.label}
+                        fullWidth
+                        margin="normal"
+                        error={!!(errors as any).table_dependency}
+                        helperText={(errors as any).table_dependency?.message || "Comma-separated list of table names"}
+                        placeholder="schema.table1,schema.table2,schema.table3"
+                      />
+                    )}
+                  />
+              
+                  <Controller
+                    name="donemarker_lookback"
+                    control={control}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        label="Donemarker Lookback (Days)"
+                        type="number"
+                        fullWidth
+                        margin="normal"
+                        error={!!errors.donemarker_lookback}
+                        helperText={errors.donemarker_lookback?.message || "Default is 0"}
+                        inputProps={{ min: 0 }}
                       />
                     )}
                   />
