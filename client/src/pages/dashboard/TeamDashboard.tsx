@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Typography, Tabs, Tab, Card, CardContent, Chip, Paper, Button } from '@mui/material';
-import { Add as AddIcon, Upload as UploadIcon, Person as PersonIcon } from '@mui/icons-material';
+import { Box, Typography, Tabs, Tab, Card, CardContent, Chip, Paper, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, FormControl, InputLabel, Select, MenuItem, IconButton } from '@mui/material';
+import { Add as AddIcon, Upload as UploadIcon, Person as PersonIcon, Edit as EditIcon, Delete as DeleteIcon, PersonAdd as PersonAddIcon } from '@mui/icons-material';
 import { useAppDispatch, useAppSelector } from '@/lib/store';
 import { fetchEntities } from '@/features/sla/slices/entitiesSlice';
 import { Entity, Team } from '@shared/schema';
@@ -11,6 +11,11 @@ import DateRangePicker from '@/components/dashboard/DateRangePicker';
 import ComplianceTrendChart from '@/components/dashboard/ComplianceTrendChart';
 import EntityPerformanceChart from '@/components/dashboard/EntityPerformanceChart';
 import { apiClient } from '@/config/api';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { teamMemberSchema } from '@shared/schema';
+import { useToast } from '@/hooks/use-toast';
+import { z } from 'zod';
 
 interface TeamDashboardProps {
   teamName: string;
@@ -48,6 +53,9 @@ const TeamDashboard = ({
   // Local state for team entities to avoid affecting Summary dashboard
   const [teamEntities, setTeamEntities] = useState<Entity[]>([]);
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
+  const [memberDialogOpen, setMemberDialogOpen] = useState(false);
+  const [editingMember, setEditingMember] = useState<any>(null);
+  const { toast } = useToast();
   
   // Fetch data when team is found
   useEffect(() => {
@@ -81,6 +89,108 @@ const TeamDashboard = ({
       fetchTeamDetails();
     }
   }, [teamName]);
+
+  const {
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm({
+    resolver: zodResolver(teamMemberSchema),
+    defaultValues: {
+      id: '',
+      name: '',
+      email: '',
+      role: 'developer',
+      isActive: true,
+    },
+  });
+
+  const fetchTeamMembers = async () => {
+    if (teamName) {
+      try {
+        const response = await apiClient.teams.getDetails(teamName);
+        const data = await response.json();
+        setTeamMembers(data.members || []);
+      } catch (error) {
+        // Handle error silently
+      }
+    }
+  };
+
+  const handleAddMember = () => {
+    setEditingMember(null);
+    reset({
+      id: '',
+      name: '',
+      email: '',
+      role: 'developer',
+      isActive: true,
+    });
+    setMemberDialogOpen(true);
+  };
+
+  const handleEditMember = (member: any) => {
+    setEditingMember(member);
+    reset(member);
+    setMemberDialogOpen(true);
+  };
+
+  const handleDeleteMember = async (memberId: string) => {
+    try {
+      const memberData = {
+        team: teamName,
+        tenant: tenantName,
+        username: 'azure_test_user', // This would come from OAuth context
+        action: 'remove' as const,
+        memberId,
+      };
+
+      await apiClient.teams.updateMembers(teamName, memberData);
+      
+      toast({
+        title: 'Success',
+        description: 'Team member removed successfully',
+      });
+      
+      await fetchTeamMembers();
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to remove team member',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const onSubmitMember = async (data: z.infer<typeof teamMemberSchema>) => {
+    try {
+      const memberData = {
+        team: teamName,
+        tenant: tenantName,
+        username: 'azure_test_user', // This would come from OAuth context
+        action: editingMember ? ('update' as const) : ('add' as const),
+        member: data,
+        memberId: editingMember?.id,
+      };
+
+      await apiClient.teams.updateMembers(teamName, memberData);
+      
+      toast({
+        title: 'Success',
+        description: `Team member ${editingMember ? 'updated' : 'added'} successfully`,
+      });
+      
+      setMemberDialogOpen(false);
+      await fetchTeamMembers();
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: `Failed to ${editingMember ? 'update' : 'add'} team member`,
+        variant: 'destructive',
+      });
+    }
+  };
   
   // Filter entities for this team from local state
   const tables = teamEntities.filter((entity) => entity.type === 'table');
@@ -149,28 +259,58 @@ const TeamDashboard = ({
               </Box>
               
               {/* Team Members Section */}
-              {teamMembers.length > 0 && (
-                <Box mt={2}>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              <Box mt={2}>
+                <Box display="flex" alignItems="center" justifyContent="space-between" mb={1}>
+                  <Typography variant="body2" color="text.secondary">
                     Team Members:
                   </Typography>
-                  <Box display="flex" flexWrap="wrap" gap={0.5}>
-                    {teamMembers.map((member) => (
-                      <Chip 
-                        key={member.id}
-                        label={member.name}
-                        size="small"
-                        variant="outlined"
-                        sx={{ 
-                          fontSize: '0.75rem',
-                          height: '24px',
-                          '& .MuiChip-label': { px: 1 }
-                        }}
-                      />
-                    ))}
-                  </Box>
+                  <Button
+                    size="small"
+                    startIcon={<PersonAddIcon />}
+                    onClick={handleAddMember}
+                    sx={{ fontSize: '0.75rem', py: 0.5, px: 1 }}
+                  >
+                    Add Member
+                  </Button>
                 </Box>
-              )}
+                <Box display="flex" flexWrap="wrap" gap={0.5}>
+                  {teamMembers.length > 0 ? (
+                    teamMembers.map((member) => (
+                      <Box key={member.id} display="flex" alignItems="center" gap={0.5}>
+                        <Chip 
+                          label={member.name}
+                          size="small"
+                          variant="outlined"
+                          sx={{ 
+                            fontSize: '0.75rem',
+                            height: '24px',
+                            '& .MuiChip-label': { px: 1 }
+                          }}
+                        />
+                        <IconButton 
+                          size="small" 
+                          onClick={() => handleEditMember(member)}
+                          sx={{ width: 20, height: 20 }}
+                        >
+                          <EditIcon sx={{ fontSize: 12 }} />
+                        </IconButton>
+                        <IconButton 
+                          size="small" 
+                          onClick={() => handleDeleteMember(member.id)}
+                          sx={{ width: 20, height: 20 }}
+                          color="error"
+                        >
+                          <DeleteIcon sx={{ fontSize: 12 }} />
+                        </IconButton>
+                      </Box>
+                    ))
+                  ) : (
+                    <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                      No team members found
+                    </Typography>
+                  )}
+                </Box>
+              </Box>
             </Box>
             
             <Box display="flex" alignItems="center" gap={2}>
@@ -315,6 +455,89 @@ const TeamDashboard = ({
             />
           )}
         </Box>
+
+        {/* Add/Edit Member Dialog */}
+        <Dialog open={memberDialogOpen} onClose={() => setMemberDialogOpen(false)} maxWidth="sm" fullWidth>
+          <form onSubmit={handleSubmit(onSubmitMember)}>
+            <DialogTitle>
+              {editingMember ? 'Edit Team Member' : 'Add Team Member'}
+            </DialogTitle>
+            <DialogContent>
+              <Box display="flex" flexDirection="column" gap={3} pt={1}>
+                <Controller
+                  name="id"
+                  control={control}
+                  render={({ field }) => (
+                    <TextField
+                      {...field}
+                      label="Member ID"
+                      error={!!errors.id}
+                      helperText={errors.id?.message}
+                      fullWidth
+                      size="small"
+                      disabled={!!editingMember}
+                    />
+                  )}
+                />
+                
+                <Controller
+                  name="name"
+                  control={control}
+                  render={({ field }) => (
+                    <TextField
+                      {...field}
+                      label="Full Name"
+                      error={!!errors.name}
+                      helperText={errors.name?.message}
+                      fullWidth
+                      size="small"
+                    />
+                  )}
+                />
+                
+                <Controller
+                  name="email"
+                  control={control}
+                  render={({ field }) => (
+                    <TextField
+                      {...field}
+                      label="Email"
+                      type="email"
+                      error={!!errors.email}
+                      helperText={errors.email?.message}
+                      fullWidth
+                      size="small"
+                    />
+                  )}
+                />
+                
+                <Controller
+                  name="role"
+                  control={control}
+                  render={({ field }) => (
+                    <FormControl fullWidth size="small">
+                      <InputLabel>Role</InputLabel>
+                      <Select {...field} label="Role">
+                        <MenuItem value="admin">Admin</MenuItem>
+                        <MenuItem value="manager">Manager</MenuItem>
+                        <MenuItem value="lead">Technical Lead</MenuItem>
+                        <MenuItem value="developer">Developer</MenuItem>
+                        <MenuItem value="analyst">Data Analyst</MenuItem>
+                        <MenuItem value="ops">Operations</MenuItem>
+                      </Select>
+                    </FormControl>
+                  )}
+                />
+              </Box>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setMemberDialogOpen(false)}>Cancel</Button>
+              <Button type="submit" variant="contained">
+                {editingMember ? 'Update' : 'Add'} Member
+              </Button>
+            </DialogActions>
+          </form>
+        </Dialog>
       </Box>
     </Box>
   );
