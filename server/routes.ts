@@ -227,16 +227,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Team not found" });
       }
 
-      // Mock member details based on team_members_ids
-      const memberDetails = (team.team_members_ids || []).map(memberId => ({
-        id: memberId,
-        name: memberId.replace('.', ' ').split(' ').map(word => 
-          word.charAt(0).toUpperCase() + word.slice(1)
-        ).join(' '),
-        email: `${memberId}@company.com`,
-        role: 'developer',
-        isActive: true
-      }));
+      // Get actual user details from cache for team members
+      const allUsers = await redisCache.getAllUsers();
+      const memberDetails = (team.team_members_ids || []).map(memberId => {
+        const user = allUsers.find(u => u.username === memberId);
+        if (user) {
+          return {
+            id: user.username,
+            name: user.displayName || user.username,
+            email: user.email,
+            role: user.role || 'user',
+            isActive: true
+          };
+        }
+        // Fallback if user not found
+        return {
+          id: memberId,
+          name: memberId.replace('.', ' ').split(' ').map(word => 
+            word.charAt(0).toUpperCase() + word.slice(1)
+          ).join(' '),
+          email: `${memberId}@company.com`,
+          role: 'user',
+          isActive: true
+        };
+      });
 
       const teamDetails = {
         ...team,
