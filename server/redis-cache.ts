@@ -569,6 +569,20 @@ export class RedisCache {
         this.fallbackData.entities = entities;
       }
       
+      // Direct WebSocket broadcast in fallback mode
+      const change = {
+        entityId: entity.id,
+        entityName: entity.name,
+        entityType: entity.type,
+        teamName: entity.team_name || 'Unknown',
+        tenantName: entity.tenant_name || 'Unknown',
+        type: 'created',
+        entity,
+        timestamp: new Date()
+      };
+      
+      this.broadcastToClients('entity_changed', change);
+      
       return entity;
     }
     
@@ -650,6 +664,20 @@ export class RedisCache {
       // Update fallback data
       this.fallbackData.entities = entities;
       
+      // Direct WebSocket broadcast in fallback mode
+      const change = {
+        entityId: entity.id,
+        entityName: entity.name,
+        entityType: entity.type,
+        teamName: entity.team_name || 'Unknown',
+        tenantName: entity.tenant_name || 'Unknown',
+        type: 'deleted',
+        entity,
+        timestamp: new Date()
+      };
+      
+      this.broadcastToClients('entity_changed', change);
+      
       return true;
     }
     
@@ -729,6 +757,22 @@ export class RedisCache {
       
       // Update fallback data
       this.fallbackData.entities = entities;
+      
+      // Direct WebSocket broadcast in fallback mode
+      const change = {
+        entityId: entity.id,
+        entityName: entity.name,
+        entityType: entity.type,
+        teamName: entity.team_name || 'Unknown',
+        tenantName: entity.tenant_name || 'Unknown',
+        type: 'updated',
+        entity: updatedEntity,
+        previousSla: entity.currentSla,
+        newSla: updates.currentSla,
+        timestamp: new Date()
+      };
+      
+      this.broadcastToClients('entity_changed', change);
       
       return updatedEntity;
     }
