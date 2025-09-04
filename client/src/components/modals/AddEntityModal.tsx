@@ -463,6 +463,26 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                   />
                 )}
               />
+
+              {!isEntityOwner && (
+                <Controller
+                  name="owner_entity_reference"
+                  control={control}
+                  render={({ field }) => (
+                    <TextField
+                      {...field}
+                      label={`${fieldDefinitions.owner_entity_reference.label} *`}
+                      required
+                      type={fieldDefinitions.owner_entity_reference.type}
+                      placeholder={fieldDefinitions.owner_entity_reference.placeholder}
+                      fullWidth
+                      margin="normal"
+                      error={!!(errors as any).owner_entity_reference}
+                      helperText={(errors as any).owner_entity_reference?.message}
+                    />
+                  )}
+                />
+              )}
               
               <Controller
                 name="is_active"
@@ -960,26 +980,6 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                     )}
                   />
                 </>
-              )}
-
-              {!isEntityOwner && (
-                <Controller
-                  name="owner_entity_reference"
-                  control={control}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      label={`${fieldDefinitions.owner_entity_reference.label} *`}
-                      required
-                      type={fieldDefinitions.owner_entity_reference.type}
-                      placeholder={fieldDefinitions.owner_entity_reference.placeholder}
-                      fullWidth
-                      margin="normal"
-                      error={!!(errors as any).owner_entity_reference}
-                      helperText={(errors as any).owner_entity_reference?.message}
-                    />
-                  )}
-                />
               )}
             </>
           )}
