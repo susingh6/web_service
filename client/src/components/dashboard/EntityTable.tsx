@@ -118,6 +118,16 @@ const EntityTable = ({
   showActions = true, // Default to showing actions
   isTeamDashboard = false, // Default to summary dashboard
 }: EntityTableProps) => {
+  // Debug render info
+  console.log('🔍 [ENTITY TABLE] Rendering with:', {
+    entitiesCount: entities.length,
+    type,
+    showActions,
+    isTeamDashboard,
+    hasDeleteHandler: typeof onDeleteEntity === 'function',
+    entityNames: entities.map(e => e.name)
+  });
+  
   const dispatch = useAppDispatch();
   const [order, setOrder] = useState<'asc' | 'desc'>('desc');
   const [orderBy, setOrderBy] = useState<keyof Entity>('lastRefreshed');
