@@ -58,8 +58,19 @@ const Summary = () => {
         query.queryKey[0] === 'entities' || query.queryKey.includes('entities')
       });
       
+      // CRITICAL: Force Redux store refresh - this ensures UI updates immediately
       dispatch(fetchEntities({}));
       dispatch(fetchDashboardSummary({ tenantName: selectedTenant.name }));
+      
+      // For team-specific pages, also refresh team entities
+      if (openTeamTabs.length > 0) {
+        openTeamTabs.forEach(teamId => {
+          const teamIdNum = parseInt(teamId);
+          if (!isNaN(teamIdNum)) {
+            dispatch(fetchEntities({ teamId: teamIdNum }));
+          }
+        });
+      }
       
       // Show appropriate toast notification based on operation type
       const operation = data.type || 'updated';
@@ -68,6 +79,8 @@ const Summary = () => {
         updated: `${data.entityName} has been updated successfully`,
         deleted: `${data.entityName} has been deleted successfully`
       };
+      
+      console.log(`🔄 [UI REFRESH] ${operation.toUpperCase()} - Entity: ${data.entityName} - Forcing Redux store refresh`);
       
       toast({
         title: `Entity ${operation.charAt(0).toUpperCase() + operation.slice(1)}`,

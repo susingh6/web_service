@@ -27,6 +27,7 @@ export class RedisCache {
   private readonly CACHE_DURATION_MS = config.cache.refreshIntervalHours * 60 * 60 * 1000;
   private readonly LOCK_TIMEOUT = 300000; // 5 minutes lock timeout
   private wss: WebSocketServer | null = null;
+  private pendingNotifications: Array<{event: string, data: any, timestamp: Date}> = [];
   private cacheWorker: Worker | null = null;
   private isInitialized = false;
   private fallbackData: CachedData | null = null;
@@ -216,6 +217,29 @@ export class RedisCache {
   setupWebSocket(wss: WebSocketServer): void {
     this.wss = wss;
     // WebSocket server attached to Redis cache
+  }
+
+  // Force notification - stores data for next client connection if no clients currently connected
+  forceNotifyClients(event: string, data: any) {
+    console.log(`🔔 [FORCE NOTIFY] Event: ${event}, Connected clients: ${this.wss?.clients.size || 0}`);
+    
+    if (!this.wss || this.wss.clients.size === 0) {
+      // Store notification for next client that connects
+      if (!this.pendingNotifications) {
+        this.pendingNotifications = [];
+      }
+      this.pendingNotifications.push({ event, data, timestamp: new Date() });
+      
+      // Keep only last 10 notifications
+      if (this.pendingNotifications.length > 10) {
+        this.pendingNotifications.shift();
+      }
+      
+      console.log(`🔔 [FORCE NOTIFY] No clients connected. Stored notification for next connection.`);
+      return;
+    }
+
+    this.broadcastToClients(event, data);
   }
 
   private broadcastToClients(event: string, data: any): void {
@@ -647,7 +671,14 @@ export class RedisCache {
   }
 
   async deleteEntity(entityId: number): Promise<boolean> {
+    console.log('🗑️ [DELETE DEBUG] Starting delete for entityId:', entityId, {
+      useRedis: this.useRedis,
+      redisConnected: !!this.redis,
+      clientsConnected: this.clients?.size || 0
+    });
+    
     if (!this.useRedis || !this.redis) {
+      console.log('🗑️ [DELETE DEBUG] Using FALLBACK mode for delete');
       // Fallback to in-memory cache for deletion if Redis unavailable
       if (!this.fallbackData) return false;
       
@@ -678,12 +709,20 @@ export class RedisCache {
         timestamp: new Date()
       };
       
+      console.log('🗑️ [FALLBACK DELETE] Broadcasting delete notification:', {
+        entityId: entityToDelete.id,
+        entityName: entityToDelete.name,
+        type: 'deleted',
+        connectedClients: this.clients?.size || 0
+      });
+      
       this.broadcastToClients('entity-updated', change);
       
       return true;
     }
     
     try {
+      console.log('🗑️ [DELETE DEBUG] Using REDIS mode for delete');
       const entities = await this.getAllEntities();
       const entityIndex = entities.findIndex(e => e.id === entityId);
       
