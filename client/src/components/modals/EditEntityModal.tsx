@@ -725,40 +725,6 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
               />
               
 
-              
-              <Controller
-                name="dag_dependency"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    label={fieldDefinitions.dag_dependency.label}
-                    fullWidth
-                    margin="normal"
-                    placeholder="e.g., upstream_dag1, upstream_dag2"
-                    error={!!errors.dag_dependency}
-                    helperText={errors.dag_dependency?.message}
-                  />
-                )}
-              />
-              
-              {entityType === 'dag' && (
-                <Controller
-                  name="server_name"
-                  control={control}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      label={fieldDefinitions.server_name.label}
-                      fullWidth
-                      margin="normal"
-                      error={!!(errors as any).server_name}
-                      helperText={(errors as any).server_name?.message}
-                      placeholder={fieldDefinitions.server_name.placeholder}
-                    />
-                  )}
-                />
-              )}
             </>
           )}
           
