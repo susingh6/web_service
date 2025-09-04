@@ -52,6 +52,12 @@ const baseSchema = yup.object().shape({
   team_name: yup.string().required('Team name is required'),
   notification_preferences: yup.array().of(yup.string()).default([]),
   is_entity_owner: fieldDefinitions.is_entity_owner.validation,
+  owner_entity_reference: yup.string()
+    .when('is_entity_owner', {
+      is: false,
+      then: (schema) => fieldDefinitions.owner_entity_reference.validation,
+      otherwise: (schema) => schema.optional()
+    }),
   owner_email: yup.string()
     .when('is_entity_owner', {
       is: true,
@@ -91,7 +97,12 @@ const tableSchema = baseSchema.shape({
       then: (schema) => fieldDefinitions.table_schedule.validation,
       otherwise: (schema) => schema.optional()
     }),
-  table_dependency: yup.string().optional(),
+  table_dependency: yup.string()
+    .when('is_entity_owner', {
+      is: true,
+      then: (schema) => schema.optional(),
+      otherwise: (schema) => schema.optional()
+    }),
 });
 
 // Schema for DAGs
@@ -104,8 +115,18 @@ const dagSchema = baseSchema.shape({
       then: (schema) => fieldDefinitions.dag_schedule.validation,
       otherwise: (schema) => schema.optional()
     }),
-  dag_dependency: yup.string().optional(),
-  server_name: yup.string().optional(),
+  dag_dependency: yup.string()
+    .when('is_entity_owner', {
+      is: true,
+      then: (schema) => schema.optional(),
+      otherwise: (schema) => schema.optional()
+    }),
+  server_name: yup.string()
+    .when('is_entity_owner', {
+      is: true,
+      then: (schema) => schema.optional(),
+      otherwise: (schema) => schema.optional()
+    }),
 });
 
 const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps) => {
@@ -197,6 +218,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
       team_name: '',
       notification_preferences: [],
       is_entity_owner: false,
+      owner_entity_reference: '',
       owner_email: '',
       user_email: '',
       is_active: true,
@@ -219,6 +241,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
       team_name: '',
       notification_preferences: [],
       is_entity_owner: false,
+      owner_entity_reference: '',
       owner_email: '',
       user_email: '',
       is_active: true,
@@ -255,6 +278,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
         team_name: entityDetails.team_name || '',
         notification_preferences: entityDetails.notification_preferences || [],
         is_entity_owner: entityDetails.is_entity_owner || false,
+        owner_entity_reference: (entityDetails as any).owner_entity_reference || '',
         owner_email: entityDetails.owner_email || '',
         user_email: entityDetails.user_email || '',
         is_active: entityDetails.is_active !== undefined ? entityDetails.is_active : true,
@@ -272,6 +296,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
         team_name: entityDetails.team_name || '',
         notification_preferences: entityDetails.notification_preferences || [],
         is_entity_owner: entityDetails.is_entity_owner || false,
+        owner_entity_reference: (entityDetails as any).owner_entity_reference || '',
         owner_email: entityDetails.owner_email || '',
         user_email: entityDetails.user_email || '',
         is_active: entityDetails.is_active !== undefined ? entityDetails.is_active : true,
@@ -547,22 +572,6 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
               />
               
 
-              
-              <Controller
-                name="table_dependency"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    label={fieldDefinitions.table_dependency.label}
-                    fullWidth
-                    margin="normal"
-                    placeholder="e.g., upstream_table1, upstream_table2"
-                    error={!!errors.table_dependency}
-                    helperText={errors.table_dependency?.message}
-                  />
-                )}
-              />
             </>
           ) : (
             /* DAG FIELDS */
@@ -769,25 +778,27 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
               />
             )}
           />
+
+          {!watch().is_entity_owner && (
+            <Controller
+              name="owner_entity_reference"
+              control={control}
+              render={({ field }) => (
+                <TextField
+                  {...field}
+                  label={`${fieldDefinitions.owner_entity_reference.label} *`}
+                  required
+                  type={fieldDefinitions.owner_entity_reference.type}
+                  placeholder={fieldDefinitions.owner_entity_reference.placeholder}
+                  fullWidth
+                  margin="normal"
+                  error={!!(errors as any).owner_entity_reference}
+                  helperText={(errors as any).owner_entity_reference?.message}
+                />
+              )}
+            />
+          )}
           
-          <Controller
-            name="donemarker_lookback"
-            control={control}
-            render={({ field }) => (
-              <TextField
-                {...field}
-                label="Done Marker Lookback (Days)"
-                type="number"
-                fullWidth
-                margin="normal"
-                inputProps={{
-                  min: 0,
-                }}
-                error={!!errors.donemarker_lookback}
-                helperText={errors.donemarker_lookback?.message}
-              />
-            )}
-          />
           
           <Controller
             name="is_active"
@@ -885,42 +896,113 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
                 )}
               />
 
+              <Controller
+                name="donemarker_lookback"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="Done Marker Lookback (Days)"
+                    type="number"
+                    fullWidth
+                    margin="normal"
+                    inputProps={{
+                      min: 0,
+                    }}
+                    error={!!errors.donemarker_lookback}
+                    helperText={errors.donemarker_lookback?.message}
+                  />
+                )}
+              />
+
               {entityType === 'table' && (
-                <Controller
-                  name="table_schedule"
-                  control={control}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      label={fieldDefinitions.table_schedule.label + " *"}
-                      fullWidth
-                      margin="normal"
-                      required
-                      placeholder={fieldDefinitions.table_schedule.placeholder}
-                      error={!!errors.table_schedule}
-                      helperText={errors.table_schedule?.message}
-                    />
-                  )}
-                />
+                <>
+                  <Controller
+                    name="table_schedule"
+                    control={control}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        label={fieldDefinitions.table_schedule.label + " *"}
+                        fullWidth
+                        margin="normal"
+                        required
+                        placeholder={fieldDefinitions.table_schedule.placeholder}
+                        error={!!errors.table_schedule}
+                        helperText={errors.table_schedule?.message}
+                      />
+                    )}
+                  />
+
+                  <Controller
+                    name="table_dependency"
+                    control={control}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        label={fieldDefinitions.table_dependency.label}
+                        fullWidth
+                        margin="normal"
+                        placeholder="e.g., upstream_table1, upstream_table2"
+                        error={!!errors.table_dependency}
+                        helperText={errors.table_dependency?.message}
+                      />
+                    )}
+                  />
+                </>
               )}
 
               {entityType === 'dag' && (
-                <Controller
-                  name="dag_schedule"
-                  control={control}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      label={fieldDefinitions.dag_schedule.label + " *"}
-                      fullWidth
-                      margin="normal"
-                      required
-                      placeholder={fieldDefinitions.dag_schedule.placeholder}
-                      error={!!errors.dag_schedule}
-                      helperText={errors.dag_schedule?.message}
-                    />
-                  )}
-                />
+                <>
+                  <Controller
+                    name="dag_schedule"
+                    control={control}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        label={fieldDefinitions.dag_schedule.label + " *"}
+                        fullWidth
+                        margin="normal"
+                        required
+                        placeholder={fieldDefinitions.dag_schedule.placeholder}
+                        error={!!errors.dag_schedule}
+                        helperText={errors.dag_schedule?.message}
+                      />
+                    )}
+                  />
+
+                  <Controller
+                    name="dag_dependency"
+                    control={control}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        label={fieldDefinitions.dag_dependency.label}
+                        fullWidth
+                        margin="normal"
+                        placeholder="e.g., upstream_dag1, upstream_dag2"
+                        error={!!errors.dag_dependency}
+                        helperText={errors.dag_dependency?.message}
+                      />
+                    )}
+                  />
+
+                  <Controller
+                    name="server_name"
+                    control={control}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        label={fieldDefinitions.server_name.label}
+                        fullWidth
+                        margin="normal"
+                        placeholder={fieldDefinitions.server_name.placeholder}
+                        error={!!errors.server_name}
+                        helperText={errors.server_name?.message}
+                      />
+                    )}
+                  />
+                </>
               )}
             </>
           )}
