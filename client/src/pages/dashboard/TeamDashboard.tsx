@@ -77,28 +77,19 @@ const TeamDashboard = ({
     }
   }, [team?.id]);
 
-  // Fetch team details with members when teamName is available
+  // Fetch team members when teamName is available
   useEffect(() => {
     if (teamName) {
-      const fetchTeamDetails = async () => {
-        try {
-          const response = await apiClient.teams.getDetails(teamName);
-          const data = await response.json();
-          setTeamMembers(data.members || []);
-        } catch (error) {
-          // Handle error silently - team members will remain empty
-        }
-      };
-      fetchTeamDetails();
+      fetchTeamMembers();
     }
   }, [teamName]);
 
   const fetchTeamMembers = async () => {
     if (teamName) {
       try {
-        const response = await apiClient.teams.getDetails(teamName);
+        const response = await apiClient.teams.getMembers(teamName);
         const data = await response.json();
-        setTeamMembers(data.members || []);
+        setTeamMembers(data || []);
       } catch (error) {
         // Handle error silently
       }
@@ -130,7 +121,7 @@ const TeamDashboard = ({
     if (!selectedUserId) return;
 
     try {
-      const memberData = {
+      const requestData = {
         team: teamName,
         tenant: tenantName,
         username: 'azure_test_user', // This would come from OAuth context
@@ -138,7 +129,7 @@ const TeamDashboard = ({
         memberId: selectedUserId,
       };
 
-      await apiClient.teams.updateMembers(teamName, memberData);
+      await apiClient.teams.updateMembers(teamName, requestData);
       
       toast({
         title: 'Success',
@@ -161,7 +152,7 @@ const TeamDashboard = ({
     if (!selectedMemberId) return;
 
     try {
-      const memberData = {
+      const requestData = {
         team: teamName,
         tenant: tenantName,
         username: 'azure_test_user', // This would come from OAuth context
@@ -169,7 +160,7 @@ const TeamDashboard = ({
         memberId: selectedMemberId,
       };
 
-      await apiClient.teams.updateMembers(teamName, memberData);
+      await apiClient.teams.updateMembers(teamName, requestData);
       
       toast({
         title: 'Success',
@@ -260,45 +251,41 @@ const TeamDashboard = ({
                   <Typography variant="body2" color="text.secondary">
                     Team Members:
                   </Typography>
-                  <Button
-                    size="small"
-                    startIcon={<PersonAddIcon />}
-                    onClick={handleAddMember}
-                    sx={{ fontSize: '0.75rem', py: 0.5, px: 1 }}
-                  >
-                    Add Member
-                  </Button>
+                  <Box display="flex" gap={1}>
+                    <Button
+                      size="small"
+                      startIcon={<PersonAddIcon />}
+                      onClick={handleAddMember}
+                      sx={{ fontSize: '0.75rem', py: 0.5, px: 1 }}
+                    >
+                      Add Member
+                    </Button>
+                    <Button
+                      size="small"
+                      startIcon={<DeleteIcon />}
+                      onClick={handleRemoveMember}
+                      color="error"
+                      sx={{ fontSize: '0.75rem', py: 0.5, px: 1 }}
+                      disabled={teamMembers.length === 0}
+                    >
+                      Remove Member
+                    </Button>
+                  </Box>
                 </Box>
                 <Box display="flex" flexWrap="wrap" gap={0.5}>
                   {teamMembers.length > 0 ? (
                     teamMembers.map((member) => (
-                      <Box key={member.id} display="flex" alignItems="center" gap={0.5}>
-                        <Chip 
-                          label={member.name}
-                          size="small"
-                          variant="outlined"
-                          sx={{ 
-                            fontSize: '0.75rem',
-                            height: '24px',
-                            '& .MuiChip-label': { px: 1 }
-                          }}
-                        />
-                        <IconButton 
-                          size="small" 
-                          onClick={() => handleEditMember(member)}
-                          sx={{ width: 20, height: 20 }}
-                        >
-                          <EditIcon sx={{ fontSize: 12 }} />
-                        </IconButton>
-                        <IconButton 
-                          size="small" 
-                          onClick={() => handleDeleteMember(member.id)}
-                          sx={{ width: 20, height: 20 }}
-                          color="error"
-                        >
-                          <DeleteIcon sx={{ fontSize: 12 }} />
-                        </IconButton>
-                      </Box>
+                      <Chip 
+                        key={member.id}
+                        label={member.name}
+                        size="small"
+                        variant="outlined"
+                        sx={{ 
+                          fontSize: '0.75rem',
+                          height: '24px',
+                          '& .MuiChip-label': { px: 1 }
+                        }}
+                      />
                     ))
                   ) : (
                     <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
@@ -452,87 +439,97 @@ const TeamDashboard = ({
           )}
         </Box>
 
-        {/* Add/Edit Member Dialog */}
-        <Dialog open={memberDialogOpen} onClose={() => setMemberDialogOpen(false)} maxWidth="sm" fullWidth>
-          <form onSubmit={handleSubmit(onSubmitMember)}>
-            <DialogTitle>
-              {editingMember ? 'Edit Team Member' : 'Add Team Member'}
-            </DialogTitle>
-            <DialogContent>
-              <Box display="flex" flexDirection="column" gap={3} pt={1}>
-                <Controller
-                  name="id"
-                  control={control}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      label="Member ID"
-                      error={!!errors.id}
-                      helperText={errors.id?.message}
-                      fullWidth
-                      size="small"
-                      disabled={!!editingMember}
-                    />
-                  )}
-                />
-                
-                <Controller
-                  name="name"
-                  control={control}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      label="Full Name"
-                      error={!!errors.name}
-                      helperText={errors.name?.message}
-                      fullWidth
-                      size="small"
-                    />
-                  )}
-                />
-                
-                <Controller
-                  name="email"
-                  control={control}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      label="Email"
-                      type="email"
-                      error={!!errors.email}
-                      helperText={errors.email?.message}
-                      fullWidth
-                      size="small"
-                    />
-                  )}
-                />
-                
-                <Controller
-                  name="role"
-                  control={control}
-                  render={({ field }) => (
-                    <FormControl fullWidth size="small">
-                      <InputLabel>Role</InputLabel>
-                      <Select {...field} label="Role">
-                        <MenuItem value="admin">Admin</MenuItem>
-                        <MenuItem value="manager">Manager</MenuItem>
-                        <MenuItem value="lead">Technical Lead</MenuItem>
-                        <MenuItem value="developer">Developer</MenuItem>
-                        <MenuItem value="analyst">Data Analyst</MenuItem>
-                        <MenuItem value="ops">Operations</MenuItem>
-                      </Select>
-                    </FormControl>
-                  )}
-                />
-              </Box>
-            </DialogContent>
-            <DialogActions>
-              <Button onClick={() => setMemberDialogOpen(false)}>Cancel</Button>
-              <Button type="submit" variant="contained">
-                {editingMember ? 'Update' : 'Add'} Member
-              </Button>
-            </DialogActions>
-          </form>
+        {/* Add Member Dialog */}
+        <Dialog open={addMemberDialogOpen} onClose={() => setAddMemberDialogOpen(false)} maxWidth="sm" fullWidth>
+          <DialogTitle>Add Team Member</DialogTitle>
+          <DialogContent>
+            <Box pt={1}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Select User to Add</InputLabel>
+                <Select
+                  value={selectedUserId}
+                  onChange={(e) => setSelectedUserId(e.target.value)}
+                  label="Select User to Add"
+                  MenuProps={{
+                    PaperProps: {
+                      style: {
+                        maxHeight: 300,
+                      },
+                    },
+                  }}
+                >
+                  {availableUsers
+                    .filter(user => !teamMembers.some(member => member.id === user.id))
+                    .map((user) => (
+                      <MenuItem key={user.id} value={user.id}>
+                        <Box>
+                          <Typography variant="body2">{user.name}</Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {user.email}
+                          </Typography>
+                        </Box>
+                      </MenuItem>
+                    ))}
+                </Select>
+              </FormControl>
+            </Box>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setAddMemberDialogOpen(false)}>Cancel</Button>
+            <Button 
+              onClick={onAddMember} 
+              variant="contained"
+              disabled={!selectedUserId}
+            >
+              Add Member
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* Remove Member Dialog */}
+        <Dialog open={removeMemberDialogOpen} onClose={() => setRemoveMemberDialogOpen(false)} maxWidth="sm" fullWidth>
+          <DialogTitle>Remove Team Member</DialogTitle>
+          <DialogContent>
+            <Box pt={1}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Select Member to Remove</InputLabel>
+                <Select
+                  value={selectedMemberId}
+                  onChange={(e) => setSelectedMemberId(e.target.value)}
+                  label="Select Member to Remove"
+                  MenuProps={{
+                    PaperProps: {
+                      style: {
+                        maxHeight: 300,
+                      },
+                    },
+                  }}
+                >
+                  {teamMembers.map((member) => (
+                    <MenuItem key={member.id} value={member.id}>
+                      <Box>
+                        <Typography variant="body2">{member.name}</Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {member.email}
+                        </Typography>
+                      </Box>
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Box>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setRemoveMemberDialogOpen(false)}>Cancel</Button>
+            <Button 
+              onClick={onRemoveMember} 
+              variant="contained"
+              color="error"
+              disabled={!selectedMemberId}
+            >
+              Remove Member
+            </Button>
+          </DialogActions>
         </Dialog>
       </Box>
     </Box>
