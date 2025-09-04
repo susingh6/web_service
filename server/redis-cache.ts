@@ -63,10 +63,10 @@ export class RedisCache {
     this.subscriber.on('message', (channel, message) => {
       if (channel === CACHE_KEYS.REFRESH_CHANNEL) {
         // Cache refresh notification received
-        this.broadcastToClients('cache_refreshed', JSON.parse(message));
+        this.broadcastToClients('cache-updated', JSON.parse(message));
       } else if (channel === CACHE_KEYS.CHANGES_CHANNEL) {
         // Entity change notification received
-        this.broadcastToClients('entity_changed', JSON.parse(message));
+        this.broadcastToClients('entity-updated', JSON.parse(message));
       }
     });
   }
@@ -316,7 +316,7 @@ export class RedisCache {
               }));
 
               // Broadcast to WebSocket clients
-              this.broadcastToClients('cache_refreshed', {
+              this.broadcastToClients('cache-updated', {
                 lastUpdated: message.data.lastUpdated,
                 entitiesCount: message.data.entities.length
               });
@@ -581,7 +581,7 @@ export class RedisCache {
         timestamp: new Date()
       };
       
-      this.broadcastToClients('entity_changed', change);
+      this.broadcastToClients('entity-updated', change);
       
       return entity;
     }
@@ -676,7 +676,7 @@ export class RedisCache {
         timestamp: new Date()
       };
       
-      this.broadcastToClients('entity_changed', change);
+      this.broadcastToClients('entity-updated', change);
       
       return true;
     }
@@ -772,7 +772,7 @@ export class RedisCache {
         timestamp: new Date()
       };
       
-      this.broadcastToClients('entity_changed', change);
+      this.broadcastToClients('entity-updated', change);
       
       return updatedEntity;
     }
