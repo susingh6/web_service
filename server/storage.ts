@@ -205,7 +205,8 @@ export class MemStorage implements IStorage {
         ownerEmail: 'john.smith@company.com',
         schema_name: 'data_warehouse',
         table_name: 'agg_channel_brightscript_error_daily',
-        tenant_name: 'Data Engineering'
+        tenant_name: 'Data Engineering',
+        is_entity_owner: true
       },
       {
         name: 'brightscript_sla_core',
@@ -221,7 +222,8 @@ export class MemStorage implements IStorage {
         ownerEmail: null, // No entity owner
         schema_name: 'abc',
         table_name: 'agg_accounts_channel_ux_daily',
-        tenant_name: 'Data Engineering'
+        tenant_name: 'Data Engineering',
+        is_entity_owner: false
       },
       {
         name: 'accounts_channel_ux_vp',
@@ -237,7 +239,8 @@ export class MemStorage implements IStorage {
         ownerEmail: 'mike.johnson@company.com',
         schema_name: 'abc',
         table_name: 'agg_account_device_subscription_daily',
-        tenant_name: 'Data Engineering'
+        tenant_name: 'Data Engineering',
+        is_entity_owner: true
       },
       {
         name: 'channel_analytics_iot',
@@ -253,7 +256,8 @@ export class MemStorage implements IStorage {
         ownerEmail: null, // No entity owner
         schema_name: 'abc',
         table_name: 'agg_iot_device_channel_daily',
-        tenant_name: 'Data Engineering'
+        tenant_name: 'Data Engineering',
+        is_entity_owner: false
       },
       {
         name: 'subscription_metrics_cdm',
@@ -269,7 +273,94 @@ export class MemStorage implements IStorage {
         ownerEmail: 'alex.chen@company.com',
         schema_name: 'abc',
         table_name: 'agg_subscription_revenue_daily',
-        tenant_name: 'Data Engineering'
+        tenant_name: 'Data Engineering',
+        is_entity_owner: true
+      },
+      // Additional entity owners across different teams
+      {
+        name: 'user_engagement_metrics_core',
+        type: 'table',
+        teamId: 2, // Core
+        description: 'User engagement analytics for Core team',
+        slaTarget: 95.0,
+        currentSla: 97.2,
+        status: 'Passed',
+        refreshFrequency: 'Daily',
+        lastRefreshed: new Date('2025-06-28T10:30:00Z'),
+        owner: 'Emma Wilson',
+        ownerEmail: 'emma.wilson@company.com',
+        schema_name: 'analytics',
+        table_name: 'user_engagement_daily',
+        tenant_name: 'Data Engineering',
+        is_entity_owner: true
+      },
+      {
+        name: 'device_telemetry_iot',
+        type: 'table',
+        teamId: 4, // IOT
+        description: 'Device telemetry data for IOT team',
+        slaTarget: 92.0,
+        currentSla: 95.8,
+        status: 'Passed',
+        refreshFrequency: 'Hourly',
+        lastRefreshed: new Date('2025-06-28T15:00:00Z'),
+        owner: 'David Kim',
+        ownerEmail: 'david.kim@company.com',
+        schema_name: 'iot_analytics',
+        table_name: 'device_telemetry_hourly',
+        tenant_name: 'Data Engineering',
+        is_entity_owner: true
+      },
+      {
+        name: 'revenue_analytics_cdm',
+        type: 'table',
+        teamId: 5, // CDM
+        description: 'Revenue analytics for CDM team',
+        slaTarget: 98.0,
+        currentSla: 99.1,
+        status: 'Passed',
+        refreshFrequency: 'Daily',
+        lastRefreshed: new Date('2025-06-28T11:45:00Z'),
+        owner: 'Lisa Zhang',
+        ownerEmail: 'lisa.zhang@company.com',
+        schema_name: 'finance',
+        table_name: 'revenue_metrics_daily',
+        tenant_name: 'Data Engineering',
+        is_entity_owner: true
+      },
+      {
+        name: 'content_performance_vp',
+        type: 'table',
+        teamId: 3, // Viewer Product
+        description: 'Content performance metrics for Viewer Product team',
+        slaTarget: 93.0,
+        currentSla: 91.5,
+        status: 'Failed',
+        refreshFrequency: 'Daily',
+        lastRefreshed: new Date('2025-06-28T09:20:00Z'),
+        owner: 'Tom Rodriguez',
+        ownerEmail: 'tom.rodriguez@company.com',
+        schema_name: 'content',
+        table_name: 'content_metrics_daily',
+        tenant_name: 'Data Engineering',
+        is_entity_owner: true
+      },
+      {
+        name: 'channel_optimization_pgm',
+        type: 'table',
+        teamId: 1, // PGM
+        description: 'Channel optimization data for PGM team',
+        slaTarget: 94.0,
+        currentSla: 96.7,
+        status: 'Passed',
+        refreshFrequency: 'Daily',
+        lastRefreshed: new Date('2025-06-28T08:15:00Z'),
+        owner: 'Rachel Green',
+        ownerEmail: 'rachel.green@company.com',
+        schema_name: 'optimization',
+        table_name: 'channel_optimization_daily',
+        tenant_name: 'Data Engineering',
+        is_entity_owner: true
       }
     ];
 
@@ -289,7 +380,8 @@ export class MemStorage implements IStorage {
         ownerEmail: 'sarah.johnson@company.com',
         schema_name: 'ad_analytics',
         table_name: 'ad_performance_daily',
-        tenant_name: 'Ad Engineering'
+        tenant_name: 'Ad Engineering',
+        is_entity_owner: true
       },
       {
         name: 'campaign_optimization_dag',
@@ -304,7 +396,41 @@ export class MemStorage implements IStorage {
         owner: 'Mike Chen',
         ownerEmail: 'mike.chen@company.com',
         dag_name: 'campaign_optimization_daily',
-        tenant_name: 'Ad Engineering'
+        tenant_name: 'Ad Engineering',
+        is_entity_owner: true
+      },
+      {
+        name: 'bid_optimization_table',
+        type: 'table',
+        teamId: 6, // Ad Serving team
+        description: 'Real-time bid optimization analytics',
+        slaTarget: 90.0,
+        currentSla: 93.7,
+        status: 'Passed',
+        refreshFrequency: 'Hourly',
+        lastRefreshed: new Date('2025-06-28T16:15:00Z'),
+        owner: 'Carlos Martinez',
+        ownerEmail: 'carlos.martinez@company.com',
+        schema_name: 'ad_analytics',
+        table_name: 'bid_optimization_hourly',
+        tenant_name: 'Ad Engineering',
+        is_entity_owner: true
+      },
+      {
+        name: 'audience_segmentation_dag',
+        type: 'dag',
+        teamId: 7, // Ad Data Activation team
+        description: 'Audience segmentation and targeting pipeline',
+        slaTarget: 92.0,
+        currentSla: 94.2,
+        status: 'Passed',
+        refreshFrequency: 'Daily',
+        lastRefreshed: new Date('2025-06-28T12:30:00Z'),
+        owner: 'Ana Rodriguez',
+        ownerEmail: 'ana.rodriguez@company.com',
+        dag_name: 'audience_segmentation_daily',
+        tenant_name: 'Ad Engineering',
+        is_entity_owner: true
       }
     ];
 
@@ -334,6 +460,7 @@ export class MemStorage implements IStorage {
         owner_email: entity.owner_email || null,
         user_email: entity.user_email || null,
         is_active: entity.is_active !== undefined ? entity.is_active : true,
+        is_entity_owner: entity.is_entity_owner !== undefined ? entity.is_entity_owner : false,
         lastRun: entity.lastRefreshed,
         lastStatus: entity.status,
         notification_preferences: entity.notification_preferences || []
@@ -381,6 +508,7 @@ export class MemStorage implements IStorage {
         owner_email: entity.ownerEmail || null,
         user_email: entity.ownerEmail || null,
         is_active: entity.is_active !== undefined ? entity.is_active : true,
+        is_entity_owner: entity.is_entity_owner !== undefined ? entity.is_entity_owner : false,
         lastRun: entity.lastRefreshed,
         lastStatus: entity.status,
         notification_preferences: entity.notification_preferences || []
