@@ -133,7 +133,10 @@ export function useCacheManager() {
 
   const invalidateCache = async (keys: (string | object)[][]) => {
     await Promise.all(
-      keys.map(key => queryClient.invalidateQueries({ queryKey: key }))
+      keys.map(key => queryClient.invalidateQueries({ 
+        queryKey: key,
+        refetchType: 'active' // Force active queries to refetch immediately
+      }))
     );
   };
 

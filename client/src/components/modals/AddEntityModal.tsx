@@ -141,6 +141,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
     }
   };
   
+
   const {
     control,
     handleSubmit,
@@ -230,8 +231,10 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
       
       console.log('📤 Final entity data to submit:', entityData);
       
-      // Use the entity mutation hook (includes entity-type-specific cache invalidation)
-      await createEntity(entityData);
+      // Use the entity mutation hook with proper cache invalidation
+      console.log('⏳ Calling createEntity with cache management...');
+      const result = await createEntity(entityData);
+      console.log('✅ Entity created successfully:', result);
       
       // Update local caches for dropdowns
       if (entityType === 'dag') {
