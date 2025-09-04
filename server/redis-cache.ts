@@ -658,6 +658,8 @@ export class RedisCache {
         return false; // Entity not found
       }
       
+      const entityToDelete = entities[entityIndex];
+      
       // Remove entity from array
       entities.splice(entityIndex, 1);
       
@@ -666,13 +668,13 @@ export class RedisCache {
       
       // Direct WebSocket broadcast in fallback mode
       const change = {
-        entityId: entity.id,
-        entityName: entity.name,
-        entityType: entity.type,
-        teamName: entity.team_name || 'Unknown',
-        tenantName: entity.tenant_name || 'Unknown',
+        entityId: entityToDelete.id,
+        entityName: entityToDelete.name,
+        entityType: entityToDelete.type,
+        teamName: entityToDelete.team_name || 'Unknown',
+        tenantName: entityToDelete.tenant_name || 'Unknown',
         type: 'deleted',
-        entity,
+        entity: entityToDelete,
         timestamp: new Date()
       };
       
