@@ -42,9 +42,6 @@ const TeamDashboard = ({
   onNotificationTimeline, 
   onViewTasks 
 }: TeamDashboardProps) => {
-  // Debug logging to see if delete handler is available
-  console.log('🔧 [TEAM DASHBOARD] onDeleteEntity prop:', typeof onDeleteEntity, onDeleteEntity ? '✅ Available' : '❌ Missing');
-  
   const dispatch = useAppDispatch();
   const { list: entities, teams, isLoading } = useAppSelector((state) => state.entities);
   
