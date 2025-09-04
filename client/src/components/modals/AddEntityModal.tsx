@@ -40,6 +40,7 @@ import {
 } from '@/config/schemas';
 import { buildUrl, endpoints } from '@/config';
 import { apiRequest } from '@/lib/queryClient';
+import { useEntityMutation } from '@/utils/cache-management';
 
 type EntityType = 'table' | 'dag';
 
@@ -70,6 +71,9 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
   
   // State for validation errors (single declaration)
   const [validationError, setValidationError] = useState<string | null>(null);
+  
+  // Use the new entity mutation hook with entity-type-specific cache invalidation
+  const { createEntity } = useEntityMutation();
   
 
   
@@ -199,45 +203,31 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
         }
       }
       
-      // All pre-validations passed, proceed with submission to FastAPI
+      // All pre-validations passed, proceed with submission using entity mutation
+      
+      // Find the team ID from the team name
+      const team = teams.find(t => t.name === data.team_name);
+      if (!team) {
+        setValidationError('Team not found');
+        return;
+      }
       
       // Create the entity object to submit
       const entityData = {
         ...data,
         type: entityType,
-        // Add any additional fields needed by the API
+        teamId: team.id, // Add team ID for cache invalidation
       };
       
-      // Use centralized API configuration for entity creation
-      const endpoint = buildUrl(endpoints.entities);
-        
-      // Submitting entity to endpoint
+      // Use the entity mutation hook (includes entity-type-specific cache invalidation)
+      await createEntity(entityData);
       
-      // Make the API call to create the entity using centralized apiRequest
-      const response = await apiRequest('POST', endpoint, entityData);
-      
-      if (!response.ok) {
-        // Handle server validation errors
-        const errorData = await response.json();
-        setValidationError(errorData.detail || 'Failed to create entity. Please check your input and try again.');
-        return;
+      // Update local caches for dropdowns
+      if (entityType === 'dag') {
+        setDagOptions(updateCacheWithNewValue('dags', data.dag_name, dagOptions));
       }
-      
-      // Successful submission - we got through API validation
-      try {
-        const responseData = await response.json();
-        
-        // Only update cache after successful validation from FastAPI
-        if (entityType === 'dag') {
-          setDagOptions(updateCacheWithNewValue('dags', data.dag_name, dagOptions));
-        }
-        
-        // Update caches with validated new values using centralized utility
-        setTenantOptions(updateCacheWithNewValue('tenants', data.tenant_name, tenantOptions));
-        setTeamOptions(updateCacheWithNewValue('teams', data.team_name, teamOptions));
-      } catch (parseError) {
-        console.warn('Could not parse response JSON, but submission was successful');
-      }
+      setTenantOptions(updateCacheWithNewValue('tenants', data.tenant_name, tenantOptions));
+      setTeamOptions(updateCacheWithNewValue('teams', data.team_name, teamOptions));
       
       // Close the modal after successful submission
       onClose();
