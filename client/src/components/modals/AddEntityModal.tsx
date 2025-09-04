@@ -230,9 +230,6 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
         })
       };
       
-      console.log('🔍 DEBUG - isEntityOwner state:', isEntityOwner);
-      console.log('🔍 DEBUG - entityData has is_entity_owner:', 'is_entity_owner' in entityData);
-      console.log('🔍 DEBUG - entityData.is_entity_owner value:', entityData.is_entity_owner);
       console.log('📤 Final entity data to submit:', entityData);
       
       // Use the entity mutation hook with proper cache invalidation
@@ -514,10 +511,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 control={
                   <Switch
                     checked={isEntityOwner}
-                    onChange={(e) => {
-                      console.log('🔘 Entity Owner toggle clicked:', e.target.checked);
-                      setIsEntityOwner(e.target.checked);
-                    }}
+                    onChange={(e) => setIsEntityOwner(e.target.checked)}
                     color="primary"
                   />
                 }
@@ -865,10 +859,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 control={
                   <Switch
                     checked={isEntityOwner}
-                    onChange={(e) => {
-                      console.log('🔘 Entity Owner toggle clicked:', e.target.checked);
-                      setIsEntityOwner(e.target.checked);
-                    }}
+                    onChange={(e) => setIsEntityOwner(e.target.checked)}
                     color="primary"
                   />
                 }
