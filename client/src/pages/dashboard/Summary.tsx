@@ -21,7 +21,7 @@ import TaskManagementModal from '@/components/modals/TaskManagementModal';
 import TeamSelector from '@/components/dashboard/TeamSelector';
 import TeamDashboard from '@/pages/dashboard/TeamDashboard';
 import { useToast } from '@/hooks/use-toast';
-import { queryClient } from '@/lib/queryClient';
+import { queryClient, apiRequest } from '@/lib/queryClient';
 import { getTenants, getDefaultTenant, preloadTenantCache, type Tenant } from '@/lib/tenantCache';
 import { useWebSocket } from '@/hooks/useWebSocket';
 
@@ -227,8 +227,8 @@ const Summary = () => {
     try {
       if (!selectedEntity) return;
       
-      // This would be a real API call in production
-      // await dispatch(deleteEntity(selectedEntity.id)).unwrap();
+      // Call the delete API
+      await apiRequest("DELETE", `/api/entities/${selectedEntity.id}`);
       
       toast({
         title: 'Success',
@@ -236,7 +236,7 @@ const Summary = () => {
         variant: 'default',
       });
       
-      // Refresh data
+      // Refresh data - the WebSocket will also handle this automatically
       queryClient.invalidateQueries({ queryKey: ['/api/entities'] });
       queryClient.invalidateQueries({ queryKey: ['/api/dashboard/summary'] });
       
