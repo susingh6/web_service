@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Box, Typography, Tabs, Tab, Card, CardContent, Chip, Paper, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, FormControl, InputLabel, Select, MenuItem, IconButton } from '@mui/material';
 import { Add as AddIcon, Upload as UploadIcon, Person as PersonIcon, Edit as EditIcon, Delete as DeleteIcon, PersonAdd as PersonAddIcon } from '@mui/icons-material';
 import { useAppDispatch, useAppSelector } from '@/lib/store';
@@ -54,13 +55,23 @@ const TeamDashboard = ({
   
   // Local state for team entities to avoid affecting Summary dashboard
   const [teamEntities, setTeamEntities] = useState<Entity[]>([]);
-  const [teamMembers, setTeamMembers] = useState<any[]>([]);
   const [addMemberDialogOpen, setAddMemberDialogOpen] = useState(false);
   const [removeMemberDialogOpen, setRemoveMemberDialogOpen] = useState(false);
   const [availableUsers, setAvailableUsers] = useState<any[]>([]);
   const [selectedUserId, setSelectedUserId] = useState('');
   const [selectedMemberId, setSelectedMemberId] = useState('');
   const { toast } = useToast();
+
+  // React Query to fetch team members - automatically updates when cache changes
+  const { data: teamMembers = [], isLoading: teamMembersLoading } = useQuery({
+    queryKey: ['team-members', teamName],
+    queryFn: async () => {
+      if (!teamName) return [];
+      const response = await apiClient.teams.getMembers(teamName);
+      return await response.json();
+    },
+    enabled: !!teamName,
+  });
   
   // Fetch data when team is found
   useEffect(() => {
@@ -79,24 +90,6 @@ const TeamDashboard = ({
     }
   }, [team?.id]);
 
-  // Fetch team members when teamName is available
-  useEffect(() => {
-    if (teamName) {
-      fetchTeamMembers();
-    }
-  }, [teamName]);
-
-  const fetchTeamMembers = async () => {
-    if (teamName) {
-      try {
-        const response = await apiClient.teams.getMembers(teamName);
-        const data = await response.json();
-        setTeamMembers(data || []);
-      } catch (error) {
-        // Handle error silently
-      }
-    }
-  };
 
   const fetchAvailableUsers = async () => {
     try {
