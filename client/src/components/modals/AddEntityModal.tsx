@@ -230,6 +230,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
         })
       };
       
+      console.log('🔍 isEntityOwner state:', isEntityOwner);
       console.log('📤 Final entity data to submit:', entityData);
       
       // Use the entity mutation hook with proper cache invalidation
