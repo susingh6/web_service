@@ -719,10 +719,11 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 )}
               />
               
-              <Controller
-                name="dag_name"
-                control={control}
-                render={({ field: { onChange, value, onBlur } }) => (
+              {entityType === 'dag' && (
+                <Controller
+                  name="dag_name"
+                  control={control}
+                  render={({ field: { onChange, value, onBlur } }) => (
                   <Autocomplete
                     value={value}
                     onChange={(_, newValue) => {
@@ -759,25 +760,28 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                       />
                     )}
                   />
-                )}
-              />
+                  )}
+                />
+              )}
               
-              <Controller
-                name="dag_description"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    label={fieldDefinitions.dag_description.label}
-                    fullWidth
-                    margin="normal"
-                    multiline
-                    rows={2}
-                    error={!!(errors as any).dag_description}
-                    helperText={(errors as any).dag_description?.message}
-                  />
-                )}
-              />
+              {entityType === 'dag' && (
+                <Controller
+                  name="dag_description"
+                  control={control}
+                  render={({ field }) => (
+                    <TextField
+                      {...field}
+                      label={fieldDefinitions.dag_description.label}
+                      fullWidth
+                      margin="normal"
+                      multiline
+                      rows={2}
+                      error={!!(errors as any).dag_description}
+                      helperText={(errors as any).dag_description?.message}
+                    />
+                  )}
+                />
+              )}
               
               
               <Controller
@@ -848,7 +852,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 sx={{ mt: 2 }}
               />
 
-              {isEntityOwner && (
+              {isEntityOwner && entityType === 'dag' && (
                 <>
                   <Controller
                     name="dag_schedule"
