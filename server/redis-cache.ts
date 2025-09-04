@@ -744,6 +744,148 @@ export class RedisCache {
     }
   }
 
+  // Extensible cache invalidation system following centralized pattern
+  async invalidateCache(invalidationConfig: {
+    keys?: string[];
+    patterns?: string[];
+    mainCacheKeys?: (keyof typeof CACHE_KEYS)[];
+    refreshAffectedData?: boolean;
+  }): Promise<void> {
+    const { keys = [], patterns = [], mainCacheKeys = [], refreshAffectedData = true } = invalidationConfig;
+
+    try {
+      // Invalidate specific cache keys
+      if (keys.length > 0) {
+        await Promise.all(keys.map(key => this.del(key)));
+      }
+
+      // Invalidate cache keys by patterns (useful for wildcard invalidation)
+      if (patterns.length > 0) {
+        for (const pattern of patterns) {
+          const matchingKeys = await this.getKeysByPattern(pattern);
+          if (matchingKeys.length > 0) {
+            await Promise.all(matchingKeys.map(key => this.del(key)));
+          }
+        }
+      }
+
+      // Invalidate main cache entries and refresh them immediately
+      if (mainCacheKeys.length > 0) {
+        await this.invalidateAndRefreshMainCache(mainCacheKeys, refreshAffectedData);
+      }
+
+    } catch (error) {
+      console.error('Cache invalidation error:', error);
+    }
+  }
+
+  private async getKeysByPattern(pattern: string): Promise<string[]> {
+    if (!this.useRedis || !this.redis) {
+      return [];
+    }
+
+    try {
+      return await this.redis.keys(pattern);
+    } catch (error) {
+      console.error(`Error getting keys by pattern ${pattern}:`, error);
+      return [];
+    }
+  }
+
+  private async invalidateAndRefreshMainCache(
+    mainCacheKeys: (keyof typeof CACHE_KEYS)[],
+    refreshData: boolean = true
+  ): Promise<void> {
+    if (!this.useRedis || !this.redis) {
+      return;
+    }
+
+    try {
+      // Delete specified main cache keys
+      const keysToDelete = mainCacheKeys.map(key => CACHE_KEYS[key]);
+      await Promise.all(keysToDelete.map(key => this.del(key)));
+
+      // Immediately refresh affected data if requested
+      if (refreshData) {
+        await this.refreshAffectedMainCacheData(mainCacheKeys);
+      }
+
+    } catch (error) {
+      console.error('Error in main cache invalidation:', error);
+    }
+  }
+
+  private async refreshAffectedMainCacheData(affectedKeys: (keyof typeof CACHE_KEYS)[]): Promise<void> {
+    const expireTime = Math.floor(this.CACHE_DURATION_MS / 1000) + 300; // Add 5 minute buffer
+
+    try {
+      // Refresh each affected cache key individually for immediate consistency
+      for (const key of affectedKeys) {
+        switch (key) {
+          case 'TEAMS':
+            const teams = await storage.getTeams();
+            await this.set(CACHE_KEYS.TEAMS, teams, expireTime);
+            break;
+          case 'ENTITIES':
+            const entities = await storage.getEntities();
+            await this.set(CACHE_KEYS.ENTITIES, entities, expireTime);
+            break;
+          case 'TENANTS':
+            const tenants = await storage.getTenants();
+            await this.set(CACHE_KEYS.TENANTS, tenants, expireTime);
+            break;
+          case 'METRICS':
+            // Recalculate metrics after data changes
+            const refreshedData = await this.getCacheRefreshData();
+            await this.set(CACHE_KEYS.METRICS, refreshedData.metrics, expireTime);
+            await this.set(CACHE_KEYS.LAST_30_DAY_METRICS, refreshedData.last30DayMetrics, expireTime);
+            break;
+        }
+      }
+
+      // Update last refresh timestamp
+      await this.set(CACHE_KEYS.LAST_UPDATED, new Date(), expireTime);
+
+    } catch (error) {
+      console.error('Error refreshing main cache data:', error);
+    }
+  }
+
+  // Centralized cache invalidation patterns for common operations
+  async invalidateTeamData(teamName?: string): Promise<void> {
+    const invalidationKeys = [
+      'all_users',
+      ...(teamName ? [`team_members_${teamName}`, `team_details_${teamName}`] : [])
+    ];
+
+    await this.invalidateCache({
+      keys: invalidationKeys,
+      patterns: teamName ? [] : ['team_members_*', 'team_details_*'],
+      mainCacheKeys: ['TEAMS', 'METRICS'],
+      refreshAffectedData: true
+    });
+  }
+
+  async invalidateEntityData(teamId?: number): Promise<void> {
+    const invalidationKeys = teamId ? [`entities_team_${teamId}`] : [];
+
+    await this.invalidateCache({
+      keys: invalidationKeys,
+      patterns: teamId ? [] : ['entities_team_*'],
+      mainCacheKeys: ['ENTITIES', 'TEAMS', 'METRICS'],
+      refreshAffectedData: true
+    });
+  }
+
+  async invalidateUserData(): Promise<void> {
+    await this.invalidateCache({
+      keys: ['all_users'],
+      patterns: ['team_members_*'],
+      mainCacheKeys: ['TEAMS'],
+      refreshAffectedData: true
+    });
+  }
+
   destroy(): void {
     if (this.refreshInterval) {
       clearInterval(this.refreshInterval);

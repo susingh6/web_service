@@ -16,6 +16,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { teamMemberSchema } from '@shared/schema';
 import { useToast } from '@/hooks/use-toast';
 import { z } from 'zod';
+import { useTeamMemberMutation } from '@/utils/cache-management';
 
 interface TeamDashboardProps {
   teamName: string;
@@ -44,6 +45,7 @@ const TeamDashboard = ({
   const { list: entities, teams, isLoading } = useAppSelector((state) => state.entities);
   
   const [tabValue, setTabValue] = useState(0);
+  const { addMember, removeMember } = useTeamMemberMutation();
   const [chartFilter, setChartFilter] = useState('All');
   const [entitiesChartFilter, setEntitiesChartFilter] = useState('All');
   
@@ -120,16 +122,12 @@ const TeamDashboard = ({
   const onAddMember = async () => {
     if (!selectedUserId) return;
 
-    try {
-      const requestData = {
-        team: teamName,
-        tenant: tenantName,
-        username: 'azure_test_user', // This would come from OAuth context
-        action: 'add' as const,
-        memberId: selectedUserId,
-      };
+    // Find the selected user for optimistic update
+    const selectedUser = availableUsers.find(user => user.id === parseInt(selectedUserId));
+    if (!selectedUser) return;
 
-      await apiClient.teams.updateMembers(teamName, requestData);
+    try {
+      await addMember(teamName, selectedUserId, selectedUser);
       
       toast({
         title: 'Success',
@@ -138,7 +136,6 @@ const TeamDashboard = ({
       
       setAddMemberDialogOpen(false);
       setSelectedUserId('');
-      await fetchTeamMembers();
     } catch (error) {
       toast({
         title: 'Error',
@@ -152,15 +149,7 @@ const TeamDashboard = ({
     if (!selectedMemberId) return;
 
     try {
-      const requestData = {
-        team: teamName,
-        tenant: tenantName,
-        username: 'azure_test_user', // This would come from OAuth context
-        action: 'remove' as const,
-        memberId: selectedMemberId,
-      };
-
-      await apiClient.teams.updateMembers(teamName, requestData);
+      await removeMember(teamName, selectedMemberId);
       
       toast({
         title: 'Success',
@@ -169,7 +158,6 @@ const TeamDashboard = ({
       
       setRemoveMemberDialogOpen(false);
       setSelectedMemberId('');
-      await fetchTeamMembers();
     } catch (error) {
       toast({
         title: 'Error',
