@@ -262,7 +262,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
       errors.push({ field: 'user_email', message: `Invalid ${fieldDefinitions.user_email.label.toLowerCase()} format` });
     }
     
-    // Entity Owner conditional fields - only required if is_entity_owner is true
+    // Entity Owner conditional fields
     if (entity.is_entity_owner === true) {
       // Expected runtime is required for entity owners
       if (!entity.expected_runtime_minutes) {
@@ -291,6 +291,11 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
       // Done marker location is required for entity owners
       if (!entity.donemarker_location) {
         errors.push({ field: 'donemarker_location', message: `${fieldDefinitions.donemarker_location.label} is required when Entity Owner is enabled` });
+      }
+    } else if (entity.is_entity_owner === false) {
+      // Owner Entity Reference is required for non-entity owners
+      if (!(entity as any).owner_entity_reference) {
+        errors.push({ field: 'owner_entity_reference', message: `${fieldDefinitions.owner_entity_reference.label} is required when Entity Owner is disabled` });
       }
     }
     
@@ -618,15 +623,15 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
           schema_name: "analytics",
           table_name: "customer_data",
           table_description: "Contains customer information with demographics",
-          table_schedule: "0 */4 * * *",  // Every 4 hours
+          user_email: "john.doe@example.com",
+          is_active: true,
+          is_entity_owner: true,  // Entity owner - requires owner_email and conditional fields below
+          owner_email: "john.doe@example.com",
           expected_runtime_minutes: 45,
-          table_dependency: ["analytics.products", "analytics.orders"],  // Example as string array
           donemarker_location: "s3://data-warehouse/markers/customer_data/",
           donemarker_lookback: 1,
-          user_email: "john.doe@example.com",
-          owner_email: "john.doe@example.com",
-          is_active: true,
-          is_entity_owner: true  // Entity owner - requires schedule, runtime, location, owner_email
+          table_schedule: "0 */4 * * *",  // Every 4 hours
+          table_dependency: ["analytics.products", "analytics.orders"]  // Example as string array
         },
         {
           entity_name: "Ad Performance Metrics",
@@ -637,7 +642,8 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
           table_description: "Aggregated advertising performance metrics",
           user_email: "jane.smith@example.com",
           is_active: true,
-          is_entity_owner: false  // Not entity owner - schedule, runtime, location, owner_email not required
+          is_entity_owner: false,  // Not entity owner - requires owner_entity_reference instead
+          owner_entity_reference: "customer_analytics_table"  // Reference to actual entity owner
         }
       ];
     } else {
@@ -648,16 +654,16 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
           team_name: "IOT",
           dag_name: "device_data_etl",
           dag_description: "Processes and transforms IoT device data",
-          dag_schedule: "0 */2 * * *",  // Every 2 hours
+          user_email: "alex.johnson@example.com",
+          is_active: true,
+          is_entity_owner: true,  // Entity owner - requires owner_email and conditional fields below
+          owner_email: "alex.johnson@example.com",
           expected_runtime_minutes: 30,
-          dag_dependency: "sensor_validation,data_quality_check",  // Example as comma-separated string
-          server_name: "airflow-prod-server",
           donemarker_location: "s3://airflow/markers/device_etl/",
           donemarker_lookback: 0,
-          user_email: "alex.johnson@example.com",
-          owner_email: "alex.johnson@example.com",
-          is_active: true,
-          is_entity_owner: true  // Entity owner - requires schedule, runtime, location, owner_email
+          dag_schedule: "0 */2 * * *",  // Every 2 hours
+          dag_dependency: "sensor_validation,data_quality_check",  // Example as comma-separated string
+          server_name: "airflow-prod-server"
         },
         {
           entity_name: "User Segmentation Pipeline",
@@ -665,10 +671,10 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
           team_name: "Viewer Product",
           dag_name: "user_segmentation",
           dag_description: "Creates user segments for targeted advertising",
-          server_name: "airflow-staging-server",
           user_email: "sarah.williams@example.com",
           is_active: true,
-          is_entity_owner: false  // Not entity owner - schedule, runtime, location, owner_email not required
+          is_entity_owner: false,  // Not entity owner - requires owner_entity_reference instead
+          owner_entity_reference: "iot_device_data_etl"  // Reference to actual entity owner
         }
       ];
     }
@@ -768,6 +774,8 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
                   <li>{fieldDefinitions.tenant_name.label}: String ("Data Engineering", "Ad Engineering", etc.)</li>
                   <li>{fieldDefinitions.team_name.label}: String ("PGM", "Core", etc.)</li>
                   <li>{fieldDefinitions.user_email.label}: String</li>
+                  <li>is_entity_owner: Boolean (true if entity owner, false if not)</li>
+                  <li>{fieldDefinitions.owner_entity_reference.label}: String (required if is_entity_owner is false)</li>
                   {tabValue === 'tables' ? (
                     <>
                       <li>{fieldDefinitions.schema_name.label}: String</li>
@@ -1016,11 +1024,12 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
                       ) : (
                         <TableCell>{fieldDefinitions.dag_name.label}</TableCell>
                       )}
+                      <TableCell>{fieldDefinitions.user_email.label}</TableCell>
+                      <TableCell>{fieldDefinitions.owner_entity_reference.label}</TableCell>
+                      <TableCell>Entity Owner</TableCell>
+                      <TableCell>{fieldDefinitions.owner_email.label}</TableCell>
                       <TableCell>{tabValue === 'tables' ? fieldDefinitions.table_schedule.label : fieldDefinitions.dag_schedule.label}</TableCell>
                       <TableCell>{fieldDefinitions.expected_runtime_minutes.label}</TableCell>
-                      <TableCell>{fieldDefinitions.user_email.label}</TableCell>
-                      <TableCell>{fieldDefinitions.owner_email.label}</TableCell>
-                      <TableCell>Entity Owner</TableCell>
                       <TableCell width="120px">Details</TableCell>
                     </TableRow>
                   </TableHead>
@@ -1074,11 +1083,12 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
                               )}
                             </TableCell>
                           )}
+                          <TableCell>{entity.user_email}</TableCell>
+                          <TableCell>{(entity as any).owner_entity_reference || 'N/A'}</TableCell>
+                          <TableCell>{entity.is_entity_owner ? 'Yes' : 'No'}</TableCell>
+                          <TableCell>{entity.owner_email || 'N/A'}</TableCell>
                           <TableCell>{isTable ? entity.table_schedule : (entity as DagEntity).dag_schedule}</TableCell>
                           <TableCell>{entity.expected_runtime_minutes ? `${entity.expected_runtime_minutes} min` : 'N/A'}</TableCell>
-                          <TableCell>{entity.user_email}</TableCell>
-                          <TableCell>{entity.owner_email || 'N/A'}</TableCell>
-                          <TableCell>{entity.is_entity_owner ? 'Yes' : 'No'}</TableCell>
                           <TableCell>
                             {!result.valid && (
                               <Tooltip title={result.errors.map(err => `${err.field}: ${err.message}`).join('\n')}>
