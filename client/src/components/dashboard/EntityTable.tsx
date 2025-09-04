@@ -579,13 +579,11 @@ const EntityTable = ({
                             </IconButton>
                           </Tooltip>
                           
-                          {entity.is_entity_owner && (
-                            <Tooltip title="Delete">
-                              <IconButton size="small" color="error" onClick={() => onDeleteEntity(entity.id)}>
-                                <Delete fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                          )}
+                          <Tooltip title="Delete">
+                            <IconButton size="small" color="error" onClick={() => onDeleteEntity(entity.id)}>
+                              <Delete fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
                         </Box>
                       </TableCell>
                     )}
