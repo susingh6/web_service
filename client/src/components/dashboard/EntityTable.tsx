@@ -118,15 +118,6 @@ const EntityTable = ({
   showActions = true, // Default to showing actions
   isTeamDashboard = false, // Default to summary dashboard
 }: EntityTableProps) => {
-  // Debug render info
-  console.log('🔍 [ENTITY TABLE] Rendering with:', {
-    entitiesCount: entities.length,
-    type,
-    showActions,
-    isTeamDashboard,
-    hasDeleteHandler: typeof onDeleteEntity === 'function',
-    entityNames: entities.map(e => e.name)
-  });
   
   const dispatch = useAppDispatch();
   const [order, setOrder] = useState<'asc' | 'desc'>('desc');
@@ -596,10 +587,7 @@ const EntityTable = ({
                       <TableCell align="center" onClick={(e) => e.stopPropagation()} sx={{ width: '120px' }}>
                         <Box display="flex" justifyContent="center">
                           <Tooltip title="Edit">
-                            <IconButton size="small" color="primary" onClick={() => {
-                              console.log('✏️ [EDIT CLICK] Working fine');
-                              onEditEntity(entity);
-                            }}>
+                            <IconButton size="small" color="primary" onClick={() => onEditEntity(entity)}>
                               <Edit fontSize="small" />
                             </IconButton>
                           </Tooltip>
@@ -627,12 +615,7 @@ const EntityTable = ({
                           </Tooltip>
                           
                           <Tooltip title="Delete">
-                            <IconButton size="small" color="error" onClick={() => {
-                              alert(`DELETE CLICKED! Entity: ${entity.name} (ID: ${entity.id})`);
-                              console.log('🗑️ [DELETE CLICK] Entity:', { id: entity.id, name: entity.name, is_entity_owner: entity.is_entity_owner });
-                              console.log('🗑️ [DELETE CLICK] onDeleteEntity available:', typeof onDeleteEntity);
-                              onDeleteEntity(entity.id);
-                            }}>
+                            <IconButton size="small" color="error" onClick={() => onDeleteEntity(entity.id)}>
                               <Delete fontSize="small" />
                             </IconButton>
                           </Tooltip>
