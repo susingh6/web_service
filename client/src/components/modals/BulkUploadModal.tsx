@@ -292,6 +292,15 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
       if (!entity.donemarker_location) {
         errors.push({ field: 'donemarker_location', message: `${fieldDefinitions.donemarker_location.label} is required when Entity Owner is enabled` });
       }
+      
+      // Done marker lookback is required for entity owners
+      if (entity.donemarker_lookback === undefined || entity.donemarker_lookback === null || entity.donemarker_lookback === '') {
+        errors.push({ field: 'donemarker_lookback', message: `${fieldDefinitions.donemarker_lookback.label} is required when Entity Owner is enabled` });
+      } else if (isNaN(Number(entity.donemarker_lookback))) {
+        errors.push({ field: 'donemarker_lookback', message: `${fieldDefinitions.donemarker_lookback.label} must be a number` });
+      } else if (Number(entity.donemarker_lookback) < 0) {
+        errors.push({ field: 'donemarker_lookback', message: `${fieldDefinitions.donemarker_lookback.label} must be a non-negative number` });
+      }
     } else if (entity.is_entity_owner === false) {
       // Owner Entity Reference is required for non-entity owners
       if (!(entity as any).owner_entity_reference) {
@@ -335,13 +344,9 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
       }
     }
     
-    // Optional field validations using centralized field definitions
-    if (entity.donemarker_lookback !== undefined) {
-      if (isNaN(Number(entity.donemarker_lookback))) {
-        errors.push({ field: 'donemarker_lookback', message: `${fieldDefinitions.donemarker_lookback.label} must be a number` });
-      } else if (Number(entity.donemarker_lookback) < 0) {
-        errors.push({ field: 'donemarker_lookback', message: `${fieldDefinitions.donemarker_lookback.label} must be a non-negative number` });
-      }
+    // Set default for is_active if not specified
+    if (entity.is_active === undefined || entity.is_active === null) {
+      entity.is_active = true;
     }
     
     // If no errors, the entity is valid
@@ -796,6 +801,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
                   <li>{fieldDefinitions.expected_runtime_minutes.label}: Number (must be between 1 and 1440)</li>
                   <li>{fieldDefinitions.owner_email.label}: String (single email or comma-separated multiple emails)</li>
                   <li>{fieldDefinitions.donemarker_location.label}: String (single location or comma-separated multiple locations)</li>
+                  <li>{fieldDefinitions.donemarker_lookback.label}: Number (must be a non-negative number)</li>
                   {tabValue === 'tables' ? (
                     <li>{fieldDefinitions.table_schedule.label}: String (must be valid cron format)</li>
                   ) : (
@@ -811,8 +817,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
               <Typography component="div" variant="body2" sx={{ pl: 2, mb: 1 }}>
                 <ul>
                   <li>Entity Owner: Boolean (defaults to false if not specified)</li>
-                  <li>{fieldDefinitions.donemarker_lookback.label}: Number</li>
-                  <li>{fieldDefinitions.is_active.label}: Boolean</li>
+                  <li>{fieldDefinitions.is_active.label}: Boolean (defaults to true if not specified)</li>
                   {tabValue === 'dags' && (
                     <li>{fieldDefinitions.server_name.label}: String</li>
                   )}
