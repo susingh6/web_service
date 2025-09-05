@@ -8,6 +8,25 @@ import { z } from "zod";
 import { setupSimpleAuth } from "./simple-auth";
 import { setupTestRoutes } from "./test-routes";
 
+// Structured error response helpers
+function createValidationErrorResponse(error: z.ZodError, message: string = "Validation failed") {
+  return {
+    message,
+    errors: error.format(),
+    timestamp: new Date().toISOString(),
+    type: 'validation_error'
+  };
+}
+
+function createErrorResponse(message: string, type: string = 'server_error', details?: any) {
+  return {
+    message,
+    type,
+    timestamp: new Date().toISOString(),
+    ...(details && { details })
+  };
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Set up simplified authentication (no password hashing)
   setupSimpleAuth(app);
@@ -89,7 +108,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Health check endpoint
   app.get('/api/health', (req: Request, res: Response) => {
     res.status(200).json({ 
-      status: 'healthy', 
+      status: 'Passed', 
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
       cache: 'redis-fallback-ready'
@@ -274,7 +293,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/teams/:teamName/members", async (req, res) => {
     try {
       const { teamName } = req.params;
-      const memberData = req.body;
+      
+      // Validate member data using Zod schema
+      const result = teamDetailsUpdateSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({ 
+          message: "Invalid team member data", 
+          errors: result.error.format() 
+        });
+      }
+      
+      const memberData = result.data;
 
       // Get OAuth context (team, tenant, username from session or headers)
       const oauthContext = {
@@ -829,7 +858,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         donemarkerLocation: entity.donemarker_location,
         donemarkerLookback: entity.donemarker_lookback,
         dagDependency: entity.dag_dependency,
-        isActive: entity.status === 'healthy' || entity.status === 'warning',
+        isActive: entity.status === 'Passed' || entity.status === 'Pending',
         status: entity.status,
         lastUpdated: new Date()
       };
@@ -877,7 +906,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         donemarkerLookback: entity.donemarker_lookback,
         tableDependency: entity.table_dependency,
         schemaName: entity.schema_name,
-        isActive: entity.status === 'healthy' || entity.status === 'warning',
+        isActive: entity.status === 'Passed' || entity.status === 'Pending',
         status: entity.status,
         lastUpdated: new Date()
       };
@@ -984,7 +1013,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/notification-timelines/:id", isAuthenticated, async (req: Request, res: Response) => {
     try {
       const timelineId = req.params.id;
-      const timeline = await storage.updateNotificationTimeline(timelineId, req.body);
+      
+      // Validate notification timeline update data
+      const result = insertNotificationTimelineSchema.partial().safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({ 
+          message: "Invalid notification timeline data", 
+          errors: result.error.format() 
+        });
+      }
+      
+      const timeline = await storage.updateNotificationTimeline(timelineId, result.data);
       
       if (!timeline) {
         return res.status(404).json({ message: "Notification timeline not found" });

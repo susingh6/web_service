@@ -4,7 +4,7 @@ import { Strategy as LocalStrategy } from "passport-local";
 import session from "express-session";
 import MemoryStore from "memorystore";
 import { storage } from "./storage";
-import { User } from "@shared/schema";
+import { User, insertUserSchema } from "@shared/schema";
 import { structuredLogger, logAuthenticationEvent } from "./middleware/structured-logging";
 
 // FastAPI authentication function
@@ -110,15 +110,22 @@ export function setupSimpleAuth(app: Express) {
   // Registration route
   app.post("/api/register", async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const existingUser = await storage.getUserByUsername(req.body.username);
+      // Validate user registration data
+      const result = insertUserSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({ 
+          message: "Invalid user data", 
+          errors: result.error.format() 
+        });
+      }
+      
+      const existingUser = await storage.getUserByUsername(result.data.username);
       if (existingUser) {
         return res.status(400).json({ message: "Username already exists" });
       }
 
-      // Create user with plain password
-      const userData = {
-        ...req.body,
-      };
+      // Create user with validated data
+      const userData = result.data;
       
       const user = await storage.createUser(userData);
 

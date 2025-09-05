@@ -38,7 +38,7 @@ export const entities = pgTable("entities", {
   description: text("description"),
   slaTarget: doublePrecision("sla_target").notNull(), // percentage value
   currentSla: doublePrecision("current_sla"), // percentage value
-  status: text("status").notNull(), // 'healthy', 'warning', 'critical'
+  status: text("status").notNull(), // 'Passed', 'Pending', 'Failed'
   refreshFrequency: text("refresh_frequency").notNull(), // 'hourly', 'daily', 'weekly', 'monthly'
   lastRefreshed: timestamp("last_refreshed"),
   nextRefresh: timestamp("next_refresh"),
@@ -85,7 +85,7 @@ export const entityHistory = pgTable("entity_history", {
   entityId: integer("entity_id").notNull(),
   date: timestamp("date").notNull(),
   slaValue: doublePrecision("sla_value").notNull(), // percentage value
-  status: text("status").notNull(), // 'healthy', 'warning', 'critical'
+  status: text("status").notNull(), // 'Passed', 'Pending', 'Failed'
 });
 
 // Issues and alerts related to entities
