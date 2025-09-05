@@ -253,7 +253,7 @@ export class MemStorage implements IStorage {
     const teamData = [
       { 
         name: 'PGM', 
-        description: 'Platform Growth & Marketing Team',
+        description: 'Partner Growth & Management',
         tenant_id: 1,
         team_members_ids: ['john.smith', 'sarah.johnson'],
         team_email: ['pgm-team@company.com'],
