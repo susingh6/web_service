@@ -228,17 +228,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       };
 
-      // Create Basic Auth header from client credentials
-      const clientId = import.meta.env.VITE_FASTAPI_CLIENT_ID || "9529c057-c34f-4176-a9cd-0b103be4b9f8";
-      const clientSecret = import.meta.env.VITE_FASTAPI_CLIENT_SECRET || "8Uh1EnxZR@^ZbLi7wIPSJI%mpxPvz&&m";
-      const basicAuth = btoa(`${clientId}:${clientSecret}`);
-
+      // Use Bearer token as expected by FastAPI
       const response = await fetch(`${fastApiConfig.baseUrl}${fastApiConfig.auth.login}`, {
         method: 'POST',
         headers: {
-          'Authorization': `Basic ${basicAuth}`,
-          'X-Azure-Token': azureToken,
-          'Content-Type': 'application/json'
+          'Authorization': `Bearer ${azureToken}`,
+          'Accept': 'application/json'
         }
       });
 
@@ -398,7 +393,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             method: 'POST',
             headers: {
               'X-Session-ID': sessionId,
-              'Content-Type': 'application/json'
+              'Accept': 'application/json'
             }
           });
 
