@@ -37,7 +37,10 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
 
   const connect = () => {
     try {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      // Force WSS in staging/production, allow WS only in development
+      const environment = import.meta.env.MODE || 'development';
+      const forceSecure = environment === 'staging' || environment === 'production';
+      const protocol = (window.location.protocol === 'https:' || forceSecure) ? 'wss:' : 'ws:';
       const wsUrl = `${protocol}//${window.location.host}${config.websocket.path}`;
       
       // Connecting to WebSocket

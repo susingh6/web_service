@@ -7,6 +7,29 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
+// TLS enforcement for staging and production environments only
+const environment = process.env.NODE_ENV || 'development';
+if (environment === 'staging' || environment === 'production') {
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    // Check if request is HTTPS
+    const isHttps = req.secure || 
+                   req.get('x-forwarded-proto') === 'https' ||
+                   req.get('x-forwarded-ssl') === 'on';
+    
+    if (!isHttps) {
+      // Redirect HTTP to HTTPS
+      const httpsUrl = `https://${req.get('host')}${req.url}`;
+      return res.redirect(301, httpsUrl);
+    }
+    
+    // Add security headers for HTTPS requests
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
+    res.setHeader('X-Forwarded-Proto', 'https');
+    
+    next();
+  });
+}
+
 // Add session context middleware for structured logging
 app.use(sessionContextMiddleware);
 
