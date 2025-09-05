@@ -297,7 +297,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Simple validation for team member operations - match frontend exactly
       const memberSchema = z.object({
         action: z.enum(['add', 'remove', 'update']),
-        memberId: z.string(),
+        memberId: z.union([z.string(), z.number()]).transform(String), // Accept both string and number, convert to string
         member: z.any().optional()
       });
       
