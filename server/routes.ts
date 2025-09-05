@@ -294,8 +294,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { teamName } = req.params;
       
-      // Validate member data using Zod schema
-      const result = teamDetailsUpdateSchema.safeParse(req.body);
+      // Simple validation for team member operations
+      const memberSchema = z.object({
+        action: z.enum(['add', 'remove', 'update']),
+        memberId: z.string().optional(),
+        member: z.any().optional()
+      });
+      
+      const result = memberSchema.safeParse(req.body);
       if (!result.success) {
         return res.status(400).json({ 
           message: "Invalid team member data", 
@@ -303,7 +309,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      const memberData = result.data;
+      const memberData = req.body;
 
       // Get OAuth context (team, tenant, username from session or headers)
       const oauthContext = {
