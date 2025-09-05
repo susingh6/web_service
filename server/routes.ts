@@ -294,15 +294,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { teamName } = req.params;
       
-      // Simple validation for team member operations
+      // Simple validation for team member operations - match frontend exactly
       const memberSchema = z.object({
         action: z.enum(['add', 'remove', 'update']),
-        memberId: z.string().optional(),
+        memberId: z.string(),
         member: z.any().optional()
       });
       
       const result = memberSchema.safeParse(req.body);
       if (!result.success) {
+        console.log('Team member validation failed:', result.error.format());
         return res.status(400).json({ 
           message: "Invalid team member data", 
           errors: result.error.format() 
