@@ -40,6 +40,7 @@ import { format } from 'date-fns';
 import { Entity } from '@shared/schema';
 import { getEntityTrend } from '@/lib/trendCache';
 import { config } from '@/config';
+import { STANDARD_STATUSES, STATUS_CONFIG, normalizeStatus } from '@/utils/status-normalization';
 
 type EntityStatus = 'Pending' | 'Failed' | 'Passed';
 
@@ -49,14 +50,7 @@ interface StatusConfig {
   lightBg: string;
 }
 
-const DEFAULT_STATUS: StatusConfig = { color: 'default', label: 'Unknown', lightBg: 'rgba(158, 158, 158, 0.1)' };
-
-const STATUS_CONFIG: Record<string, StatusConfig> = {
-  // API statuses as specified
-  'Passed': { color: 'success', label: 'Passed', lightBg: 'rgba(76, 175, 80, 0.1)' },
-  'Pending': { color: 'warning', label: 'Pending', lightBg: 'rgba(255, 152, 0, 0.1)' },
-  'Failed': { color: 'error', label: 'Failed', lightBg: 'rgba(244, 67, 54, 0.1)' },
-};
+const DEFAULT_STATUS = { color: 'default' as const, label: 'Unknown', lightBg: 'rgba(158, 158, 158, 0.1)' };
 
 interface HeadCell {
   id: keyof Entity | 'actions' | 'trend' | 'table_name' | 'dag_name';

@@ -38,6 +38,7 @@ import HistoryIcon from '@mui/icons-material/History';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { Entity } from '@shared/schema';
 import TaskManagementModal from '@/components/modals/TaskManagementModal';
+import { STANDARD_STATUSES, STATUS_CONFIG } from '@/utils/status-normalization';
 
 interface DagListProps {
   dags: Entity[];
@@ -221,7 +222,7 @@ const DagList: React.FC<DagListProps> = ({ dags, isLoading, error, showActions =
               <Button 
                 disableElevation
                 size="small"
-                onClick={() => handleFilterChange('success')}
+                onClick={() => handleFilterChange(STANDARD_STATUSES.PASSED)}
                 sx={{ 
                   borderRadius: 0,
                   px: 2,
@@ -240,7 +241,7 @@ const DagList: React.FC<DagListProps> = ({ dags, isLoading, error, showActions =
               <Button 
                 disableElevation
                 size="small"
-                onClick={() => handleFilterChange('warning')}
+                onClick={() => handleFilterChange(STANDARD_STATUSES.PENDING)}
                 sx={{ 
                   borderRadius: 0,
                   px: 2,
@@ -259,19 +260,19 @@ const DagList: React.FC<DagListProps> = ({ dags, isLoading, error, showActions =
               <Button 
                 disableElevation
                 size="small"
-                onClick={() => handleFilterChange('failed')}
+                onClick={() => handleFilterChange(STANDARD_STATUSES.FAILED)}
                 sx={{ 
                   borderRadius: 0,
                   px: 2,
                   py: 0.5,
-                  backgroundColor: statusFilter === 'failed' ? '#f44336' : 'transparent',
-                  color: statusFilter === 'failed' ? 'white' : 'text.primary',
+                  backgroundColor: statusFilter === STANDARD_STATUSES.FAILED ? STATUS_CONFIG[STANDARD_STATUSES.FAILED].badgeColor : 'transparent',
+                  color: statusFilter === STANDARD_STATUSES.FAILED ? 'white' : 'text.primary',
                   '&:hover': {
-                    backgroundColor: statusFilter === 'failed' ? '#e53935' : 'action.hover'
+                    backgroundColor: statusFilter === STANDARD_STATUSES.FAILED ? '#e53935' : 'action.hover'
                   }
                 }}
               >
-                Critical
+                Failed
               </Button>
             </Box>
           </Box>

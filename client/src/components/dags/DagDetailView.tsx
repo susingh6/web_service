@@ -26,6 +26,7 @@ import {
 } from '@mui/icons-material';
 import { Entity, Task } from '@/features/sla/types';
 import { format } from 'date-fns';
+import { normalizeStatus, getStatusColor, STANDARD_STATUSES } from '@/utils/status-normalization';
 import { getTasksForDag, updateTaskPriority } from '@/features/sla/mockService';
 import TaskCard from './TaskCard';
 import TaskDragLayer from './TaskDragLayer';
@@ -227,14 +228,9 @@ const DagDetailView: React.FC<DagDetailViewProps> = ({ entity, onBack }) => {
               <Box sx={{ display: 'flex', alignItems: 'center' }}>
                 {statusIconMap[entity.status] || statusIconMap.unknown}
                 <Chip 
-                  label={entity.status ? entity.status.charAt(0).toUpperCase() + entity.status.slice(1) : 'Unknown'} 
+                  label={entity.status ? normalizeStatus(entity.status) : 'Unknown'} 
                   size="small" 
-                  color={
-                    entity.status === 'success' || entity.status === 'healthy' ? 'success' :
-                    entity.status === 'running' || entity.status === 'warning' ? 'warning' :
-                    entity.status === 'failed' || entity.status === 'critical' ? 'error' :
-                    'default'
-                  }
+                  color={getStatusColor(normalizeStatus(entity.status))}
                   sx={{ ml: 1 }}
                 />
               </Box>
