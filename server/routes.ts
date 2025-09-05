@@ -579,6 +579,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         nextRefresh: z.date().optional(),
         owner: z.string().optional(),
         ownerEmail: z.string().optional(),
+        is_active: z.boolean().optional(),
+        // Add other common entity fields
+        tenant_name: z.string().optional(),
+        team_name: z.string().optional(),
+        schema_name: z.string().optional(),
+        table_name: z.string().optional(),
+        table_description: z.string().optional(),
+        table_schedule: z.string().optional(),
+        table_dependency: z.string().optional(),
+        dag_name: z.string().optional(),
+        dag_description: z.string().optional(),
+        dag_schedule: z.string().optional(),
+        dag_dependency: z.string().optional(),
+        server_name: z.string().optional(),
+        expected_runtime_minutes: z.number().optional(),
+        donemarker_location: z.string().optional(),
+        donemarker_lookback: z.number().optional(),
+        owner_email: z.string().optional(),
+        user_email: z.string().optional(),
+        notification_preferences: z.array(z.string()).optional(),
+        is_entity_owner: z.boolean().optional(),
       });
       
       const result = updateSchema.safeParse(req.body);
