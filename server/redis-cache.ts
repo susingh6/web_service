@@ -282,7 +282,7 @@ export class RedisCache {
     this.broadcastToClients(event, data);
   }
 
-  // Enhanced broadcast with echo-to-origin and versioning
+  // Enhanced broadcast with echo-to-origin, versioning, and backpressure safety
   private broadcastToClients(event: string, data: EntityChangeEvent | TeamMemberChangeEvent): void {
     if (!this.wss) return;
 
@@ -298,7 +298,7 @@ export class RedisCache {
     
     // First, send immediate echo to originator for instant feedback
     if (data.originUserId) {
-      this.echoToOrigin(event, enhancedData, data.originUserId);
+      this.echoToOriginWithBackpressure(event, enhancedData, data.originUserId);
     }
     
     this.wss.clients.forEach((client) => {
@@ -311,14 +311,14 @@ export class RedisCache {
             socketData.subscriptions.has(subscriptionKey) &&
             socketData.userId !== data.originUserId
         ) {
-          client.send(message);
+          this.sendWithBackpressureProtection(client, message, `${event}:${subscriptionKey}`);
         }
       }
     });
   }
 
-  // Immediate echo to originator for instant feedback
-  private echoToOrigin(event: string, data: any, originUserId: string): void {
+  // Enhanced echo with backpressure protection
+  private echoToOriginWithBackpressure(event: string, data: any, originUserId: string): void {
     if (!this.wss) return;
 
     const echoMessage = JSON.stringify({ 
@@ -333,15 +333,104 @@ export class RedisCache {
       if (client.readyState === 1) {
         const socketData = this.authenticatedSockets.get(client);
         
-        // Send only to the originator
+        // Send only to the originator with backpressure protection
         if (socketData && socketData.userId === originUserId) {
-          client.send(echoMessage);
+          this.sendWithBackpressureProtection(client, echoMessage, `echo:${event}`);
         }
       }
     });
   }
 
-  // Legacy broadcast for cache updates (no filtering needed)
+  // Backpressure-safe send with event coalescing
+  private sendWithBackpressureProtection(client: WebSocket, message: string, eventKey: string): void {
+    const MAX_BUFFER_SIZE = 64 * 1024; // 64KB threshold
+    const MAX_QUEUE_SIZE = 100;
+    
+    // Check if the client's send buffer is too full
+    if ((client as any).bufferedAmount > MAX_BUFFER_SIZE) {
+      // Initialize per-client event queue if not exists
+      if (!(client as any)._eventQueue) {
+        (client as any)._eventQueue = new Map<string, string>();
+      }
+      
+      const eventQueue = (client as any)._eventQueue;
+      
+      // Coalesce events by key (keep only latest for each event type)
+      eventQueue.set(eventKey, message);
+      
+      // Limit queue size to prevent memory leaks
+      if (eventQueue.size > MAX_QUEUE_SIZE) {
+        // Remove oldest entries
+        const entries = Array.from(eventQueue.entries());
+        entries.slice(0, eventQueue.size - MAX_QUEUE_SIZE).forEach(([key]) => {
+          eventQueue.delete(key);
+        });
+      }
+      
+      console.warn(`Backpressure detected for client, queued event: ${eventKey}`);
+      
+      // Try to flush queue when buffer clears
+      this.scheduleQueueFlush(client);
+      return;
+    }
+    
+    try {
+      client.send(message);
+      
+      // If send succeeded and we have a queue, try to flush it
+      if ((client as any)._eventQueue?.size > 0) {
+        this.flushEventQueue(client);
+      }
+    } catch (error) {
+      console.error('Failed to send WebSocket message:', error);
+    }
+  }
+
+  // Schedule queue flush when buffer clears
+  private scheduleQueueFlush(client: WebSocket): void {
+    if ((client as any)._flushScheduled) return;
+    
+    (client as any)._flushScheduled = true;
+    
+    // Use setImmediate for next tick scheduling to avoid blocking
+    setImmediate(() => {
+      (client as any)._flushScheduled = false;
+      this.flushEventQueue(client);
+    });
+  }
+
+  // Flush queued events when buffer clears
+  private flushEventQueue(client: WebSocket): void {
+    const eventQueue = (client as any)._eventQueue;
+    if (!eventQueue || eventQueue.size === 0) return;
+    
+    const MAX_BUFFER_SIZE = 64 * 1024;
+    
+    // Only flush if buffer is clear enough
+    if ((client as any).bufferedAmount > MAX_BUFFER_SIZE) {
+      // Still backed up, reschedule
+      this.scheduleQueueFlush(client);
+      return;
+    }
+    
+    // Send all queued events
+    const events = Array.from(eventQueue.values());
+    eventQueue.clear();
+    
+    events.forEach(message => {
+      try {
+        if (client.readyState === 1) { // Still OPEN
+          client.send(message);
+        }
+      } catch (error) {
+        console.error('Failed to flush queued message:', error);
+      }
+    });
+    
+    console.log(`Flushed ${events.length} queued events`);
+  }
+
+  // Legacy broadcast for cache updates with backpressure protection
   private broadcastCacheUpdate(event: string, data: any): void {
     if (!this.wss) return;
 
@@ -349,7 +438,7 @@ export class RedisCache {
     
     this.wss.clients.forEach((client) => {
       if (client.readyState === 1) { // WebSocket.OPEN
-        client.send(message);
+        this.sendWithBackpressureProtection(client, message, `cache:${event}`);
       }
     });
   }

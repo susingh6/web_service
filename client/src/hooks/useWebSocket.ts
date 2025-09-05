@@ -65,7 +65,10 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
           // Handle authentication responses
           if (message.event === 'auth-success') {
             setIsAuthenticated(true);
-            // Re-subscribe to current page after authentication
+            // Re-subscribe to all active subscriptions after authentication
+            rehydrateSubscriptions();
+            
+            // Also subscribe to current page if not already subscribed
             if (options.tenantName && options.teamName) {
               subscribe(options.tenantName, options.teamName);
             }
@@ -134,12 +137,15 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
       ws.current.onclose = () => {
         // WebSocket disconnected
         setIsConnected(false);
+        setIsAuthenticated(false);
         options.onDisconnect?.();
+        
+        console.log(`WebSocket disconnected. Active subscriptions to rehydrate:`, Array.from(activeSubscriptions.current));
         
         // Attempt to reconnect
         if (reconnectAttempts.current < maxReconnectAttempts) {
           const delay = Math.min(1000 * Math.pow(2, reconnectAttempts.current), 30000);
-          // Reconnecting
+          console.log(`Reconnecting in ${delay}ms (attempt ${reconnectAttempts.current + 1}/${maxReconnectAttempts})`);
           
           reconnectTimeoutRef.current = setTimeout(() => {
             reconnectAttempts.current++;
@@ -147,6 +153,7 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
           }, delay);
         } else {
           setConnectionError('Max reconnection attempts reached');
+          console.error('Max reconnection attempts reached. Active subscriptions lost:', Array.from(activeSubscriptions.current));
         }
       };
 
@@ -240,6 +247,25 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
       activeSubscriptions.current.clear();
       console.log('Unsubscribed from all subscriptions');
     }
+  };
+
+  // Rehydrate all active subscriptions on reconnect
+  const rehydrateSubscriptions = () => {
+    if (!isAuthenticated || activeSubscriptions.current.size === 0) return;
+    
+    console.log('Rehydrating subscriptions:', Array.from(activeSubscriptions.current));
+    
+    // Re-subscribe to all active subscriptions
+    activeSubscriptions.current.forEach(subscriptionKey => {
+      const [tenantName, teamName] = subscriptionKey.split(':');
+      if (tenantName && teamName) {
+        sendMessage({
+          type: 'subscribe',
+          tenantName,
+          teamName
+        });
+      }
+    });
   };
 
   // Auto-connect on mount
