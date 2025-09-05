@@ -15,6 +15,24 @@ import { Box, CircularProgress } from "@mui/material";
 // Lazy load components for better performance
 const TeamDashboard = lazy(() => import("@/pages/dashboard/TeamDashboard"));
 
+// Wrapper component to handle TeamDashboard props
+const TeamDashboardWrapper = () => {
+  // Mock props for now - in a real app, these would come from route params or context
+  const mockProps = {
+    teamName: 'Development Team',
+    tenantName: 'Production',
+    onEditEntity: () => {},
+    onDeleteEntity: () => {},
+    onViewDetails: () => {},
+    onAddEntity: () => {},
+    onBulkUpload: () => {},
+    onNotificationTimeline: () => {},
+    onViewTasks: () => {}
+  };
+
+  return <TeamDashboard {...mockProps} />;
+};
+
 // Loading fallback for lazy-loaded components
 const LazyLoadingFallback = () => (
   <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh">
@@ -34,7 +52,7 @@ function Router() {
         path="/team/:id" 
         component={() => (
           <Suspense fallback={<LazyLoadingFallback />}>
-            <TeamDashboard />
+            <TeamDashboardWrapper />
           </Suspense>
         )} 
       />

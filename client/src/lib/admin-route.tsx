@@ -13,7 +13,7 @@ export function AdminRoute({
   path,
   ...rest
 }: AdminRouteProps) {
-  const { isAuthenticated, isLoading, user } = useAuth();
+  const { isAuthenticated, isLoading, user, fastApiUser, azureUser, authMethod } = useAuth();
 
   if (isLoading) {
     return (
@@ -41,8 +41,16 @@ export function AdminRoute({
     );
   }
 
-  // Check if user has admin role
-  const userRole = (user as any)?.role;
+  // Check if user has admin role - support different authentication methods
+  let userRole = '';
+  if (authMethod === 'fastapi' && fastApiUser) {
+    userRole = fastApiUser.role || 'user';
+  } else if (authMethod === 'azure' && azureUser) {
+    userRole = 'admin'; // Mock Azure users are always admin
+  } else if (user) {
+    userRole = (user as any)?.role || 'user';
+  }
+
   if (userRole !== 'admin') {
     return (
       <Route path={path}>

@@ -90,6 +90,10 @@ type AuthContextType = {
   authMethod: 'azure' | 'local' | 'fastapi' | null;
   sessionId: string | null;
   
+  // Additional user information needed by AdminRoute
+  fastApiUser: FastAPIUser | null;
+  azureUser: AccountInfo | null;
+  
   // Traditional login methods (legacy)
   loginMutation: UseMutationResult<User, Error, LoginData>;
   registerMutation: UseMutationResult<User, Error, RegisterData>;
@@ -115,23 +119,74 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAzureLoading, setIsAzureLoading] = useState<boolean>(false);
   const [azureError, setAzureError] = useState<string | null>(null);
 
-  // Load session from localStorage on mount
+  // Check for session expiry and auto re-authenticate  
+  const checkSessionExpiry = async (): Promise<boolean> => {
+    const sessionExpiry = localStorage.getItem('fastapi_session_expiry');
+    if (!sessionExpiry) return false;
+    
+    const expiryTime = new Date(sessionExpiry);
+    const now = new Date();
+    
+    // If session expires within 5 minutes, try to refresh it
+    const timeUntilExpiry = expiryTime.getTime() - now.getTime();
+    const fiveMinutes = 5 * 60 * 1000;
+    
+    if (timeUntilExpiry < fiveMinutes) {
+      console.log('Session expiring soon, attempting to refresh...');
+      try {
+        // Try to re-authenticate with Azure
+        await loginWithAzure();
+        return true;
+      } catch (error) {
+        console.error('Failed to refresh session:', error);
+        // Clear expired session
+        localStorage.removeItem('fastapi_session_id');
+        localStorage.removeItem('fastapi_session_expiry');
+        localStorage.removeItem('fastapi_user');
+        setSessionId(null);
+        setFastApiUser(null);
+        setAuthMethod(null);
+        return false;
+      }
+    }
+    
+    return true;
+  };
+
+  // Load session from localStorage on mount with expiry check
   useEffect(() => {
     const savedSessionId = localStorage.getItem('fastapi_session_id');
     const savedUser = localStorage.getItem('fastapi_user');
+    const sessionExpiry = localStorage.getItem('fastapi_session_expiry');
     
-    if (savedSessionId && savedUser) {
+    if (savedSessionId && savedUser && sessionExpiry) {
       try {
         const user = JSON.parse(savedUser) as FastAPIUser;
-        setSessionId(savedSessionId);
-        setFastApiUser(user);
-        setAuthMethod('fastapi');
+        const expiryTime = new Date(sessionExpiry);
+        const now = new Date();
         
-        // Initialize FastAPI client with saved session
-        fastApiClient.setSessionId(savedSessionId);
+        // Check if session is still valid
+        if (expiryTime > now) {
+          setSessionId(savedSessionId);
+          setFastApiUser(user);
+          setAuthMethod('fastapi');
+          
+          // Initialize FastAPI client with saved session
+          fastApiClient.setSessionId(savedSessionId);
+          
+          // Set up automatic session refresh check
+          const timeUntilExpiry = expiryTime.getTime() - now.getTime();
+          setTimeout(checkSessionExpiry, Math.max(0, timeUntilExpiry - 5 * 60 * 1000));
+        } else {
+          // Session expired, clear storage
+          localStorage.removeItem('fastapi_session_id');
+          localStorage.removeItem('fastapi_session_expiry');
+          localStorage.removeItem('fastapi_user');
+        }
       } catch (error) {
         console.error('Error loading saved session:', error);
         localStorage.removeItem('fastapi_session_id');
+        localStorage.removeItem('fastapi_session_expiry');
         localStorage.removeItem('fastapi_user');
       }
     }
@@ -218,9 +273,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   // FastAPI authentication with Azure token
-  const authenticateWithFastAPI = async (azureToken: string): Promise<void> => {
+  const authenticateWithFastAPI = async (azureToken: string, userDetails?: any): Promise<void> => {
     try {
-      const fastApiConfig = endpoints.fastapi || {
+      // Get FastAPI config from centralized config
+      const config = await import('../config');
+      const fastApiConfig = config.endpoints.fastapi || {
         baseUrl: "http://localhost:8080",
         auth: {
           login: "/api/v1/auth/login",
@@ -228,13 +285,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       };
 
-      // Use Bearer token as expected by FastAPI
+      // Use Bearer token as expected by FastAPI with user details
       const response = await fetch(`${fastApiConfig.baseUrl}${fastApiConfig.auth.login}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${azureToken}`,
           'Accept': 'application/json'
-        }
+        },
+        body: userDetails ? JSON.stringify(userDetails) : undefined
       });
 
       if (!response.ok) {
@@ -249,7 +307,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const authResponse: FastAPIAuthResponse = await response.json();
       
-      // Store session and user info
+      // Store session and user info with 6-hour expiry timestamp
+      const sessionExpiry = new Date(Date.now() + 6 * 60 * 60 * 1000); // 6 hours from now
       setSessionId(sessionId);
       setFastApiUser(authResponse.user);
       setAuthMethod('fastapi');
@@ -257,8 +316,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Initialize FastAPI client with session
       fastApiClient.setSessionId(sessionId);
       
-      // Persist to localStorage
+      // Persist to localStorage with expiry
       localStorage.setItem('fastapi_session_id', sessionId);
+      localStorage.setItem('fastapi_session_expiry', sessionExpiry.toISOString());
       localStorage.setItem('fastapi_user', JSON.stringify(authResponse.user));
       
       toast({
@@ -288,7 +348,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       };
       
       // Call Azure validation endpoint with centralized config
-      const res = await apiRequest("POST", buildUrl(endpoints.auth.azureValidate || '/api/auth/azure/validate'), {
+      const azureValidateUrl = endpoints.auth?.azureValidate || '/api/auth/azure/validate';
+      const res = await apiRequest("POST", buildUrl(azureValidateUrl), {
         token: "mock-azure-token", // In production, this would be real Azure JWT
         claims: mockAzureClaims
       });
@@ -306,16 +367,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
       
-      // Azure admin validation successful
+      // Azure admin validation successful - now authenticate with FastAPI
       queryClient.setQueryData(["/api/user"], response.user);
-      setAuthMethod('azure');
-      setAzureUser(response.user);
       
-      toast({
-        title: "Authentication successful",
-        description: `Welcome, ${response.user.displayName}! You have admin access.`,
-        variant: "default",
-      });
+      try {
+        // Extract user details for FastAPI
+        const userDetails = {
+          email: response.user.email,
+          name: response.user.displayName,
+          roles: response.user.roles || ['admin'], // Default to admin for mock Azure
+          oid: response.user.id
+        };
+        
+        // Authenticate with FastAPI using mock Azure token  
+        await authenticateWithFastAPI("mock-azure-token", userDetails);
+        
+        toast({
+          title: "Authentication successful",
+          description: `Welcome, ${response.user.displayName}! You have admin access.`,
+          variant: "default",
+        });
+      } catch (fastApiError) {
+        console.error('FastAPI authentication failed:', fastApiError);
+        // Fall back to Azure-only auth if FastAPI fails
+        setAuthMethod('azure');
+        setAzureUser(response.user);
+        
+        toast({
+          title: "Authentication successful",
+          description: `Welcome, ${response.user.displayName}! (Local mode)`,
+          variant: "default",
+        });
+      }
       
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
@@ -328,39 +411,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsAzureLoading(false);
     }
-    return;
-    
-    // TODO: Implement Azure AD authentication when environment variables are configured
-    if (!isAzureConfigured || !msalInstance) {
       return;
-    }
-    
-    try {
-      setIsAzureLoading(true);
-      setAzureError(null);
-      
-      // Get Azure token via popup
-      const response: AuthenticationResult = await msalInstance.loginPopup(loginRequest);
-      
-      if (response && response.accessToken) {
-        msalInstance.setActiveAccount(response.account);
-        setAzureUser(response.account);
-        
-        // For now, we'll just use local authentication
-        // TODO: Implement FastAPI authentication when backend is ready
-        setAuthMethod('azure');
-      }
-    } catch (err) {
-      setAzureError(`Login failed: ${err}`);
-      console.error('Azure login error:', err);
-      toast({
-        title: "Azure AD login failed",
-        description: err instanceof Error ? err.message : String(err),
-        variant: "destructive",
-      });
-    } finally {
-      setIsAzureLoading(false);
-    }
   };
 
   // Logout function with FastAPI session handling
@@ -399,6 +450,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
           // Clear local session data
           localStorage.removeItem('fastapi_session_id');
+          localStorage.removeItem('fastapi_session_expiry');
           localStorage.removeItem('fastapi_user');
           setSessionId(null);
           setFastApiUser(null);
@@ -479,6 +531,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     error,
     authMethod,
     sessionId,
+    fastApiUser,
+    azureUser,
     loginMutation,
     registerMutation,
     loginWithAzure,
