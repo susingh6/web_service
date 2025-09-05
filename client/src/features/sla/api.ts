@@ -30,6 +30,22 @@ export const entitiesApi = {
     const res = await apiRequest('GET', endpoints.entity.byTeam(teamId));
     return await res.json();
   },
+  getByType: async (type: string) => {
+    const res = await apiRequest('GET', `${endpoints.entities}?type=${encodeURIComponent(type)}`);
+    return await res.json();
+  },
+  create: async (entityData: any) => {
+    const res = await apiRequest('POST', endpoints.entities, entityData);
+    return await res.json();
+  },
+  update: async (payload: { id: number; updates: any }) => {
+    const res = await apiRequest('PUT', endpoints.entity.byId(payload.id), payload.updates);
+    return await res.json();
+  },
+  delete: async (id: number) => {
+    const res = await apiRequest('DELETE', endpoints.entity.byId(id));
+    return res.ok;
+  },
 };
 
 export const dagsApi = {
