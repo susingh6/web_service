@@ -127,7 +127,16 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
               }
               break;
             default:
-              console.log('Unknown WebSocket event:', message.event);
+              // Handle heartbeat and other system messages
+              if (message.event === 'heartbeat-ping') {
+                // Respond to server heartbeat
+                sendMessage({ type: 'pong', timestamp: new Date().toISOString() });
+              } else if (message.event === 'pong') {
+                // Server responding to our ping
+                console.log('Received pong from server');
+              } else {
+                console.log('Unknown WebSocket event:', message.event);
+              }
           }
         } catch (error) {
           console.error('Error parsing WebSocket message:', error);

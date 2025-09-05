@@ -1,6 +1,6 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
-import { WebSocketServer } from "ws";
+import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { redisCache } from "./redis-cache";
 import { insertEntitySchema, insertTeamSchema, insertEntityHistorySchema, insertIssueSchema, insertUserSchema, insertNotificationTimelineSchema } from "@shared/schema";
@@ -1370,15 +1370,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Setup WebSocket server with authentication and subscriptions
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
   
-  // Track authenticated connections and their subscriptions
+  // Track authenticated connections with heartbeat monitoring
   const authenticatedSockets = new Map<WebSocket, {
     sessionId: string;
     userId: string;
     subscriptions: Set<string>; // tenant:team format
+    lastPong: number; // Last pong response timestamp
+    isAlive: boolean; // Heartbeat status
   }>();
 
+  // Heartbeat configuration
+  const HEARTBEAT_INTERVAL = 30000; // 30 seconds
+  const IDLE_TIMEOUT = 60000; // 60 seconds
+  const CLEANUP_INTERVAL = 10000; // 10 seconds
+
   wss.on('connection', (ws, req) => {
-    let socketData: { sessionId: string; userId: string; subscriptions: Set<string> } | null = null;
+    let socketData: { sessionId: string; userId: string; subscriptions: Set<string>; lastPong: number; isAlive: boolean } | null = null;
 
     ws.on('message', (message) => {
       try {
@@ -1398,7 +1405,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           socketData = {
             sessionId,
             userId: data.userId || 'anonymous',
-            subscriptions: new Set()
+            subscriptions: new Set(),
+            lastPong: Date.now(),
+            isAlive: true
           };
           
           authenticatedSockets.set(ws, socketData);
@@ -1443,9 +1452,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return;
         }
 
-        // Handle ping/pong
+        // Handle ping/pong with heartbeat tracking
         if (data.type === 'ping') {
           ws.send(JSON.stringify({ type: 'pong', timestamp: new Date().toISOString() }));
+          return;
+        }
+
+        if (data.type === 'pong') {
+          // Update heartbeat status
+          if (socketData) {
+            socketData.lastPong = Date.now();
+            socketData.isAlive = true;
+          }
           return;
         }
 
@@ -1470,6 +1488,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
       type: 'auth-required', 
       message: 'Please authenticate with session ID' 
     }));
+  });
+
+  // Setup heartbeat system
+  const heartbeatInterval = setInterval(() => {
+    const now = Date.now();
+    
+    wss.clients.forEach((ws) => {
+      const socketData = authenticatedSockets.get(ws);
+      
+      if (socketData) {
+        // Check if client is stuck (no pong response within timeout)
+        if (now - socketData.lastPong > IDLE_TIMEOUT) {
+          console.log(`Terminating idle client: ${socketData.userId}`);
+          ws.terminate();
+          authenticatedSockets.delete(ws);
+          return;
+        }
+        
+        // Send heartbeat ping
+        if (ws.readyState === WebSocket.OPEN) {
+          socketData.isAlive = false;
+          ws.send(JSON.stringify({ 
+            type: 'heartbeat-ping', 
+            timestamp: new Date().toISOString() 
+          }));
+        }
+      }
+    });
+  }, HEARTBEAT_INTERVAL);
+
+  // Cleanup interval for connection health monitoring
+  const cleanupInterval = setInterval(() => {
+    const now = Date.now();
+    const stuckClients: WebSocket[] = [];
+    
+    authenticatedSockets.forEach((socketData, ws) => {
+      // Mark clients as stuck if they haven't responded to heartbeat
+      if (!socketData.isAlive && now - socketData.lastPong > IDLE_TIMEOUT) {
+        stuckClients.push(ws);
+      }
+    });
+    
+    // Remove stuck clients
+    stuckClients.forEach(ws => {
+      const socketData = authenticatedSockets.get(ws);
+      console.log(`Removing stuck client: ${socketData?.userId || 'unknown'}`);
+      ws.terminate();
+      authenticatedSockets.delete(ws);
+    });
+    
+    if (stuckClients.length > 0) {
+      console.log(`Cleaned up ${stuckClients.length} stuck WebSocket connections`);
+    }
+  }, CLEANUP_INTERVAL);
+
+  // Cleanup intervals on server shutdown
+  process.on('SIGTERM', () => {
+    clearInterval(heartbeatInterval);
+    clearInterval(cleanupInterval);
+  });
+
+  process.on('SIGINT', () => {
+    clearInterval(heartbeatInterval);
+    clearInterval(cleanupInterval);
   });
 
   // Connect WebSocket to cache system with authenticated sockets
