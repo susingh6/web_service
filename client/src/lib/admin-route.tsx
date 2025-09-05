@@ -44,7 +44,7 @@ export function AdminRoute({
   // Check if user has admin role - support different authentication methods
   let userRole = '';
   if (authMethod === 'fastapi' && fastApiUser) {
-    userRole = fastApiUser.role || 'user';
+    userRole = fastApiUser.roles?.[0] || 'user'; // Use first role from roles array
   } else if (authMethod === 'azure' && azureUser) {
     userRole = 'admin'; // Mock Azure users are always admin
   } else if (user) {
