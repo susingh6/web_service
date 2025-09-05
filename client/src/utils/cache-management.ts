@@ -167,7 +167,19 @@ export function useCacheManager() {
       await queryClient.prefetchQuery({
         queryKey: CACHE_PATTERNS.ENTITIES.BY_TEAM_AND_TYPE(teamId, entityType),
         queryFn: async () => {
-          const response = await fetch(`/api/entities?teamId=${teamId}&type=${entityType}`);
+          // Build headers with session ID for RBAC enforcement
+          const headers: Record<string, string> = {};
+          
+          // CRITICAL: Add X-Session-ID header for FastAPI RBAC
+          const sessionId = localStorage.getItem('fastapi_session_id');
+          if (sessionId) {
+            headers['X-Session-ID'] = sessionId;
+          }
+          
+          const response = await fetch(`/api/entities?teamId=${teamId}&type=${entityType}`, {
+            headers,
+            credentials: 'include',
+          });
           if (!response.ok) throw new Error('Failed to fetch entities');
           return response.json();
         },
@@ -178,7 +190,19 @@ export function useCacheManager() {
       await queryClient.prefetchQuery({
         queryKey: CACHE_PATTERNS.ENTITIES.BY_TEAM(teamId),
         queryFn: async () => {
-          const response = await fetch(`/api/entities?teamId=${teamId}`);
+          // Build headers with session ID for RBAC enforcement
+          const headers: Record<string, string> = {};
+          
+          // CRITICAL: Add X-Session-ID header for FastAPI RBAC
+          const sessionId = localStorage.getItem('fastapi_session_id');
+          if (sessionId) {
+            headers['X-Session-ID'] = sessionId;
+          }
+          
+          const response = await fetch(`/api/entities?teamId=${teamId}`, {
+            headers,
+            credentials: 'include',
+          });
           if (!response.ok) throw new Error('Failed to fetch team entities');
           return response.json();
         },
@@ -285,11 +309,20 @@ export function useTeamMemberMutation() {
         updater: (old: any[] | undefined) => old ? [...old, user] : [user],
       },
       mutationFn: async () => {
-        // This would be the actual API call
+        // Build headers with session ID for RBAC enforcement
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        
+        // CRITICAL: Add X-Session-ID header for FastAPI RBAC
+        const sessionId = localStorage.getItem('fastapi_session_id');
+        if (sessionId) {
+          headers['X-Session-ID'] = sessionId;
+        }
+        
         const response = await fetch(`/api/teams/${teamName}/members`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify({ action: 'add', memberId: userId }),
+          credentials: 'include',
         });
         if (!response.ok) throw new Error('Failed to add member');
         return response.json();
@@ -310,10 +343,20 @@ export function useTeamMemberMutation() {
           old ? old.filter(member => member.id !== parseInt(userId)) : [],
       },
       mutationFn: async () => {
+        // Build headers with session ID for RBAC enforcement
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        
+        // CRITICAL: Add X-Session-ID header for FastAPI RBAC
+        const sessionId = localStorage.getItem('fastapi_session_id');
+        if (sessionId) {
+          headers['X-Session-ID'] = sessionId;
+        }
+        
         const response = await fetch(`/api/teams/${teamName}/members`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify({ action: 'remove', memberId: userId }),
+          credentials: 'include',
         });
         if (!response.ok) throw new Error('Failed to remove member');
         return response.json();
@@ -346,10 +389,20 @@ export function useEntityMutation() {
         updater: (old: any[] | undefined) => old ? [...old, optimisticEntity] : [optimisticEntity],
       },
       mutationFn: async () => {
+        // Build headers with session ID for RBAC enforcement
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        
+        // CRITICAL: Add X-Session-ID header for FastAPI RBAC
+        const sessionId = localStorage.getItem('fastapi_session_id');
+        if (sessionId) {
+          headers['X-Session-ID'] = sessionId;
+        }
+        
         const response = await fetch('/api/entities', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify(entityData),
+          credentials: 'include',
         });
         if (!response.ok) throw new Error('Failed to create entity');
         return response.json();
@@ -383,10 +436,20 @@ export function useEntityMutation() {
     
     return executeWithOptimism({
       mutationFn: async () => {
+        // Build headers with session ID for RBAC enforcement
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        
+        // CRITICAL: Add X-Session-ID header for FastAPI RBAC
+        const sessionId = localStorage.getItem('fastapi_session_id');
+        if (sessionId) {
+          headers['X-Session-ID'] = sessionId;
+        }
+        
         const response = await fetch(`/api/entities/${entityId}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify(entityData),
+          credentials: 'include',
         });
         if (!response.ok) throw new Error('Failed to update entity');
         return response.json();
@@ -409,8 +472,19 @@ export function useEntityMutation() {
           old ? old.filter(entity => entity.id !== entityId) : [],
       },
       mutationFn: async () => {
+        // Build headers with session ID for RBAC enforcement
+        const headers: Record<string, string> = {};
+        
+        // CRITICAL: Add X-Session-ID header for FastAPI RBAC
+        const sessionId = localStorage.getItem('fastapi_session_id');
+        if (sessionId) {
+          headers['X-Session-ID'] = sessionId;
+        }
+        
         const response = await fetch(`/api/entities/${entityId}`, {
           method: 'DELETE',
+          headers,
+          credentials: 'include',
         });
         if (!response.ok) throw new Error('Failed to delete entity');
         return response.ok;

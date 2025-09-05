@@ -12,11 +12,24 @@ export async function apiRequest(
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
+  // Build headers with session ID for RBAC enforcement
+  const headers: Record<string, string> = {};
+  
+  if (data) {
+    headers["Content-Type"] = "application/json";
+  }
+  
+  // CRITICAL: Add X-Session-ID header for FastAPI RBAC
+  const sessionId = localStorage.getItem('fastapi_session_id');
+  if (sessionId) {
+    headers["X-Session-ID"] = sessionId;
+  }
+  
   const res = await fetch(url, {
     method,
-    headers: data ? { "Content-Type": "application/json" } : {},
+    headers,
     body: data ? JSON.stringify(data) : undefined,
-    credentials: "include",
+    credentials: "include", // Keep for Express session cookies as fallback
   });
 
   await throwIfResNotOk(res);
@@ -29,8 +42,18 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
+    // Build headers with session ID for RBAC enforcement
+    const headers: Record<string, string> = {};
+    
+    // CRITICAL: Add X-Session-ID header for FastAPI RBAC
+    const sessionId = localStorage.getItem('fastapi_session_id');
+    if (sessionId) {
+      headers["X-Session-ID"] = sessionId;
+    }
+    
     const res = await fetch(queryKey[0] as string, {
-      credentials: "include",
+      headers,
+      credentials: "include", // Keep for Express session cookies as fallback
     });
 
     if (unauthorizedBehavior === "returnNull" && res.status === 401) {
