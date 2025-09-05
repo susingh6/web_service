@@ -5,6 +5,8 @@ interface WebSocketMessage {
   event: string;
   data: any;
   timestamp: string;
+  originalEvent?: string;
+  isEcho?: boolean;
 }
 
 interface UseWebSocketOptions {
@@ -30,7 +32,7 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectAttempts = useRef(0);
   const maxReconnectAttempts = 5;
-  const currentSubscription = useRef<string | null>(null);
+  const activeSubscriptions = useRef<Set<string>>(new Set());
   const lastVersions = useRef<Map<string, number>>(new Map());
 
   const connect = () => {
@@ -63,7 +65,7 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
           // Handle authentication responses
           if (message.event === 'auth-success') {
             setIsAuthenticated(true);
-            // Subscribe to current page after authentication
+            // Re-subscribe to current page after authentication
             if (options.tenantName && options.teamName) {
               subscribe(options.tenantName, options.teamName);
             }
@@ -78,42 +80,51 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
           // Call general message handler
           options.onMessage?.(message);
           
-          // Call specific event handlers with race condition protection
+          // Call specific event handlers with enhanced versioning protection
           switch (message.event) {
             case config.websocket.events.cacheUpdated:
               options.onCacheUpdated?.(message.data);
               break;
             case config.websocket.events.entityUpdated:
-              // Check for race conditions and out-of-order delivery
+              // Enhanced versioning for entity events
               const entityEvent = message.data;
               if (entityEvent?.version && entityEvent?.entityId) {
-                const lastVersion = lastVersions.current.get(entityEvent.entityId) || 0;
+                const versionKey = `entity-${entityEvent.entityId}`;
+                const lastVersion = lastVersions.current.get(versionKey) || 0;
                 if (entityEvent.version <= lastVersion) {
-                  // Ignore older or duplicate events
-                  console.log(`Ignoring out-of-order event for entity ${entityEvent.entityId}`);
+                  console.log(`Ignoring out-of-order entity event ${entityEvent.version} <= ${lastVersion} for entity ${entityEvent.entityId}`);
                   return;
                 }
-                lastVersions.current.set(entityEvent.entityId, entityEvent.version);
+                lastVersions.current.set(versionKey, entityEvent.version);
               }
               options.onEntityUpdated?.(message.data);
               break;
-            case 'team-members-updated':
-              // Check for race conditions on team member updates
+            case config.websocket.events.teamMembersUpdated:
+              // Enhanced versioning for team member events
               const teamEvent = message.data;
               if (teamEvent?.version && teamEvent?.teamName) {
                 const versionKey = `team-${teamEvent.teamName}`;
                 const lastVersion = lastVersions.current.get(versionKey) || 0;
                 if (teamEvent.version <= lastVersion) {
-                  // Ignore older or duplicate events
-                  console.log(`Ignoring out-of-order team member event for ${teamEvent.teamName}`);
+                  console.log(`Ignoring out-of-order team event ${teamEvent.version} <= ${lastVersion} for team ${teamEvent.teamName}`);
                   return;
                 }
                 lastVersions.current.set(versionKey, teamEvent.version);
               }
               options.onTeamMembersUpdated?.(message.data);
               break;
+            case config.websocket.events.echoToOrigin:
+              // Handle echo-to-origin for instant feedback
+              console.log('Received echo-to-origin:', message.data);
+              // Process echo as the original event type for instant UI updates
+              if (message.originalEvent === config.websocket.events.entityUpdated) {
+                options.onEntityUpdated?.(message.data);
+              } else if (message.originalEvent === config.websocket.events.teamMembersUpdated) {
+                options.onTeamMembersUpdated?.(message.data);
+              }
+              break;
             default:
-              // Unknown WebSocket event
+              console.log('Unknown WebSocket event:', message.event);
           }
         } catch (error) {
           console.error('Error parsing WebSocket message:', error);
@@ -188,39 +199,47 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
     if (!isAuthenticated) return;
     
     const subscriptionKey = `${tenantName}:${teamName}`;
-    if (currentSubscription.current === subscriptionKey) return;
+    if (activeSubscriptions.current.has(subscriptionKey)) return;
     
-    // Unsubscribe from previous if exists
-    if (currentSubscription.current) {
-      const [prevTenant, prevTeam] = currentSubscription.current.split(':');
-      sendMessage({
-        type: 'unsubscribe',
-        tenantName: prevTenant,
-        teamName: prevTeam
-      });
-    }
-    
-    // Subscribe to new
+    // Add to active subscriptions and send subscribe message
+    activeSubscriptions.current.add(subscriptionKey);
     sendMessage({
       type: 'subscribe',
       tenantName,
       teamName
     });
     
-    currentSubscription.current = subscriptionKey;
+    console.log(`Subscribed to ${subscriptionKey}. Active subscriptions:`, Array.from(activeSubscriptions.current));
   };
 
-  const unsubscribe = () => {
-    if (!isAuthenticated || !currentSubscription.current) return;
+  const unsubscribe = (tenantName?: string, teamName?: string) => {
+    if (!isAuthenticated) return;
     
-    const [tenantName, teamName] = currentSubscription.current.split(':');
-    sendMessage({
-      type: 'unsubscribe',
-      tenantName,
-      teamName
-    });
-    
-    currentSubscription.current = null;
+    if (tenantName && teamName) {
+      // Unsubscribe from specific tenant:team
+      const subscriptionKey = `${tenantName}:${teamName}`;
+      if (activeSubscriptions.current.has(subscriptionKey)) {
+        activeSubscriptions.current.delete(subscriptionKey);
+        sendMessage({
+          type: 'unsubscribe',
+          tenantName,
+          teamName
+        });
+        console.log(`Unsubscribed from ${subscriptionKey}. Active subscriptions:`, Array.from(activeSubscriptions.current));
+      }
+    } else {
+      // Unsubscribe from all
+      activeSubscriptions.current.forEach(subscriptionKey => {
+        const [tenant, team] = subscriptionKey.split(':');
+        sendMessage({
+          type: 'unsubscribe',
+          tenantName: tenant,
+          teamName: team
+        });
+      });
+      activeSubscriptions.current.clear();
+      console.log('Unsubscribed from all subscriptions');
+    }
   };
 
   // Auto-connect on mount
@@ -238,6 +257,13 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
     if (isAuthenticated && options.tenantName && options.teamName) {
       subscribe(options.tenantName, options.teamName);
     }
+    
+    // Cleanup: unsubscribe when component unmounts or dependencies change
+    return () => {
+      if (options.tenantName && options.teamName) {
+        unsubscribe(options.tenantName, options.teamName);
+      }
+    };
   }, [isAuthenticated, options.tenantName, options.teamName]);
 
   return {

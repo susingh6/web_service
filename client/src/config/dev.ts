@@ -113,6 +113,13 @@ export const devConfig = {
       cacheUpdated: 'cache-updated',
       entityUpdated: 'entity-updated',
       entitiesUpdated: 'entities-updated',
+      teamMembersUpdated: 'team-members-updated',
+      echoToOrigin: 'echo-to-origin',
+    },
+    features: {
+      enableEchoToOrigin: true,
+      enableEventVersioning: true,
+      multiTabSubscriptions: true,
     },
   },
   

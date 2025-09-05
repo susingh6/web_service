@@ -282,24 +282,60 @@ export class RedisCache {
     this.broadcastToClients(event, data);
   }
 
-  // Filtered broadcast - only to subscribed viewers and originator
+  // Enhanced broadcast with echo-to-origin and versioning
   private broadcastToClients(event: string, data: EntityChangeEvent | TeamMemberChangeEvent): void {
     if (!this.wss) return;
 
-    const message = JSON.stringify({ event, data, timestamp: new Date().toISOString() });
+    // Add monotonic version for event ordering
+    const enhancedData = {
+      ...data,
+      version: data.version || Date.now(),
+      serverTimestamp: new Date().toISOString()
+    };
+
+    const message = JSON.stringify({ event, data: enhancedData, timestamp: new Date().toISOString() });
     const subscriptionKey = `${data.tenantName}:${data.teamName}`;
+    
+    // First, send immediate echo to originator for instant feedback
+    if (data.originUserId) {
+      this.echoToOrigin(event, enhancedData, data.originUserId);
+    }
     
     this.wss.clients.forEach((client) => {
       if (client.readyState === 1) { // WebSocket.OPEN
         const socketData = this.authenticatedSockets.get(client);
         
         // Send to authenticated clients who are subscribed to this tenant:team
-        // OR to the originator of the change
-        if (socketData && (
-          socketData.subscriptions.has(subscriptionKey) || 
-          socketData.userId === data.originUserId
-        )) {
+        // Skip originator since they already got the echo
+        if (socketData && 
+            socketData.subscriptions.has(subscriptionKey) &&
+            socketData.userId !== data.originUserId
+        ) {
           client.send(message);
+        }
+      }
+    });
+  }
+
+  // Immediate echo to originator for instant feedback
+  private echoToOrigin(event: string, data: any, originUserId: string): void {
+    if (!this.wss) return;
+
+    const echoMessage = JSON.stringify({ 
+      event: 'echo-to-origin', 
+      originalEvent: event,
+      data,
+      timestamp: new Date().toISOString(),
+      isEcho: true
+    });
+    
+    this.wss.clients.forEach((client) => {
+      if (client.readyState === 1) {
+        const socketData = this.authenticatedSockets.get(client);
+        
+        // Send only to the originator
+        if (socketData && socketData.userId === originUserId) {
+          client.send(echoMessage);
         }
       }
     });

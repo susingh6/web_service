@@ -87,6 +87,13 @@ interface ApiConfig {
       cacheUpdated: string;
       entityUpdated: string;
       entitiesUpdated: string;
+      teamMembersUpdated: string;
+      echoToOrigin: string;
+    };
+    features: {
+      enableEchoToOrigin: boolean;
+      enableEventVersioning: boolean;
+      multiTabSubscriptions: boolean;
     };
   };
   debug: boolean;
