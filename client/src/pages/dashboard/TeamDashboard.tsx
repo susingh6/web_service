@@ -18,6 +18,8 @@ import { teamMemberSchema } from '@shared/schema';
 import { useToast } from '@/hooks/use-toast';
 import { z } from 'zod';
 import { useTeamMemberMutation } from '@/utils/cache-management';
+import { useRealTimeEntities } from '@/hooks/useRealTimeEntities';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface TeamDashboardProps {
   teamName: string;
@@ -44,6 +46,7 @@ const TeamDashboard = ({
 }: TeamDashboardProps) => {
   const dispatch = useAppDispatch();
   const { list: entities, teams, isLoading } = useAppSelector((state) => state.entities);
+  const queryClient = useQueryClient();
   
   const [tabValue, setTabValue] = useState(0);
   const { addMember, removeMember } = useTeamMemberMutation();
@@ -93,6 +96,22 @@ const TeamDashboard = ({
       setTeamEntities(teamEntitiesFromQuery);
     }
   }, [teamEntitiesFromQuery]);
+
+  // Set up real-time updates for this team page
+  const { isRealTimeEnabled } = useRealTimeEntities({
+    tenantName,
+    teamName,
+    onEntityUpdated: (data) => {
+      // Refresh team entities when real-time update received
+      queryClient.invalidateQueries({ queryKey: ['/api/entities', { teamId: team?.id }] });
+      // Also refresh Redux store
+      dispatch(fetchEntities({ tenant: tenantName }));
+    },
+    onTeamMembersUpdated: (data) => {
+      // Refresh team members when real-time update received
+      queryClient.invalidateQueries({ queryKey: ['team-members', teamName] });
+    }
+  });
 
 
   const fetchAvailableUsers = async () => {

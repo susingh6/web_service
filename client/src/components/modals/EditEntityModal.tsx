@@ -28,7 +28,7 @@ import { Close as CloseIcon } from '@mui/icons-material';
 import { validateTenant, validateTeam, validateDag } from '@/lib/validationUtils';
 import { fetchWithCacheGeneric, getFromCacheGeneric } from '@/lib/cacheUtils';
 import { useAppDispatch } from '@/lib/store';
-import { updateEntity } from '@/features/sla/slices/entitiesSlice';
+import { updateEntity, fetchEntities } from '@/features/sla/slices/entitiesSlice';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { Entity } from '@shared/schema';
@@ -364,9 +364,14 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
         })
       ).unwrap();
       
-      // Invalidate queries to refresh data
+      // Comprehensive cache invalidation - all data sources
       queryClient.invalidateQueries({ queryKey: ['/api/entities'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/entities', entity.id] });
+      queryClient.invalidateQueries({ queryKey: ['/api/entities', { teamId: entity.teamId }] });
       queryClient.invalidateQueries({ queryKey: ['/api/dashboard/summary'] });
+      
+      // Force refresh of Redux state by dispatching fetchEntities 
+      dispatch(fetchEntities({ tenant: entity.tenant_name || 'Data Engineering' }));
       
       toast({
         title: 'Success',
