@@ -44,6 +44,7 @@ Preferred communication style: Simple, everyday language.
 - **Caching System**: Redis-based distributed caching with automatic fallback to in-memory, distributed locking, pub/sub for real-time updates.
 - **SLA Compliance Thresholds**: Configurable color thresholds for visual indication of SLA compliance.
 - **Entity Ownership**: Role-based access control for entity modification and deletion.
+- **Standardized CRUD Operations**: Unified optimistic update pattern with smart ID detection, operation queuing, and automatic reconciliation for consistent user experience across all data operations.
 
 ## External Dependencies
 

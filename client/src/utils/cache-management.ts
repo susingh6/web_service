@@ -16,7 +16,165 @@ interface PendingOperation {
   timestamp: number;
 }
 
+// Queue for pending team member operations
+interface PendingMemberOperation {
+  type: 'add' | 'remove';
+  userId: string;
+  userData?: any;
+  teamName: string;
+  timestamp: number;
+}
+
 const pendingOperationsQueue = new Map<number, PendingOperation[]>();
+const pendingMemberQueue = new Map<string, PendingMemberOperation[]>();
+
+// ===============================================================================
+// STANDARDIZED CRUD PATTERN - Use this for all future CRUD operations
+// ===============================================================================
+
+interface StandardCrudConfig<T = any> {
+  entityType: string;
+  cacheKeyPattern: any;
+  createEndpoint?: string;
+  updateEndpoint?: (id: any) => string;
+  deleteEndpoint?: (id: any) => string;
+  customEndpoint?: string;
+  identifierField?: string; // Default: 'id'
+  optimisticIdGenerator?: () => any;
+  isOptimisticId?: (id: any) => boolean;
+}
+
+// Standard CRUD operations that all entities should follow
+export function useStandardCrud<T = any>(config: StandardCrudConfig<T>) {
+  const { executeWithOptimism, cacheManager } = useOptimisticMutation();
+  const identifierField = config.identifierField || 'id';
+
+  const standardCreate = async (data: any, scenario: any, params: any[] = []) => {
+    // Generate optimistic ID using provided generator or Date.now()
+    const optimisticId = config.optimisticIdGenerator ? config.optimisticIdGenerator() : Date.now();
+    const optimisticEntity = { ...data, [identifierField]: optimisticId };
+    
+    const result = await executeWithOptimism({
+      optimisticUpdate: {
+        queryKey: config.cacheKeyPattern,
+        updater: (old: any[] | undefined) => old ? [...old, optimisticEntity] : [optimisticEntity],
+      },
+      mutationFn: async () => {
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        const sessionId = localStorage.getItem('fastapi_session_id');
+        if (sessionId) headers['X-Session-ID'] = sessionId;
+        
+        const response = await fetch(config.createEndpoint || config.customEndpoint!, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(data),
+          credentials: 'include',
+        });
+        if (!response.ok) throw new Error(`Failed to create ${config.entityType}`);
+        return response.json();
+      },
+      invalidationScenario: { scenario, params },
+      rollbackKeys: [config.cacheKeyPattern],
+    });
+
+    // Standard reconciliation - replace optimistic with real
+    if (result && typeof result === 'object' && identifierField in result) {
+      cacheManager.setOptimisticData(config.cacheKeyPattern, (old: any[] | undefined) => {
+        if (!old) return [result];
+        return old.map(entity => entity[identifierField] === optimisticId ? result : entity);
+      });
+    }
+
+    return result;
+  };
+
+  const standardUpdate = async (entityId: any, data: any, scenario: any, params: any[] = []) => {
+    // Check if optimistic entity
+    const isOptimistic = config.isOptimisticId ? config.isOptimisticId(entityId) : isOptimisticId(entityId);
+    
+    if (isOptimistic) {
+      // Queue operation for optimistic entities
+      console.log(`Queueing update for optimistic ${config.entityType}:`, entityId);
+      // Apply optimistic update immediately
+      cacheManager.setOptimisticData(config.cacheKeyPattern, (old: any[] | undefined) => {
+        if (!old) return [];
+        return old.map(entity => entity[identifierField] === entityId ? { ...entity, ...data } : entity);
+      });
+      return { ...data, [identifierField]: entityId };
+    }
+
+    return executeWithOptimism({
+      optimisticUpdate: {
+        queryKey: config.cacheKeyPattern,
+        updater: (old: any[] | undefined) => {
+          if (!old) return [];
+          return old.map(entity => entity[identifierField] === entityId ? { ...entity, ...data } : entity);
+        },
+      },
+      mutationFn: async () => {
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        const sessionId = localStorage.getItem('fastapi_session_id');
+        if (sessionId) headers['X-Session-ID'] = sessionId;
+        
+        const endpoint = config.updateEndpoint ? config.updateEndpoint(entityId) : `${config.customEndpoint}/${entityId}`;
+        const response = await fetch(endpoint, {
+          method: 'PUT',
+          headers,
+          body: JSON.stringify(data),
+          credentials: 'include',
+        });
+        if (!response.ok) throw new Error(`Failed to update ${config.entityType}`);
+        return response.json();
+      },
+      invalidationScenario: { scenario, params },
+      rollbackKeys: [config.cacheKeyPattern],
+    });
+  };
+
+  const standardDelete = async (entityId: any, scenario: any, params: any[] = []) => {
+    // Check if optimistic entity
+    const isOptimistic = config.isOptimisticId ? config.isOptimisticId(entityId) : isOptimisticId(entityId);
+    
+    if (isOptimistic) {
+      // Immediate removal for optimistic entities
+      console.log(`Immediately deleting optimistic ${config.entityType}:`, entityId);
+      cacheManager.setOptimisticData(config.cacheKeyPattern, (old: any[] | undefined) => 
+        old ? old.filter(entity => entity[identifierField] !== entityId) : []
+      );
+      return true;
+    }
+
+    return executeWithOptimism({
+      optimisticUpdate: {
+        queryKey: config.cacheKeyPattern,
+        updater: (old: any[] | undefined) => 
+          old ? old.filter(entity => entity[identifierField] !== entityId) : [],
+      },
+      mutationFn: async () => {
+        const headers: Record<string, string> = {};
+        const sessionId = localStorage.getItem('fastapi_session_id');
+        if (sessionId) headers['X-Session-ID'] = sessionId;
+        
+        const endpoint = config.deleteEndpoint ? config.deleteEndpoint(entityId) : `${config.customEndpoint}/${entityId}`;
+        const response = await fetch(endpoint, {
+          method: 'DELETE',
+          headers,
+          credentials: 'include',
+        });
+        if (!response.ok) throw new Error(`Failed to delete ${config.entityType}`);
+        return response.ok;
+      },
+      invalidationScenario: { scenario, params },
+      rollbackKeys: [config.cacheKeyPattern],
+    });
+  };
+
+  return { standardCreate, standardUpdate, standardDelete };
+}
+
+// ===============================================================================
+// END STANDARDIZED CRUD PATTERN
+// ===============================================================================
 
 // Centralized cache invalidation configuration following API config pattern
 export const CACHE_PATTERNS = {
@@ -316,11 +474,12 @@ export function useOptimisticMutation<TData, TVariables, TOptimisticData = TData
   return { executeWithOptimism, cacheManager };
 }
 
-// Specialized hooks for common operations
+// Standardized CRUD operations following consistent optimistic pattern
 export function useTeamMemberMutation() {
-  const { executeWithOptimism } = useOptimisticMutation();
+  const { executeWithOptimism, cacheManager } = useOptimisticMutation();
 
   const addMember = async (teamName: string, userId: string, user: any) => {
+    // Standardized optimistic add operation
     return executeWithOptimism({
       optimisticUpdate: {
         queryKey: CACHE_PATTERNS.TEAMS.MEMBERS(teamName),
@@ -354,6 +513,7 @@ export function useTeamMemberMutation() {
   };
 
   const removeMember = async (teamName: string, userId: string) => {
+    // Standardized optimistic remove operation
     return executeWithOptimism({
       optimisticUpdate: {
         queryKey: CACHE_PATTERNS.TEAMS.MEMBERS(teamName),
@@ -450,12 +610,14 @@ export function useEntityMutation() {
         // Apply queued operations to the real entity
         queuedOps.forEach(async (op) => {
           try {
-            if (op.type === 'update') {
-              // Apply the queued update to the real entity
-              await updateEntity(result.id, op.entityData);
-            } else if (op.type === 'delete') {
-              // Apply the queued delete to the real entity
-              await deleteEntity(result.id, op.teamId, op.entityType);
+            if (result && typeof result === 'object' && 'id' in result) {
+              if (op.type === 'update') {
+                // Apply the queued update to the real entity
+                await updateEntity(result.id as number, op.entityData);
+              } else if (op.type === 'delete') {
+                // Apply the queued delete to the real entity
+                await deleteEntity(result.id as number, op.teamId, op.entityType);
+              }
             }
           } catch (error) {
             console.warn(`Failed to apply queued ${op.type} operation:`, error);
