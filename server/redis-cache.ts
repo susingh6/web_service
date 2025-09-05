@@ -21,6 +21,21 @@ interface EntityChangeEvent {
   data?: any;           // optional entity data
 }
 
+// Team member change event for real-time updates
+interface TeamMemberChangeEvent {
+  event: 'team-members-updated';
+  type: 'member-added' | 'member-removed';
+  teamName: string;     // required for filtering
+  tenantName: string;   // required for filtering
+  memberId?: string;    // member being added/removed
+  memberName?: string;  // display name
+  originUserId?: string; // optional, for UI hints
+  ts: number;           // timestamp for idempotency
+  version: number;      // version number for ordering
+  updatedAt: string;    // team's updatedAt for race condition detection
+  data?: any;           // optional team data
+}
+
 interface SocketData {
   sessionId: string;
   userId: string;
@@ -268,7 +283,7 @@ export class RedisCache {
   }
 
   // Filtered broadcast - only to subscribed viewers and originator
-  private broadcastToClients(event: string, data: EntityChangeEvent): void {
+  private broadcastToClients(event: string, data: EntityChangeEvent | TeamMemberChangeEvent): void {
     if (!this.wss) return;
 
     const message = JSON.stringify({ event, data, timestamp: new Date().toISOString() });
@@ -1283,7 +1298,7 @@ export class RedisCache {
   }
 
   // Centralized cache invalidation patterns for common operations
-  async invalidateTeamData(teamName?: string): Promise<void> {
+  async invalidateTeamData(teamName?: string, memberChangeData?: { action: string, memberId?: string, memberName?: string, tenantName?: string }): Promise<void> {
     const invalidationKeys = [
       'all_users',
       ...(teamName ? [`team_members_${teamName}`, `team_details_${teamName}`] : [])
@@ -1295,6 +1310,29 @@ export class RedisCache {
       mainCacheKeys: ['TEAMS', 'METRICS'],
       refreshAffectedData: true
     });
+
+    // Broadcast team member change if details provided
+    if (teamName && memberChangeData) {
+      const changeEvent: TeamMemberChangeEvent = {
+        event: 'team-members-updated',
+        type: memberChangeData.action === 'add' ? 'member-added' : 'member-removed',
+        teamName,
+        tenantName: memberChangeData.tenantName || 'Unknown',
+        memberId: memberChangeData.memberId,
+        memberName: memberChangeData.memberName,
+        ts: Date.now(),
+        version: Date.now(),
+        updatedAt: new Date().toISOString(),
+        data: memberChangeData
+      };
+
+      // Broadcast in both Redis and fallback modes
+      if (this.useRedis && this.redis) {
+        await this.redis.publish(CACHE_KEYS.CHANGES_CHANNEL, JSON.stringify(changeEvent));
+      } else {
+        this.broadcastToClients('team-members-updated', changeEvent);
+      }
+    }
   }
 
   async invalidateEntityData(teamId?: number): Promise<void> {

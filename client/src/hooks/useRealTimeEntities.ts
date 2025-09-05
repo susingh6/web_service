@@ -7,6 +7,7 @@ interface UseRealTimeEntitiesOptions {
   tenantName?: string;
   teamName?: string;
   onEntityUpdated?: (data: any) => void;
+  onTeamMembersUpdated?: (data: any) => void;
 }
 
 /**
@@ -40,6 +41,19 @@ export const useRealTimeEntities = (options: UseRealTimeEntitiesOptions) => {
       
       // Call custom handler
       options.onEntityUpdated?.(data);
+    },
+
+    onTeamMembersUpdated: (data) => {
+      // Invalidate React Query cache for team member updates
+      if (data?.teamName === options.teamName) {
+        // Invalidate team members cache
+        queryClient.invalidateQueries({ queryKey: ['team-members', data.teamName] });
+        // Also invalidate team data cache
+        queryClient.invalidateQueries({ queryKey: ['teams'] });
+      }
+      
+      // Call custom handler
+      options.onTeamMembersUpdated?.(data);
     },
 
     onCacheUpdated: (data) => {

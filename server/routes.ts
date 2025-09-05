@@ -289,8 +289,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Team not found" });
       }
 
-      // Use centralized cache invalidation system
-      await redisCache.invalidateTeamData(teamName);
+      // Use centralized cache invalidation system with real-time updates
+      await redisCache.invalidateTeamData(teamName, {
+        action: memberData.action,
+        memberId: memberData.memberId,
+        memberName: memberData.member?.name || memberData.member?.username,
+        tenantName: oauthContext.tenant
+      });
 
       res.json(updatedTeam);
     } catch (error) {

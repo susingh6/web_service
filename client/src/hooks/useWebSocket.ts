@@ -11,6 +11,7 @@ interface UseWebSocketOptions {
   onMessage?: (message: WebSocketMessage) => void;
   onCacheUpdated?: (data: any) => void;
   onEntityUpdated?: (data: any) => void;
+  onTeamMembersUpdated?: (data: any) => void;
   onConnect?: () => void;
   onDisconnect?: () => void;
   onError?: (error: Event) => void;
@@ -95,6 +96,21 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
                 lastVersions.current.set(entityEvent.entityId, entityEvent.version);
               }
               options.onEntityUpdated?.(message.data);
+              break;
+            case 'team-members-updated':
+              // Check for race conditions on team member updates
+              const teamEvent = message.data;
+              if (teamEvent?.version && teamEvent?.teamName) {
+                const versionKey = `team-${teamEvent.teamName}`;
+                const lastVersion = lastVersions.current.get(versionKey) || 0;
+                if (teamEvent.version <= lastVersion) {
+                  // Ignore older or duplicate events
+                  console.log(`Ignoring out-of-order team member event for ${teamEvent.teamName}`);
+                  return;
+                }
+                lastVersions.current.set(versionKey, teamEvent.version);
+              }
+              options.onTeamMembersUpdated?.(message.data);
               break;
             default:
               // Unknown WebSocket event
