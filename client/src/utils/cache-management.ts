@@ -1,5 +1,23 @@
 import { useQueryClient } from '@tanstack/react-query';
 
+// Utility to detect optimistic vs real IDs
+const isOptimisticId = (id: number): boolean => {
+  // Optimistic IDs are Date.now() timestamps - they're recent large numbers
+  // Real IDs from server are sequential integers starting from 1
+  return id > Date.now() - 60000; // Within last 60 seconds
+};
+
+// Queue for pending operations on optimistic entities
+interface PendingOperation {
+  type: 'update' | 'delete';
+  entityData?: any;
+  teamId: number;
+  entityType: 'table' | 'dag';
+  timestamp: number;
+}
+
+const pendingOperationsQueue = new Map<number, PendingOperation[]>();
+
 // Centralized cache invalidation configuration following API config pattern
 export const CACHE_PATTERNS = {
   // Team-related cache keys
@@ -425,6 +443,28 @@ export function useEntityMutation() {
           return old.map(entity => entity.id === optimisticId ? result : entity);
         }
       );
+      
+      // Process any queued operations for this optimistic entity
+      const queuedOps = pendingOperationsQueue.get(optimisticId);
+      if (queuedOps && queuedOps.length > 0) {
+        // Apply queued operations to the real entity
+        queuedOps.forEach(async (op) => {
+          try {
+            if (op.type === 'update') {
+              // Apply the queued update to the real entity
+              await updateEntity(result.id, op.entityData);
+            } else if (op.type === 'delete') {
+              // Apply the queued delete to the real entity
+              await deleteEntity(result.id, op.teamId, op.entityType);
+            }
+          } catch (error) {
+            console.warn(`Failed to apply queued ${op.type} operation:`, error);
+          }
+        });
+        
+        // Clean up the queue
+        pendingOperationsQueue.delete(optimisticId);
+      }
     }
 
     return result;
@@ -434,7 +474,44 @@ export function useEntityMutation() {
     const entityType = entityData.type as 'table' | 'dag';
     const scenario = entityType === 'table' ? 'TABLE_ENTITY_UPDATED' : 'DAG_ENTITY_UPDATED';
     
+    // Handle optimistic entities differently
+    if (isOptimisticId(entityId)) {
+      // Queue the operation for when real ID arrives
+      const existingQueue = pendingOperationsQueue.get(entityId) || [];
+      existingQueue.push({
+        type: 'update',
+        entityData,
+        teamId: entityData.teamId,
+        entityType,
+        timestamp: Date.now()
+      });
+      pendingOperationsQueue.set(entityId, existingQueue);
+      
+      // Apply optimistic update to cache immediately
+      cacheManager.setOptimisticData(
+        CACHE_PATTERNS.ENTITIES.BY_TEAM(entityData.teamId),
+        (old: any[] | undefined) => {
+          if (!old) return [];
+          return old.map(entity => 
+            entity.id === entityId ? { ...entity, ...entityData } : entity
+          );
+        }
+      );
+      
+      // Return optimistic entity
+      return { ...entityData, id: entityId };
+    }
+    
     return executeWithOptimism({
+      optimisticUpdate: {
+        queryKey: CACHE_PATTERNS.ENTITIES.BY_TEAM(entityData.teamId),
+        updater: (old: any[] | undefined) => {
+          if (!old) return [];
+          return old.map(entity => 
+            entity.id === entityId ? { ...entity, ...entityData } : entity
+          );
+        },
+      },
       mutationFn: async () => {
         // Build headers with session ID for RBAC enforcement
         const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -459,11 +536,29 @@ export function useEntityMutation() {
         params: [entityId, entityData.teamId],
         rebuildOptions: { teamId: entityData.teamId, entityType },
       },
+      rollbackKeys: [CACHE_PATTERNS.ENTITIES.BY_TEAM(entityData.teamId)],
     });
   };
 
   const deleteEntity = async (entityId: number, teamId: number, entityType: 'table' | 'dag') => {
     const scenario = entityType === 'table' ? 'TABLE_ENTITY_DELETED' : 'DAG_ENTITY_DELETED';
+    
+    // Handle optimistic entities differently  
+    if (isOptimisticId(entityId)) {
+      // For optimistic entities, just remove from cache immediately
+      // No API call needed since entity doesn't exist on server yet
+      cacheManager.setOptimisticData(
+        CACHE_PATTERNS.ENTITIES.BY_TEAM(teamId),
+        (old: any[] | undefined) => 
+          old ? old.filter(entity => entity.id !== entityId) : []
+      );
+      
+      // Clean up any pending operations for this entity
+      pendingOperationsQueue.delete(entityId);
+      
+      // Return success immediately
+      return true;
+    }
     
     return executeWithOptimism({
       optimisticUpdate: {
