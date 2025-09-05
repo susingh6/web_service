@@ -6,6 +6,27 @@ import { Entity, Team } from '@shared/schema';
 import { storage } from './storage';
 import { DashboardMetrics, EntityChange, CachedData, calculateMetrics } from '@shared/cache-types';
 
+// Standardized event envelope for real-time updates with race condition protection
+interface EntityChangeEvent {
+  event: 'entity-updated';
+  type: 'created' | 'updated' | 'deleted';
+  entityId: string;
+  entityName: string;
+  tenantName: string;    // required for filtering
+  teamName: string;      // required for filtering
+  originUserId?: string; // optional, for UI hints
+  ts: number;           // timestamp for idempotency
+  version: number;      // version number for ordering
+  updatedAt: string;    // entity's updatedAt for race condition detection
+  data?: any;           // optional entity data
+}
+
+interface SocketData {
+  sessionId: string;
+  userId: string;
+  subscriptions: Set<string>; // tenant:team format
+}
+
 // Cache keys
 const CACHE_KEYS = {
   ENTITIES: 'sla:entities',
@@ -27,6 +48,7 @@ export class RedisCache {
   private readonly CACHE_DURATION_MS = config.cache.refreshIntervalHours * 60 * 60 * 1000;
   private readonly LOCK_TIMEOUT = 300000; // 5 minutes lock timeout
   private wss: WebSocketServer | null = null;
+  private authenticatedSockets: Map<any, SocketData> = new Map();
   private pendingNotifications: Array<{event: string, data: any, timestamp: Date}> = [];
   private cacheWorker: Worker | null = null;
   private isInitialized = false;
@@ -63,11 +85,12 @@ export class RedisCache {
 
     this.subscriber.on('message', (channel, message) => {
       if (channel === CACHE_KEYS.REFRESH_CHANNEL) {
-        // Cache refresh notification received
-        this.broadcastToClients('cache-updated', JSON.parse(message));
+        // Cache refresh notification received - broadcast to all
+        this.broadcastCacheUpdate('cache-updated', JSON.parse(message));
       } else if (channel === CACHE_KEYS.CHANGES_CHANNEL) {
-        // Entity change notification received
-        this.broadcastToClients('entity-updated', JSON.parse(message));
+        // Entity change notification received - filtered broadcast
+        const changeEvent: EntityChangeEvent = JSON.parse(message);
+        this.broadcastToClients('entity-updated', changeEvent);
       }
     });
   }
@@ -214,9 +237,14 @@ export class RedisCache {
     // Auto-refresh scheduled
   }
 
-  setupWebSocket(wss: WebSocketServer): void {
+  setupWebSocket(wss: WebSocketServer, authenticatedSockets?: Map<WebSocket, {
+    sessionId: string;
+    userId: string;
+    subscriptions: Set<string>;
+  }>): void {
     this.wss = wss;
-    // WebSocket server attached to Redis cache
+    this.authenticatedSockets = authenticatedSockets || new Map();
+    // WebSocket server attached to Redis cache with authenticated socket tracking
   }
 
   // Force notification - stores data for next client connection if no clients currently connected
@@ -239,7 +267,31 @@ export class RedisCache {
     this.broadcastToClients(event, data);
   }
 
-  private broadcastToClients(event: string, data: any): void {
+  // Filtered broadcast - only to subscribed viewers and originator
+  private broadcastToClients(event: string, data: EntityChangeEvent): void {
+    if (!this.wss) return;
+
+    const message = JSON.stringify({ event, data, timestamp: new Date().toISOString() });
+    const subscriptionKey = `${data.tenantName}:${data.teamName}`;
+    
+    this.wss.clients.forEach((client) => {
+      if (client.readyState === 1) { // WebSocket.OPEN
+        const socketData = this.authenticatedSockets.get(client);
+        
+        // Send to authenticated clients who are subscribed to this tenant:team
+        // OR to the originator of the change
+        if (socketData && (
+          socketData.subscriptions.has(subscriptionKey) || 
+          socketData.userId === data.originUserId
+        )) {
+          client.send(message);
+        }
+      }
+    });
+  }
+
+  // Legacy broadcast for cache updates (no filtering needed)
+  private broadcastCacheUpdate(event: string, data: any): void {
     if (!this.wss) return;
 
     const message = JSON.stringify({ event, data, timestamp: new Date().toISOString() });
@@ -590,19 +642,30 @@ export class RedisCache {
         this.fallbackData.entities = entities;
       }
       
-      // Direct WebSocket broadcast in fallback mode
-      const change = {
-        entityId: entity.id,
-        entityName: entity.name,
-        entityType: entity.type,
-        teamName: entity.team_name || 'Unknown',
-        tenantName: entity.tenant_name || 'Unknown',
+      // Direct WebSocket broadcast in fallback mode with race condition protection
+      const changeEvent: EntityChangeEvent = {
+        event: 'entity-updated',
         type: 'created',
-        entity,
-        timestamp: new Date()
+        entityId: entity.id.toString(),
+        entityName: entity.name,
+        tenantName: entity.tenant_name || 'Unknown',
+        teamName: entity.team_name || 'Unknown',
+        ts: Date.now(),
+        version: Date.now(), // Use timestamp as version for ordering
+        updatedAt: entity.updatedAt.toISOString(),
+        data: {
+          entityId: entity.id,
+          entityName: entity.name,
+          entityType: entity.type,
+          teamName: entity.team_name || 'Unknown',
+          tenantName: entity.tenant_name || 'Unknown',
+          type: 'created',
+          entity,
+          timestamp: new Date()
+        }
       };
       
-      this.broadcastToClients('entity-updated', change);
+      this.broadcastToClients('entity-updated', changeEvent);
       
       return entity;
     }
@@ -651,8 +714,22 @@ export class RedisCache {
       
       await this.redis.setex(CACHE_KEYS.RECENT_CHANGES, expireTime, JSON.stringify(recentChanges));
       
+      // Create standardized event envelope for filtering with race condition protection  
+      const changeEvent: EntityChangeEvent = {
+        event: 'entity-updated',
+        type: 'created',
+        entityId: entity.id.toString(),
+        entityName: entity.name,
+        tenantName: entity.tenant_name || 'Unknown',
+        teamName: entity.team_name || 'Unknown',
+        ts: Date.now(),
+        version: Date.now(), // Use timestamp as version for ordering
+        updatedAt: entity.updatedAt.toISOString(),
+        data: change
+      };
+
       // Broadcast change to all pods
-      await this.redis.publish(CACHE_KEYS.CHANGES_CHANNEL, JSON.stringify(change));
+      await this.redis.publish(CACHE_KEYS.CHANGES_CHANNEL, JSON.stringify(changeEvent));
       
       return entity;
     } catch (error) {
@@ -744,8 +821,22 @@ export class RedisCache {
       
       await this.redis.setex(CACHE_KEYS.RECENT_CHANGES, expireTime, JSON.stringify(recentChanges));
       
+      // Create standardized event envelope for filtering with race condition protection
+      const changeEvent: EntityChangeEvent = {
+        event: 'entity-updated',
+        type: 'deleted',
+        entityId: entity.id.toString(),
+        entityName: entity.name,
+        tenantName: entity.tenant_name || 'Unknown',
+        teamName: entity.team_name || 'Unknown',
+        ts: Date.now(),
+        version: Date.now(), // Use timestamp as version for ordering
+        updatedAt: entity.updatedAt?.toISOString() || new Date().toISOString(),
+        data: change
+      };
+
       // Broadcast change to all pods
-      await this.redis.publish(CACHE_KEYS.CHANGES_CHANNEL, JSON.stringify(change));
+      await this.redis.publish(CACHE_KEYS.CHANGES_CHANNEL, JSON.stringify(changeEvent));
       
       return true;
     } catch (error) {
@@ -781,21 +872,32 @@ export class RedisCache {
       // Update fallback data
       this.fallbackData.entities = entities;
       
-      // Direct WebSocket broadcast in fallback mode
-      const change = {
-        entityId: entity.id,
-        entityName: entity.name,
-        entityType: entity.type,
-        teamName: entity.team_name || 'Unknown',
-        tenantName: entity.tenant_name || 'Unknown',
+      // Direct WebSocket broadcast in fallback mode with race condition protection
+      const changeEvent: EntityChangeEvent = {
+        event: 'entity-updated',
         type: 'updated',
-        entity: updatedEntity,
-        previousSla: entity.currentSla,
-        newSla: updates.currentSla,
-        timestamp: new Date()
+        entityId: entity.id.toString(),
+        entityName: entity.name,
+        tenantName: entity.tenant_name || 'Unknown',
+        teamName: entity.team_name || 'Unknown',
+        ts: Date.now(),
+        version: Date.now(), // Use timestamp as version for ordering
+        updatedAt: updatedEntity.updatedAt.toISOString(),
+        data: {
+          entityId: entity.id,
+          entityName: entity.name,
+          entityType: entity.type,
+          teamName: entity.team_name || 'Unknown',
+          tenantName: entity.tenant_name || 'Unknown',
+          type: 'updated',
+          entity: updatedEntity,
+          previousSla: entity.currentSla,
+          newSla: updates.currentSla,
+          timestamp: new Date()
+        }
       };
       
-      this.broadcastToClients('entity-updated', change);
+      this.broadcastToClients('entity-updated', changeEvent);
       
       return updatedEntity;
     }
@@ -850,8 +952,22 @@ export class RedisCache {
       
       await this.redis.setex(CACHE_KEYS.RECENT_CHANGES, expireTime, JSON.stringify(recentChanges));
       
+      // Create standardized event envelope for filtering with race condition protection  
+      const changeEvent: EntityChangeEvent = {
+        event: 'entity-updated',
+        type: 'updated',
+        entityId: entity.id.toString(),
+        entityName: entity.name,
+        tenantName: entity.tenant_name || 'Unknown',
+        teamName: entity.team_name || 'Unknown',
+        ts: Date.now(),
+        version: Date.now(), // Use timestamp as version for ordering
+        updatedAt: updatedEntity.updatedAt.toISOString(),
+        data: change
+      };
+
       // Broadcast change to all pods
-      await this.redis.publish(CACHE_KEYS.CHANGES_CHANNEL, JSON.stringify(change));
+      await this.redis.publish(CACHE_KEYS.CHANGES_CHANNEL, JSON.stringify(changeEvent));
       
       return updatedEntity;
     } catch (error) {

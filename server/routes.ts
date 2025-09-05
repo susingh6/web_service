@@ -1295,35 +1295,113 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   const httpServer = createServer(app);
 
-  // Setup WebSocket server
+  // Setup WebSocket server with authentication and subscriptions
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
   
-  wss.on('connection', (ws) => {
+  // Track authenticated connections and their subscriptions
+  const authenticatedSockets = new Map<WebSocket, {
+    sessionId: string;
+    userId: string;
+    subscriptions: Set<string>; // tenant:team format
+  }>();
+
+  wss.on('connection', (ws, req) => {
+    let socketData: { sessionId: string; userId: string; subscriptions: Set<string> } | null = null;
+
     ws.on('message', (message) => {
       try {
         const data = JSON.parse(message.toString());
-        // WebSocket message received
         
-        // Handle different message types if needed
+        // Handle authentication
+        if (data.type === 'authenticate') {
+          const { sessionId } = data;
+          if (!sessionId) {
+            ws.send(JSON.stringify({ type: 'auth-error', message: 'Session ID required' }));
+            ws.close(4001, 'Authentication failed');
+            return;
+          }
+
+          // Validate session ID (basic validation for now)
+          // In production, validate against session store
+          socketData = {
+            sessionId,
+            userId: data.userId || 'anonymous',
+            subscriptions: new Set()
+          };
+          
+          authenticatedSockets.set(ws, socketData);
+          ws.send(JSON.stringify({ type: 'auth-success', message: 'Authenticated' }));
+          return;
+        }
+
+        // Require authentication for all other operations
+        if (!socketData) {
+          ws.send(JSON.stringify({ type: 'error', message: 'Not authenticated' }));
+          return;
+        }
+
+        // Handle subscription management
+        if (data.type === 'subscribe') {
+          const { tenantName, teamName } = data;
+          if (tenantName && teamName) {
+            const subscriptionKey = `${tenantName}:${teamName}`;
+            socketData.subscriptions.add(subscriptionKey);
+            ws.send(JSON.stringify({ 
+              type: 'subscribed', 
+              tenantName, 
+              teamName,
+              message: `Subscribed to ${subscriptionKey}` 
+            }));
+          }
+          return;
+        }
+
+        if (data.type === 'unsubscribe') {
+          const { tenantName, teamName } = data;
+          if (tenantName && teamName) {
+            const subscriptionKey = `${tenantName}:${teamName}`;
+            socketData.subscriptions.delete(subscriptionKey);
+            ws.send(JSON.stringify({ 
+              type: 'unsubscribed', 
+              tenantName, 
+              teamName,
+              message: `Unsubscribed from ${subscriptionKey}` 
+            }));
+          }
+          return;
+        }
+
+        // Handle ping/pong
         if (data.type === 'ping') {
           ws.send(JSON.stringify({ type: 'pong', timestamp: new Date().toISOString() }));
+          return;
         }
+
       } catch (error) {
         console.error('WebSocket message parse error:', error);
+        ws.send(JSON.stringify({ type: 'error', message: 'Invalid message format' }));
       }
     });
     
     ws.on('close', () => {
-      // Client disconnected - no logging needed
+      // Remove from authenticated sockets
+      authenticatedSockets.delete(ws);
     });
     
     ws.on('error', (error) => {
       console.error('WebSocket error:', error);
+      authenticatedSockets.delete(ws);
     });
+
+    // Send authentication request
+    ws.send(JSON.stringify({ 
+      type: 'auth-required', 
+      message: 'Please authenticate with session ID' 
+    }));
   });
 
-  // Connect WebSocket to cache system
-  redisCache.setupWebSocket(wss);
+  // Connect WebSocket to cache system with authenticated sockets
+  redisCache.setupWebSocket(wss, authenticatedSockets);
 
   return httpServer;
 }
