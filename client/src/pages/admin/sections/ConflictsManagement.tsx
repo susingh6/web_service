@@ -241,7 +241,7 @@ const ConflictsManagement = () => {
           },
           conflictDetails: {
             existingOwner: 'PGM',
-            requestedBy: 'Data Engineering',
+            requestedBy: 'sarah.lee@company.com',
             reason: 'DAG name already exists with different ownership'
           },
           status: 'pending',
@@ -265,7 +265,7 @@ const ConflictsManagement = () => {
           },
           conflictDetails: {
             existingOwner: 'CDM',
-            requestedBy: 'Analytics',
+            requestedBy: 'mike.johnson@company.com',
             reason: 'Table schema conflicts with existing CDM table'
           },
           status: 'pending',
@@ -289,7 +289,7 @@ const ConflictsManagement = () => {
           },
           conflictDetails: {
             existingOwner: 'Core',
-            requestedBy: 'CDM',
+            requestedBy: 'alice.wong@company.com',
             reason: 'Pipeline name conflicts with existing Core DAG'
           },
           status: 'pending',
@@ -417,7 +417,7 @@ const ConflictsManagement = () => {
                 <TableRow>
                   <TableCell>Notification ID</TableCell>
                   <TableCell>Entity Type</TableCell>
-                  <TableCell>Conflicting Teams/Tenants</TableCell>
+                  <TableCell>Conflicting Teams</TableCell>
                   <TableCell>Existing Owner(s)</TableCell>
                   <TableCell>Created</TableCell>
                   <TableCell>Status</TableCell>
@@ -458,7 +458,7 @@ const ConflictsManagement = () => {
                           label={(conflict as any).conflictDetails?.existingOwner || 'Unknown'} 
                           size="small" 
                           color="primary" 
-                          variant="outlined"
+                          variant="filled"
                         />
                       </TableCell>
                       <TableCell>
