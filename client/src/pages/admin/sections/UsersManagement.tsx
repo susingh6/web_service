@@ -225,57 +225,52 @@ const UsersManagement = () => {
         {
           id: 1,
           username: 'john.smith',
+          password: 'hashed_password',
           email: 'john.smith@company.com',
           displayName: 'John Smith',
           team: 'PGM',
-          role: 'admin' as const,
-          password: 'hashed_password',
-          createdAt: new Date(),
-          updatedAt: new Date()
+          role: 'admin',
+          azureObjectId: null
         },
         {
           id: 2,
           username: 'sarah.lee',
+          password: 'hashed_password',
           email: 'sarah.lee@company.com',
           displayName: 'Sarah Lee',
           team: 'CDM',
-          role: 'user' as const,
-          password: 'hashed_password',
-          createdAt: new Date(),
-          updatedAt: new Date()
+          role: 'user',
+          azureObjectId: null
         },
         {
           id: 3,
           username: 'mike.johnson',
+          password: 'hashed_password',
           email: 'mike.johnson@company.com',
           displayName: 'Mike Johnson',
           team: 'Core',
-          role: 'user' as const,
-          password: 'hashed_password',
-          createdAt: new Date(),
-          updatedAt: new Date()
+          role: 'user',
+          azureObjectId: null
         },
         {
           id: 4,
           username: 'alice.wong',
+          password: 'hashed_password',
           email: 'alice.wong@company.com',
           displayName: 'Alice Wong',
           team: 'Data Engineering',
-          role: 'user' as const,
-          password: 'hashed_password',
-          createdAt: new Date(),
-          updatedAt: new Date()
+          role: 'user',
+          azureObjectId: null
         },
         {
           id: 5,
           username: 'david.chen',
+          password: 'hashed_password',
           email: 'david.chen@company.com',
           displayName: 'David Chen',
           team: 'Analytics',
-          role: 'admin' as const,
-          password: 'hashed_password',
-          createdAt: new Date(),
-          updatedAt: new Date()
+          role: 'admin',
+          azureObjectId: null
         }
       ] as User[];
     },
