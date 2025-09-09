@@ -9,7 +9,9 @@ import {
   CardContent,
   Grid,
   Chip,
-  useTheme
+  useTheme,
+  Button,
+  IconButton
 } from '@mui/material';
 import {
   Groups as TeamsIcon,
@@ -17,11 +19,14 @@ import {
   Warning as ConflictsIcon,
   People as UsersIcon,
   Security as RolesIcon,
-  Dashboard as OverviewIcon
+  Dashboard as OverviewIcon,
+  ArrowBack as ArrowBackIcon,
+  Home as HomeIcon
 } from '@mui/icons-material';
 import { useQuery } from '@tanstack/react-query';
 import { buildUrl, endpoints } from '@/config';
 import { ConflictNotification } from '@shared/schema';
+import { useLocation } from 'wouter';
 
 // Admin page sections
 import AdminOverview from './sections/AdminOverview';
@@ -67,6 +72,7 @@ function a11yProps(index: number) {
 const AdminPage = () => {
   const theme = useTheme();
   const [activeTab, setActiveTab] = useState(0);
+  const [location, setLocation] = useLocation();
 
   // Fetch pending conflicts count for the badge
   const { data: pendingConflicts = [] } = useQuery<ConflictNotification[]>({
@@ -130,6 +136,25 @@ const AdminPage = () => {
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
       <Box sx={{ mb: 4 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+          <Button
+            startIcon={<ArrowBackIcon />}
+            onClick={() => setLocation('/')}
+            variant="outlined"
+            size="small"
+          >
+            Back to Dashboard
+          </Button>
+          <Box sx={{ flexGrow: 1 }} />
+          <IconButton
+            onClick={() => setLocation('/')}
+            sx={{ color: theme.palette.primary.main }}
+            size="small"
+          >
+            <HomeIcon />
+          </IconButton>
+        </Box>
+        
         <Typography variant="h3" component="h1" gutterBottom>
           Admin Panel
         </Typography>
