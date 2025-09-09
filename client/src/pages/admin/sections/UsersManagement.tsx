@@ -226,56 +226,46 @@ const UsersManagement = () => {
       // This should be replaced with: await fetch(buildUrl(endpoints.admin.users.getAll))
       const mockUsers = [
         {
-          id: 1,
-          username: 'john.smith',
-          password: 'hashed_password',
-          email: 'john.smith@company.com',
-          displayName: 'John Smith',
-          team: 'PGM',
-          role: 'admin',
-          azureObjectId: null
+          user_id: 1,
+          user_name: 'john.smith',
+          user_email: 'john.smith@company.com',
+          user_slack: ['john.smith.slack'],
+          user_pagerduty: ['john.smith@pagerduty'],
+          is_active: true
         },
         {
-          id: 2,
-          username: 'sarah.lee',
-          password: 'hashed_password',
-          email: 'sarah.lee@company.com',
-          displayName: 'Sarah Lee',
-          team: 'CDM',
-          role: 'user',
-          azureObjectId: null
+          user_id: 2,
+          user_name: 'sarah.lee',
+          user_email: 'sarah.lee@company.com',
+          user_slack: ['sarah.lee.slack'],
+          user_pagerduty: null,
+          is_active: true
         },
         {
-          id: 3,
-          username: 'mike.johnson',
-          password: 'hashed_password',
-          email: 'mike.johnson@company.com',
-          displayName: 'Mike Johnson',
-          team: 'Core',
-          role: 'user',
-          azureObjectId: null
+          user_id: 3,
+          user_name: 'mike.johnson',
+          user_email: 'mike.johnson@company.com',
+          user_slack: null,
+          user_pagerduty: ['mike.johnson@pagerduty'],
+          is_active: true
         },
         {
-          id: 4,
-          username: 'alice.wong',
-          password: 'hashed_password',
-          email: 'alice.wong@company.com',
-          displayName: 'Alice Wong',
-          team: 'Data Engineering',
-          role: 'user',
-          azureObjectId: null
+          user_id: 4,
+          user_name: 'alice.wong',
+          user_email: 'alice.wong@company.com',
+          user_slack: ['alice.wong.slack', 'alice.backup.slack'],
+          user_pagerduty: ['alice.wong@pagerduty'],
+          is_active: false
         },
         {
-          id: 5,
-          username: 'david.chen',
-          password: 'hashed_password',
-          email: 'david.chen@company.com',
-          displayName: 'David Chen',
-          team: 'Analytics',
-          role: 'admin',
-          azureObjectId: null
+          user_id: 5,
+          user_name: 'david.chen',
+          user_email: 'david.chen@company.com',
+          user_slack: ['david.chen.slack'],
+          user_pagerduty: ['david.chen@pagerduty', 'david.backup@pagerduty'],
+          is_active: true
         }
-      ] as User[];
+      ];
       
       console.log('Mock users data:', mockUsers);
       console.log('Users length:', mockUsers.length);
@@ -393,53 +383,68 @@ const UsersManagement = () => {
             <Table>
               <TableHead>
                 <TableRow>
-                  <TableCell>User</TableCell>
+                  <TableCell>User ID</TableCell>
+                  <TableCell>User Name</TableCell>
                   <TableCell>Email</TableCell>
-                  <TableCell>Team</TableCell>
-                  <TableCell>Role</TableCell>
+                  <TableCell>Slack</TableCell>
+                  <TableCell>PagerDuty</TableCell>
                   <TableCell>Status</TableCell>
                   <TableCell>Actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {users?.map((user: User) => (
-                  <TableRow key={user.id}>
+                {users?.map((user: any) => (
+                  <TableRow key={user.user_id}>
+                    <TableCell>
+                      <Typography variant="body2" fontWeight="medium">
+                        {user.user_id}
+                      </Typography>
+                    </TableCell>
                     <TableCell>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <PersonIcon color="primary" />
-                        <Box>
-                          <Typography variant="body2" fontWeight="medium">
-                            {user.displayName || user.username}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            @{user.username}
-                          </Typography>
-                        </Box>
+                        <Typography variant="body2" fontWeight="medium">
+                          {user.user_name}
+                        </Typography>
                       </Box>
                     </TableCell>
                     <TableCell>
                       <Typography variant="body2">
-                        {user.email}
+                        {user.user_email}
                       </Typography>
                     </TableCell>
                     <TableCell>
-                      {user.team ? (
-                        <Chip label={user.team} size="small" variant="outlined" />
+                      {user.user_slack ? (
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                          {user.user_slack.map((slack: string, index: number) => (
+                            <Chip key={index} label={slack} size="small" variant="outlined" color="info" />
+                          ))}
+                        </Box>
                       ) : (
                         <Typography variant="body2" color="text.secondary">
-                          No team
+                          No Slack
+                        </Typography>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {user.user_pagerduty ? (
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                          {user.user_pagerduty.map((pd: string, index: number) => (
+                            <Chip key={index} label={pd} size="small" variant="outlined" color="warning" />
+                          ))}
+                        </Box>
+                      ) : (
+                        <Typography variant="body2" color="text.secondary">
+                          No PagerDuty
                         </Typography>
                       )}
                     </TableCell>
                     <TableCell>
                       <Chip 
-                        label={user.role} 
+                        label={user.is_active ? "Active" : "Inactive"} 
                         size="small" 
-                        color={getRoleColor(user.role || 'user') as any}
+                        color={user.is_active ? "success" : "error"}
                       />
-                    </TableCell>
-                    <TableCell>
-                      <Chip label="Active" size="small" color="success" />
                     </TableCell>
                     <TableCell>
                       <Box sx={{ display: 'flex', gap: 1 }}>
