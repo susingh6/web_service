@@ -132,7 +132,7 @@ const AdminOverview = () => {
           id: 1,
           notificationId: 'CONF-2025-001',
           entityType: 'dag',
-          conflictingTeams: ['PGM', 'Data Engineering'],
+          conflictingTeams: ['PGM', 'Core'],
           conflictDetails: {
             existingOwner: 'PGM',
             requestedBy: 'sarah.lee@company.com',
@@ -145,7 +145,7 @@ const AdminOverview = () => {
           id: 2,
           notificationId: 'CONF-2025-002',
           entityType: 'table',
-          conflictingTeams: ['CDM', 'Data Science'],
+          conflictingTeams: ['CDM', 'Viewer Product'],
           conflictDetails: {
             existingOwner: 'CDM',
             requestedBy: 'mike.johnson@company.com',
@@ -158,9 +158,9 @@ const AdminOverview = () => {
           id: 3,
           notificationId: 'CONF-2025-003',
           entityType: 'dag',
-          conflictingTeams: ['Core', 'CDM'],
+          conflictingTeams: ['IOT', 'Ad Serving'],
           conflictDetails: {
-            existingOwner: 'Core',
+            existingOwner: 'IOT',
             requestedBy: 'alice.wong@company.com',
             reason: 'Pipeline name conflicts with existing Core DAG'
           },

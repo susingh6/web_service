@@ -231,12 +231,12 @@ const ConflictsManagement = () => {
           id: 1,
           notificationId: 'CONF-2025-001',
           entityType: 'dag',
-          conflictingTeams: ['PGM', 'Data Engineering'],
+          conflictingTeams: ['PGM', 'Core'],
           originalPayload: {
             name: 'daily_revenue_dag',
             dag_name: 'daily_revenue_processing',
             dag_schedule: '0 2 * * *',
-            team: 'Data Engineering',
+            team: 'Core',
             description: 'Daily revenue aggregation pipeline'
           },
           conflictDetails: {
@@ -255,12 +255,12 @@ const ConflictsManagement = () => {
           id: 2,
           notificationId: 'CONF-2025-002',
           entityType: 'table',
-          conflictingTeams: ['CDM', 'Data Science'],
+          conflictingTeams: ['CDM', 'Viewer Product'],
           originalPayload: {
             name: 'customer_metrics',
             table_name: 'customer_daily_metrics',
             schema_name: 'analytics',
-            team: 'Data Science',
+            team: 'Viewer Product',
             description: 'Customer behavior metrics table'
           },
           conflictDetails: {
@@ -279,7 +279,7 @@ const ConflictsManagement = () => {
           id: 3,
           notificationId: 'CONF-2025-003',
           entityType: 'dag',
-          conflictingTeams: ['Core', 'CDM'],
+          conflictingTeams: ['IOT', 'Ad Serving'],
           originalPayload: {
             name: 'etl_process_dag',
             dag_name: 'core_etl_pipeline',
