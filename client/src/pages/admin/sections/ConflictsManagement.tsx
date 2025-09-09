@@ -44,6 +44,7 @@ interface ConflictDetailsDialogProps {
   onClose: () => void;
   conflict: ConflictNotification | null;
   onResolve: (conflictId: string, resolution: any) => void;
+  isResolving?: boolean;
 }
 
 interface PayloadData {
@@ -52,7 +53,7 @@ interface PayloadData {
   error?: string;
 }
 
-const ConflictDetailsDialog = ({ open, onClose, conflict, onResolve }: ConflictDetailsDialogProps) => {
+const ConflictDetailsDialog = ({ open, onClose, conflict, onResolve, isResolving = false }: ConflictDetailsDialogProps) => {
   const [resolutionType, setResolutionType] = useState('create_shared');
   const [resolutionNotes, setResolutionNotes] = useState('');
   const [showPayload, setShowPayload] = useState(false);
@@ -203,9 +204,9 @@ const ConflictDetailsDialog = ({ open, onClose, conflict, onResolve }: ConflictD
           onClick={handleResolve} 
           variant="contained" 
           color="primary"
-          disabled={!resolutionNotes.trim() || resolveConflictMutation.isPending}
+          disabled={!resolutionNotes.trim() || isResolving}
         >
-          {resolveConflictMutation.isPending ? 'Applying...' : 'Apply Resolution'}
+          {isResolving ? 'Applying...' : 'Apply Resolution'}
         </Button>
       </DialogActions>
     </Dialog>
@@ -508,6 +509,7 @@ const ConflictsManagement = () => {
         onClose={() => setDialogOpen(false)}
         conflict={selectedConflict}
         onResolve={handleResolveConflict}
+        isResolving={resolveConflictMutation.isPending}
       />
     </Box>
   );
