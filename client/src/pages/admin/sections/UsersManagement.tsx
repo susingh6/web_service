@@ -65,7 +65,7 @@ const UserFormDialog = ({ open, onClose, user, teams, onSubmit }: UserFormDialog
       return;
     }
     
-    const userData = { ...formData };
+    const userData: any = { ...formData };
     if (user) {
       // Remove password fields if editing existing user and password is empty
       if (!formData.password) {
@@ -215,36 +215,68 @@ const UsersManagement = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Fetch users
+  // Fetch users from cached endpoint (like other sections)
   const { data: users = [], isLoading } = useQuery<User[]>({
     queryKey: ['/api/admin/users'],
     queryFn: async () => {
-      // Mock data for now - replace with real API
+      // For now, use mock data until FastAPI endpoint is ready
+      // This should be replaced with: await fetch(buildUrl(endpoints.admin.users.getAll))
       return [
         {
           id: 1,
           username: 'john.smith',
-          email: 'john@company.com',
+          email: 'john.smith@company.com',
           displayName: 'John Smith',
           team: 'PGM',
-          role: 'admin',
+          role: 'admin' as const,
+          password: 'hashed_password',
+          createdAt: new Date(),
+          updatedAt: new Date()
         },
         {
           id: 2,
           username: 'sarah.lee',
-          email: 'sarah@company.com',
+          email: 'sarah.lee@company.com',
           displayName: 'Sarah Lee',
           team: 'CDM',
-          role: 'user',
+          role: 'user' as const,
+          password: 'hashed_password',
+          createdAt: new Date(),
+          updatedAt: new Date()
         },
         {
           id: 3,
           username: 'mike.johnson',
-          email: 'mike@company.com',
+          email: 'mike.johnson@company.com',
           displayName: 'Mike Johnson',
           team: 'Core',
-          role: 'user',
+          role: 'user' as const,
+          password: 'hashed_password',
+          createdAt: new Date(),
+          updatedAt: new Date()
         },
+        {
+          id: 4,
+          username: 'alice.wong',
+          email: 'alice.wong@company.com',
+          displayName: 'Alice Wong',
+          team: 'Data Engineering',
+          role: 'user' as const,
+          password: 'hashed_password',
+          createdAt: new Date(),
+          updatedAt: new Date()
+        },
+        {
+          id: 5,
+          username: 'david.chen',
+          email: 'david.chen@company.com',
+          displayName: 'David Chen',
+          team: 'Analytics',
+          role: 'admin' as const,
+          password: 'hashed_password',
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
       ] as User[];
     },
   });
@@ -398,7 +430,7 @@ const UsersManagement = () => {
                       <Chip 
                         label={user.role} 
                         size="small" 
-                        color={getRoleColor(user.role) as any}
+                        color={getRoleColor(user.role || 'user') as any}
                       />
                     </TableCell>
                     <TableCell>
