@@ -152,8 +152,13 @@ const AdminOverview = () => {
           status: 'pending',
           createdAt: new Date('2025-09-09')
         }
-      ];\n      
-      console.log('Overview conflicts mock data:', mockConflicts);\n      console.log('Overview conflicts length:', mockConflicts.length);\n      return mockConflicts;\n    },\n  });"}
+      ];
+      
+      console.log('Overview conflicts mock data:', mockConflicts);
+      console.log('Overview conflicts length:', mockConflicts.length);
+      return mockConflicts;
+    },
+  });}
 
   const { data: tenants = [] } = useQuery({
     queryKey: ['/api/tenants'],

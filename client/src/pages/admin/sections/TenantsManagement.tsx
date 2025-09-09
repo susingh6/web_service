@@ -156,8 +156,9 @@ const TenantsManagement = () => {
       return await apiRequest('POST', buildUrl(endpoints.admin.tenants.create), tenantData);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/tenants'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/tenants'] }); // Also refresh main tenants cache
+      // Invalidate all tenant-related caches so new tenant appears everywhere
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/tenants'] }); // Admin section
+      queryClient.invalidateQueries({ queryKey: ['/api/tenants'] });       // Main app filters
       toast({
         title: "Tenant Created",
         description: "New tenant has been successfully created.",
@@ -178,8 +179,9 @@ const TenantsManagement = () => {
       return await apiRequest('PUT', buildUrl(endpoints.admin.tenants.update, tenantId), tenantData);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/tenants'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/tenants'] });
+      // Invalidate all tenant-related caches so updated tenant appears everywhere
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/tenants'] }); // Admin section
+      queryClient.invalidateQueries({ queryKey: ['/api/tenants'] });       // Main app filters
       toast({
         title: "Tenant Updated",
         description: "Tenant has been successfully updated.",

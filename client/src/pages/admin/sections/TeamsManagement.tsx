@@ -138,7 +138,9 @@ const TeamsManagement = () => {
       return await apiRequest('POST', buildUrl(endpoints.admin.teams.create), teamData);
     },
     onSuccess: () => {
+      // Invalidate all team-related caches so new team appears everywhere
       queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'teams'] });
       toast({
         title: "Team Created",
         description: "New team has been successfully created.",
@@ -159,7 +161,9 @@ const TeamsManagement = () => {
       return await apiRequest('PUT', buildUrl(endpoints.admin.teams.update, teamId), teamData);
     },
     onSuccess: () => {
+      // Invalidate all team-related caches so updated team appears everywhere
       queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'teams'] });
       toast({
         title: "Team Updated",
         description: "Team has been successfully updated.",
