@@ -46,19 +46,53 @@ interface ConflictDetailsDialogProps {
   onResolve: (conflictId: string, resolution: any) => void;
 }
 
+interface PayloadData {
+  loading: boolean;
+  data: any;
+  error?: string;
+}
+
 const ConflictDetailsDialog = ({ open, onClose, conflict, onResolve }: ConflictDetailsDialogProps) => {
-  const [resolutionType, setResolutionType] = useState('shared_ownership');
+  const [resolutionType, setResolutionType] = useState('create_shared');
   const [resolutionNotes, setResolutionNotes] = useState('');
   const [showPayload, setShowPayload] = useState(false);
+  const [payloadData, setPayloadData] = useState<PayloadData>({ loading: false, data: null });
 
   const handleResolve = () => {
-    if (!conflict) return;
+    if (!conflict || !resolutionNotes.trim()) {
+      alert('Please provide resolution notes');
+      return;
+    }
     
     onResolve(conflict.notificationId, {
       resolutionType,
-      resolutionNotes,
+      resolutionNotes: resolutionNotes.trim(),
     });
     onClose();
+  };
+
+  const fetchPayload = async () => {
+    if (!conflict) return;
+    
+    setPayloadData({ loading: true, data: null });
+    try {
+      // Call FastAPI directly for payload (not cached)
+      const response = await fetch(`/api/fastapi/conflicts/${conflict.notificationId}/payload`);
+      if (!response.ok) throw new Error('Failed to fetch payload');
+      const data = await response.json();
+      setPayloadData({ loading: false, data });
+    } catch (error) {
+      setPayloadData({ loading: false, data: null, error: 'Failed to load payload' });
+    }
+  };
+
+  const handleTogglePayload = () => {
+    if (!showPayload) {
+      setShowPayload(true);
+      fetchPayload();
+    } else {
+      setShowPayload(false);
+    }
   };
 
   if (!conflict) return null;
@@ -83,6 +117,12 @@ const ConflictDetailsDialog = ({ open, onClose, conflict, onResolve }: ConflictD
                   <strong>Conflicting Teams:</strong> {conflict.conflictingTeams.join(', ')}
                 </Typography>
                 <Typography variant="body2" gutterBottom>
+                  <strong>Existing Owner:</strong> {(conflict as any).conflictDetails?.existingOwner || 'Unknown'}
+                </Typography>
+                <Typography variant="body2" gutterBottom>
+                  <strong>Requested By:</strong> {(conflict as any).conflictDetails?.requestedBy || 'Unknown'}
+                </Typography>
+                <Typography variant="body2" gutterBottom>
                   <strong>Created:</strong> {new Date(conflict.createdAt).toLocaleDateString()}
                 </Typography>
                 
@@ -91,16 +131,25 @@ const ConflictDetailsDialog = ({ open, onClose, conflict, onResolve }: ConflictD
                     variant="outlined"
                     size="small"
                     startIcon={<CodeIcon />}
-                    onClick={() => setShowPayload(!showPayload)}
+                    onClick={handleTogglePayload}
+                    disabled={showPayload && payloadData.loading}
                   >
-                    {showPayload ? 'Hide' : 'Show'} Payload
+                    {payloadData.loading ? 'Loading...' : showPayload ? 'Hide' : 'Show'} Payload
                   </Button>
                   
                   {showPayload && (
                     <Paper sx={{ mt: 2, p: 2, bgcolor: 'grey.50' }}>
-                      <Typography variant="caption" component="pre" sx={{ fontSize: '0.75rem' }}>
-                        {JSON.stringify(conflict.originalPayload, null, 2)}
-                      </Typography>
+                      {payloadData.loading && (
+                        <Typography variant="caption">Loading payload...</Typography>
+                      )}
+                      {payloadData.error && (
+                        <Typography variant="caption" color="error">{payloadData.error}</Typography>
+                      )}
+                      {payloadData.data && (
+                        <Typography variant="caption" component="pre" sx={{ fontSize: '0.75rem' }}>
+                          {JSON.stringify(payloadData.data, null, 2)}
+                        </Typography>
+                      )}
                     </Paper>
                   )}
                 </Box>
@@ -118,24 +167,14 @@ const ConflictDetailsDialog = ({ open, onClose, conflict, onResolve }: ConflictD
                     onChange={(e) => setResolutionType(e.target.value)}
                   >
                     <FormControlLabel 
-                      value="shared_ownership" 
+                      value="create_shared" 
                       control={<Radio />} 
                       label="Create shared ownership entity" 
                     />
                     <FormControlLabel 
-                      value="approve_original" 
+                      value="reject_shared" 
                       control={<Radio />} 
-                      label="Approve original request" 
-                    />
-                    <FormControlLabel 
-                      value="approve_new" 
-                      control={<Radio />} 
-                      label="Approve new request" 
-                    />
-                    <FormControlLabel 
-                      value="reject_both" 
-                      control={<Radio />} 
-                      label="Reject both (manual coordination)" 
+                      label="Reject shared ownership entity request" 
                     />
                   </RadioGroup>
                 </FormControl>
@@ -149,6 +188,9 @@ const ConflictDetailsDialog = ({ open, onClose, conflict, onResolve }: ConflictD
                   onChange={(e) => setResolutionNotes(e.target.value)}
                   sx={{ mt: 2 }}
                   placeholder="Explain the resolution decision..."
+                  required
+                  error={!resolutionNotes.trim()}
+                  helperText={!resolutionNotes.trim() ? "Resolution notes are required" : ""}
                 />
               </CardContent>
             </Card>
@@ -157,8 +199,13 @@ const ConflictDetailsDialog = ({ open, onClose, conflict, onResolve }: ConflictD
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
-        <Button onClick={handleResolve} variant="contained" color="primary">
-          Apply Resolution
+        <Button 
+          onClick={handleResolve} 
+          variant="contained" 
+          color="primary"
+          disabled={!resolutionNotes.trim() || resolveConflictMutation.isPending}
+        >
+          {resolveConflictMutation.isPending ? 'Applying...' : 'Apply Resolution'}
         </Button>
       </DialogActions>
     </Dialog>
@@ -260,13 +307,59 @@ const ConflictsManagement = () => {
   // Resolve conflict mutation
   const resolveConflictMutation = useMutation({
     mutationFn: async ({ conflictId, resolution }: { conflictId: string; resolution: any }) => {
-      return await apiRequest('POST', buildUrl(endpoints.admin.conflicts.resolve, conflictId), resolution);
+      // Call FastAPI endpoint to resolve conflict
+      const response = await fetch(`/api/fastapi/conflicts/${conflictId}/resolve`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(resolution),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to resolve conflict');
+      }
+      
+      return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data, variables) => {
+      // Invalidate admin conflicts cache
       queryClient.invalidateQueries({ queryKey: ['admin', 'conflicts'] });
+      
+      // Find the conflict to get team/tenant info for targeted cache invalidation
+      const conflict = conflicts.find(c => c.notificationId === variables.conflictId);
+      if (conflict && variables.resolution.resolutionType === 'create_shared') {
+        // Invalidate specific team+tenant cache combinations
+        const { conflictingTeams } = conflict;
+        const requestedBy = (conflict as any).conflictDetails?.requestedBy;
+        
+        if (requestedBy && conflictingTeams.includes(requestedBy)) {
+          // Invalidate cache for the requesting team's entities
+          queryClient.invalidateQueries({ 
+            queryKey: ['/api/entities'], 
+            predicate: (query) => {
+              // Invalidate queries that might include this team's data
+              return query.queryKey.includes('/api/entities') || 
+                     query.queryKey.includes('/api/dashboard');
+            }
+          });
+          
+          // Send WebSocket notification to users subscribed to this team/tenant combo
+          // This will be handled by the WebSocket system to notify specific subscribers
+          if (typeof window !== 'undefined' && (window as any).wsClient) {
+            (window as any).wsClient.send(JSON.stringify({
+              type: 'ENTITY_OWNERSHIP_UPDATED',
+              team: requestedBy,
+              conflictId: variables.conflictId,
+              action: variables.resolution.resolutionType
+            }));
+          }
+        }
+      }
+      
       toast({
         title: "Conflict Resolved",
-        description: "The ownership conflict has been successfully resolved.",
+        description: `The ownership conflict has been ${variables.resolution.resolutionType === 'create_shared' ? 'resolved with shared ownership' : 'rejected'}.`,
       });
     },
     onError: () => {
@@ -323,7 +416,8 @@ const ConflictsManagement = () => {
                 <TableRow>
                   <TableCell>Notification ID</TableCell>
                   <TableCell>Entity Type</TableCell>
-                  <TableCell>Conflicting Teams</TableCell>
+                  <TableCell>Conflicting Teams/Tenants</TableCell>
+                  <TableCell>Existing Owner(s)</TableCell>
                   <TableCell>Created</TableCell>
                   <TableCell>Status</TableCell>
                   <TableCell>Actions</TableCell>
@@ -359,6 +453,14 @@ const ConflictsManagement = () => {
                         </Box>
                       </TableCell>
                       <TableCell>
+                        <Chip 
+                          label={(conflict as any).conflictDetails?.existingOwner || 'Unknown'} 
+                          size="small" 
+                          color="primary" 
+                          variant="outlined"
+                        />
+                      </TableCell>
+                      <TableCell>
                         <Typography variant="body2">
                           {conflict.createdAt ? new Date(conflict.createdAt).toLocaleDateString() : 'Unknown'}
                         </Typography>
@@ -374,27 +476,23 @@ const ConflictsManagement = () => {
                         />
                       </TableCell>
                       <TableCell>
-                        <Box sx={{ display: 'flex', gap: 1 }}>
-                          <Tooltip title="View Details">
-                            <IconButton 
-                              size="small" 
-                              onClick={() => handleViewConflict(conflict)}
-                            >
-                              <ViewIcon />
-                            </IconButton>
-                          </Tooltip>
-                          {conflict.status === 'pending' && (
-                            <Tooltip title="Resolve">
-                              <IconButton 
-                                size="small" 
-                                color="primary"
-                                onClick={() => handleViewConflict(conflict)}
-                              >
-                                <ResolveIcon />
-                              </IconButton>
-                            </Tooltip>
-                          )}
-                        </Box>
+                        {conflict.status === 'pending' ? (
+                          <Button 
+                            size="small" 
+                            variant="contained"
+                            color="primary"
+                            startIcon={<ResolveIcon />}
+                            onClick={() => handleViewConflict(conflict)}
+                          >
+                            Resolve
+                          </Button>
+                        ) : (
+                          <Chip 
+                            label="Resolved" 
+                            size="small" 
+                            color="success"
+                          />
+                        )}
                       </TableCell>
                     </TableRow>
                   );
