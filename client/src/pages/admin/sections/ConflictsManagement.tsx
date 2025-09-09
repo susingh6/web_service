@@ -70,7 +70,7 @@ const ConflictDetailsDialog = ({ open, onClose, conflict, onResolve }: ConflictD
       </DialogTitle>
       <DialogContent>
         <Grid container spacing={3}>
-          <Grid item xs={12} md={6}>
+          <Grid size={12} sx={{ md: 6 }}>
             <Card variant="outlined">
               <CardContent>
                 <Typography variant="h6" gutterBottom>
@@ -108,7 +108,7 @@ const ConflictDetailsDialog = ({ open, onClose, conflict, onResolve }: ConflictD
             </Card>
           </Grid>
           
-          <Grid item xs={12} md={6}>
+          <Grid size={12} sx={{ md: 6 }}>
             <Card variant="outlined">
               <CardContent>
                 <FormControl component="fieldset">
@@ -282,7 +282,7 @@ const ConflictsManagement = () => {
               </TableHead>
               <TableBody>
                 {conflicts.map((conflict) => {
-                  const daysOld = Math.floor((new Date().getTime() - new Date(conflict.createdAt).getTime()) / (1000 * 60 * 60 * 24));
+                  const daysOld = conflict.createdAt ? Math.floor((new Date().getTime() - new Date(conflict.createdAt).getTime()) / (1000 * 60 * 60 * 24)) : 0;
                   
                   return (
                     <TableRow key={conflict.id}>
@@ -296,7 +296,7 @@ const ConflictsManagement = () => {
                       </TableCell>
                       <TableCell>
                         <Chip 
-                          label={conflict.entityType.toUpperCase()} 
+                          label={conflict.entityType?.toUpperCase() || 'UNKNOWN'} 
                           size="small" 
                           variant="outlined"
                           color={conflict.entityType === 'dag' ? 'primary' : 'secondary'}
@@ -304,14 +304,14 @@ const ConflictsManagement = () => {
                       </TableCell>
                       <TableCell>
                         <Box sx={{ display: 'flex', gap: 0.5 }}>
-                          {conflict.conflictingTeams.map((team) => (
+                          {(conflict.conflictingTeams || []).map((team) => (
                             <Chip key={team} label={team} size="small" />
                           ))}
                         </Box>
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2">
-                          {new Date(conflict.createdAt).toLocaleDateString()}
+                          {conflict.createdAt ? new Date(conflict.createdAt).toLocaleDateString() : 'Unknown'}
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
                           {daysOld} days ago
