@@ -221,7 +221,7 @@ const ConflictsManagement = () => {
 
   // Fetch conflicts data
   const { data: conflicts = [], isLoading } = useQuery<ConflictNotification[]>({
-    queryKey: ['admin', 'conflicts'],
+    queryKey: ['admin', 'conflicts', 'v2'], // Changed key to force refresh
     staleTime: 6 * 60 * 60 * 1000, // Cache for 6 hours
     gcTime: 6 * 60 * 60 * 1000,    // Keep in memory for 6 hours
     queryFn: async () => {
@@ -255,12 +255,12 @@ const ConflictsManagement = () => {
           id: 2,
           notificationId: 'CONF-2025-002',
           entityType: 'table',
-          conflictingTeams: ['CDM', 'Analytics'],
+          conflictingTeams: ['CDM', 'Data Science'],
           originalPayload: {
             name: 'customer_metrics',
             table_name: 'customer_daily_metrics',
             schema_name: 'analytics',
-            team: 'Analytics',
+            team: 'Data Science',
             description: 'Customer behavior metrics table'
           },
           conflictDetails: {
@@ -301,6 +301,8 @@ const ConflictsManagement = () => {
         }
       ] as ConflictNotification[];
       
+      console.log('ConflictsManagement - Mock data:', mockConflicts);
+      console.log('First conflict details:', mockConflicts[0]?.conflictDetails);
       return mockConflicts;
     },
   });

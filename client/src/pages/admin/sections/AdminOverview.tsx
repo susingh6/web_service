@@ -122,17 +122,22 @@ const AdminOverview = () => {
   });
 
   const { data: pendingConflicts = [] } = useQuery({
-    queryKey: ['admin', 'conflicts'],
+    queryKey: ['admin', 'conflicts', 'overview'], // Different key for overview
     staleTime: 6 * 60 * 60 * 1000, // Cache for 6 hours
     gcTime: 6 * 60 * 60 * 1000,    // Keep in memory for 6 hours
     queryFn: async () => {
-      // Use same mock data as ConflictsManagement component
+      // Use same detailed mock data as ConflictsManagement component
       const mockConflicts = [
         {
           id: 1,
           notificationId: 'CONF-2025-001',
           entityType: 'dag',
           conflictingTeams: ['PGM', 'Data Engineering'],
+          conflictDetails: {
+            existingOwner: 'PGM',
+            requestedBy: 'sarah.lee@company.com',
+            reason: 'DAG name already exists with different ownership'
+          },
           status: 'pending',
           createdAt: new Date('2025-09-07')
         },
@@ -140,7 +145,12 @@ const AdminOverview = () => {
           id: 2,
           notificationId: 'CONF-2025-002',
           entityType: 'table',
-          conflictingTeams: ['CDM', 'Analytics'],
+          conflictingTeams: ['CDM', 'Data Science'],
+          conflictDetails: {
+            existingOwner: 'CDM',
+            requestedBy: 'mike.johnson@company.com',
+            reason: 'Table schema conflicts with existing CDM table'
+          },
           status: 'pending',
           createdAt: new Date('2025-09-08')
         },
@@ -149,6 +159,11 @@ const AdminOverview = () => {
           notificationId: 'CONF-2025-003',
           entityType: 'dag',
           conflictingTeams: ['Core', 'CDM'],
+          conflictDetails: {
+            existingOwner: 'Core',
+            requestedBy: 'alice.wong@company.com',
+            reason: 'Pipeline name conflicts with existing Core DAG'
+          },
           status: 'pending',
           createdAt: new Date('2025-09-09')
         }
