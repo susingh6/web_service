@@ -115,7 +115,7 @@ const ConflictDetailsDialog = ({ open, onClose, conflict, onResolve, isResolving
                   <strong>Entity Type:</strong> {conflict.entityType}
                 </Typography>
                 <Typography variant="body2" gutterBottom>
-                  <strong>Entity Name:</strong> {(conflict as any).entityName || 'Unknown'}
+                  <strong>Conflicting Entity:</strong> {(conflict as any).entityName || 'Unknown'}
                 </Typography>
                 <Typography variant="body2" gutterBottom>
                   <strong>Conflicting Teams:</strong> {conflict.conflictingTeams.join(', ')}
@@ -423,7 +423,7 @@ const ConflictsManagement = () => {
                 <TableRow>
                   <TableCell>Notification ID</TableCell>
                   <TableCell>Entity Type</TableCell>
-                  <TableCell>Conflicting Entity Name</TableCell>
+                  <TableCell>Conflicting Entity</TableCell>
                   <TableCell>Conflicting Teams</TableCell>
                   <TableCell>Existing Owner(s)</TableCell>
                   <TableCell>Created</TableCell>
