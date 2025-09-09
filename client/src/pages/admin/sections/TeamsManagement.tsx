@@ -275,11 +275,6 @@ const TeamsManagement = () => {
                     </TableCell>
                     <TableCell>
                       <Box sx={{ display: 'flex', gap: 1 }}>
-                        <Tooltip title="View Details">
-                          <IconButton size="small">
-                            <ViewIcon />
-                          </IconButton>
-                        </Tooltip>
                         <Tooltip title="Edit Team">
                           <IconButton 
                             size="small" 
