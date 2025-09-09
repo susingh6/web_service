@@ -66,7 +66,7 @@ const AdminOverview = () => {
   });
 
   const { data: users = [] } = useQuery({
-    queryKey: ['/api/admin/users'],
+    queryKey: ['admin', 'users'],
     staleTime: 0, // Force fresh data
     gcTime: 0, // Don't cache
     queryFn: async () => {
@@ -122,16 +122,38 @@ const AdminOverview = () => {
   });
 
   const { data: pendingConflicts = [] } = useQuery({
-    queryKey: ['/api/admin/conflicts'],
+    queryKey: ['admin', 'conflicts'],
+    staleTime: 6 * 60 * 60 * 1000, // Cache for 6 hours
+    gcTime: 6 * 60 * 60 * 1000,    // Keep in memory for 6 hours
     queryFn: async () => {
-      // Mock data for now
-      return [
-        { id: 1, status: 'pending' },
-        { id: 2, status: 'pending' },
-        { id: 3, status: 'pending' }
-      ];
-    },
-  });
+      // Use same mock data as ConflictsManagement component
+      const mockConflicts = [
+        {
+          id: 1,
+          notificationId: 'CONF-2025-001',
+          entityType: 'dag',
+          conflictingTeams: ['PGM', 'Data Engineering'],
+          status: 'pending',
+          createdAt: new Date('2025-09-07')
+        },
+        {
+          id: 2,
+          notificationId: 'CONF-2025-002',
+          entityType: 'table',
+          conflictingTeams: ['CDM', 'Analytics'],
+          status: 'pending',
+          createdAt: new Date('2025-09-08')
+        },
+        {
+          id: 3,
+          notificationId: 'CONF-2025-003',
+          entityType: 'dag',
+          conflictingTeams: ['Core', 'CDM'],
+          status: 'pending',
+          createdAt: new Date('2025-09-09')
+        }
+      ];\n      
+      console.log('Overview conflicts mock data:', mockConflicts);\n      console.log('Overview conflicts length:', mockConflicts.length);\n      return mockConflicts;\n    },\n  });"}
 
   const { data: tenants = [] } = useQuery({
     queryKey: ['/api/tenants'],

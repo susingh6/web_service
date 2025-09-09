@@ -154,9 +154,9 @@ const UsersManagement = () => {
 
   // Fetch users from cached endpoint (like other sections)
   const { data: users = [], isLoading } = useQuery({
-    queryKey: ['/api/admin/users'],
-    staleTime: 0, // Force fresh data
-    gcTime: 0, // Don't cache (renamed from cacheTime in v5)
+    queryKey: ['admin', 'users'],
+    staleTime: 6 * 60 * 60 * 1000, // Cache for 6 hours
+    gcTime: 6 * 60 * 60 * 1000,    // Keep in memory for 6 hours
     queryFn: async () => {
       // For now, use mock data until FastAPI endpoint is ready
       // This should be replaced with: await fetch(buildUrl(endpoints.admin.users.getAll))
@@ -224,7 +224,7 @@ const UsersManagement = () => {
       return await apiRequest('POST', buildUrl(endpoints.admin.users.create), userData);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
       toast({
         title: "User Created",
         description: "New user has been successfully created.",
@@ -245,7 +245,7 @@ const UsersManagement = () => {
       return await apiRequest('PUT', buildUrl(endpoints.admin.users.update, userId), userData);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
       toast({
         title: "User Updated",
         description: "User has been successfully updated.",

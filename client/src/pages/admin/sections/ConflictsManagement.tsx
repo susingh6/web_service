@@ -173,38 +173,87 @@ const ConflictsManagement = () => {
 
   // Fetch conflicts data
   const { data: conflicts = [], isLoading } = useQuery<ConflictNotification[]>({
-    queryKey: ['/api/admin/conflicts'],
+    queryKey: ['admin', 'conflicts'],
+    staleTime: 6 * 60 * 60 * 1000, // Cache for 6 hours
+    gcTime: 6 * 60 * 60 * 1000,    // Keep in memory for 6 hours
     queryFn: async () => {
       // Mock data for now - replace with real API
-      return [
+      const mockConflicts = [
         {
           id: 1,
-          notificationId: 'NOT-001',
+          notificationId: 'CONF-2025-001',
           entityType: 'dag',
-          conflictingTeams: ['PGM', 'CDM'],
+          conflictingTeams: ['PGM', 'Data Engineering'],
           originalPayload: {
-            name: 'agg_daily_pgm',
-            dag_name: 'agg_daily',
+            name: 'daily_revenue_dag',
+            dag_name: 'daily_revenue_processing',
             dag_schedule: '0 2 * * *',
-            team: 'CDM'
+            team: 'Data Engineering',
+            description: 'Daily revenue aggregation pipeline'
+          },
+          conflictDetails: {
+            existingOwner: 'PGM',
+            requestedBy: 'Data Engineering',
+            reason: 'DAG name already exists with different ownership'
           },
           status: 'pending',
-          createdAt: new Date('2025-01-07'),
+          createdAt: new Date('2025-09-07'),
+          resolvedAt: null,
+          resolutionType: null,
+          resolutionNotes: null,
+          resolvedBy: null
         },
         {
           id: 2,
-          notificationId: 'NOT-002',
+          notificationId: 'CONF-2025-002',
           entityType: 'table',
-          conflictingTeams: ['Core', 'CDM'],
+          conflictingTeams: ['CDM', 'Analytics'],
           originalPayload: {
-            name: 'user_metrics',
-            table_name: 'user_metrics',
-            team: 'CDM'
+            name: 'customer_metrics',
+            table_name: 'customer_daily_metrics',
+            schema_name: 'analytics',
+            team: 'Analytics',
+            description: 'Customer behavior metrics table'
+          },
+          conflictDetails: {
+            existingOwner: 'CDM',
+            requestedBy: 'Analytics',
+            reason: 'Table schema conflicts with existing CDM table'
           },
           status: 'pending',
-          createdAt: new Date('2025-01-08'),
+          createdAt: new Date('2025-09-08'),
+          resolvedAt: null,
+          resolutionType: null,
+          resolutionNotes: null,
+          resolvedBy: null
         },
+        {
+          id: 3,
+          notificationId: 'CONF-2025-003',
+          entityType: 'dag',
+          conflictingTeams: ['Core', 'CDM'],
+          originalPayload: {
+            name: 'etl_process_dag',
+            dag_name: 'core_etl_pipeline',
+            dag_schedule: '0 1 * * *',
+            team: 'CDM',
+            description: 'Core ETL processing pipeline'
+          },
+          conflictDetails: {
+            existingOwner: 'Core',
+            requestedBy: 'CDM',
+            reason: 'Pipeline name conflicts with existing Core DAG'
+          },
+          status: 'pending',
+          createdAt: new Date('2025-09-09'),
+          resolvedAt: null,
+          resolutionType: null,
+          resolutionNotes: null,
+          resolvedBy: null
+        }
       ] as ConflictNotification[];
+      
+      return mockConflicts;
     },
   });
 
@@ -214,7 +263,7 @@ const ConflictsManagement = () => {
       return await apiRequest('POST', buildUrl(endpoints.admin.conflicts.resolve, conflictId), resolution);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/conflicts'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'conflicts'] });
       toast({
         title: "Conflict Resolved",
         description: "The ownership conflict has been successfully resolved.",
