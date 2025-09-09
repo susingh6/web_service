@@ -43,47 +43,36 @@ import { User } from '@shared/schema';
 interface UserFormDialogProps {
   open: boolean;
   onClose: () => void;
-  user: User | null;
-  teams: any[];
+  user: any | null;
   onSubmit: (userData: any) => void;
 }
 
-const UserFormDialog = ({ open, onClose, user, teams, onSubmit }: UserFormDialogProps) => {
+const UserFormDialog = ({ open, onClose, user, onSubmit }: UserFormDialogProps) => {
   const [formData, setFormData] = useState({
-    username: user?.username || '',
-    email: user?.email || '',
-    displayName: user?.displayName || '',
-    team: user?.team || '',
-    role: user?.role || 'user',
-    password: '',
-    confirmPassword: '',
+    user_name: user?.user_name || '',
+    user_email: user?.user_email || '',
+    user_slack: user?.user_slack ? user.user_slack.join(', ') : '',
+    user_pagerduty: user?.user_pagerduty ? user.user_pagerduty.join(', ') : '',
+    is_active: user?.is_active ?? true,
   });
 
   const handleSubmit = () => {
-    if (!user && formData.password !== formData.confirmPassword) {
-      // Handle password mismatch
-      return;
-    }
-    
-    const userData: any = { ...formData };
-    if (user) {
-      // Remove password fields if editing existing user and password is empty
-      if (!formData.password) {
-        delete userData.password;
-        delete userData.confirmPassword;
-      }
-    }
+    const userData = {
+      user_name: formData.user_name,
+      user_email: formData.user_email,
+      user_slack: formData.user_slack ? formData.user_slack.split(',').map(s => s.trim()).filter(s => s) : null,
+      user_pagerduty: formData.user_pagerduty ? formData.user_pagerduty.split(',').map(s => s.trim()).filter(s => s) : null,
+      is_active: formData.is_active,
+    };
     
     onSubmit(userData);
     onClose();
     setFormData({
-      username: '',
-      email: '',
-      displayName: '',
-      team: '',
-      role: 'user',
-      password: '',
-      confirmPassword: '',
+      user_name: '',
+      user_email: '',
+      user_slack: '',
+      user_pagerduty: '',
+      is_active: true,
     });
   };
 
@@ -96,103 +85,51 @@ const UserFormDialog = ({ open, onClose, user, teams, onSubmit }: UserFormDialog
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
           <TextField
             fullWidth
-            label="Username"
-            value={formData.username}
-            onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+            label="User Name"
+            value={formData.user_name}
+            onChange={(e) => setFormData({ ...formData, user_name: e.target.value })}
             required
+            helperText="Unique username for the user"
           />
           
           <TextField
             fullWidth
             label="Email"
             type="email"
-            value={formData.email}
-            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+            value={formData.user_email}
+            onChange={(e) => setFormData({ ...formData, user_email: e.target.value })}
             required
+            helperText="User's email address"
           />
           
           <TextField
             fullWidth
-            label="Display Name"
-            value={formData.displayName}
-            onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
+            label="Slack Handles"
+            value={formData.user_slack}
+            onChange={(e) => setFormData({ ...formData, user_slack: e.target.value })}
+            helperText="Comma-separated Slack handles (e.g., john.slack, john.backup)"
+            placeholder="john.slack, john.backup"
           />
           
-          <FormControl fullWidth>
-            <InputLabel>Team</InputLabel>
-            <Select
-              value={formData.team}
-              onChange={(e) => setFormData({ ...formData, team: e.target.value })}
-              label="Team"
-            >
-              <MenuItem value="">No Team</MenuItem>
-              {teams.map((team) => (
-                <MenuItem key={team.id} value={team.name}>
-                  {team.name}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+          <TextField
+            fullWidth
+            label="PagerDuty Contacts"
+            value={formData.user_pagerduty}
+            onChange={(e) => setFormData({ ...formData, user_pagerduty: e.target.value })}
+            helperText="Comma-separated PagerDuty contacts (e.g., john@pagerduty, john.backup@pagerduty)"
+            placeholder="john@pagerduty, john.backup@pagerduty"
+          />
           
-          <FormControl fullWidth required>
-            <InputLabel>Role</InputLabel>
-            <Select
-              value={formData.role}
-              onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-              label="Role"
-            >
-              <MenuItem value="user">User</MenuItem>
-              <MenuItem value="admin">Admin</MenuItem>
-            </Select>
-          </FormControl>
-          
-          {!user && (
-            <>
-              <TextField
-                fullWidth
-                label="Password"
-                type="password"
-                value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                required
+          <FormControlLabel
+            control={
+              <Switch
+                checked={formData.is_active}
+                onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+                color="primary"
               />
-              
-              <TextField
-                fullWidth
-                label="Confirm Password"
-                type="password"
-                value={formData.confirmPassword}
-                onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                required
-                error={formData.password !== formData.confirmPassword}
-                helperText={formData.password !== formData.confirmPassword ? 'Passwords do not match' : ''}
-              />
-            </>
-          )}
-          
-          {user && (
-            <>
-              <TextField
-                fullWidth
-                label="New Password (leave empty to keep current)"
-                type="password"
-                value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-              />
-              
-              {formData.password && (
-                <TextField
-                  fullWidth
-                  label="Confirm New Password"
-                  type="password"
-                  value={formData.confirmPassword}
-                  onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                  error={formData.password !== formData.confirmPassword}
-                  helperText={formData.password !== formData.confirmPassword ? 'Passwords do not match' : ''}
-                />
-              )}
-            </>
-          )}
+            }
+            label="Active User"
+          />
         </Box>
       </DialogContent>
       <DialogActions>
@@ -200,9 +137,9 @@ const UserFormDialog = ({ open, onClose, user, teams, onSubmit }: UserFormDialog
         <Button 
           onClick={handleSubmit} 
           variant="contained"
-          disabled={!user && formData.password !== formData.confirmPassword}
+          disabled={!formData.user_name || !formData.user_email}
         >
-          {user ? 'Update' : 'Create'}
+          {user ? 'Update User' : 'Create User'}
         </Button>
       </DialogActions>
     </Dialog>
@@ -221,7 +158,6 @@ const UsersManagement = () => {
     staleTime: 0, // Force fresh data
     gcTime: 0, // Don't cache (renamed from cacheTime in v5)
     queryFn: async () => {
-      console.log('Users query running - returning mock data');
       // For now, use mock data until FastAPI endpoint is ready
       // This should be replaced with: await fetch(buildUrl(endpoints.admin.users.getAll))
       const mockUsers = [
@@ -267,14 +203,11 @@ const UsersManagement = () => {
         }
       ];
       
-      console.log('Mock users data:', mockUsers);
-      console.log('Users length:', mockUsers.length);
       return mockUsers;
     },
   });
 
-  console.log('Rendered users:', users);
-  console.log('Users length in component:', users?.length || 0);
+  // Users data loaded successfully
 
   // Fetch teams for user assignment
   const { data: teams = [] } = useQuery({
@@ -332,14 +265,14 @@ const UsersManagement = () => {
     setDialogOpen(true);
   };
 
-  const handleEditUser = (user: User) => {
+  const handleEditUser = (user: any) => {
     setSelectedUser(user);
     setDialogOpen(true);
   };
 
   const handleSubmitUser = (userData: any) => {
     if (selectedUser) {
-      updateUserMutation.mutate({ userId: selectedUser.id, userData });
+      updateUserMutation.mutate({ userId: selectedUser.user_id, userData });
     } else {
       createUserMutation.mutate(userData);
     }
@@ -476,7 +409,6 @@ const UsersManagement = () => {
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
         user={selectedUser}
-        teams={teams}
         onSubmit={handleSubmitUser}
       />
     </Box>
