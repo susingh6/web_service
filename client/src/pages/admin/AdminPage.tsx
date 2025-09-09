@@ -74,26 +74,7 @@ const AdminPage = () => {
   const [activeTab, setActiveTab] = useState(0);
   const [location, setLocation] = useLocation();
 
-  // Fetch pending conflicts count for the badge
-  const { data: pendingConflicts = [] } = useQuery<ConflictNotification[]>({
-    queryKey: ['/api/admin/conflicts'],
-    queryFn: async () => {
-      // For now, return mock data - this will be replaced with real API call
-      return [
-        {
-          id: 1,
-          notificationId: 'NOT-001',
-          entityType: 'dag',
-          conflictingTeams: ['PGM', 'CDM'],
-          originalPayload: {},
-          status: 'pending',
-          createdAt: new Date(),
-        }
-      ] as ConflictNotification[];
-    },
-  });
-
-  const pendingCount = pendingConflicts.filter(c => c.status === 'pending').length;
+  // All statistics are now displayed in System Overview section only
 
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
@@ -118,7 +99,6 @@ const AdminPage = () => {
     {
       label: 'Conflicts',
       icon: <ConflictsIcon />,
-      badge: pendingCount > 0 ? pendingCount : undefined,
       component: <ConflictsManagement />
     },
     {
@@ -188,14 +168,6 @@ const AdminPage = () => {
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     {tab.icon}
                     {tab.label}
-                    {tab.badge && (
-                      <Chip 
-                        label={tab.badge} 
-                        size="small" 
-                        color="error" 
-                        sx={{ ml: 1, minWidth: 20, height: 20 }}
-                      />
-                    )}
                   </Box>
                 }
                 {...a11yProps(index)}
