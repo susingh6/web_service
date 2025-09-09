@@ -71,37 +71,37 @@ export const devConfig = {
       teams: '/api/debug/teams',
     },
     
-    // Admin endpoints
+    // Admin endpoints - pointing to FastAPI
     admin: {
       conflicts: {
-        getAll: '/api/admin/conflicts',
-        getById: (notificationId: string) => `/api/admin/conflicts/${notificationId}`,
-        resolve: (notificationId: string) => `/api/admin/conflicts/${notificationId}/resolve`,
-        create: '/api/admin/conflicts',
+        getAll: 'http://localhost:8080/api/v1/admin/conflicts',
+        getById: (notificationId: string) => `http://localhost:8080/api/v1/admin/conflicts/${notificationId}`,
+        resolve: (notificationId: string) => `http://localhost:8080/api/v1/admin/conflicts/${notificationId}/resolve`,
+        create: 'http://localhost:8080/api/v1/admin/conflicts',
       },
       teams: {
-        create: '/api/admin/teams',
-        update: (teamId: number) => `/api/admin/teams/${teamId}`,
-        disable: (teamId: number) => `/api/admin/teams/${teamId}/disable`,
-        enable: (teamId: number) => `/api/admin/teams/${teamId}/enable`,
+        create: 'http://localhost:8080/api/v1/admin/teams',
+        update: (teamId: number) => `http://localhost:8080/api/v1/admin/teams/${teamId}`,
+        disable: (teamId: number) => `http://localhost:8080/api/v1/admin/teams/${teamId}/disable`,
+        enable: (teamId: number) => `http://localhost:8080/api/v1/admin/teams/${teamId}/enable`,
       },
       tenants: {
-        create: '/api/admin/tenants',
-        getAll: '/api/admin/tenants',
-        update: (tenantId: number) => `/api/admin/tenants/${tenantId}`,
-        disable: (tenantId: number) => `/api/admin/tenants/${tenantId}/disable`,
+        create: 'http://localhost:8080/api/v1/admin/tenants',
+        getAll: 'http://localhost:8080/api/v1/admin/tenants',
+        update: (tenantId: number) => `http://localhost:8080/api/v1/admin/tenants/${tenantId}`,
+        disable: (tenantId: number) => `http://localhost:8080/api/v1/admin/tenants/${tenantId}/disable`,
       },
       users: {
-        getAll: '/api/admin/users',
-        create: '/api/admin/users',
-        update: (userId: number) => `/api/admin/users/${userId}`,
-        disable: (userId: number) => `/api/admin/users/${userId}/disable`,
-        enable: (userId: number) => `/api/admin/users/${userId}/enable`,
+        getAll: 'http://localhost:8080/api/v1/admin/users',
+        create: 'http://localhost:8080/api/v1/admin/users',
+        update: (userId: number) => `http://localhost:8080/api/v1/admin/users/${userId}`,
+        disable: (userId: number) => `http://localhost:8080/api/v1/admin/users/${userId}/disable`,
+        enable: (userId: number) => `http://localhost:8080/api/v1/admin/users/${userId}/enable`,
       },
       roles: {
-        getAll: '/api/admin/roles',
-        create: '/api/admin/roles',
-        update: (roleId: number) => `/api/admin/roles/${roleId}`,
+        getAll: 'http://localhost:8080/api/v1/admin/roles',
+        create: 'http://localhost:8080/api/v1/admin/roles',
+        update: (roleId: number) => `http://localhost:8080/api/v1/admin/roles/${roleId}`,
       },
     },
     
