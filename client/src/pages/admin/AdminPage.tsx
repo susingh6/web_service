@@ -134,7 +134,8 @@ const AdminPage = () => {
   ];
 
   return (
-    <Container maxWidth="xl" sx={{ py: 4 }}>
+    <Box sx={{ width: '100%', px: 2, py: 4 }}>
+      <Box sx={{ width: '80%', mx: 'auto', maxWidth: '1400px' }}>
       <Box sx={{ mb: 4 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
           <Button
@@ -211,7 +212,8 @@ const AdminPage = () => {
           ))}
         </CardContent>
       </Card>
-    </Container>
+      </Box>
+    </Box>
   );
 };
 
