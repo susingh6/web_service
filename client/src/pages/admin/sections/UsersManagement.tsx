@@ -216,10 +216,10 @@ const UsersManagement = () => {
   const queryClient = useQueryClient();
 
   // Fetch users from cached endpoint (like other sections)
-  const { data: users = [], isLoading } = useQuery<User[]>({
+  const { data: users = [], isLoading } = useQuery({
     queryKey: ['/api/admin/users'],
     staleTime: 0, // Force fresh data
-    cacheTime: 0, // Don't cache
+    gcTime: 0, // Don't cache (renamed from cacheTime in v5)
     queryFn: async () => {
       console.log('Users query running - returning mock data');
       // For now, use mock data until FastAPI endpoint is ready
@@ -284,7 +284,7 @@ const UsersManagement = () => {
   });
 
   console.log('Rendered users:', users);
-  console.log('Users length in component:', users.length);
+  console.log('Users length in component:', users?.length || 0);
 
   // Fetch teams for user assignment
   const { data: teams = [] } = useQuery({
@@ -386,7 +386,7 @@ const UsersManagement = () => {
       <Card elevation={2}>
         <CardContent>
           <Typography variant="h6" gutterBottom>
-            System Users ({users.length})
+            System Users ({users?.length || 0})
           </Typography>
           
           <TableContainer component={Paper} elevation={0}>
@@ -402,7 +402,7 @@ const UsersManagement = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {users.map((user) => (
+                {users?.map((user: User) => (
                   <TableRow key={user.id}>
                     <TableCell>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
