@@ -158,7 +158,7 @@ const AdminOverview = () => {
       console.log('Overview conflicts length:', mockConflicts.length);
       return mockConflicts;
     },
-  });}
+  });
 
   const { data: tenants = [] } = useQuery({
     queryKey: ['/api/tenants'],
