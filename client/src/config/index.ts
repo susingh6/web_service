@@ -59,6 +59,38 @@ interface ApiConfig {
     debug: {
       teams: string;
     };
+    admin: {
+      conflicts: {
+        getAll: string;
+        getById: (notificationId: string) => string;
+        resolve: (notificationId: string) => string;
+        create: string;
+      };
+      teams: {
+        create: string;
+        update: (teamId: number) => string;
+        disable: (teamId: number) => string;
+        enable: (teamId: number) => string;
+      };
+      tenants: {
+        create: string;
+        getAll: string;
+        update: (tenantId: number) => string;
+        disable: (tenantId: number) => string;
+      };
+      users: {
+        getAll: string;
+        create: string;
+        update: (userId: number) => string;
+        disable: (userId: number) => string;
+        enable: (userId: number) => string;
+      };
+      roles: {
+        getAll: string;
+        create: string;
+        update: (roleId: number) => string;
+      };
+    };
   };
   slaColorThresholds: {
     green: {

@@ -177,6 +177,22 @@ export const insertNotificationTimelineSchema = createInsertSchema(notificationT
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 
+// Conflict notifications table for admin conflict resolution
+export const conflictNotifications = pgTable("conflict_notifications", {
+  id: serial("id").primaryKey(),
+  notificationId: text("notification_id").notNull().unique(), // e.g., "NOT-001"
+  entityType: text("entity_type").notNull(), // 'table' or 'dag'
+  conflictingTeams: json("conflicting_teams").$type<string[]>().notNull(), // ["PGM", "CDM"]
+  originalPayload: json("original_payload").$type<object>().notNull(), // The failed entity creation request
+  conflictDetails: json("conflict_details").$type<object>(), // Details about the conflict
+  status: text("status").notNull().default("pending"), // 'pending', 'resolved', 'rejected'
+  resolutionType: text("resolution_type"), // 'approve_original', 'approve_new', 'shared_ownership', 'reject_both'
+  resolutionNotes: text("resolution_notes"),
+  resolvedBy: integer("resolved_by"), // admin user ID
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  resolvedAt: timestamp("resolved_at"),
+});
+
 // User roles for notification system
 export interface UserRole {
   role: string;
@@ -186,6 +202,15 @@ export interface UserRole {
 
 export type Team = typeof teams.$inferSelect;
 export type InsertTeam = z.infer<typeof insertTeamSchema>;
+
+// Conflict notifications types
+export const insertConflictNotificationSchema = createInsertSchema(conflictNotifications).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type ConflictNotification = typeof conflictNotifications.$inferSelect;
+export type InsertConflictNotification = z.infer<typeof insertConflictNotificationSchema>;
 
 export type Entity = typeof entities.$inferSelect;
 export type InsertEntity = z.infer<typeof insertEntitySchema>;

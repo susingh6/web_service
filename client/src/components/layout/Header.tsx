@@ -2,11 +2,13 @@ import { useState } from 'react';
 import { AppBar, Toolbar, Typography, IconButton, Badge, Avatar, Menu, MenuItem, Box, useTheme } from '@mui/material';
 import { Notifications as NotificationsIcon, AccountCircle, ArrowDropDown } from '@mui/icons-material';
 import { useAuth } from '@/hooks/use-auth';
+import { useLocation } from 'wouter';
 import { AccountInfo } from '@azure/msal-browser';
 
 const Header = () => {
   const theme = useTheme();
   const { user, logout } = useAuth();
+  const [location, setLocation] = useLocation();
   
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [notificationsAnchor, setNotificationsAnchor] = useState<null | HTMLElement>(null);
@@ -28,7 +30,7 @@ const Header = () => {
   };
   
   const handleAdminClick = () => {
-    console.log("Admin menu item clicked - Admin features placeholder");
+    setLocation('/admin');
     handleUserMenuClose();
   };
 

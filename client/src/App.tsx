@@ -10,6 +10,7 @@ import AppLayout from "./components/layout/AppLayout";
 import NotFound from "@/pages/not-found";
 import AuthPage from "@/pages/auth-page";
 import Summary from "@/pages/dashboard/Summary";
+import AdminPage from "@/pages/admin/AdminPage";
 import { Box, CircularProgress } from "@mui/material";
 
 // Lazy load components for better performance
@@ -48,6 +49,7 @@ function Router() {
       
       {/* Admin-only Dashboard routes */}
       <AdminRoute path="/" component={Summary} />
+      <AdminRoute path="/admin" component={AdminPage} />
       <AdminRoute 
         path="/team/:id" 
         component={() => (
