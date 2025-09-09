@@ -218,10 +218,13 @@ const UsersManagement = () => {
   // Fetch users from cached endpoint (like other sections)
   const { data: users = [], isLoading } = useQuery<User[]>({
     queryKey: ['/api/admin/users'],
+    staleTime: 0, // Force fresh data
+    cacheTime: 0, // Don't cache
     queryFn: async () => {
+      console.log('Users query running - returning mock data');
       // For now, use mock data until FastAPI endpoint is ready
       // This should be replaced with: await fetch(buildUrl(endpoints.admin.users.getAll))
-      return [
+      const mockUsers = [
         {
           id: 1,
           username: 'john.smith',
@@ -273,8 +276,15 @@ const UsersManagement = () => {
           azureObjectId: null
         }
       ] as User[];
+      
+      console.log('Mock users data:', mockUsers);
+      console.log('Users length:', mockUsers.length);
+      return mockUsers;
     },
   });
+
+  console.log('Rendered users:', users);
+  console.log('Users length in component:', users.length);
 
   // Fetch teams for user assignment
   const { data: teams = [] } = useQuery({
