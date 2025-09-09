@@ -115,6 +115,9 @@ const ConflictDetailsDialog = ({ open, onClose, conflict, onResolve, isResolving
                   <strong>Entity Type:</strong> {conflict.entityType}
                 </Typography>
                 <Typography variant="body2" gutterBottom>
+                  <strong>Entity Name:</strong> {(conflict as any).entityName || 'Unknown'}
+                </Typography>
+                <Typography variant="body2" gutterBottom>
                   <strong>Conflicting Teams:</strong> {conflict.conflictingTeams.join(', ')}
                 </Typography>
                 <Typography variant="body2" gutterBottom>
@@ -232,6 +235,7 @@ const ConflictsManagement = () => {
           notificationId: 'CONF-2025-001',
           entityType: 'dag',
           conflictingTeams: ['PGM', 'Core'],
+          entityName: 'daily_revenue_processing',
           originalPayload: {
             name: 'daily_revenue_dag',
             dag_name: 'daily_revenue_processing',
@@ -256,6 +260,7 @@ const ConflictsManagement = () => {
           notificationId: 'CONF-2025-002',
           entityType: 'table',
           conflictingTeams: ['CDM', 'Viewer Product'],
+          entityName: 'analytics.customer_daily_metrics',
           originalPayload: {
             name: 'customer_metrics',
             table_name: 'customer_daily_metrics',
@@ -280,6 +285,7 @@ const ConflictsManagement = () => {
           notificationId: 'CONF-2025-003',
           entityType: 'dag',
           conflictingTeams: ['IOT', 'Ad Serving'],
+          entityName: 'core_etl_pipeline',
           originalPayload: {
             name: 'etl_process_dag',
             dag_name: 'core_etl_pipeline',
@@ -301,8 +307,6 @@ const ConflictsManagement = () => {
         }
       ] as ConflictNotification[];
       
-      console.log('ConflictsManagement - Mock data:', mockConflicts);
-      console.log('First conflict details:', mockConflicts[0]?.conflictDetails);
       return mockConflicts;
     },
   });
@@ -419,6 +423,7 @@ const ConflictsManagement = () => {
                 <TableRow>
                   <TableCell>Notification ID</TableCell>
                   <TableCell>Entity Type</TableCell>
+                  <TableCell>Conflicting Entity Name</TableCell>
                   <TableCell>Conflicting Teams</TableCell>
                   <TableCell>Existing Owner(s)</TableCell>
                   <TableCell>Created</TableCell>
@@ -447,6 +452,11 @@ const ConflictsManagement = () => {
                           variant="outlined"
                           color={conflict.entityType === 'dag' ? 'primary' : 'secondary'}
                         />
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" fontWeight="medium">
+                          {(conflict as any).entityName || 'Unknown'}
+                        </Typography>
                       </TableCell>
                       <TableCell>
                         <Box sx={{ display: 'flex', gap: 0.5 }}>

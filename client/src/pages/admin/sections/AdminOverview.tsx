@@ -132,6 +132,7 @@ const AdminOverview = () => {
           id: 1,
           notificationId: 'CONF-2025-001',
           entityType: 'dag',
+          entityName: 'daily_revenue_processing',
           conflictingTeams: ['PGM', 'Core'],
           conflictDetails: {
             existingOwner: 'PGM',
@@ -145,6 +146,7 @@ const AdminOverview = () => {
           id: 2,
           notificationId: 'CONF-2025-002',
           entityType: 'table',
+          entityName: 'analytics.customer_daily_metrics',
           conflictingTeams: ['CDM', 'Viewer Product'],
           conflictDetails: {
             existingOwner: 'CDM',
@@ -158,6 +160,7 @@ const AdminOverview = () => {
           id: 3,
           notificationId: 'CONF-2025-003',
           entityType: 'dag',
+          entityName: 'core_etl_pipeline',
           conflictingTeams: ['IOT', 'Ad Serving'],
           conflictDetails: {
             existingOwner: 'IOT',
