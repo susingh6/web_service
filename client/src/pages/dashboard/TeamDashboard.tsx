@@ -87,13 +87,13 @@ const TeamDashboard = ({
 
   // React Query to fetch team members - automatically updates when cache changes
   const { data: teamMembers = [], isLoading: teamMembersLoading } = useQuery({
-    queryKey: ['team-members', teamName],
+    queryKey: ['teamMembers', tenantName, team?.id],
     queryFn: async () => {
       if (!teamName) return [];
       const response = await apiClient.teams.getMembers(teamName);
       return await response.json();
     },
-    enabled: !!teamName,
+    enabled: !!teamName && !!team?.id,
   });
 
   // Ensure teams are loaded when visiting TeamDashboard directly
@@ -106,11 +106,10 @@ const TeamDashboard = ({
   // Fetch data when team is found
   // Use React Query for team entities so cache invalidation works
   const { data: teamEntitiesFromQuery = [], isLoading: isLoadingTeamEntities } = useQuery({
-    queryKey: ['/api/entities', { teamId: team?.id }],
+    queryKey: ['entities', tenantName, team?.id],
     queryFn: async () => {
       if (!team?.id) return [];
-      const response = await fetch(`/api/entities?teamId=${team.id}`);
-      if (!response.ok) throw new Error('Failed to fetch team entities');
+      const response = await apiRequest('GET', `/api/entities?teamId=${team.id}`);
       return response.json();
     },
     enabled: !!team?.id,
@@ -126,9 +125,9 @@ const TeamDashboard = ({
 
   // Fetch tenant-level summary for this team's selected date range (scoped to component)
   const { data: teamSummaryData, isLoading: teamSummaryLoading, isError: teamSummaryError } = useQuery({
-    queryKey: ['/api/dashboard/summary', tenantName, teamName, format(teamDateRange.startDate, 'yyyy-MM-dd'), format(teamDateRange.endDate, 'yyyy-MM-dd')],
+    queryKey: ['dashboardSummary', tenantName, team?.id, format(teamDateRange.startDate, 'yyyy-MM-dd'), format(teamDateRange.endDate, 'yyyy-MM-dd')],
     queryFn: async () => {
-      if (!tenantName) return null;
+      if (!tenantName || !team?.id) return null;
       const params = new URLSearchParams({
         tenant: tenantName,
         team: teamName,
@@ -136,9 +135,9 @@ const TeamDashboard = ({
         endDate: format(teamDateRange.endDate, 'yyyy-MM-dd'),
       });
       const response = await apiRequest('GET', `/api/dashboard/summary?${params.toString()}`);
-      return await response.json();
+      return response.json();
     },
-    enabled: !!tenantName,
+    enabled: !!tenantName && !!team?.id,
     staleTime: 30 * 1000,
   });
 
@@ -155,15 +154,18 @@ const TeamDashboard = ({
   const { isRealTimeEnabled } = useRealTimeEntities({
     tenantName,
     teamName,
+    teamId: team?.id,
     onEntityUpdated: (data) => {
       // Refresh team entities when real-time update received
-      queryClient.invalidateQueries({ queryKey: ['/api/entities', { teamId: team?.id }] });
+      queryClient.invalidateQueries({ queryKey: ['entities', tenantName, team?.id] });
+      // Also refresh dashboard summary
+      queryClient.invalidateQueries({ queryKey: ['dashboardSummary', tenantName, team?.id] });
       // Also refresh Redux store
       dispatch(fetchEntities({ tenant: tenantName }));
     },
     onTeamMembersUpdated: (data) => {
       // Refresh team members when real-time update received
-      queryClient.invalidateQueries({ queryKey: ['team-members', teamName] });
+      queryClient.invalidateQueries({ queryKey: ['teamMembers', tenantName, team?.id] });
     }
   });
 
@@ -256,12 +258,23 @@ const TeamDashboard = ({
     setTabValue(newValue);
   };
 
-  // Show loading state when team is not found
-  if (!team) {
+  // Show loading state when team is not found or still loading
+  if (!team || (teams.length === 0 && isLoading)) {
     return (
       <Box sx={{ p: 3 }}>
         <Typography variant="h6" color="text.secondary">
           Loading team dashboard for {teamName}...
+        </Typography>
+      </Box>
+    );
+  }
+
+  // Show error state if team is not found after loading
+  if (teams.length > 0 && !team) {
+    return (
+      <Box sx={{ p: 3 }}>
+        <Typography variant="h6" color="error">
+          Team "{teamName}" not found.
         </Typography>
       </Box>
     );
@@ -331,7 +344,26 @@ const TeamDashboard = ({
                   </Box>
                 </Box>
                 <Box display="flex" flexWrap="wrap" gap={0.5}>
-                  {teamMembers.length > 0 ? (
+                  {teamMembersLoading ? (
+                    // Show loading skeleton for team members
+                    Array.from({ length: 3 }).map((_, index) => (
+                      <Box
+                        key={index}
+                        sx={{
+                          width: '80px',
+                          height: '24px',
+                          bgcolor: 'grey.200',
+                          borderRadius: '12px',
+                          animation: 'pulse 1.5s ease-in-out infinite',
+                          '@keyframes pulse': {
+                            '0%': { opacity: 1 },
+                            '50%': { opacity: 0.5 },
+                            '100%': { opacity: 1 }
+                          }
+                        }}
+                      />
+                    ))
+                  ) : teamMembers.length > 0 ? (
                     teamMembers.map((member: any) => (
                       <Chip 
                         key={member.id}
@@ -478,40 +510,56 @@ const TeamDashboard = ({
 
         <Box role="tabpanel" hidden={tabValue !== 0}>
           {tabValue === 0 && (
-            <EntityTable
-              entities={tables}
-              type="table"
-              teams={teams}
-              onEditEntity={onEditEntity}
-              onDeleteEntity={onDeleteEntity}
-              onViewHistory={() => {}}
-              onViewDetails={onViewDetails}
-              onSetNotificationTimeline={onNotificationTimeline}
-              showActions={true}
-              isTeamDashboard={true}
-              hasMetrics={canDisplayTrends}
-              trendLabel={`${teamDateRange.label} Trend`}
-            />
+            isLoadingTeamEntities ? (
+              <Box sx={{ p: 3, textAlign: 'center' }}>
+                <Typography variant="body2" color="text.secondary">
+                  Loading tables...
+                </Typography>
+              </Box>
+            ) : (
+              <EntityTable
+                entities={tables}
+                type="table"
+                teams={teams}
+                onEditEntity={onEditEntity}
+                onDeleteEntity={onDeleteEntity}
+                onViewHistory={() => {}}
+                onViewDetails={onViewDetails}
+                onSetNotificationTimeline={onNotificationTimeline}
+                showActions={true}
+                isTeamDashboard={true}
+                hasMetrics={canDisplayTrends}
+                trendLabel={`${teamDateRange.label} Trend`}
+              />
+            )
           )}
         </Box>
 
         <Box role="tabpanel" hidden={tabValue !== 1}>
           {tabValue === 1 && (
-            <EntityTable
-              entities={dags}
-              type="dag"
-              teams={teams}
-              onEditEntity={onEditEntity}
-              onDeleteEntity={onDeleteEntity}
-              onViewHistory={() => {}}
-              onViewDetails={onViewDetails}
-              onViewTasks={onViewTasks}
-              onSetNotificationTimeline={onNotificationTimeline}
-              showActions={true}
-              isTeamDashboard={true}
-              hasMetrics={canDisplayTrends}
-              trendLabel={`${teamDateRange.label} Trend`}
-            />
+            isLoadingTeamEntities ? (
+              <Box sx={{ p: 3, textAlign: 'center' }}>
+                <Typography variant="body2" color="text.secondary">
+                  Loading DAGs...
+                </Typography>
+              </Box>
+            ) : (
+              <EntityTable
+                entities={dags}
+                type="dag"
+                teams={teams}
+                onEditEntity={onEditEntity}
+                onDeleteEntity={onDeleteEntity}
+                onViewHistory={() => {}}
+                onViewDetails={onViewDetails}
+                onViewTasks={onViewTasks}
+                onSetNotificationTimeline={onNotificationTimeline}
+                showActions={true}
+                isTeamDashboard={true}
+                hasMetrics={canDisplayTrends}
+                trendLabel={`${teamDateRange.label} Trend`}
+              />
+            )
           )}
         </Box>
 

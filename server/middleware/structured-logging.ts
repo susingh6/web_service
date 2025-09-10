@@ -140,8 +140,8 @@ export function sessionContextMiddleware(req: Request, res: Response, next: Next
       session_type: req.headers['x-session-type'] as any || 'client_credentials',
       roles: req.headers['x-user-roles'] as string || null,
       notification_id: req.headers['x-notification-id'] as string || null,
-      name: req.headers['x-user-name'] as string || null,
-      expires_at: req.headers['x-session-expires'] as string || null
+      name: (req.headers['x-user-name'] as string) || undefined,
+      expires_at: (req.headers['x-session-expires'] as string) || undefined
     };
   } else {
     // Anonymous session

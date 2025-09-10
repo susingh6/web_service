@@ -19,10 +19,32 @@ export async function apiRequest(
     headers["Content-Type"] = "application/json";
   }
   
-  // CRITICAL: Add X-Session-ID header for FastAPI RBAC
+  // CRITICAL: Add FastAPI session headers for RBAC enforcement
+  // The server expects comprehensive session context, not just session ID
   const sessionId = localStorage.getItem('fastapi_session_id');
-  if (sessionId) {
-    headers["X-Session-ID"] = sessionId;
+  const userData = localStorage.getItem('fastapi_user');
+  
+  if (sessionId && userData) {
+    try {
+      const user = JSON.parse(userData);
+      
+      // Send all headers expected by server middleware
+      headers["X-Session-ID"] = sessionId;
+      headers["X-User-ID"] = String(user.user_id || '');
+      headers["X-User-Email"] = user.email || '';
+      headers["X-Session-Type"] = user.type || 'client_credentials';
+      headers["X-User-Roles"] = Array.isArray(user.roles) ? user.roles.join(',') : (user.roles || '');
+      headers["X-User-Name"] = user.name || '';
+      
+      // Optional headers
+      if (user.notification_id) {
+        headers["X-Notification-ID"] = user.notification_id;
+      }
+    } catch (error) {
+      console.warn('Failed to parse user data for headers:', error);
+      // Fallback to just session ID
+      headers["X-Session-ID"] = sessionId;
+    }
   }
   
   const res = await fetch(url, {
@@ -45,10 +67,32 @@ export const getQueryFn: <T>(options: {
     // Build headers with session ID for RBAC enforcement
     const headers: Record<string, string> = {};
     
-    // CRITICAL: Add X-Session-ID header for FastAPI RBAC
+    // CRITICAL: Add FastAPI session headers for RBAC enforcement
+    // The server expects comprehensive session context, not just session ID
     const sessionId = localStorage.getItem('fastapi_session_id');
-    if (sessionId) {
-      headers["X-Session-ID"] = sessionId;
+    const userData = localStorage.getItem('fastapi_user');
+    
+    if (sessionId && userData) {
+      try {
+        const user = JSON.parse(userData);
+        
+        // Send all headers expected by server middleware
+        headers["X-Session-ID"] = sessionId;
+        headers["X-User-ID"] = String(user.user_id || '');
+        headers["X-User-Email"] = user.email || '';
+        headers["X-Session-Type"] = user.type || 'client_credentials';
+        headers["X-User-Roles"] = Array.isArray(user.roles) ? user.roles.join(',') : (user.roles || '');
+        headers["X-User-Name"] = user.name || '';
+        
+        // Optional headers
+        if (user.notification_id) {
+          headers["X-Notification-ID"] = user.notification_id;
+        }
+      } catch (error) {
+        console.warn('Failed to parse user data for headers:', error);
+        // Fallback to just session ID
+        headers["X-Session-ID"] = sessionId;
+      }
     }
     
     const res = await fetch(queryKey[0] as string, {

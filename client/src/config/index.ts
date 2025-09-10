@@ -14,6 +14,7 @@ interface ApiConfig {
       logout: string;
       register: string;
       user: string;
+      azureValidate: string;
     };
     entities: string;
     teams: string;
@@ -97,6 +98,13 @@ interface ApiConfig {
         getAll: string;
         create: string;
         update: (roleId: number) => string;
+      };
+    };
+    fastapi?: {
+      baseUrl: string;
+      auth: {
+        login: string;
+        logout: string;
       };
     };
   };

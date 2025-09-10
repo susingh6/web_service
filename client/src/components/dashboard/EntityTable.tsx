@@ -536,11 +536,11 @@ const EntityTable = ({
                     <TableCell sx={{ width: '100px' }}>
                       <Box display="flex" alignItems="center" gap={1}>
                         <Chip
-                          label={(STATUS_CONFIG[entity.status] || DEFAULT_STATUS).label}
+                          label={(STATUS_CONFIG[entity.status as keyof typeof STATUS_CONFIG] || DEFAULT_STATUS).label}
                           size="small"
                           sx={{
-                            backgroundColor: (STATUS_CONFIG[entity.status] || DEFAULT_STATUS).lightBg,
-                            color: `${(STATUS_CONFIG[entity.status] || DEFAULT_STATUS).color}.dark`,
+                            backgroundColor: (STATUS_CONFIG[entity.status as keyof typeof STATUS_CONFIG] || DEFAULT_STATUS).lightBg,
+                            color: `${(STATUS_CONFIG[entity.status as keyof typeof STATUS_CONFIG] || DEFAULT_STATUS).color}.dark`,
                             fontWeight: 600,
                             borderRadius: '16px',
                             fontSize: '0.75rem',

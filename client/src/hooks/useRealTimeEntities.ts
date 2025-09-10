@@ -6,6 +6,7 @@ import { Entity } from '@shared/schema';
 interface UseRealTimeEntitiesOptions {
   tenantName?: string;
   teamName?: string;
+  teamId?: number;
   onEntityUpdated?: (data: any) => void;
   onTeamMembersUpdated?: (data: any) => void;
 }
@@ -21,22 +22,51 @@ export const useRealTimeEntities = (options: UseRealTimeEntitiesOptions) => {
   const { sessionId, user, isAuthenticated } = useAuth();
   const queryClient = useQueryClient();
 
+  // Derive userId with proper type guards for union type
+  const getUserId = (): string => {
+    if (!user) return 'anonymous';
+    
+    // FastAPIUser has user_id
+    if (typeof user === 'object' && 'user_id' in user && user.user_id) {
+      return String(user.user_id);
+    }
+    
+    // User (local auth) has id
+    if (typeof user === 'object' && 'id' in user && user.id) {
+      return String(user.id);
+    }
+    
+    // AccountInfo (Azure) has homeAccountId
+    if (typeof user === 'object' && 'homeAccountId' in user && user.homeAccountId) {
+      return user.homeAccountId;
+    }
+    
+    return 'anonymous';
+  };
+
   const { isConnected, isAuthenticated: wsAuthenticated, subscribe, unsubscribe } = useWebSocket({
     sessionId: sessionId || undefined,
-    userId: user?.user_id?.toString() || user?.id?.toString() || 'anonymous',
+    userId: getUserId(),
     tenantName: options.tenantName,
     teamName: options.teamName,
     
     onEntityUpdated: (data) => {
       // Invalidate React Query cache for affected entities
-      if (data?.data?.entityId) {
+      if (data?.data?.entityId && options.tenantName) {
         // Invalidate specific entity cache
-        queryClient.invalidateQueries({ queryKey: ['entities', data.data.entityId] });
+        queryClient.invalidateQueries({ queryKey: ['entities', options.tenantName, data.data.entityId] });
         
         // Invalidate team entities cache if team matches
-        if (data.teamName === options.teamName) {
-          queryClient.invalidateQueries({ queryKey: ['/api/entities'] });
+        if (data.teamName === options.teamName && options.teamId) {
+          queryClient.invalidateQueries({ queryKey: ['entities', options.tenantName, options.teamId] });
+          // Also invalidate dashboard summary for this team
+          queryClient.invalidateQueries({ queryKey: ['dashboardSummary', options.tenantName, options.teamId] });
         }
+      }
+      
+      // Also invalidate tenant-wide entities cache
+      if (options.tenantName) {
+        queryClient.invalidateQueries({ queryKey: ['entities', options.tenantName] });
       }
       
       // Call custom handler
@@ -45,11 +75,11 @@ export const useRealTimeEntities = (options: UseRealTimeEntitiesOptions) => {
 
     onTeamMembersUpdated: (data) => {
       // Invalidate React Query cache for team member updates
-      if (data?.teamName === options.teamName) {
-        // Invalidate team members cache
-        queryClient.invalidateQueries({ queryKey: ['team-members', data.teamName] });
+      if (data?.teamName === options.teamName && options.tenantName && options.teamId) {
+        // Invalidate team members cache using normalized key
+        queryClient.invalidateQueries({ queryKey: ['teamMembers', options.tenantName, options.teamId] });
         // Also invalidate team data cache
-        queryClient.invalidateQueries({ queryKey: ['teams'] });
+        queryClient.invalidateQueries({ queryKey: ['teams', options.tenantName] });
       }
       
       // Call custom handler
