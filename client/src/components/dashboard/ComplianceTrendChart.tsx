@@ -195,6 +195,30 @@ const ComplianceTrendChart = ({
   if (useMonthlyAggregation) {
     chartData = aggregateToMonthly(chartData);
   }
+
+  // Calculate dynamic Y-axis domain for better visualization of variations
+  const calculateYAxisDomain = (data: any[]) => {
+    if (!data || data.length === 0) return [0, 100];
+    
+    const allValues = data.flatMap(d => [d.overall, d.tables, d.dags]).filter(v => v != null);
+    if (allValues.length === 0) return [0, 100];
+    
+    const minValue = Math.min(...allValues);
+    const maxValue = Math.max(...allValues);
+    const range = maxValue - minValue;
+    
+    // If all values are very high (>90%) and have small variations (<10% range)
+    // zoom in to better show the variations
+    if (minValue > 90 && range < 10) {
+      const padding = Math.max(1, range * 0.2); // 20% padding or minimum 1%
+      return [Math.max(0, Math.floor(minValue - padding)), Math.min(100, Math.ceil(maxValue + padding))];
+    }
+    
+    // For normal cases, use full 0-100 range
+    return [0, 100];
+  };
+
+  const yAxisDomain = calculateYAxisDomain(chartData);
   
   // Show empty state if no data
   if (!chartData || chartData.length === 0) {
@@ -331,8 +355,7 @@ const ComplianceTrendChart = ({
               tick={{ fontSize: 12, fill: theme.palette.text.secondary }}
             />
             <YAxis 
-              domain={[0, 100]} 
-              ticks={[0, 20, 40, 60, 80, 100]}
+              domain={yAxisDomain} 
               tick={{ fontSize: 12, fill: theme.palette.text.secondary }}
               tickFormatter={(value) => `${value}%`}
             />
