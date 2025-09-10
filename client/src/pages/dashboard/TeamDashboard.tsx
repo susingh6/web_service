@@ -237,14 +237,15 @@ const TeamDashboard = ({
     }
   };
 
-  // Filter entities for this team from local state
+  // Filter entities for this team from local state (for backward compatibility)
   const tables = teamEntities.filter((entity) => entity.type === 'table');
   const dags = teamEntities.filter((entity) => entity.type === 'dag');
 
-  // Calculate team-specific metrics from cached data using server logic
-  const teamMetrics = teamEntities.length > 0 
+  // Use server-computed, date-filtered metrics from /api/dashboard/summary (preferred)
+  // Fall back to client-side calculation only if server data is unavailable
+  const teamMetrics = teamSummaryData?.metrics || (teamEntities.length > 0 
     ? calculateMetrics(teamEntities, tables, dags)
-    : null;
+    : null);
 
   // Extract individual metrics for display
   const overallComplianceAvg = teamMetrics?.overallCompliance || 0;
@@ -280,17 +281,17 @@ const TeamDashboard = ({
               </Typography>
               <Box display="flex" alignItems="center" mt={2} gap={1} flexWrap="wrap">
                 <Chip 
-                  label={`${teamEntities.length} Entities`} 
+                  label={`${teamMetrics?.entitiesCount || teamEntities.length} Entities`} 
                   size="small" 
                   sx={{ bgcolor: 'primary.light', color: 'white' }} 
                 />
                 <Chip 
-                  label={`${tables.length} Tables`} 
+                  label={`${teamMetrics?.tablesCount || tables.length} Tables`} 
                   size="small" 
                   sx={{ bgcolor: 'info.light', color: 'white' }} 
                 />
                 <Chip 
-                  label={`${dags.length} DAGs`} 
+                  label={`${teamMetrics?.dagsCount || dags.length} DAGs`} 
                   size="small" 
                   sx={{ bgcolor: 'secondary.light', color: 'white' }} 
                 />
