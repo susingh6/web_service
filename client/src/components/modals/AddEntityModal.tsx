@@ -32,6 +32,7 @@ import {
   Alert,
 } from '@mui/material';
 import { validateTenant, validateTeam, validateDag, updateCacheWithNewValue } from '@/lib/validationUtils';
+import { useAuth } from '@/hooks/use-auth';
 import { fetchWithCacheGeneric, getFromCacheGeneric } from '@/lib/cacheUtils';
 import { 
   buildTableSchema as tableSchemaBuilder, 
@@ -74,6 +75,9 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
   
   // Use the new entity mutation hook with entity-type-specific cache invalidation
   const { createEntity } = useEntityMutation();
+  
+  // Get authenticated user's email
+  const { user } = useAuth();
   
 
   
@@ -187,8 +191,8 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
       
       // Basic validation - check required fields based on entity owner status
       let requiredFields = entityType === 'table' 
-        ? ['entity_name', 'tenant_name', 'team_name', 'user_email']
-        : ['dag_name', 'tenant_name', 'team_name', 'user_email'];
+        ? ['entity_name', 'tenant_name', 'team_name']
+        : ['dag_name', 'tenant_name', 'team_name'];
       
       // Only require owner_email if user is marked as entity owner
       if (isEntityOwner) {
@@ -211,9 +215,17 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
         return;
       }
       
+      // Get user email from authentication context
+      const userEmail = user?.email || (user as any)?.mail || (user as any)?.preferredUsername || '';
+      if (!userEmail) {
+        setValidationError('User email not found. Please log in again.');
+        return;
+      }
+      
       // Create the entity object to submit with proper field mapping
       const entityData = {
         ...data,
+        user_email: userEmail, // Use authenticated user's email
         // Map form fields to API fields - use correct field for each type
         name: entityType === 'dag' ? data.dag_name : data.entity_name,
         description: entityType === 'dag' ? data.dag_description : data.description,
@@ -448,24 +460,6 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                     error={!!(errors as any).table_description}
                     helperText={(errors as any).table_description?.message}
                     placeholder="Brief description of this table"
-                  />
-                )}
-              />
-              
-              <Controller
-                name="user_email"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    label={fieldDefinitions.user_email.label}
-                    required={fieldDefinitions.user_email.required}
-                    type={fieldDefinitions.user_email.type}
-                    placeholder={fieldDefinitions.user_email.placeholder}
-                    fullWidth
-                    margin="normal"
-                    error={!!errors.user_email}
-                    helperText={errors.user_email?.message}
                   />
                 )}
               />
@@ -798,25 +792,6 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                   )}
                 />
               )}
-              
-              
-              <Controller
-                name="user_email"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    label={fieldDefinitions.user_email.label}
-                    required={fieldDefinitions.user_email.required}
-                    type={fieldDefinitions.user_email.type}
-                    placeholder={fieldDefinitions.user_email.placeholder}
-                    fullWidth
-                    margin="normal"
-                    error={!!errors.user_email}
-                    helperText={errors.user_email?.message}
-                  />
-                )}
-              />
 
               {!isEntityOwner && (
                 <Controller
