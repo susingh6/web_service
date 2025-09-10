@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { redisCache } from "./redis-cache";
-import { insertEntitySchema, insertTeamSchema, insertEntityHistorySchema, insertIssueSchema, insertUserSchema, insertNotificationTimelineSchema } from "@shared/schema";
+import { insertEntitySchema, insertTeamSchema, insertEntityHistorySchema, insertIssueSchema, insertUserSchema, insertNotificationTimelineSchema, Entity, InsertNotificationTimeline } from "@shared/schema";
 import { z } from "zod";
 import { logAuthenticationEvent, structuredLogger } from "./middleware/structured-logging";
 
@@ -327,7 +327,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error('Dashboard summary error:', error);
       res.status(500).json({ 
         message: "Failed to fetch dashboard summary from cache",
-        error: error.message 
+        error: error instanceof Error ? error.message : 'Unknown error' 
       });
     }
   });
@@ -470,8 +470,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get OAuth context (team, tenant, username from session or headers)
       const oauthContext = {
         team: teamName,
-        tenant: req.headers['x-tenant'] || 'Data Engineering',
-        username: req.headers['x-username'] || 'azure_test_user'
+        tenant: (Array.isArray(req.headers['x-tenant']) ? req.headers['x-tenant'][0] : req.headers['x-tenant']) || 'Data Engineering',
+        username: (Array.isArray(req.headers['x-username']) ? req.headers['x-username'][0] : req.headers['x-username']) || 'azure_test_user'
       };
 
       const updatedTeam = await storage.updateTeamMembers(teamName, memberData, oauthContext);
@@ -799,7 +799,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Invalid entity data", errors: result.error.format() });
       }
       
-      const updatedEntity = await redisCache.updateEntityById(id, result.data);
+      // Ensure table_dependency and dag_dependency are properly typed as arrays
+      const updateData: Partial<Entity> = { ...result.data } as any;
+      if (updateData.table_dependency && typeof updateData.table_dependency === 'string') {
+        updateData.table_dependency = (updateData.table_dependency as string).split(',').map((s: string) => s.trim()).filter(Boolean);
+      }
+      if (updateData.dag_dependency && typeof updateData.dag_dependency === 'string') {
+        updateData.dag_dependency = (updateData.dag_dependency as string).split(',').map((s: string) => s.trim()).filter(Boolean);
+      }
+      const updatedEntity = await redisCache.updateEntityById(id, updateData);
       if (!updatedEntity) {
         return res.status(404).json({ message: "Entity not found" });
       }
@@ -1185,7 +1193,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      const timeline = await storage.updateNotificationTimeline(timelineId, result.data);
+      // Ensure triggers property is properly typed as array if it exists
+      const timelineData = { ...result.data } as any;
+      if (timelineData.triggers && typeof timelineData.triggers === 'string') {
+        timelineData.triggers = [timelineData.triggers];
+      }
+      const timeline = await storage.updateNotificationTimeline(timelineId, timelineData);
       
       if (!timeline) {
         return res.status(404).json({ message: "Notification timeline not found" });
@@ -1956,13 +1969,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
   
   // Track authenticated connections with heartbeat monitoring
-  const authenticatedSockets = new Map<WebSocket, {
+  const authenticatedSockets: Map<WebSocket, {
     sessionId: string;
     userId: string;
     subscriptions: Set<string>; // tenant:team format
     lastPong: number; // Last pong response timestamp
     isAlive: boolean; // Heartbeat status
-  }>();
+  }> = new Map();
 
   // Heartbeat configuration
   const HEARTBEAT_INTERVAL = 30000; // 30 seconds
@@ -2140,7 +2153,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Connect WebSocket to cache system with authenticated sockets
-  redisCache.setupWebSocket(wss, authenticatedSockets);
+  redisCache.setupWebSocket(wss, authenticatedSockets as any);
 
   return httpServer;
 }
