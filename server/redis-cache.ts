@@ -723,19 +723,22 @@ export class RedisCache {
       // Calculate base metrics
       const baseMetrics = this.calculateMetrics(tenantEntities, tenantTables, tenantDags);
       
-      // Use mock data for all ranges
-      todayMetrics[tenant.name] = baseMetrics;
-      yesterdayMetrics[tenant.name] = baseMetrics;
-      last7DayMetrics[tenant.name] = baseMetrics;
-      last30DayMetrics[tenant.name] = baseMetrics;
-      thisMonthMetrics[tenant.name] = baseMetrics;
+      // Use mock data ONLY for Last 30 Days to test date filter functionality
+      // All other ranges should be empty/null to verify date filter routing works
       
-      // Generate compliance trends for different ranges
-      todayTrends[tenant.name] = this.generateComplianceTrendForRange(tenantEntities, tenantTables, tenantDags, 1);
-      yesterdayTrends[tenant.name] = this.generateComplianceTrendForRange(tenantEntities, tenantTables, tenantDags, 1);
-      last7DayTrends[tenant.name] = this.generateComplianceTrendForRange(tenantEntities, tenantTables, tenantDags, 7);
+      // Only populate Last 30 Days data
+      last30DayMetrics[tenant.name] = baseMetrics;
       last30DayTrends[tenant.name] = this.generateComplianceTrendForRange(tenantEntities, tenantTables, tenantDags, 30);
-      thisMonthTrends[tenant.name] = this.generateComplianceTrendForRange(tenantEntities, tenantTables, tenantDags, 30); // Approximate this month as 30 days
+      
+      // Leave all other ranges empty for testing
+      // todayMetrics[tenant.name] = null; (default empty)
+      // yesterdayMetrics[tenant.name] = null; (default empty)
+      // last7DayMetrics[tenant.name] = null; (default empty)
+      // thisMonthMetrics[tenant.name] = null; (default empty)
+      // todayTrends[tenant.name] = null; (default empty)
+      // yesterdayTrends[tenant.name] = null; (default empty)
+      // last7DayTrends[tenant.name] = null; (default empty)
+      // thisMonthTrends[tenant.name] = null; (default empty)
     }
     
     return {
