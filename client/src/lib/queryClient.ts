@@ -136,13 +136,16 @@ export const invalidateCache = (keys: string[]) => {
 };
 
 // Helper function to refresh common cache keys
-export const refreshDashboardCache = () => {
+export const refreshDashboardCache = async () => {
+  // Import centralized endpoints to avoid hardcoded paths
+  const { buildUrl, endpoints } = await import('@/config');
+  
   const commonKeys = [
-    '/api/dashboard/summary',
-    '/api/entities',
-    '/api/teams',
-    '/api/tenants',
-    '/api/cache/status'
+    buildUrl(endpoints.dashboard.summary),
+    buildUrl(endpoints.entities),
+    buildUrl(endpoints.teams),
+    buildUrl(endpoints.tenants || '/api/v1/tenants'),
+    buildUrl('/api/v1/cache/status') // Note: cache endpoints need to be added to config
   ];
   invalidateCache(commonKeys);
   console.log('Frontend cache refreshed for dashboard data');

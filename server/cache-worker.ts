@@ -8,26 +8,130 @@ import { DashboardMetrics, CacheRefreshData, calculateMetrics, ComplianceTrendDa
 const FASTAPI_BASE_URL = process.env.FASTAPI_BASE_URL || 'http://localhost:8080';
 const USE_FASTAPI = process.env.ENABLE_FASTAPI_INTEGRATION === 'true';
 
-// FastAPI client functions with timeout and retry
+// Service account credentials for authentication
+const SERVICE_CLIENT_ID = process.env.SERVICE_CLIENT_ID;
+const SERVICE_CLIENT_SECRET = process.env.SERVICE_CLIENT_SECRET;
+
+// Service session management
+interface ServiceSession {
+  sessionId: string;
+  loginTime: Date;
+  expiresAt: Date;
+  isValid: boolean;
+}
+
+let serviceSession: ServiceSession | null = null;
+
+// Service account authentication function
+async function authenticateServiceAccount(): Promise<string | null> {
+  try {
+    if (!SERVICE_CLIENT_ID || !SERVICE_CLIENT_SECRET) {
+      console.warn('[Cache Worker] SERVICE_CLIENT_ID and SERVICE_CLIENT_SECRET environment variables are required for FastAPI authentication');
+      return null;
+    }
+
+    // Create basic auth header for service account
+    const credentials = Buffer.from(`${SERVICE_CLIENT_ID}:${SERVICE_CLIENT_SECRET}`).toString('base64');
+    
+    console.log('[Cache Worker] Authenticating service account with FastAPI');
+    const response = await fetch(`${FASTAPI_BASE_URL}/api/v1/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${credentials}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      console.error(`[Cache Worker] Service account authentication failed: ${response.status} ${response.statusText}`);
+      return null;
+    }
+    
+    const sessionData = await response.json();
+    const sessionId = sessionData.session?.session_id;
+    
+    if (!sessionId) {
+      console.error('[Cache Worker] No session ID received from FastAPI authentication');
+      return null;
+    }
+    
+    // Store service session with expiration
+    const loginTime = new Date();
+    const expiresAt = new Date(loginTime.getTime() + (23 * 60 * 60 * 1000)); // 23 hours (before 24h expiry)
+    
+    serviceSession = {
+      sessionId,
+      loginTime,
+      expiresAt,
+      isValid: true
+    };
+    
+    console.log(`[Cache Worker] Service account authenticated successfully, session expires at: ${expiresAt.toISOString()}`);
+    return sessionId;
+    
+  } catch (error) {
+    console.error('[Cache Worker] Service account authentication error:', error);
+    return null;
+  }
+}
+
+// Get valid service session ID (with automatic refresh)
+async function getServiceSessionId(): Promise<string | null> {
+  const now = new Date();
+  
+  // Check if we have a valid session that's not near expiry
+  if (serviceSession && serviceSession.isValid && serviceSession.expiresAt > now) {
+    return serviceSession.sessionId;
+  }
+  
+  // Session is missing, invalid, or near expiry - authenticate
+  console.log('[Cache Worker] Service session missing or expired, re-authenticating...');
+  serviceSession = null; // Clear existing session
+  
+  return await authenticateServiceAccount();
+}
+
+// FastAPI client functions with timeout, retry, and authentication
 async function fastApiRequest(endpoint: string, retries = 2): Promise<any> {
   const url = `${FASTAPI_BASE_URL}${endpoint}`;
   console.log(`[Cache Worker] FastAPI request: ${url}`);
   
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
+      // Get authentication session ID
+      const sessionId = await getServiceSessionId();
+      if (!sessionId) {
+        throw new Error('Failed to obtain service account session for FastAPI authentication');
+      }
+      
       // Add timeout using AbortController
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
       
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'X-Session-ID': sessionId, // CRITICAL: Add authentication header for RBAC
+      };
+      
       const response = await fetch(url, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         signal: controller.signal,
       });
 
       clearTimeout(timeoutId);
+
+      // Handle authentication errors
+      if (response.status === 401 || response.status === 403) {
+        console.warn(`[Cache Worker] Authentication failed (${response.status}), invalidating session and retrying...`);
+        serviceSession = null; // Force re-authentication
+        
+        if (attempt < retries) {
+          continue; // Retry with fresh authentication
+        } else {
+          throw new Error(`FastAPI authentication failed: ${response.status} ${response.statusText}`);
+        }
+      }
 
       if (!response.ok) {
         throw new Error(`FastAPI request failed: ${response.status} ${response.statusText}`);
@@ -58,37 +162,37 @@ async function fastApiRequest(endpoint: string, retries = 2): Promise<any> {
   }
 }
 
-// FastAPI endpoint functions
+// FastAPI endpoint functions - Updated to use /api/v1/ with RBAC
 async function fetchTenantsFromFastAPI(): Promise<any[]> {
-  return await fastApiRequest('/api/tenants');
+  return await fastApiRequest('/api/v1/tenants');
 }
 
 async function fetchTeamsFromFastAPI(): Promise<any[]> {
-  return await fastApiRequest('/api/teams');
+  return await fastApiRequest('/api/v1/teams');
 }
 
 async function fetchPresetsFromFastAPI(): Promise<any> {
-  return await fastApiRequest('/api/presets');
+  return await fastApiRequest('/api/v1/presets');
 }
 
 async function fetchComplianceFromFastAPI(): Promise<any> {
-  return await fastApiRequest('/api/compliance');
+  return await fastApiRequest('/api/v1/compliance');
 }
 
 async function fetchSlaFromFastAPI(): Promise<any[]> {
-  return await fastApiRequest('/api/sla');
+  return await fastApiRequest('/api/v1/sla');
 }
 
 async function fetchUsersFromFastAPI(): Promise<any[]> {
-  return await fastApiRequest('/api/users');
+  return await fastApiRequest('/api/v1/users');
 }
 
 async function fetchRolesFromFastAPI(): Promise<any[]> {
-  return await fastApiRequest('/api/roles');
+  return await fastApiRequest('/api/v1/roles');
 }
 
 async function fetchConflictsFromFastAPI(): Promise<any[]> {
-  return await fastApiRequest('/api/conflicts');
+  return await fastApiRequest('/api/v1/conflicts');
 }
 
 // Worker thread main function
@@ -163,6 +267,7 @@ async function refreshFromFastAPI(): Promise<CacheRefreshData> {
       todayTrends: {},
       yesterdayTrends: {},
       last7DayTrends: {},
+      last30DayTrends: {}, // Fix: Add missing required property
       thisMonthTrends: {},
       lastUpdated: new Date()
     };
@@ -186,7 +291,7 @@ async function refreshFromStorage(): Promise<CacheRefreshData> {
   const tenants = await storage.getTenants();
   const users = await storage.getUsers();
   const roles = await storage.getUserRoles();
-  const conflicts = await storage.getConflictNotifications();
+  const conflicts: any[] = []; // TODO: Implement getConflictNotifications in storage interface or use alternative method
 
   // Calculate metrics for each tenant (default 30-day cache)
   const last30DayMetrics: Record<string, DashboardMetrics> = {};
@@ -220,6 +325,7 @@ async function refreshFromStorage(): Promise<CacheRefreshData> {
     todayTrends: {},
     yesterdayTrends: {},
     last7DayTrends: {},
+    last30DayTrends: {}, // Fix: Add missing required property
     thisMonthTrends: {},
     lastUpdated: new Date()
   };

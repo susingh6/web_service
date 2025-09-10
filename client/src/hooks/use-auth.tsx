@@ -11,6 +11,7 @@ import { getQueryFn, apiRequest, queryClient } from "../lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { buildUrl, endpoints } from "@/config/index";
 import { fastApiClient } from "../lib/fastApiClient";
+import { authFallback } from "../lib/authFallback";
 
 // Types for FastAPI authentication
 interface FastAPIUser {
@@ -192,14 +193,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Local authentication with the server
+  // Authentication with environment-aware fallback (FastAPI -> Express in dev only)
   const {
     data: localUser,
     error: localError,
     isLoading: isLocalLoading,
   } = useQuery<User | null, Error>({
-    queryKey: ["/api/user"],
-    queryFn: getQueryFn({ on401: "returnNull" }),
+    queryKey: ['auth-user-fallback'],
+    queryFn: async () => {
+      try {
+        return await authFallback.getCurrentUser();
+      } catch (error) {
+        // Re-throw environment restriction errors to inform user
+        if (error instanceof Error && error.message.includes('Express fallback is disabled in production')) {
+          console.error('Authentication system error:', error.message);
+          throw error; // This will be handled by React Query's error handling
+        }
+        console.warn('Auth fallback failed:', error);
+        return null;
+      }
+    },
   });
 
   // Check if user is authenticated with Azure AD on mount
@@ -224,14 +237,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     initializeAzureAuth();
   }, []);
 
-  // Traditional login mutation
+  // Traditional login mutation with fallback
   const loginMutation = useMutation({
     mutationFn: async (credentials: LoginData) => {
-      const res = await apiRequest("POST", buildUrl(endpoints.auth.login), credentials);
-      return await res.json();
+      return await authFallback.login(credentials);
     },
     onSuccess: (user: User) => {
-      queryClient.setQueryData(["/api/user"], user);
+      queryClient.setQueryData(['auth-user-fallback'], user);
       setAuthMethod('local');
       toast({
         title: "Login successful",
@@ -248,14 +260,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
   });
 
-  // Registration mutation
+  // Registration mutation with fallback
   const registerMutation = useMutation({
     mutationFn: async (data: RegisterData) => {
-      const res = await apiRequest("POST", buildUrl(endpoints.auth.register), data);
-      return await res.json();
+      return await authFallback.register(data);
     },
     onSuccess: (user: User) => {
-      queryClient.setQueryData(["/api/user"], user);
+      queryClient.setQueryData(['auth-user-fallback'], user);
       setAuthMethod('local');
       toast({
         title: "Registration successful",
@@ -280,8 +291,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const fastApiConfig = config.endpoints.fastapi || {
         baseUrl: "http://localhost:8080",
         auth: {
-          login: "/api/v1/auth/login",
-          logout: "/api/v1/auth/logout"
+          login: config.endpoints.auth.login,
+          logout: config.endpoints.auth.logout
         }
       };
 
@@ -368,7 +379,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       
       // Azure admin validation successful - now authenticate with FastAPI
-      queryClient.setQueryData(["/api/user"], response.user);
+      queryClient.setQueryData([buildUrl(endpoints.auth.user)], response.user);
       
       try {
         // Extract user details for FastAPI
@@ -414,7 +425,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
   };
 
-  // Logout function with FastAPI session handling
+  // Logout function with fallback support
   const logout = async (): Promise<void> => {
     try {
       // First, show a toast to indicate logout is in progress
@@ -426,84 +437,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       // Clear React Query cache to prevent stale data
       queryClient.clear();
-      queryClient.setQueryData(["/api/user"], null);
+      queryClient.setQueryData(['auth-user-fallback'], null);
       queryClient.removeQueries();
       
-      if (authMethod === 'fastapi' && sessionId) {
-        try {
-          // Logout from FastAPI backend
-          const fastApiConfig = (endpoints as any).fastapi || {
-            baseUrl: "http://localhost:8080",
-            auth: {
-              login: "/api/v1/auth/login",
-              logout: "/api/v1/auth/logout"
-            }
-          };
-
-          await fetch(`${fastApiConfig.baseUrl}${fastApiConfig.auth.logout}`, {
-            method: 'POST',
-            headers: {
-              'X-Session-ID': sessionId,
-              'Accept': 'application/json'
-            }
-          });
-
-          // Clear local session data
-          localStorage.removeItem('fastapi_session_id');
-          localStorage.removeItem('fastapi_session_expiry');
-          localStorage.removeItem('fastapi_user');
-          setSessionId(null);
-          setFastApiUser(null);
-          setAuthMethod(null);
-          
-          // Clear FastAPI client session
-          fastApiClient.setSessionId(null);
-          
-          window.location.href = '/auth';
-        } catch (err) {
-          console.error('FastAPI logout error:', err);
-          // Even on error, clear local data and redirect
-          localStorage.removeItem('fastapi_session_id');
-          localStorage.removeItem('fastapi_user');
-          setSessionId(null);
-          setFastApiUser(null);
-          setAuthMethod(null);
-          
-          // Clear FastAPI client session
-          fastApiClient.setSessionId(null);
-          window.location.href = '/auth';
-        }
-      } else if (authMethod === 'azure' && msalInstance) {
-        try {
-          // Clear React state before MSAL logout
-          setAzureUser(null);
-          setAuthMethod(null);
-
-          // Perform a simple redirect rather than using MSAL's logout
-          // which can sometimes cause issues
-          await apiRequest("POST", buildUrl(endpoints.auth.logout));
-          window.location.href = '/auth';
-        } catch (err) {
-          console.error('Azure logout error:', err);
-          // Even on error, force redirect to login page
-          window.location.href = '/auth';
-        }
-      } else {
-        try {
-          // Send logout request to server
-          await apiRequest("POST", buildUrl(endpoints.auth.logout));
-          
-          // Update auth state
-          setAuthMethod(null);
-          
-          // Force page reload to clear any cached state in React components
-          window.location.href = '/auth';
-        } catch (err) {
-          console.error('Logout error:', err);
-          // Even on error, force redirect to login page
-          window.location.href = '/auth';
-        }
+      // Use fallback logout for all auth methods
+      try {
+        await authFallback.logout();
+      } catch (err) {
+        console.warn('Logout request failed, but clearing local session:', err);
       }
+      
+      // Clear all auth state regardless of auth method
+      setAzureUser(null);
+      setFastApiUser(null);
+      setSessionId(null);
+      setAuthMethod(null);
+      
+      // Clear FastAPI client session
+      fastApiClient.setSessionId(null);
+      
+      // Redirect to auth page
+      window.location.href = '/auth';
+      
     } catch (error) {
       // Catch-all for unexpected errors
       console.error('Unexpected logout error:', error);

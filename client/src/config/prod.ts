@@ -1,121 +1,121 @@
 export const prodConfig = {
   baseUrl: 'https://api.sla-management.com',
   endpoints: {
-    // Authentication
+    // Authentication - FastAPI only (no Express fallback in production)
     auth: {
-      login: '/api/login',
-      logout: '/api/logout',
-      register: '/api/register',
-      user: '/api/user',
-      azureValidate: '/api/auth/azure/validate',
+      login: '/api/v1/auth/login',
+      logout: '/api/v1/auth/logout',
+      register: '/api/v1/auth/register',
+      user: '/api/v1/auth/user',
+      azureValidate: '/api/v1/auth/azure/validate',
     },
     
-    // Core entities
-    entities: '/api/entities',
-    teams: '/api/teams',
+    // Core entities - FastAPI
+    entities: '/api/v1/entities',
+    teams: '/api/v1/teams',
     
-    // Dashboard
+    // Dashboard - FastAPI
     dashboard: {
-      summary: '/api/dashboard/summary',
-      teamPerformance: (teamId: number) => `/api/dashboard/team/${teamId}`,
-      complianceTrend: '/api/dashboard/compliance-trend',
+      summary: '/api/v1/dashboard/summary',
+      teamPerformance: (teamId: number) => `/api/v1/dashboard/team/${teamId}`,
+      complianceTrend: '/api/v1/dashboard/compliance-trend',
     },
     
     // Entity operations
     entity: {
-      byId: (id: number) => `/api/entities/${id}`,
-      byTeam: (teamId: number) => `/api/entities?teamId=${teamId}`,
-      history: (entityId: number) => `/api/entities/${entityId}/history`,
-      issues: (entityId: number) => `/api/entities/${entityId}/issues`,
-      details: (entityId: number) => `/api/entities/${entityId}/details`,
-      tasks: (entityId: number) => `/api/entities/${entityId}/tasks`,
-      notificationTimelines: (entityId: number) => `/api/entities/${entityId}/notification-timelines`,
-      trends30Day: '/api/entities/trends/30-day',
-      delete: (id: number) => `/api/entities/${id}`,
-      currentDagSettings: (teamName: string, entityName: string) => `/api/dags/current-settings?team=${teamName}&name=${entityName}`,
-      currentTableSettings: (teamName: string, entityName: string) => `/api/tables/current-settings?team=${teamName}&name=${entityName}`,
-      historyChanges: (entityId: number) => `/api/entities/${entityId}/history-changes`,
+      byId: (id: number) => `/api/v1/entities/${id}`,
+      byTeam: (teamId: number) => `/api/v1/entities?teamId=${teamId}`,
+      history: (entityId: number) => `/api/v1/entities/${entityId}/history`,
+      issues: (entityId: number) => `/api/v1/entities/${entityId}/issues`,
+      details: (entityId: number) => `/api/v1/entities/${entityId}/details`,
+      tasks: (entityId: number) => `/api/v1/entities/${entityId}/tasks`,
+      notificationTimelines: (entityId: number) => `/api/v1/entities/${entityId}/notification-timelines`,
+      trends30Day: '/api/v1/entities/trends/30-day',
+      delete: (id: number) => `/api/v1/entities/${id}`,
+      currentDagSettings: (teamName: string, entityName: string) => `/api/v1/dags/current-settings?team=${teamName}&name=${entityName}`,
+      currentTableSettings: (teamName: string, entityName: string) => `/api/v1/tables/current-settings?team=${teamName}&name=${entityName}`,
+      historyChanges: (entityId: number) => `/api/v1/entities/${entityId}/history-changes`,
       
       // New endpoints for entity details modal
       ownerAndSlaSettings: (entityType: string, teamName: string, entityName: string) => 
-        `/api/teams/${teamName}/${entityType}/${entityName}/owner_sla_settings`,
+        `/api/v1/teams/${teamName}/${entityType}/${entityName}/owner_sla_settings`,
       slaStatusHistory: (entityType: string, teamName: string, entityName: string) => 
-        `/api/teams/${teamName}/${entityType}/${entityName}/sla_status_30days`,
+        `/api/v1/teams/${teamName}/${entityType}/${entityName}/sla_status_30days`,
       recentSettingsChanges: (entityType: string, teamName: string, entityName: string) => 
-        `/api/teams/${teamName}/${entityType}/${entityName}/settings_changes`,
+        `/api/v1/teams/${teamName}/${entityType}/${entityName}/settings_changes`,
     },
 
     // Task operations
     tasks: {
-      byDag: (dagId: number) => `/api/dags/${dagId}/tasks`,
-      updatePriority: (taskId: number) => `/api/tasks/${taskId}`,
+      byDag: (dagId: number) => `/api/v1/dags/${dagId}/tasks`,
+      updatePriority: (taskId: number) => `/api/v1/tasks/${taskId}`,
     },
     
     // Issues
     issues: {
-      resolve: (issueId: number) => `/api/issues/${issueId}/resolve`,
+      resolve: (issueId: number) => `/api/v1/issues/${issueId}/resolve`,
     },
     
     // Notification Timelines
     notificationTimelines: {
-      create: '/api/notification-timelines',
-      byId: (id: string) => `/api/notification-timelines/${id}`,
-      update: (id: string) => `/api/notification-timelines/${id}`,
-      delete: (id: string) => `/api/notification-timelines/${id}`,
+      create: '/api/v1/notification-timelines',
+      byId: (id: string) => `/api/v1/notification-timelines/${id}`,
+      update: (id: string) => `/api/v1/notification-timelines/${id}`,
+      delete: (id: string) => `/api/v1/notification-timelines/${id}`,
     },
     
     // Debug endpoints
     debug: {
-      teams: '/api/debug/teams',
+      teams: '/api/v1/debug/teams',
     },
 
     // Agent workspace endpoints
     agent: {
-      conversationSummaries: (dagId: number) => `/api/agent/conversations/summaries/${dagId}`,
-      fullConversation: (conversationId: string) => `/api/agent/conversations/${conversationId}`,
-      sendMessage: (dagId: number) => `/api/agent/conversations/${dagId}/send`,
+      conversationSummaries: (dagId: number) => `/api/v1/agent/conversations/summaries/${dagId}`,
+      fullConversation: (conversationId: string) => `/api/v1/agent/conversations/${conversationId}`,
+      sendMessage: (dagId: number) => `/api/v1/agent/conversations/${dagId}/send`,
     },
 
     // Missing properties from dev config
-    tenants: '/api/tenants',
-    teamDetails: (teamName: string) => `/api/get_team_details/${teamName}`,
-    teamMembers: (teamName: string) => `/api/teams/${teamName}/members`,
+    tenants: '/api/v1/tenants',
+    teamDetails: (teamName: string) => `/api/v1/get_team_details/${teamName}`,
+    teamMembers: (teamName: string) => `/api/v1/teams/${teamName}/members`,
 
     users: {
-      getAll: '/api/get_user',
-      getTeamMembers: (teamName: string) => `/api/get_team_members/${teamName}`,
+      getAll: '/api/v1/get_user',
+      getTeamMembers: (teamName: string) => `/api/v1/get_team_members/${teamName}`,
     },
 
     admin: {
       conflicts: {
-        getAll: 'http://localhost:8080/api/v1/conflicts',
-        getById: (notificationId: string) => `http://localhost:8080/api/v1/conflicts/${notificationId}`,
-        resolve: (notificationId: string) => `http://localhost:8080/api/v1/conflicts/${notificationId}/resolve`,
-        create: 'http://localhost:8080/api/v1/conflicts',
+        getAll: '/api/v1/conflicts',
+        getById: (notificationId: string) => `/api/v1/conflicts/${notificationId}`,
+        resolve: (notificationId: string) => `/api/v1/conflicts/${notificationId}/resolve`,
+        create: '/api/v1/conflicts',
       },
       teams: {
-        create: 'http://localhost:8080/api/v1/teams',
-        update: (teamId: number) => `http://localhost:8080/api/v1/teams/${teamId}`,
-        disable: (teamId: number) => `http://localhost:8080/api/v1/teams/${teamId}/disable`,
-        enable: (teamId: number) => `http://localhost:8080/api/v1/teams/${teamId}/enable`,
+        create: '/api/v1/teams',
+        update: (teamId: number) => `/api/v1/teams/${teamId}`,
+        disable: (teamId: number) => `/api/v1/teams/${teamId}/disable`,
+        enable: (teamId: number) => `/api/v1/teams/${teamId}/enable`,
       },
       tenants: {
-        create: 'http://localhost:8080/api/v1/tenants',
-        getAll: 'http://localhost:8080/api/v1/tenants',
-        update: (tenantId: number) => `http://localhost:8080/api/v1/tenants/${tenantId}`,
-        disable: (tenantId: number) => `http://localhost:8080/api/v1/tenants/${tenantId}/disable`,
+        create: '/api/v1/tenants',
+        getAll: '/api/v1/tenants',
+        update: (tenantId: number) => `/api/v1/tenants/${tenantId}`,
+        disable: (tenantId: number) => `/api/v1/tenants/${tenantId}/disable`,
       },
       users: {
-        getAll: 'http://localhost:8080/api/v1/users',
-        create: 'http://localhost:8080/api/v1/users',
-        update: (userId: number) => `http://localhost:8080/api/v1/users/${userId}`,
-        disable: (userId: number) => `http://localhost:8080/api/v1/users/${userId}/disable`,
-        enable: (userId: number) => `http://localhost:8080/api/v1/users/${userId}/enable`,
+        getAll: '/api/v1/users',
+        create: '/api/v1/users',
+        update: (userId: number) => `/api/v1/users/${userId}`,
+        disable: (userId: number) => `/api/v1/users/${userId}/disable`,
+        enable: (userId: number) => `/api/v1/users/${userId}/enable`,
       },
       roles: {
-        getAll: 'http://localhost:8080/api/v1/roles',
-        create: 'http://localhost:8080/api/v1/roles',
-        update: (roleId: number) => `http://localhost:8080/api/v1/roles/${roleId}`,
+        getAll: '/api/v1/roles',
+        create: '/api/v1/roles',
+        update: (roleId: number) => `/api/v1/roles/${roleId}`,
       },
     },
   },
@@ -125,10 +125,10 @@ export const prodConfig = {
     tenantRefreshHours: 6,
     entityRefreshHours: 6,
     trendRefreshHours: 6,
-    cacheStatus: '/api/cache/status',
-    cacheRefresh: '/api/cache/refresh',
-    incrementalUpdate: '/api/cache/incremental-update',
-    recentChanges: '/api/cache/recent-changes',
+    cacheStatus: '/api/v1/cache/status',
+    cacheRefresh: '/api/v1/cache/refresh',
+    incrementalUpdate: '/api/v1/cache/incremental-update',
+    recentChanges: '/api/v1/cache/recent-changes',
   },
 
   // WebSocket configuration

@@ -72,6 +72,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Set up test routes for development
   setupTestRoutes(app);
   
+  // CRITICAL: Block all legacy Express /api/* routes EXCEPT auth fallbacks to prevent RBAC bypass
+  // All API calls should go through FastAPI at /api/v1/*, but auth endpoints can fallback to Express
+  app.use('/api', (req: Request, res: Response, next: NextFunction) => {
+    // Allow FastAPI endpoints to pass through
+    if (req.path.startsWith('/api/v1/')) {
+      return next();
+    }
+    
+    // Allow auth endpoints as fallbacks when FastAPI is unavailable
+    const allowedFallbackPaths = [
+      '/api/health',
+      '/api/debug/teams', // Debug endpoint for development
+      '/api/cache/status',
+      '/api/cache/refresh',
+      // AUTH FALLBACK ENDPOINTS - These work when FastAPI is unavailable
+      '/api/login',
+      '/api/logout', 
+      '/api/register',
+      '/api/user',
+      '/api/auth/azure/validate',
+      '/api/dev/create-test-user'
+    ];
+    
+    // Allow specific endpoints through
+    if (allowedFallbackPaths.includes(req.path)) {
+      structuredLogger.info('EXPRESS_FALLBACK_AUTH_ENDPOINT', {
+        path: req.path,
+        method: req.method,
+        timestamp: new Date().toISOString(),
+        message: 'Using Express auth fallback endpoint'
+      });
+      return next();
+    }
+    
+    // Block all other /api/* calls 
+    structuredLogger.warn('BLOCKED_LEGACY_EXPRESS_CALL', {
+      path: req.path,
+      method: req.method,
+      headers: req.headers,
+      timestamp: new Date().toISOString(),
+      message: 'Legacy Express API call blocked - use FastAPI /api/v1/* instead'
+    });
+    
+    return res.status(410).json({
+      error: 'LEGACY_ENDPOINT_DISABLED',
+      message: `Legacy Express endpoint ${req.path} is disabled. Use FastAPI /api/v1/* endpoints instead.`,
+      fastapi_endpoint: req.path.replace('/api/', '/api/v1/'),
+      timestamp: new Date().toISOString()
+    });
+  });
+  
   // Middleware to check if user is authenticated
   const isAuthenticated = (req: Request, res: Response, next: NextFunction) => {
     if (req.isAuthenticated()) {

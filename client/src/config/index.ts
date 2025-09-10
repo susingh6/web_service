@@ -15,6 +15,12 @@ interface ApiConfig {
       register: string;
       user: string;
       azureValidate: string;
+      // Express fallback endpoints (development only)
+      loginFallback?: string;
+      logoutFallback?: string;
+      registerFallback?: string;
+      userFallback?: string;
+      azureValidateFallback?: string;
     };
     entities: string;
     teams: string;

@@ -392,7 +392,10 @@ export function useCacheManager() {
             headers['X-Session-ID'] = sessionId;
           }
           
-          const response = await fetch(`/api/entities?teamId=${teamId}&type=${entityType}`, {
+          // Import centralized endpoints to avoid hardcoded paths
+          const { buildUrl, endpoints } = await import('@/config');
+          const url = buildUrl(endpoints.entities) + `?teamId=${teamId}&type=${entityType}`;
+          const response = await fetch(url, {
             headers,
             credentials: 'include',
           });
@@ -415,7 +418,10 @@ export function useCacheManager() {
             headers['X-Session-ID'] = sessionId;
           }
           
-          const response = await fetch(`/api/entities?teamId=${teamId}`, {
+          // Import centralized endpoints to avoid hardcoded paths
+          const { buildUrl, endpoints } = await import('@/config');
+          const url = buildUrl(endpoints.entities) + `?teamId=${teamId}`;
+          const response = await fetch(url, {
             headers,
             credentials: 'include',
           });

@@ -41,9 +41,12 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
       const environment = import.meta.env.MODE || 'development';
       const forceSecure = environment === 'staging' || environment === 'production';
       const protocol = (window.location.protocol === 'https:' || forceSecure) ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.host}${config.websocket.path}`;
       
-      // Connecting to WebSocket
+      // Handle undefined host with proper fallback
+      const host = window.location.host || 'localhost:5000';
+      const wsUrl = `${protocol}//${host}${config.websocket.path}`;
+      
+      console.log('Connecting to WebSocket:', wsUrl);
       
       ws.current = new WebSocket(wsUrl);
 
