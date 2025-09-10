@@ -483,7 +483,7 @@ const TeamDashboard = ({
               filters={['All', 'Tables', 'DAGs']}
               onFilterChange={setEntitiesChartFilter}
               loading={teamSummaryLoading}
-              chart={<EntityPerformanceChart entities={hasRangeData ? teamEntities : []} filter={entitiesChartFilter.toLowerCase() as 'all' | 'tables' | 'dags'} />}
+              chart={<EntityPerformanceChart entities={hasRangeData ? teamEntities : []} filter={entitiesChartFilter.toLowerCase() as 'all' | 'tables' | 'dags'} dateRange={teamDateRange} />}
             />
           </Box>
         </Box>

@@ -10,16 +10,94 @@ import {
   ResponsiveContainer,
   TooltipProps,
 } from 'recharts';
-import { format, subDays } from 'date-fns';
+import { format, subDays, parseISO, differenceInDays, startOfMonth } from 'date-fns';
 import { Entity } from '@shared/schema';
 
+// Helper function to determine if date range exceeds 40 days
+const shouldUseMonthlyAggregation = (data: any[]): boolean => {
+  if (!data || data.length <= 1) return false;
+  
+  // Parse first and last dates
+  const firstDate = parseISO(data[0].date);
+  const lastDate = parseISO(data[data.length - 1].date);
+  
+  // Calculate difference in days
+  const daysDifference = differenceInDays(lastDate, firstDate);
+  
+  return daysDifference > 40;
+};
+
+// Helper function to aggregate daily entity data to monthly averages
+const aggregateToMonthlyEntities = (dailyData: any[]): any[] => {
+  if (!dailyData || dailyData.length === 0) return [];
+  
+  const monthlyMap = new Map<string, {
+    values: number[];
+    entityName: string;
+    entityId: number;
+    count: number;
+    monthKey: string;
+    firstDate: Date;
+  }>();
+  
+  // Group data by month and entity
+  dailyData.forEach(item => {
+    const date = parseISO(item.date);
+    const monthStart = startOfMonth(date);
+    const monthKey = format(monthStart, 'yyyy-MM');
+    const mapKey = `${monthKey}-${item.id}`;
+    
+    if (!monthlyMap.has(mapKey)) {
+      monthlyMap.set(mapKey, {
+        values: [],
+        entityName: item.name,
+        entityId: item.id,
+        count: 0,
+        monthKey,
+        firstDate: monthStart
+      });
+    }
+    
+    const monthData = monthlyMap.get(mapKey)!;
+    monthData.values.push(item.value || 0);
+    monthData.count++;
+  });
+  
+  // Calculate monthly averages
+  const monthlyData = Array.from(monthlyMap.values())
+    .sort((a, b) => a.firstDate.getTime() - b.firstDate.getTime() || a.entityName.localeCompare(b.entityName))
+    .map(monthInfo => {
+      const avgValue = monthInfo.values.length > 0 
+        ? monthInfo.values.reduce((sum, val) => sum + val, 0) / monthInfo.values.length 
+        : 0;
+      
+      return {
+        date: format(monthInfo.firstDate, 'yyyy-MM-dd'),
+        dateFormatted: format(monthInfo.firstDate, 'MMM yyyy'),
+        value: parseFloat(avgValue.toFixed(1)),
+        name: monthInfo.entityName,
+        id: monthInfo.entityId,
+        isMonthly: true
+      };
+    });
+  
+  return monthlyData;
+};
+
 // Generate demo data for entity performance
-const generateEntityPerformanceData = (entity: Entity, days = 30) => {
+const generateEntityPerformanceData = (entity: Entity, days = 30, startDate?: Date, endDate?: Date) => {
   const data = [];
-  const now = new Date();
+  let actualDays = days;
+  
+  // Calculate days from date range if provided
+  if (startDate && endDate) {
+    actualDays = differenceInDays(endDate, startDate) + 1;
+  }
+  
+  const now = endDate || new Date();
   const seed = entity.id * 1000; // Use entity ID for consistent but varied random data
   
-  for (let i = days - 1; i >= 0; i--) {
+  for (let i = actualDays - 1; i >= 0; i--) {
     const date = subDays(now, i);
     
     // Generate somewhat realistic data with some random variation
@@ -36,6 +114,8 @@ const generateEntityPerformanceData = (entity: Entity, days = 30) => {
       dateFormatted: format(date, 'MMM d'),
       value: parseFloat(slaValue.toFixed(1)),
       name: entity.name,
+      id: entity.id,
+      isMonthly: false,
     });
   }
   
@@ -46,9 +126,14 @@ interface EntityPerformanceChartProps {
   entities: Entity[];
   days?: number;
   filter?: 'all' | 'tables' | 'dags';
+  dateRange?: {
+    startDate: Date;
+    endDate: Date;
+    label: string;
+  };
 }
 
-const EntityPerformanceChart = ({ entities, days = 30, filter = 'all' }: EntityPerformanceChartProps) => {
+const EntityPerformanceChart = ({ entities, days = 30, filter = 'all', dateRange }: EntityPerformanceChartProps) => {
   const theme = useTheme();
   
   if (!entities || entities.length === 0) {
@@ -81,19 +166,29 @@ const EntityPerformanceChart = ({ entities, days = 30, filter = 'all' }: EntityP
   
   // Generate data for each filtered entity
   const allData = filteredEntities.flatMap(entity => 
-    generateEntityPerformanceData(entity, days)
+    generateEntityPerformanceData(entity, days, dateRange?.startDate, dateRange?.endDate)
   );
+  
+  // Determine if we should use monthly aggregation
+  const useMonthlyAggregation = shouldUseMonthlyAggregation(allData);
+  
+  // Aggregate to monthly if date range > 40 days
+  let processedData = allData;
+  if (useMonthlyAggregation) {
+    processedData = aggregateToMonthlyEntities(allData);
+  }
   
   // Group data by date
   const groupedData: Record<string, any> = {};
-  allData.forEach(item => {
+  processedData.forEach(item => {
     if (!groupedData[item.date]) {
       groupedData[item.date] = {
         date: item.date,
         dateFormatted: item.dateFormatted,
+        isMonthly: item.isMonthly || false
       };
     }
-    groupedData[item.date][item.name] = item.value;
+    groupedData[item.date][item.id.toString()] = item.value;
   });
   
   const chartData = Object.values(groupedData);
@@ -121,6 +216,11 @@ const EntityPerformanceChart = ({ entities, days = 30, filter = 'all' }: EntityP
         >
           <Typography variant="body2" fontWeight={600} sx={{ mb: 1 }}>
             {payload[0]?.payload.dateFormatted}
+            {payload[0]?.payload.isMonthly && (
+              <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                (Monthly Average)
+              </Typography>
+            )}
           </Typography>
           
           {payload.map((entry, index) => (
@@ -187,7 +287,7 @@ const EntityPerformanceChart = ({ entities, days = 30, filter = 'all' }: EntityP
               <Line
                 key={entity.id}
                 type="monotone"
-                dataKey={entity.name}
+                dataKey={entity.id.toString()}
                 stroke={colors[index % colors.length]}
                 strokeWidth={2}
                 dot={{ r: 2 }}
