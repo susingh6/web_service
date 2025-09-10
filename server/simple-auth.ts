@@ -33,6 +33,66 @@ async function authenticateWithFastAPI(username: string, password: string): Prom
   }
 }
 
+// FastAPI authorization function for rollback operations
+export async function authorizeRollbackWithFastAPI(
+  sessionId: string,
+  teamName: string,
+  entityType: string,
+  entityName: string
+): Promise<{ authorized: boolean; user?: any; error?: string }> {
+  try {
+    const response = await fetch('http://localhost:8080/api/v1/auth/authorize-rollback', {
+      method: 'POST',
+      headers: {
+        'X-Session-ID': sessionId,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        team_name: teamName,
+        entity_type: entityType,
+        entity_name: entityName,
+        action: 'rollback'
+      })
+    });
+    
+    if (response.ok) {
+      const authResult = await response.json();
+      return {
+        authorized: true,
+        user: authResult.user || null
+      };
+    }
+    
+    if (response.status === 401) {
+      return {
+        authorized: false,
+        error: 'Invalid or expired session'
+      };
+    }
+    
+    if (response.status === 403) {
+      const errorData = await response.json().catch(() => ({}));
+      return {
+        authorized: false,
+        error: errorData.message || 'Access denied'
+      };
+    }
+    
+    // Other errors
+    return {
+      authorized: false,
+      error: 'Authorization service unavailable'
+    };
+  } catch (error) {
+    // FastAPI authorization service unavailable - fallback to local session
+    console.warn('FastAPI authorization service unavailable, falling back to local session validation');
+    return {
+      authorized: false,
+      error: 'Authorization service unavailable'
+    };
+  }
+}
+
 declare global {
   namespace Express {
     interface User {

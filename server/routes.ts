@@ -43,7 +43,7 @@ function createRollbackAuditLog(event: string, req: Request, additionalData?: an
     ...additionalData
   };
 }
-import { setupSimpleAuth } from "./simple-auth";
+import { setupSimpleAuth, authorizeRollbackWithFastAPI } from "./simple-auth";
 import { setupTestRoutes } from "./test-routes";
 
 // Structured error response helpers
@@ -80,91 +80,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.status(401).json({ message: "Unauthorized" });
   };
   
-  // Enhanced authentication middleware specifically for rollback operations
-  const isAuthenticatedForRollback = (req: Request, res: Response, next: NextFunction) => {
-    // Use same pattern as /api/user route for consistency
-    if (!req.isAuthenticated()) {
-      logAuthenticationEvent("rollback-access-denied", "anonymous", undefined, req.requestId, false);
-      return res.status(401).json({ message: "Not authenticated" });
-    }
-    
-    // Extract user information for authorization
-    const user = req.user;
-    if (!user) {
-      logAuthenticationEvent("rollback-access-denied", "unknown", undefined, req.requestId, false);
-      return res.status(401).json({ message: "User session invalid" });
-    }
-    
-    next();
-  };
-  
-  // Authorization middleware for rollback operations
-  const authorizeRollback = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const { teamName, entityType, entityName } = req.params;
-      const user = req.user;
-      
-      if (!user) {
-        return res.status(401).json({ message: "User session invalid" });
-      }
-      
-      // Get the entity to check ownership
-      const entities = await redisCache.getAllEntities();
-      const entity = entities.find(e => 
-        e.name === entityName && 
-        e.type === entityType &&
-        e.team_name === teamName
-      );
-      
-      if (!entity) {
-        return res.status(404).json({ message: "Entity not found" });
-      }
-      
-      // Authorization logic: 
-      // 1. Admin users can rollback any entity
-      // 2. Entity owners can rollback their own entities
-      // 3. Team members can rollback entities in their team
-      const userRole = (user as any).role || 'user';
-      const userEmail = user.email || user.username;
-      const userTeam = user.team;
-      
-      const isAdmin = userRole === 'admin';
-      const isEntityOwner = entity.owner_email === userEmail || entity.ownerEmail === userEmail;
-      const isTeamMember = userTeam === teamName;
-      
-      if (!isAdmin && !isEntityOwner && !isTeamMember) {
-        logAuthenticationEvent("rollback-access-denied", userEmail, {
-          session_id: req.sessionID || 'unknown',
-          user_id: user.id,
-          email: userEmail,
-          session_type: 'local',
-          roles: userRole,
-          notification_id: null
-        }, req.requestId, false);
-        
-        return res.status(403).json({ 
-          message: "Access denied. You do not have permission to rollback this entity.",
-          reason: "Only administrators, entity owners, or team members can perform rollback operations"
-        });
-      }
-      
-      // Store authorization context for audit logging
-      (req as any).authContext = {
-        userRole,
-        userEmail,
-        userTeam,
-        isAdmin,
-        isEntityOwner,
-        isTeamMember,
-        entity
-      };
-      
-      next();
-    } catch (error) {
-      console.error('Authorization error:', error);
-      res.status(500).json({ message: "Authorization check failed" });
-    }
-  };
   
   // API Routes
   
@@ -1834,8 +1749,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Secured rollback endpoint for entity details modal
   app.post('/api/teams/:teamName/:entityType/:entityName/rollback', 
-    isAuthenticatedForRollback, 
-    authorizeRollback, 
     async (req: Request, res: Response) => {
     
     const requestStartTime = Date.now();
@@ -1843,9 +1756,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     try {
       const { teamName, entityType, entityName } = req.params;
-      const user = req.user!;
-      const authContext = (req as any).authContext;
-      const entity = authContext.entity;
+      
+      // Extract session_id for FastAPI authorization
+      const sessionId = req.headers['x-session-id'] as string;
+      
+      if (!sessionId) {
+        logAuthenticationEvent("rollback-access-denied", "anonymous", undefined, req.requestId, false);
+        return res.status(401).json({ 
+          message: "Session ID required for rollback authorization",
+          type: 'authentication_error' 
+        });
+      }
+      
+      // Delegate authorization to FastAPI
+      const authResult = await authorizeRollbackWithFastAPI(sessionId, teamName, entityType, entityName);
+      
+      if (!authResult.authorized) {
+        logAuthenticationEvent("rollback-access-denied", "unknown", undefined, req.requestId, false);
+        return res.status(authResult.error === 'Invalid or expired session' ? 401 : 403).json({
+          message: authResult.error || "Access denied",
+          type: authResult.error === 'Invalid or expired session' ? 'authentication_error' : 'authorization_error'
+        });
+      }
+      
+      // Get the entity for the rollback operation
+      const entities = await redisCache.getAllEntities();
+      const entity = entities.find(e => 
+        e.name === entityName && 
+        e.type === entityType &&
+        e.team_name === teamName
+      );
+      
+      if (!entity) {
+        return res.status(404).json({ message: "Entity not found" });
+      }
+      
+      // Create authorization context from FastAPI user data
+      const fastApiUser = authResult.user;
+      const authContext = {
+        userEmail: fastApiUser?.email || 'unknown',
+        userRole: fastApiUser?.roles?.[0] || 'user',
+        userId: fastApiUser?.user_id || null,
+        sessionId: sessionId,
+        entity
+      };
       
       // Validate request payload with Zod
       const validationResult = rollbackRequestSchema.safeParse(req.body);
@@ -1860,10 +1814,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         structuredLogger.warn(
           `rollback-validation-failed for ${entityName} (${entityType}) in team ${teamName}`,
           {
-            session_id: req.sessionID || 'unknown',
-            user_id: user.id,
+            session_id: authContext.sessionId,
+            user_id: authContext.userId,
             email: authContext.userEmail,
-            session_type: 'local',
+            session_type: 'client_credentials',
             roles: authContext.userRole,
             notification_id: null
           },
@@ -1882,10 +1836,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         structuredLogger.error(
           `rollback-security-violation: email mismatch for ${entityName} (${entityType}) in team ${teamName}`,
           {
-            session_id: req.sessionID || 'unknown',
-            user_id: user.id,
+            session_id: authContext.sessionId,
+            user_id: authContext.userId,
             email: authContext.userEmail,
-            session_type: 'local',
+            session_type: 'client_credentials',
             roles: authContext.userRole,
             notification_id: null
           },
@@ -1903,10 +1857,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       structuredLogger.info(
         `rollback-initiated for ${entityName} (${entityType}) in team ${teamName} to version ${toVersion}`,
         {
-          session_id: req.sessionID || 'unknown',
-          user_id: user.id,
+          session_id: authContext.sessionId,
+          user_id: authContext.userId,
           email: authContext.userEmail,
-          session_type: 'local',
+          session_type: 'client_credentials',
           roles: authContext.userRole,
           notification_id: null
         },
@@ -1915,9 +1869,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log('Rollback authorization details:', {
         entity_id: entity.id.toString(),
         user_role: authContext.userRole,
-        is_admin: authContext.isAdmin,
-        is_entity_owner: authContext.isEntityOwner,
-        is_team_member: authContext.isTeamMember
+        session_id: authContext.sessionId,
+        authorized_by_fastapi: true
       });
       
       // Broadcast rollback event using the existing pattern
@@ -1951,10 +1904,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       structuredLogger.info(
         `rollback-completed for ${entityName} (${entityType}) in team ${teamName} to version ${toVersion} in ${duration}ms`,
         {
-          session_id: req.sessionID || 'unknown',
-          user_id: user.id,
+          session_id: authContext.sessionId,
+          user_id: authContext.userId,
           email: authContext.userEmail,
-          session_type: 'local',
+          session_type: 'client_credentials',
           roles: authContext.userRole,
           notification_id: null
         },
@@ -1970,15 +1923,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Extract route params for error logging
       const { teamName, entityType, entityName } = req.params;
       
-      // Log error with context
+      // Log error with context 
+      const sessionId = req.headers['x-session-id'] as string || 'unknown';
       structuredLogger.error(
         `rollback-error for ${entityName || 'unknown'} (${entityType || 'unknown'}) in team ${teamName || 'unknown'}: ${errorMessage}`,
         {
-          session_id: req.sessionID || 'unknown',
-          user_id: req.user?.id || null,
-          email: req.user?.email || req.user?.username || 'unknown',
-          session_type: 'local',
-          roles: (req.user as any)?.role || 'unknown',
+          session_id: sessionId,
+          user_id: null,
+          email: 'unknown',
+          session_type: 'client_credentials',
+          roles: 'unknown',
           notification_id: null
         },
         requestId
