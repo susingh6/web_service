@@ -850,7 +850,8 @@ export class RedisCache {
       if (!teamMetrics || !teamMetrics[teamName]) return null;
       
       // For fallback, we only have last30Days team metrics currently
-      return teamMetrics[teamName] || null;
+      // Only return data for last30Days range, null for all others
+      return range === 'last30Days' ? (teamMetrics[teamName] || null) : null;
     }
     
     try {
@@ -873,7 +874,8 @@ export class RedisCache {
       if (!teamTrends || !teamTrends[teamName]) return null;
       
       // For fallback, we only have last30Days team trends currently
-      return teamTrends[teamName] || null;
+      // Only return data for last30Days range, null for all others
+      return range === 'last30Days' ? (teamTrends[teamName] || null) : null;
     }
     
     try {
