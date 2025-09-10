@@ -22,7 +22,8 @@ import TeamSelector from '@/components/dashboard/TeamSelector';
 import TeamDashboard from '@/pages/dashboard/TeamDashboard';
 import { useToast } from '@/hooks/use-toast';
 import { queryClient, apiRequest } from '@/lib/queryClient';
-import { getTenants, getDefaultTenant, preloadTenantCache, type Tenant } from '@/lib/tenantCache';
+import { type Tenant } from '@/lib/tenantCache';
+import { useQuery } from '@tanstack/react-query';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { useEntityMutation, CACHE_PATTERNS, useCacheManager } from '@/utils/cache-management';
 
@@ -45,8 +46,16 @@ const Summary = () => {
   const [openTaskModal, setOpenTaskModal] = useState(false);
   const [selectedEntity, setSelectedEntity] = useState<Entity | null>(null);
   const [chartFilter, setChartFilter] = useState('All');
-  const [selectedTenant, setSelectedTenant] = useState<Tenant>(getDefaultTenant);
-  const [tenants, setTenants] = useState<Tenant[]>(getTenants);
+  // Use React Query for tenants (consistent with other CRUD operations)
+  const { data: tenants = [], isLoading: tenantsLoading } = useQuery<Tenant[]>({
+    queryKey: ['/api/tenants'],
+    queryFn: async () => {
+      const response = await apiRequest('GET', '/api/tenants');
+      return response.json();
+    }
+  });
+  
+  const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
   const [openTeamTabs, setOpenTeamTabs] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState('summary');
   const [teamsLoaded, setTeamsLoaded] = useState(false);
@@ -65,7 +74,7 @@ const Summary = () => {
         ...(teamId ? [CACHE_PATTERNS.ENTITIES.BY_TEAM(teamId)] : []),
         ...(entityType ? [CACHE_PATTERNS.ENTITIES.BY_TYPE(entityType)] : []),
         ...(teamId && entityType ? [CACHE_PATTERNS.ENTITIES.BY_TEAM_AND_TYPE(teamId, entityType)] : []),
-        CACHE_PATTERNS.DASHBOARD.SUMMARY(selectedTenant.name)
+        ...(selectedTenant ? [CACHE_PATTERNS.DASHBOARD.SUMMARY(selectedTenant.name)] : [])
       ];
       
       // Invalidate using cache manager for consistency
@@ -73,7 +82,9 @@ const Summary = () => {
       
       // CRITICAL: Force Redux store refresh - this ensures UI updates immediately
       dispatch(fetchEntities({}));
-      dispatch(fetchDashboardSummary({ tenantName: selectedTenant.name }));
+      if (selectedTenant) {
+        dispatch(fetchDashboardSummary({ tenantName: selectedTenant.name }));
+      }
       
       // For team-specific pages, also refresh team entities
       if (openTeamTabs.length > 0) {
@@ -123,22 +134,28 @@ const Summary = () => {
   });
   
   // Fetch dashboard data and preload tenant cache
+  // Set default tenant when tenants are loaded
   useEffect(() => {
-    dispatch(fetchDashboardSummary({ tenantName: selectedTenant.name }));
-    // Always load ALL entities for Summary dashboard - don't filter by team
-    dispatch(fetchEntities({})); // Load ALL entities for summary dashboard
-    // Load teams data for chart display (silent load for summary page)
-    dispatch(fetchTeams());
-    setTeamsLoaded(true);
-    
-    // Preload tenant cache for future use
-    preloadTenantCache().then(() => {
-      setTenants(getTenants());
-    });
-  }, [dispatch, selectedTenant.name]);
+    if (tenants.length > 0 && !selectedTenant) {
+      const defaultTenant = tenants.find(t => t.name === 'Data Engineering') || tenants[0];
+      setSelectedTenant(defaultTenant);
+    }
+  }, [tenants, selectedTenant]);
+
+  useEffect(() => {
+    if (selectedTenant) {
+      dispatch(fetchDashboardSummary({ tenantName: selectedTenant.name }));
+      // Always load ALL entities for Summary dashboard - don't filter by team
+      dispatch(fetchEntities({})); // Load ALL entities for summary dashboard
+      // Load teams data for chart display (silent load for summary page)
+      dispatch(fetchTeams());
+      setTeamsLoaded(true);
+    }
+  }, [dispatch, selectedTenant?.name]);
   
   // Filter entities based on tab and tenant - only show entity owners
   const filterEntitiesByTenant = (entities: Entity[]) => {
+    if (!selectedTenant) return [];
     // Filter by tenant_name and only show entity owners
     return entities.filter(entity => 
       entity.tenant_name === selectedTenant.name && entity.is_entity_owner === true
@@ -288,7 +305,7 @@ const Summary = () => {
               <Select
                 labelId="tenant-filter-label"
                 id="tenant-filter"
-                value={selectedTenant.name}
+                value={selectedTenant?.name || ''}
                 onChange={handleTenantChange}
                 label="Tenant"
               >
