@@ -31,6 +31,7 @@ import { useAppDispatch } from '@/lib/store';
 import { updateEntity, fetchEntities } from '@/features/sla/slices/entitiesSlice';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/use-auth';
 import { Entity } from '@shared/schema';
 import { endpoints, buildUrl } from '@/config';
 import { useQuery } from '@tanstack/react-query';
@@ -58,18 +59,6 @@ const baseSchema = yup.object().shape({
       then: (schema) => fieldDefinitions.owner_entity_reference.validation,
       otherwise: (schema) => schema.optional()
     }),
-  owner_email: yup.string()
-    .when('is_entity_owner', {
-      is: true,
-      then: (schema) => fieldDefinitions.owner_email.validation,
-      otherwise: (schema) => schema.optional()
-    }),
-  user_email: yup.string()
-    .required('User email is required')
-    .matches(
-      /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
-      'Invalid email format'
-    ),
   is_active: yup.boolean().default(true),
   expected_runtime_minutes: yup.number()
     .when('is_entity_owner', {
@@ -132,6 +121,7 @@ const dagSchema = baseSchema.shape({
 const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps) => {
   const dispatch = useAppDispatch();
   const { toast } = useToast();
+  const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   // Determine entity type from the entity
@@ -181,8 +171,6 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
           tenant_name: entity.tenant_name || (entityType === 'table' ? 'Data Engineering' : 'Analytics'),
           team_name: entity.team_name || 'PGM',
           notification_preferences: entity.notification_preferences || ['email', 'slack'],
-          owner_email: entity.owner_email || 'john.smith@company.com',
-          user_email: entity.user_email || 'john.smith@example.com',
           is_active: entity.is_active !== undefined ? entity.is_active : true,
           expected_runtime_minutes: entity.expected_runtime_minutes || (entityType === 'table' ? 30 : 45),
           donemarker_location: entity.donemarker_location || (entityType === 'table' 
@@ -219,8 +207,6 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
       notification_preferences: [],
       is_entity_owner: false,
       owner_entity_reference: '',
-      owner_email: '',
-      user_email: '',
       is_active: true,
       expected_runtime_minutes: 60,
       donemarker_location: '',
@@ -242,8 +228,6 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
       notification_preferences: [],
       is_entity_owner: false,
       owner_entity_reference: '',
-      owner_email: '',
-      user_email: '',
       is_active: true,
       expected_runtime_minutes: 60,
       donemarker_location: '',
@@ -279,8 +263,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
         notification_preferences: entityDetails.notification_preferences || [],
         is_entity_owner: entityDetails.is_entity_owner || false,
         owner_entity_reference: (entityDetails as any).owner_entity_reference || '',
-        owner_email: entityDetails.owner_email || '',
-        user_email: entityDetails.user_email || '',
+
         is_active: entityDetails.is_active !== undefined ? entityDetails.is_active : true,
         expected_runtime_minutes: entityDetails.expected_runtime_minutes || 60,
         donemarker_location: entityDetails.donemarker_location || '',
@@ -297,8 +280,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
         notification_preferences: entityDetails.notification_preferences || [],
         is_entity_owner: entityDetails.is_entity_owner || false,
         owner_entity_reference: (entityDetails as any).owner_entity_reference || '',
-        owner_email: entityDetails.owner_email || '',
-        user_email: entityDetails.user_email || '',
+
         is_active: entityDetails.is_active !== undefined ? entityDetails.is_active : true,
         expected_runtime_minutes: entityDetails.expected_runtime_minutes || 60,
         donemarker_location: entityDetails.donemarker_location || '',
@@ -348,12 +330,20 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
         }
       }
       
+      // Get user email from authentication context
+      const userEmail = user?.email || (user as any)?.mail || (user as any)?.preferredUsername || '';
+      if (!userEmail) {
+        setValidationError('User email not found. Please log in again.');
+        return;
+      }
+      
       // Convert form data to entity format
       const entityData = {
         name: data.entity_name, // Use entity_name from form
         description: entityType === 'table' ? data.table_description : data.dag_description,
         type: entityType,
         teamId: entity.teamId, // Keep existing team
+        user_email: userEmail, // Use authenticated user's email
         ...data,
       };
       
@@ -733,22 +723,6 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
             </>
           )}
           
-          <Controller
-            name="user_email"
-            control={control}
-            render={({ field }) => (
-              <TextField
-                {...field}
-                label={fieldDefinitions.user_email.label + " *"}
-                fullWidth
-                margin="normal"
-                required
-                type="email"
-                error={!!errors.user_email}
-                helperText={errors.user_email?.message}
-              />
-            )}
-          />
 
           {!watch().is_entity_owner && (
             <Controller
@@ -811,23 +785,6 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
 
           {watch().is_entity_owner && (
             <>
-              <Controller
-                name="owner_email"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    label={fieldDefinitions.owner_email.label + " *"}
-                    fullWidth
-                    margin="normal"
-                    required
-                    type="email"
-                    error={!!errors.owner_email}
-                    helperText={errors.owner_email?.message}
-                    placeholder={fieldDefinitions.owner_email.placeholder}
-                  />
-                )}
-              />
 
               <Controller
                 name="expected_runtime_minutes"
