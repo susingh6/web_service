@@ -23,7 +23,7 @@ import TeamDashboard from '@/pages/dashboard/TeamDashboard';
 import { useToast } from '@/hooks/use-toast';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 import { useQuery } from '@tanstack/react-query';
-import type { Tenant } from '@shared/schema';
+import type { Tenant } from '@/lib/tenantCache';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { useEntityMutation, CACHE_PATTERNS, useCacheManager } from '@/utils/cache-management';
 
@@ -75,7 +75,7 @@ const Summary = () => {
         ...(teamId ? [CACHE_PATTERNS.ENTITIES.BY_TEAM(teamId)] : []),
         ...(entityType ? [CACHE_PATTERNS.ENTITIES.BY_TYPE(entityType)] : []),
         ...(teamId && entityType ? [CACHE_PATTERNS.ENTITIES.BY_TEAM_AND_TYPE(teamId, entityType)] : []),
-        CACHE_PATTERNS.DASHBOARD.SUMMARY(selectedTenant.name)
+        ...(selectedTenant ? [CACHE_PATTERNS.DASHBOARD.SUMMARY(selectedTenant.name)] : [])
       ];
       
       // Invalidate using cache manager for consistency
@@ -83,7 +83,7 @@ const Summary = () => {
       
       // CRITICAL: Force Redux store refresh - this ensures UI updates immediately
       dispatch(fetchEntities({}));
-      dispatch(fetchDashboardSummary({ tenantName: selectedTenant.name }));
+      if (selectedTenant) dispatch(fetchDashboardSummary({ tenantName: selectedTenant.name }));
       
       // For team-specific pages, also refresh team entities
       if (openTeamTabs.length > 0) {
@@ -111,7 +111,7 @@ const Summary = () => {
     onCacheUpdated: (data) => {
       // Cache updated via WebSocket
       // Refresh all dashboard data
-      dispatch(fetchDashboardSummary({ tenantName: selectedTenant.name }));
+      if (selectedTenant) dispatch(fetchDashboardSummary({ tenantName: selectedTenant.name }));
       dispatch(fetchEntities({}));
       // Only refresh teams if we already have team tabs open
       if (openTeamTabs.length > 0) {
@@ -144,7 +144,7 @@ const Summary = () => {
   // Fetch dashboard data when tenant changes
   useEffect(() => {
     if (selectedTenant) {
-      dispatch(fetchDashboardSummary({ tenantName: selectedTenant.name }));
+      if (selectedTenant) dispatch(fetchDashboardSummary({ tenantName: selectedTenant.name }));
       // Always load ALL entities for Summary dashboard - don't filter by team
       dispatch(fetchEntities({})); // Load ALL entities for summary dashboard
       // Load teams data for chart display (silent load for summary page)
@@ -157,7 +157,7 @@ const Summary = () => {
   const filterEntitiesByTenant = (entities: Entity[]) => {
     // Filter by tenant_name and only show entity owners
     return entities.filter(entity => 
-      entity.tenant_name === selectedTenant.name && entity.is_entity_owner === true
+      entity.tenant_name === selectedTenant?.name && entity.is_entity_owner === true
     );
   };
   
@@ -304,11 +304,11 @@ const Summary = () => {
               <Select
                 labelId="tenant-filter-label"
                 id="tenant-filter"
-                value={selectedTenant.name}
+                value={selectedTenant?.name || ''}
                 onChange={handleTenantChange}
                 label="Tenant"
               >
-                {tenants.map((tenant) => (
+                {tenants && tenants.map((tenant) => (
                   <MenuItem key={tenant.id} value={tenant.name}>
                     {tenant.name}
                   </MenuItem>
