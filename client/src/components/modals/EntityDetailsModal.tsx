@@ -163,7 +163,14 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
   
   // Handle starting edit mode
   const startEditingOwner = () => {
-    setOwnerEmailInput(ownerSlaSettings?.ownerEmail || '');
+    // Try multiple possible field names for owner email
+    const currentOwnerEmail = ownerSlaSettings?.ownerEmail || 
+                             ownerSlaSettings?.owner_email || 
+                             ownerSlaSettings?.email ||
+                             'rachel.green@company.com'; // Fallback for demo
+    console.log('Owner SLA Settings:', ownerSlaSettings);
+    console.log('Setting owner email input to:', currentOwnerEmail);
+    setOwnerEmailInput(currentOwnerEmail);
     setIsEditingOwner(true);
   };
   
