@@ -32,6 +32,8 @@ export interface IStorage {
   
   // Tenant operations
   getTenants(): Promise<Tenant[]>;
+  createTenant(tenant: { name: string; description?: string }): Promise<Tenant>;
+  updateTenant(id: number, tenant: Partial<Tenant>): Promise<Tenant | undefined>;
   
   // Entity operations
   getEntities(): Promise<Entity[]>;
@@ -63,6 +65,7 @@ export interface IStorage {
 export class MemStorage implements IStorage {
   private users: Map<number, User>;
   private teams: Map<number, Team>;
+  private tenants: Map<number, Tenant>;
   private entities: Map<number, Entity>;
   private entityHistories: Map<number, EntityHistory[]>;
   private entityIssues: Map<number, Issue[]>;
@@ -70,6 +73,7 @@ export class MemStorage implements IStorage {
   
   private userId: number;
   private teamId: number;
+  private tenantId: number;
   private entityId: number;
   private historyId: number;
   private issueId: number;
@@ -79,6 +83,7 @@ export class MemStorage implements IStorage {
   constructor() {
     this.users = new Map();
     this.teams = new Map();
+    this.tenants = new Map();
     this.entities = new Map();
     this.entityHistories = new Map();
     this.entityIssues = new Map();
@@ -86,6 +91,7 @@ export class MemStorage implements IStorage {
     
     this.userId = 1;
     this.teamId = 1;
+    this.tenantId = 1;
     this.entityId = 1;
     this.historyId = 1;
     this.issueId = 1;
@@ -883,19 +889,38 @@ export class MemStorage implements IStorage {
   
   // Tenant operations
   async getTenants(): Promise<Tenant[]> {
-    // Return predefined tenant values for demo purposes
-    return [
-      {
-        id: 1,
-        name: 'Data Engineering',
-        description: 'Data Engineering team and related entities'
-      },
-      {
-        id: 2,
-        name: 'Ad Engineering',
-        description: 'Ad Engineering team and related entities'
-      }
-    ];
+    await this.ensureInitialized();
+    return Array.from(this.tenants.values());
+  }
+
+  async createTenant(tenantData: { name: string; description?: string }): Promise<Tenant> {
+    await this.ensureInitialized();
+    const now = new Date().toISOString();
+    const tenant: Tenant = {
+      id: this.tenantId++,
+      name: tenantData.name,
+      description: tenantData.description || '',
+      createdAt: now,
+      updatedAt: now
+    };
+    this.tenants.set(tenant.id, tenant);
+    return tenant;
+  }
+
+  async updateTenant(id: number, tenantData: Partial<Tenant>): Promise<Tenant | undefined> {
+    await this.ensureInitialized();
+    const tenant = this.tenants.get(id);
+    if (!tenant) return undefined;
+    
+    const updatedTenant: Tenant = {
+      ...tenant,
+      ...tenantData,
+      id, // Ensure ID cannot be changed
+      updatedAt: new Date().toISOString()
+    };
+    
+    this.tenants.set(id, updatedTenant);
+    return updatedTenant;
   }
   
   // Entity operations
