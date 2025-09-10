@@ -1708,6 +1708,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Rollback endpoint for entity details modal
+  app.post('/api/teams/:teamName/:entityType/:entityName/rollback', isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const { teamName, entityType, entityName } = req.params;
+      const { toVersion, user_email, reason } = req.body;
+      
+      // Validate required fields
+      if (!toVersion || !user_email) {
+        return res.status(400).json({ 
+          message: 'Missing required fields: toVersion and user_email' 
+        });
+      }
+      
+      // Get all entities from cache to find the target entity
+      const entities = await redisCache.getAllEntities();
+      
+      // Find the specific entity
+      const entity = entities.find(e => 
+        e.name === entityName && 
+        e.type === entityType &&
+        e.team_name === teamName
+      );
+      
+      if (!entity) {
+        return res.status(404).json({ message: 'Entity not found' });
+      }
+      
+      // Validate toVersion (should be a positive integer)
+      const rollbackVersion = parseInt(toVersion.toString());
+      if (isNaN(rollbackVersion) || rollbackVersion < 1) {
+        return res.status(400).json({ 
+          message: 'Invalid toVersion: must be a positive integer' 
+        });
+      }
+      
+      // Broadcast rollback event using the existing pattern
+      await redisCache.broadcastEntityRollback({
+        entityId: entity.id.toString(),
+        entityName: entity.name,
+        entityType: entity.type,
+        teamName: teamName,
+        tenantName: entity.tenant_name || 'Unknown',
+        toVersion: rollbackVersion,
+        userEmail: user_email,
+        reason: reason || `Rollback to version ${rollbackVersion}`,
+        originUserId: user_email
+      });
+      
+      res.json({ 
+        success: true,
+        message: `Successfully initiated rollback for ${entityName} to version ${rollbackVersion}`,
+        entityName,
+        entityType,
+        teamName,
+        toVersion: rollbackVersion,
+        timestamp: new Date().toISOString()
+      });
+      
+    } catch (error) {
+      console.error('Rollback endpoint error:', error);
+      res.status(500).json({ message: 'Failed to process rollback request' });
+    }
+  });
+
 
 
   const httpServer = createServer(app);

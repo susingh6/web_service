@@ -9,7 +9,7 @@ import { DashboardMetrics, EntityChange, CachedData, calculateMetrics, Complianc
 // Standardized event envelope for real-time updates with race condition protection
 interface EntityChangeEvent {
   event: 'entity-updated';
-  type: 'created' | 'updated' | 'deleted';
+  type: 'created' | 'updated' | 'deleted' | 'rollback';
   entityId: string;
   entityName: string;
   tenantName: string;    // required for filtering
@@ -1765,6 +1765,63 @@ export class RedisCache {
     if (backgroundRebuild) {
       // Run in background without awaiting
       this.rebuildEntityCacheByType(teamId, entityType);
+    }
+  }
+
+  // Broadcast rollback event using existing entity update pattern
+  async broadcastEntityRollback(rollbackData: {
+    entityId: string;
+    entityName: string;
+    entityType: string;
+    teamName: string;
+    tenantName: string;
+    toVersion: number;
+    userEmail: string;
+    reason: string;
+    originUserId?: string;
+  }): Promise<void> {
+    try {
+      const now = new Date();
+      
+      // Create standardized event envelope for filtering with race condition protection
+      const changeEvent: EntityChangeEvent = {
+        event: 'entity-updated',
+        type: 'rollback',
+        entityId: rollbackData.entityId,
+        entityName: rollbackData.entityName,
+        tenantName: rollbackData.tenantName,
+        teamName: rollbackData.teamName,
+        originUserId: rollbackData.originUserId || rollbackData.userEmail,
+        ts: Date.now(),
+        version: Date.now(), // Use timestamp as version for ordering
+        updatedAt: now.toISOString(),
+        data: {
+          entityId: rollbackData.entityId,
+          entityName: rollbackData.entityName,
+          entityType: rollbackData.entityType,
+          teamName: rollbackData.teamName,
+          tenantName: rollbackData.tenantName,
+          type: 'rollback',
+          toVersion: rollbackData.toVersion,
+          userEmail: rollbackData.userEmail,
+          reason: rollbackData.reason,
+          timestamp: now
+        }
+      };
+
+      // Broadcast change to all pods via Redis pub/sub if available
+      if (this.useRedis && this.redis) {
+        await this.redis.publish(CACHE_KEYS.CHANGES_CHANNEL, JSON.stringify(changeEvent));
+      }
+      
+      // Also broadcast directly to WebSocket clients for immediate updates
+      this.broadcastToClients('entity-updated', changeEvent);
+      
+      console.log(`Rollback event broadcasted for entity ${rollbackData.entityName} (${rollbackData.entityType}) to version ${rollbackData.toVersion}`);
+      
+    } catch (error) {
+      console.error('Error broadcasting rollback event:', error);
+      throw error;
     }
   }
 
