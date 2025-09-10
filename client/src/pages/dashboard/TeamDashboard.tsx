@@ -330,33 +330,37 @@ const TeamDashboard = ({
           {[
             { 
               title: "Overall SLA Compliance", 
-              value: teamMetrics ? overallComplianceAvg : "No data", 
+              value: overallComplianceAvg, 
               trend: teamMetrics ? 1.2 : 0, 
-              progress: teamMetrics ? overallComplianceAvg : 0, 
-              suffix: teamMetrics ? "%" : "",
+              progress: overallComplianceAvg, 
+              suffix: "%",
+              loading: metricsLoading || !teamMetrics,
               infoTooltip: `Average SLA compliance calculated across all tables and DAGs for ${team.name} team`
             },
             { 
               title: "Tables SLA Compliance", 
-              value: teamMetrics ? tablesComplianceAvg : "No data", 
+              value: tablesComplianceAvg, 
               trend: teamMetrics ? 0.8 : 0, 
-              progress: teamMetrics ? tablesComplianceAvg : 0, 
-              suffix: teamMetrics ? "%" : "",
+              progress: tablesComplianceAvg, 
+              suffix: "%",
+              loading: metricsLoading || !teamMetrics,
               infoTooltip: `Average SLA compliance percentage calculated across all table entities for ${team.name} team`
             },
             { 
               title: "DAGs SLA Compliance", 
-              value: teamMetrics ? dagsComplianceAvg : "No data", 
+              value: dagsComplianceAvg, 
               trend: teamMetrics ? 1.5 : 0, 
-              progress: teamMetrics ? dagsComplianceAvg : 0, 
-              suffix: teamMetrics ? "%" : "",
+              progress: dagsComplianceAvg, 
+              suffix: "%",
+              loading: metricsLoading || !teamMetrics,
               infoTooltip: `Average SLA compliance percentage calculated across all DAG entities for ${team.name} team`
             },
             { 
               title: "Entities Monitored", 
-              value: teamMetrics ? teamMetrics.entitiesCount : "No data", 
+              value: teamMetrics?.entitiesCount || 0, 
               trend: 0, 
               suffix: "",
+              loading: metricsLoading || !teamMetrics,
               subtitle: teamMetrics ? `${teamMetrics.tablesCount} Tables • ${teamMetrics.dagsCount} DAGs` : ""
             }
           ].map((card, idx) => (

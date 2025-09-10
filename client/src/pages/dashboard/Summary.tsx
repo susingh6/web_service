@@ -405,56 +405,43 @@ const Summary = () => {
             <Box sx={{ p: 3 }}>
               {/* Metrics Cards */}
               <Box display="flex" flexWrap="wrap" gap={3} mb={4}>
-                {metrics ? [
+                {[
                   { 
                     title: "Overall SLA Compliance", 
-                    value: metrics.overallCompliance, 
+                    value: metrics?.overallCompliance || 0, 
                     suffix: "%", 
-                    progress: metrics.overallCompliance,
+                    progress: metrics?.overallCompliance || 0,
+                    loading: metricsLoading || !metrics,
                     infoTooltip: "Average SLA compliance calculated across all tables and DAGs monitored across all teams"
                   },
                   { 
                     title: "Tables SLA Compliance", 
-                    value: metrics.tablesCompliance, 
+                    value: metrics?.tablesCompliance || 0, 
                     suffix: "%", 
-                    progress: metrics.tablesCompliance,
+                    progress: metrics?.tablesCompliance || 0,
+                    loading: metricsLoading || !metrics,
                     infoTooltip: "Average SLA compliance percentage calculated across all table entities"
                   },
                   { 
                     title: "DAGs SLA Compliance", 
-                    value: metrics.dagsCompliance, 
+                    value: metrics?.dagsCompliance || 0, 
                     suffix: "%", 
-                    progress: metrics.dagsCompliance,
+                    progress: metrics?.dagsCompliance || 0,
+                    loading: metricsLoading || !metrics,
                     infoTooltip: "Average SLA compliance percentage calculated across all DAG entities"
                   },
                   { 
                     title: "Entities Monitored", 
-                    value: metrics.entitiesCount, 
+                    value: metrics?.entitiesCount || 0, 
                     suffix: "",
-                    subtitle: `${tables.length} Tables • ${dags.length} DAGs`
+                    loading: metricsLoading || !metrics,
+                    subtitle: metrics ? `${tables.length} Tables • ${dags.length} DAGs` : ""
                   }
                 ].map((card, idx) => (
                   <Box key={card.title} flex="1 1 250px" minWidth="250px">
                     <MetricCard {...card} />
                   </Box>
-                )) : (
-                  // Show "No Data" state when metrics is null
-                  [
-                    "Overall SLA Compliance",
-                    "Tables SLA Compliance", 
-                    "DAGs SLA Compliance",
-                    "Entities Monitored"
-                  ].map((title, idx) => (
-                    <Box key={title} flex="1 1 250px" minWidth="250px">
-                      <MetricCard 
-                        title={title}
-                        value="No data" 
-                        suffix=""
-                        progress={0}
-                      />
-                    </Box>
-                  ))
-                )}
+                ))}
               </Box>
               
               {/* Charts */}
