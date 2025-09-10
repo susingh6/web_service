@@ -41,7 +41,7 @@ interface Role {
 const RolesManagement = () => {
   // Fetch roles
   const { data: roles = [], isLoading } = useQuery<Role[]>({
-    queryKey: ['/api/admin/roles'],
+    queryKey: ['admin', 'roles'],
     queryFn: async () => {
       // Mock data for now - replace with real API
       return [
