@@ -33,7 +33,7 @@ const Summary = () => {
   const { deleteEntity } = useEntityMutation();
   const cacheManager = useCacheManager();
   
-  const { metrics, complianceTrends, isLoading: metricsLoading, dateRange } = useAppSelector((state) => state.dashboard);
+  const { metrics, complianceTrends, isLoading: metricsLoading, dateRange, lastFetchFailed } = useAppSelector((state) => state.dashboard);
   const { list: entities, teams, isLoading: entitiesLoading } = useAppSelector((state) => state.entities);
   
   const [tabValue, setTabValue] = useState(0);
@@ -411,7 +411,8 @@ const Summary = () => {
                     value: metrics?.overallCompliance || 0, 
                     suffix: "%", 
                     progress: metrics?.overallCompliance || 0,
-                    loading: metricsLoading || !metrics,
+                    loading: metricsLoading && !lastFetchFailed,
+                    showDataUnavailable: lastFetchFailed && !metrics,
                     infoTooltip: "Average SLA compliance calculated across all tables and DAGs monitored across all teams"
                   },
                   { 
@@ -419,7 +420,8 @@ const Summary = () => {
                     value: metrics?.tablesCompliance || 0, 
                     suffix: "%", 
                     progress: metrics?.tablesCompliance || 0,
-                    loading: metricsLoading || !metrics,
+                    loading: metricsLoading && !lastFetchFailed,
+                    showDataUnavailable: lastFetchFailed && !metrics,
                     infoTooltip: "Average SLA compliance percentage calculated across all table entities"
                   },
                   { 
@@ -427,14 +429,16 @@ const Summary = () => {
                     value: metrics?.dagsCompliance || 0, 
                     suffix: "%", 
                     progress: metrics?.dagsCompliance || 0,
-                    loading: metricsLoading || !metrics,
+                    loading: metricsLoading && !lastFetchFailed,
+                    showDataUnavailable: lastFetchFailed && !metrics,
                     infoTooltip: "Average SLA compliance percentage calculated across all DAG entities"
                   },
                   { 
                     title: "Entities Monitored", 
                     value: metrics?.entitiesCount || 0, 
                     suffix: "",
-                    loading: metricsLoading || !metrics,
+                    loading: metricsLoading && !lastFetchFailed,
+                    showDataUnavailable: lastFetchFailed && !metrics,
                     subtitle: metrics ? `${tables.length} Tables • ${dags.length} DAGs` : ""
                   }
                 ].map((card, idx) => (
@@ -451,7 +455,7 @@ const Summary = () => {
                     title="Compliance Trend"
                     filters={['All', 'Tables', 'DAGs']}
                     onFilterChange={setChartFilter}
-                    loading={metricsLoading}
+                    loading={metricsLoading && !lastFetchFailed}
                     chart={<ComplianceTrendChart filter={chartFilter.toLowerCase() as 'all' | 'tables' | 'dags'} data={complianceTrends?.trend || []} loading={metricsLoading} />}
                   />
                 </Box>
@@ -459,7 +463,7 @@ const Summary = () => {
                 <Box flex="1 1 500px" minWidth="500px">
                   <ChartCard
                     title="Team Performance Comparison"
-                    loading={metricsLoading}
+                    loading={metricsLoading && !lastFetchFailed}
                     chart={<TeamComparisonChart entities={entities} teams={teams} selectedTenant={selectedTenant?.name || ''} loading={metricsLoading} hasMetrics={metrics !== null} />}
                   />
                 </Box>

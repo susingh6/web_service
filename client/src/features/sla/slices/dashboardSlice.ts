@@ -22,6 +22,7 @@ interface DashboardState {
   selectedTeam: string | null; // null means "All Teams"
   isLoading: boolean;
   error: string | null;
+  lastFetchFailed: boolean; // Track if last API call failed
 }
 
 const defaultDateRange: DateRange = {
@@ -38,6 +39,7 @@ const initialState: DashboardState = {
   selectedTeam: null, // null means "All Teams"
   isLoading: false,
   error: null,
+  lastFetchFailed: false,
 };
 
 // Async thunks
@@ -71,14 +73,17 @@ const dashboardSlice = createSlice({
       .addCase(fetchDashboardSummary.pending, (state) => {
         state.isLoading = true;
         state.error = null;
+        state.lastFetchFailed = false;
       })
       .addCase(fetchDashboardSummary.fulfilled, (state, action) => {
         state.isLoading = false;
+        state.lastFetchFailed = false;
         state.metrics = action.payload.metrics;
         state.complianceTrends = action.payload.complianceTrends;
       })
       .addCase(fetchDashboardSummary.rejected, (state, action) => {
         state.isLoading = false;
+        state.lastFetchFailed = true;
         state.error = action.error.message || 'Failed to fetch dashboard summary';
         // Clear metrics when API fails so UI shows empty state instead of stale data
         state.metrics = null;

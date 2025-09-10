@@ -13,6 +13,7 @@ interface MetricCardProps {
   subtitle?: string;
   loading?: boolean;
   infoTooltip?: string;
+  showDataUnavailable?: boolean;
 }
 
 const ProgressBar = styled(LinearProgress)(({ theme, value }) => ({
@@ -35,6 +36,7 @@ const MetricCard = ({
   subtitle,
   loading = false,
   infoTooltip,
+  showDataUnavailable = false,
 }: MetricCardProps) => {
   // Determine trend icon and color
   const trendIcon = trend > 0 ? (
@@ -82,6 +84,15 @@ const MetricCard = ({
           <Box>
             <Box sx={{ width: '70%', height: 36, bgcolor: 'grey.100', borderRadius: 1, mb: 1 }} />
             <Box sx={{ width: '50%', height: 20, bgcolor: 'grey.100', borderRadius: 1 }} />
+          </Box>
+        ) : showDataUnavailable ? (
+          <Box>
+            <Typography variant="body2" color="text.secondary">
+              Data not available for this date range
+            </Typography>
+            <Typography variant="caption" color="text.disabled" sx={{ mt: 0.5, display: 'block' }}>
+              Custom date ranges will be supported soon
+            </Typography>
           </Box>
         ) : (
           <>

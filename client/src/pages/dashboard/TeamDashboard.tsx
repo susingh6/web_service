@@ -47,7 +47,7 @@ const TeamDashboard = ({
 }: TeamDashboardProps) => {
   const dispatch = useAppDispatch();
   const { list: entities, teams, isLoading } = useAppSelector((state) => state.entities);
-  const { metrics, complianceTrends, isLoading: metricsLoading, dateRange } = useAppSelector((state) => state.dashboard);
+  const { metrics, complianceTrends, isLoading: metricsLoading, dateRange, lastFetchFailed } = useAppSelector((state) => state.dashboard);
   const queryClient = useQueryClient();
   
   const [tabValue, setTabValue] = useState(0);
@@ -334,7 +334,8 @@ const TeamDashboard = ({
               trend: teamMetrics ? 1.2 : 0, 
               progress: overallComplianceAvg, 
               suffix: "%",
-              loading: metricsLoading || !teamMetrics,
+              loading: metricsLoading && !lastFetchFailed,
+              showDataUnavailable: lastFetchFailed && !teamMetrics,
               infoTooltip: `Average SLA compliance calculated across all tables and DAGs for ${team.name} team`
             },
             { 
@@ -343,7 +344,8 @@ const TeamDashboard = ({
               trend: teamMetrics ? 0.8 : 0, 
               progress: tablesComplianceAvg, 
               suffix: "%",
-              loading: metricsLoading || !teamMetrics,
+              loading: metricsLoading && !lastFetchFailed,
+              showDataUnavailable: lastFetchFailed && !teamMetrics,
               infoTooltip: `Average SLA compliance percentage calculated across all table entities for ${team.name} team`
             },
             { 
@@ -352,7 +354,8 @@ const TeamDashboard = ({
               trend: teamMetrics ? 1.5 : 0, 
               progress: dagsComplianceAvg, 
               suffix: "%",
-              loading: metricsLoading || !teamMetrics,
+              loading: metricsLoading && !lastFetchFailed,
+              showDataUnavailable: lastFetchFailed && !teamMetrics,
               infoTooltip: `Average SLA compliance percentage calculated across all DAG entities for ${team.name} team`
             },
             { 
@@ -360,7 +363,8 @@ const TeamDashboard = ({
               value: teamMetrics?.entitiesCount || 0, 
               trend: 0, 
               suffix: "",
-              loading: metricsLoading || !teamMetrics,
+              loading: metricsLoading && !lastFetchFailed,
+              showDataUnavailable: lastFetchFailed && !teamMetrics,
               subtitle: teamMetrics ? `${teamMetrics.tablesCount} Tables • ${teamMetrics.dagsCount} DAGs` : ""
             }
           ].map((card, idx) => (
@@ -377,7 +381,7 @@ const TeamDashboard = ({
               title="Compliance Trend"
               filters={['All', 'Tables', 'DAGs']}
               onFilterChange={setChartFilter}
-              loading={isLoading}
+              loading={metricsLoading && !lastFetchFailed}
               chart={<ComplianceTrendChart filter={chartFilter.toLowerCase() as 'all' | 'tables' | 'dags'} data={complianceTrends?.trend || []} loading={metricsLoading} />}
             />
           </Box>
@@ -387,7 +391,7 @@ const TeamDashboard = ({
               title="Top 5 Entities Performance"
               filters={['All', 'Tables', 'DAGs']}
               onFilterChange={setEntitiesChartFilter}
-              loading={isLoading}
+              loading={metricsLoading && !lastFetchFailed}
               chart={<EntityPerformanceChart entities={metrics ? teamEntities : []} filter={entitiesChartFilter.toLowerCase() as 'all' | 'tables' | 'dags'} />}
             />
           </Box>
