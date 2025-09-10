@@ -46,6 +46,7 @@ const TeamDashboard = ({
 }: TeamDashboardProps) => {
   const dispatch = useAppDispatch();
   const { list: entities, teams, isLoading } = useAppSelector((state) => state.entities);
+  const { metrics, complianceTrends, isLoading: metricsLoading } = useAppSelector((state) => state.dashboard);
   const queryClient = useQueryClient();
   
   const [tabValue, setTabValue] = useState(0);
@@ -373,7 +374,7 @@ const TeamDashboard = ({
               filters={['All', 'Tables', 'DAGs']}
               onFilterChange={setChartFilter}
               loading={isLoading}
-              chart={<ComplianceTrendChart filter={chartFilter.toLowerCase() as 'all' | 'tables' | 'dags'} />}
+              chart={<ComplianceTrendChart filter={chartFilter.toLowerCase() as 'all' | 'tables' | 'dags'} data={complianceTrends?.trend || []} loading={metricsLoading} />}
             />
           </Box>
           
