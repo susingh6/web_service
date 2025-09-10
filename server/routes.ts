@@ -147,31 +147,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const start = new Date(startDate);
     const end = new Date(endDate);
     
-    // Check if it matches any predefined range patterns
-    const predefinedRanges = [
-      { start: new Date(now.getFullYear(), now.getMonth(), now.getDate()), end: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59) }, // Today
-      { start: new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1), end: new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59) }, // Yesterday
-      { start: new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6), end: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59) }, // Last 7 Days
-      { start: new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29), end: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59) }, // Last 30 Days
-      { start: new Date(now.getFullYear(), now.getMonth(), 1), end: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59) }, // This Month
-    ];
+    // Calculate the difference in days between start and end dates
+    const daysDiff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+    const daysFromNow = Math.ceil((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
     
-    return predefinedRanges.some(range => 
-      Math.abs(start.getTime() - range.start.getTime()) < 24 * 60 * 60 * 1000 && // Within a day
-      Math.abs(end.getTime() - range.end.getTime()) < 24 * 60 * 60 * 1000
-    );
+    // Check if this matches common predefined ranges based on day differences
+    if (daysDiff <= 1 && daysFromNow <= 1) return true; // Today
+    if (daysDiff <= 1 && daysFromNow >= 1 && daysFromNow <= 2) return true; // Yesterday  
+    if (daysDiff >= 6 && daysDiff <= 8 && daysFromNow <= 1) return true; // Last 7 Days
+    if (daysDiff >= 28 && daysDiff <= 32 && daysFromNow <= 1) return true; // Last 30 Days
+    
+    // Check for current month (start of month to now)
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const daysSinceMonthStart = Math.ceil((now.getTime() - monthStart.getTime()) / (1000 * 60 * 60 * 24));
+    if (Math.abs(start.getTime() - monthStart.getTime()) < 24 * 60 * 60 * 1000 && 
+        daysDiff >= daysSinceMonthStart - 1 && daysDiff <= daysSinceMonthStart + 1) return true; // This Month
+    
+    return false;
   }
   
   function determinePredefinedRange(startDate: string, endDate: string): 'today' | 'yesterday' | 'last7Days' | 'last30Days' | 'thisMonth' {
     const now = new Date();
     const start = new Date(startDate);
-    const daysDiff = Math.ceil((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+    const end = new Date(endDate);
     
-    if (daysDiff <= 0) return 'today';
-    if (daysDiff === 1) return 'yesterday';
-    if (daysDiff <= 7) return 'last7Days';
-    if (daysDiff <= 30) return 'last30Days';
-    return 'thisMonth';
+    const daysDiff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+    const daysFromNow = Math.ceil((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+    
+    if (daysDiff <= 1 && daysFromNow <= 1) return 'today';
+    if (daysDiff <= 1 && daysFromNow >= 1 && daysFromNow <= 2) return 'yesterday';
+    if (daysDiff >= 6 && daysDiff <= 8) return 'last7Days';
+    if (daysDiff >= 28 && daysDiff <= 32) return 'last30Days';
+    
+    // Check for current month
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    if (Math.abs(start.getTime() - monthStart.getTime()) < 24 * 60 * 60 * 1000) return 'thisMonth';
+    
+    return 'last30Days'; // Default fallback
   }
 
   // Dashboard endpoints using cache with smart routing
