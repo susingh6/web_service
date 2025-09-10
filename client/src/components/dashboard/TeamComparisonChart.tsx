@@ -57,6 +57,7 @@ interface TeamComparisonChartProps {
   entities?: any[];
   teams?: any[];
   selectedTenant?: string;
+  loading?: boolean;
 }
 
 const TeamComparisonChart = ({
@@ -64,10 +65,34 @@ const TeamComparisonChart = ({
   entities = [],
   teams = [],
   selectedTenant,
+  loading = false,
 }: TeamComparisonChartProps) => {
+  const theme = useTheme();
+  
+  // Show loading state
+  if (loading) {
+    return (
+      <Box sx={{ p: 3, textAlign: 'center' }}>
+        <Typography variant="body2" color="text.secondary">
+          Loading team performance data...
+        </Typography>
+      </Box>
+    );
+  }
+
   // Use provided data or generate from entities/teams
   const chartData = data || generateTeamData(entities, teams, selectedTenant);
-  const theme = useTheme();
+  
+  // Show empty state if no data
+  if (!chartData || chartData.length === 0) {
+    return (
+      <Box sx={{ p: 3, textAlign: 'center' }}>
+        <Typography variant="body2" color="text.secondary">
+          No team performance data available for selected tenant and date range
+        </Typography>
+      </Box>
+    );
+  }
   
   const CustomTooltip = ({ active, payload, label }: TooltipProps<number, string>) => {
     if (active && payload && payload.length) {

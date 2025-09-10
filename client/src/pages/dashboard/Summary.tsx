@@ -448,7 +448,7 @@ const Summary = () => {
                     filters={['All', 'Tables', 'DAGs']}
                     onFilterChange={setChartFilter}
                     loading={metricsLoading}
-                    chart={<ComplianceTrendChart filter={chartFilter.toLowerCase() as 'all' | 'tables' | 'dags'} data={complianceTrends?.trend || []} />}
+                    chart={<ComplianceTrendChart filter={chartFilter.toLowerCase() as 'all' | 'tables' | 'dags'} data={complianceTrends?.trend || []} loading={metricsLoading} />}
                   />
                 </Box>
                 
@@ -456,7 +456,7 @@ const Summary = () => {
                   <ChartCard
                     title="Team Performance Comparison"
                     loading={metricsLoading}
-                    chart={<TeamComparisonChart entities={entities} teams={teams} selectedTenant={selectedTenant?.name || ''} />}
+                    chart={<TeamComparisonChart entities={entities} teams={teams} selectedTenant={selectedTenant?.name || ''} loading={metricsLoading} />}
                   />
                 </Box>
               </Box>

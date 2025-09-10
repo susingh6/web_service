@@ -84,18 +84,42 @@ interface ComplianceTrendChartProps {
   filter?: 'all' | 'tables' | 'dags';
   entities?: any[];
   selectedTenant?: string;
+  loading?: boolean;
 }
 
 const ComplianceTrendChart = ({
   data,
   filter = 'all',
   entities = [],
-  selectedTenant
+  selectedTenant,
+  loading = false
 }: ComplianceTrendChartProps) => {
   const theme = useTheme();
   
+  // Show loading state
+  if (loading) {
+    return (
+      <Box sx={{ p: 3, textAlign: 'center' }}>
+        <Typography variant="body2" color="text.secondary">
+          Loading compliance trends...
+        </Typography>
+      </Box>
+    );
+  }
+
   // Use provided data (from cache) or generate from entities as fallback
   const chartData = data || [];
+  
+  // Show empty state if no data
+  if (!chartData || chartData.length === 0) {
+    return (
+      <Box sx={{ p: 3, textAlign: 'center' }}>
+        <Typography variant="body2" color="text.secondary">
+          No compliance trend data available for selected date range
+        </Typography>
+      </Box>
+    );
+  }
   
   const CustomTooltip = ({ active, payload, label }: TooltipProps<number, string>) => {
     if (active && payload && payload.length) {
