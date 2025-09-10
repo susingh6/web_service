@@ -67,57 +67,14 @@ const AdminOverview = () => {
 
   const { data: users = [] } = useQuery({
     queryKey: ['admin', 'users'],
-    staleTime: 0, // Force fresh data
-    gcTime: 0, // Don't cache
+    staleTime: 6 * 60 * 60 * 1000, // Cache for 6 hours
+    gcTime: 6 * 60 * 60 * 1000,    // Keep in memory for 6 hours
     queryFn: async () => {
-      console.log('Overview users query running - returning mock data');
-      // Use same mock data as UsersManagement component
-      const mockUsers = [
-        {
-          user_id: 1,
-          user_name: 'john.smith',
-          user_email: 'john.smith@company.com',
-          user_slack: ['john.smith.slack'],
-          user_pagerduty: ['john.smith@pagerduty'],
-          is_active: true
-        },
-        {
-          user_id: 2,
-          user_name: 'sarah.lee',
-          user_email: 'sarah.lee@company.com',
-          user_slack: ['sarah.lee.slack'],
-          user_pagerduty: null,
-          is_active: true
-        },
-        {
-          user_id: 3,
-          user_name: 'mike.johnson',
-          user_email: 'mike.johnson@company.com',
-          user_slack: null,
-          user_pagerduty: ['mike.johnson@pagerduty'],
-          is_active: true
-        },
-        {
-          user_id: 4,
-          user_name: 'alice.wong',
-          user_email: 'alice.wong@company.com',
-          user_slack: ['alice.wong.slack', 'alice.backup.slack'],
-          user_pagerduty: ['alice.wong@pagerduty'],
-          is_active: false
-        },
-        {
-          user_id: 5,
-          user_name: 'david.chen',
-          user_email: 'david.chen@company.com',
-          user_slack: ['david.chen.slack'],
-          user_pagerduty: ['david.chen@pagerduty', 'david.backup@pagerduty'],
-          is_active: true
-        }
-      ];
-      
-      console.log('Overview users mock data:', mockUsers);
-      console.log('Overview users length:', mockUsers.length);
-      return mockUsers;
+      const response = await fetch(buildUrl(endpoints.admin.users.getAll));
+      if (!response.ok) {
+        throw new Error('Failed to fetch users');
+      }
+      return response.json();
     },
   });
 

@@ -1515,6 +1515,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const users = await storage.getUsers();
       
+      // Debug: Log actual user count
+      console.log(`DEBUG: storage.getUsers() returned ${users.length} users`);
+      console.log(`DEBUG: First few usernames:`, users.slice(0, 5).map(u => u.username));
+      
       // Transform to admin format expected by frontend
       const adminUsers = users.map(user => ({
         user_id: user.id,
@@ -1525,6 +1529,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         is_active: user.is_active ?? true
       }));
 
+      console.log(`DEBUG: Returning ${adminUsers.length} admin users to frontend`);
       res.json(adminUsers);
     } catch (error) {
       console.error('Admin users fetch error:', error);
