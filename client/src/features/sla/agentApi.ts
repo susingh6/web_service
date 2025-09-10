@@ -6,7 +6,7 @@ export interface ConversationSummary {
   date_key: string; // e.g., "2025-09-10"
   task_name: string;
   summary: string;
-  timestamp: string; // ISO string
+  timestamp: string | Date; // ISO string or Date object
   status: 'resolved' | 'pending' | 'failed';
   messageCount: number;
 }
@@ -19,7 +19,7 @@ export interface FullConversation {
     id: string;
     type: 'user' | 'agent';
     content: string;
-    timestamp: string; // ISO string
+    timestamp: string | Date; // ISO string or Date object
   }[];
   status: 'resolved' | 'pending' | 'failed';
 }
