@@ -5,6 +5,44 @@ import { storage } from "./storage";
 import { redisCache } from "./redis-cache";
 import { insertEntitySchema, insertTeamSchema, insertEntityHistorySchema, insertIssueSchema, insertUserSchema, insertNotificationTimelineSchema } from "@shared/schema";
 import { z } from "zod";
+import { logAuthenticationEvent, structuredLogger } from "./middleware/structured-logging";
+
+// Zod validation schema for rollback requests
+const rollbackRequestSchema = z.object({
+  toVersion: z.union([z.string(), z.number()]).transform(val => {
+    const parsed = parseInt(val.toString());
+    if (isNaN(parsed) || parsed < 1) {
+      throw new z.ZodError([{
+        code: z.ZodIssueCode.custom,
+        message: "toVersion must be a positive integer",
+        path: ["toVersion"]
+      }]);
+    }
+    return parsed;
+  }),
+  user_email: z.string().email("Invalid email format").min(1, "User email is required"),
+  reason: z.string().optional().default("")
+});
+
+type RollbackRequest = z.infer<typeof rollbackRequestSchema>;
+
+// Helper function to create audit log entries for rollback operations
+function createRollbackAuditLog(event: string, req: Request, additionalData?: any) {
+  return {
+    event,
+    session_id: req.sessionID || 'unknown',
+    notification_id: null,
+    user_id: req.user?.id || null,
+    email: req.user?.email || req.user?.username || 'unknown',
+    session_type: 'local',
+    roles: (req.user as any)?.role || 'user',
+    request_id: req.requestId || 'unknown',
+    logger: 'app.rollback.security',
+    level: 'info' as const,
+    timestamp: new Date().toISOString(),
+    ...additionalData
+  };
+}
 import { setupSimpleAuth } from "./simple-auth";
 import { setupTestRoutes } from "./test-routes";
 
@@ -40,6 +78,92 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return next();
     }
     res.status(401).json({ message: "Unauthorized" });
+  };
+  
+  // Enhanced authentication middleware specifically for rollback operations
+  const isAuthenticatedForRollback = (req: Request, res: Response, next: NextFunction) => {
+    // Use same pattern as /api/user route for consistency
+    if (!req.isAuthenticated()) {
+      logAuthenticationEvent("rollback-access-denied", "anonymous", undefined, req.requestId, false);
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+    
+    // Extract user information for authorization
+    const user = req.user;
+    if (!user) {
+      logAuthenticationEvent("rollback-access-denied", "unknown", undefined, req.requestId, false);
+      return res.status(401).json({ message: "User session invalid" });
+    }
+    
+    next();
+  };
+  
+  // Authorization middleware for rollback operations
+  const authorizeRollback = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { teamName, entityType, entityName } = req.params;
+      const user = req.user;
+      
+      if (!user) {
+        return res.status(401).json({ message: "User session invalid" });
+      }
+      
+      // Get the entity to check ownership
+      const entities = await redisCache.getAllEntities();
+      const entity = entities.find(e => 
+        e.name === entityName && 
+        e.type === entityType &&
+        e.team_name === teamName
+      );
+      
+      if (!entity) {
+        return res.status(404).json({ message: "Entity not found" });
+      }
+      
+      // Authorization logic: 
+      // 1. Admin users can rollback any entity
+      // 2. Entity owners can rollback their own entities
+      // 3. Team members can rollback entities in their team
+      const userRole = (user as any).role || 'user';
+      const userEmail = user.email || user.username;
+      const userTeam = user.team;
+      
+      const isAdmin = userRole === 'admin';
+      const isEntityOwner = entity.owner_email === userEmail || entity.ownerEmail === userEmail;
+      const isTeamMember = userTeam === teamName;
+      
+      if (!isAdmin && !isEntityOwner && !isTeamMember) {
+        logAuthenticationEvent("rollback-access-denied", userEmail, {
+          session_id: req.sessionID || 'unknown',
+          user_id: user.id,
+          email: userEmail,
+          session_type: 'local',
+          roles: userRole,
+          notification_id: null
+        }, req.requestId, false);
+        
+        return res.status(403).json({ 
+          message: "Access denied. You do not have permission to rollback this entity.",
+          reason: "Only administrators, entity owners, or team members can perform rollback operations"
+        });
+      }
+      
+      // Store authorization context for audit logging
+      (req as any).authContext = {
+        userRole,
+        userEmail,
+        userTeam,
+        isAdmin,
+        isEntityOwner,
+        isTeamMember,
+        entity
+      };
+      
+      next();
+    } catch (error) {
+      console.error('Authorization error:', error);
+      res.status(500).json({ message: "Authorization check failed" });
+    }
   };
   
   // API Routes
@@ -1708,40 +1832,93 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Rollback endpoint for entity details modal
-  app.post('/api/teams/:teamName/:entityType/:entityName/rollback', isAuthenticated, async (req: Request, res: Response) => {
+  // Secured rollback endpoint for entity details modal
+  app.post('/api/teams/:teamName/:entityType/:entityName/rollback', 
+    isAuthenticatedForRollback, 
+    authorizeRollback, 
+    async (req: Request, res: Response) => {
+    
+    const requestStartTime = Date.now();
+    const requestId = req.requestId || 'unknown';
+    
     try {
       const { teamName, entityType, entityName } = req.params;
-      const { toVersion, user_email, reason } = req.body;
+      const user = req.user!;
+      const authContext = (req as any).authContext;
+      const entity = authContext.entity;
       
-      // Validate required fields
-      if (!toVersion || !user_email) {
-        return res.status(400).json({ 
-          message: 'Missing required fields: toVersion and user_email' 
+      // Validate request payload with Zod
+      const validationResult = rollbackRequestSchema.safeParse(req.body);
+      
+      if (!validationResult.success) {
+        const validationError = createValidationErrorResponse(
+          validationResult.error, 
+          "Invalid rollback request data"
+        );
+        
+        // Log validation failure
+        structuredLogger.warn(
+          `rollback-validation-failed for ${entityName} (${entityType}) in team ${teamName}`,
+          {
+            session_id: req.sessionID || 'unknown',
+            user_id: user.id,
+            email: authContext.userEmail,
+            session_type: 'local',
+            roles: authContext.userRole,
+            notification_id: null
+          },
+          requestId
+        );
+        console.log('Rollback validation errors:', JSON.stringify(validationResult.error.format()));
+        
+        return res.status(400).json(validationError);
+      }
+      
+      const { toVersion, user_email, reason } = validationResult.data;
+      
+      // Additional security: Verify user_email matches authenticated user
+      if (user_email !== authContext.userEmail && authContext.userRole !== 'admin') {
+        // Log security violation
+        structuredLogger.error(
+          `rollback-security-violation: email mismatch for ${entityName} (${entityType}) in team ${teamName}`,
+          {
+            session_id: req.sessionID || 'unknown',
+            user_id: user.id,
+            email: authContext.userEmail,
+            session_type: 'local',
+            roles: authContext.userRole,
+            notification_id: null
+          },
+          requestId
+        );
+        console.log('Security violation details:', { attempted_user_email: user_email, actual_user_email: authContext.userEmail });
+        
+        return res.status(403).json({ 
+          message: "Security violation: User email mismatch",
+          type: 'security_error'
         });
       }
       
-      // Get all entities from cache to find the target entity
-      const entities = await redisCache.getAllEntities();
-      
-      // Find the specific entity
-      const entity = entities.find(e => 
-        e.name === entityName && 
-        e.type === entityType &&
-        e.team_name === teamName
+      // Log successful authorization and start of rollback
+      structuredLogger.info(
+        `rollback-initiated for ${entityName} (${entityType}) in team ${teamName} to version ${toVersion}`,
+        {
+          session_id: req.sessionID || 'unknown',
+          user_id: user.id,
+          email: authContext.userEmail,
+          session_type: 'local',
+          roles: authContext.userRole,
+          notification_id: null
+        },
+        requestId
       );
-      
-      if (!entity) {
-        return res.status(404).json({ message: 'Entity not found' });
-      }
-      
-      // Validate toVersion (should be a positive integer)
-      const rollbackVersion = parseInt(toVersion.toString());
-      if (isNaN(rollbackVersion) || rollbackVersion < 1) {
-        return res.status(400).json({ 
-          message: 'Invalid toVersion: must be a positive integer' 
-        });
-      }
+      console.log('Rollback authorization details:', {
+        entity_id: entity.id.toString(),
+        user_role: authContext.userRole,
+        is_admin: authContext.isAdmin,
+        is_entity_owner: authContext.isEntityOwner,
+        is_team_member: authContext.isTeamMember
+      });
       
       // Broadcast rollback event using the existing pattern
       await redisCache.broadcastEntityRollback({
@@ -1750,25 +1927,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
         entityType: entity.type,
         teamName: teamName,
         tenantName: entity.tenant_name || 'Unknown',
-        toVersion: rollbackVersion,
-        userEmail: user_email,
-        reason: reason || `Rollback to version ${rollbackVersion}`,
-        originUserId: user_email
+        toVersion: toVersion,
+        userEmail: authContext.userEmail,
+        reason: reason || `Rollback to version ${toVersion}`,
+        originUserId: authContext.userEmail
       });
       
-      res.json({ 
+      const responseData = {
         success: true,
-        message: `Successfully initiated rollback for ${entityName} to version ${rollbackVersion}`,
+        message: `Successfully initiated rollback for ${entityName} to version ${toVersion}`,
         entityName,
         entityType,
         teamName,
-        toVersion: rollbackVersion,
-        timestamp: new Date().toISOString()
-      });
+        toVersion,
+        timestamp: new Date().toISOString(),
+        requestId,
+        authorizedBy: authContext.userEmail,
+        authorizationLevel: authContext.userRole
+      };
+      
+      // Log successful completion
+      const duration = Date.now() - requestStartTime;
+      structuredLogger.info(
+        `rollback-completed for ${entityName} (${entityType}) in team ${teamName} to version ${toVersion} in ${duration}ms`,
+        {
+          session_id: req.sessionID || 'unknown',
+          user_id: user.id,
+          email: authContext.userEmail,
+          session_type: 'local',
+          roles: authContext.userRole,
+          notification_id: null
+        },
+        requestId
+      );
+      
+      res.json(responseData);
       
     } catch (error) {
-      console.error('Rollback endpoint error:', error);
-      res.status(500).json({ message: 'Failed to process rollback request' });
+      const duration = Date.now() - requestStartTime;
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      
+      // Extract route params for error logging
+      const { teamName, entityType, entityName } = req.params;
+      
+      // Log error with context
+      structuredLogger.error(
+        `rollback-error for ${entityName || 'unknown'} (${entityType || 'unknown'}) in team ${teamName || 'unknown'}: ${errorMessage}`,
+        {
+          session_id: req.sessionID || 'unknown',
+          user_id: req.user?.id || null,
+          email: req.user?.email || req.user?.username || 'unknown',
+          session_type: 'local',
+          roles: (req.user as any)?.role || 'unknown',
+          notification_id: null
+        },
+        requestId
+      );
+      console.log('Rollback error details:', { duration_ms: duration, errorMessage, stack: error instanceof Error ? error.stack : undefined });
+      
+      console.error('Secured rollback endpoint error:', error);
+      res.status(500).json(createErrorResponse(
+        'Failed to process rollback request',
+        'rollback_error',
+        { requestId, timestamp: new Date().toISOString() }
+      ));
     }
   });
 
