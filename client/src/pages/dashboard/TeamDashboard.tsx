@@ -5,6 +5,7 @@ import { Add as AddIcon, Upload as UploadIcon, Person as PersonIcon, Edit as Edi
 import { useAppDispatch, useAppSelector } from '@/lib/store';
 import { fetchEntities } from '@/features/sla/slices/entitiesSlice';
 import { Entity, Team } from '@shared/schema';
+import { calculateMetrics } from '@shared/cache-types';
 import MetricCard from '@/components/dashboard/MetricCard';
 import ChartCard from '@/components/dashboard/ChartCard';
 import EntityTable from '@/components/dashboard/EntityTable';
@@ -188,17 +189,15 @@ const TeamDashboard = ({
   const tables = teamEntities.filter((entity) => entity.type === 'table');
   const dags = teamEntities.filter((entity) => entity.type === 'dag');
   
-  // Calculate team metrics
-  const calculateAvgSla = (items: Entity[]) => {
-    if (items.length === 0) return 0;
-    const sum = items.reduce((acc, item) => acc + (item.currentSla || 0), 0);
-    return parseFloat((sum / items.length).toFixed(1));
-  };
+  // Calculate team-specific metrics from cached data using server logic
+  const teamMetrics = metrics && teamEntities.length > 0 
+    ? calculateMetrics(teamEntities, tables, dags)
+    : null;
   
-  // Only calculate metrics when dashboard data is available (for selected date range)
-  const tablesComplianceAvg = metrics ? calculateAvgSla(tables) : 0;
-  const dagsComplianceAvg = metrics ? calculateAvgSla(dags) : 0;
-  const overallComplianceAvg = metrics ? calculateAvgSla(teamEntities) : 0;
+  // Extract individual metrics for display
+  const overallComplianceAvg = teamMetrics?.overallCompliance || 0;
+  const tablesComplianceAvg = teamMetrics?.tablesCompliance || 0;
+  const dagsComplianceAvg = teamMetrics?.dagsCompliance || 0;
   
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
@@ -331,34 +330,34 @@ const TeamDashboard = ({
           {[
             { 
               title: "Overall SLA Compliance", 
-              value: metrics ? overallComplianceAvg : "No data", 
-              trend: metrics ? 1.2 : 0, 
-              progress: metrics ? overallComplianceAvg : 0, 
-              suffix: metrics ? "%" : "",
+              value: teamMetrics ? overallComplianceAvg : "No data", 
+              trend: teamMetrics ? 1.2 : 0, 
+              progress: teamMetrics ? overallComplianceAvg : 0, 
+              suffix: teamMetrics ? "%" : "",
               infoTooltip: `Average SLA compliance calculated across all tables and DAGs for ${team.name} team`
             },
             { 
               title: "Tables SLA Compliance", 
-              value: metrics ? tablesComplianceAvg : "No data", 
-              trend: metrics ? 0.8 : 0, 
-              progress: metrics ? tablesComplianceAvg : 0, 
-              suffix: metrics ? "%" : "",
+              value: teamMetrics ? tablesComplianceAvg : "No data", 
+              trend: teamMetrics ? 0.8 : 0, 
+              progress: teamMetrics ? tablesComplianceAvg : 0, 
+              suffix: teamMetrics ? "%" : "",
               infoTooltip: `Average SLA compliance percentage calculated across all table entities for ${team.name} team`
             },
             { 
               title: "DAGs SLA Compliance", 
-              value: metrics ? dagsComplianceAvg : "No data", 
-              trend: metrics ? 1.5 : 0, 
-              progress: metrics ? dagsComplianceAvg : 0, 
-              suffix: metrics ? "%" : "",
+              value: teamMetrics ? dagsComplianceAvg : "No data", 
+              trend: teamMetrics ? 1.5 : 0, 
+              progress: teamMetrics ? dagsComplianceAvg : 0, 
+              suffix: teamMetrics ? "%" : "",
               infoTooltip: `Average SLA compliance percentage calculated across all DAG entities for ${team.name} team`
             },
             { 
               title: "Entities Monitored", 
-              value: metrics ? teamEntities.length : "No data", 
+              value: teamMetrics ? teamMetrics.entitiesCount : "No data", 
               trend: 0, 
               suffix: "",
-              subtitle: metrics ? `${tables.length} Tables • ${dags.length} DAGs` : ""
+              subtitle: teamMetrics ? `${teamMetrics.tablesCount} Tables • ${teamMetrics.dagsCount} DAGs` : ""
             }
           ].map((card, idx) => (
             <Box key={card.title} flex="1 1 250px" minWidth="250px">
