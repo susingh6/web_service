@@ -42,11 +42,14 @@ export interface CachedData {
   entities: Entity[];
   teams: Team[];
   tenants: Array<{ id: number; name: string; description?: string }>;
-  // Metrics for all predefined ranges by tenant
+  // Backward compatibility - map to last30DayMetrics
+  metrics: Record<string, DashboardMetrics>;
+  last30DayMetrics: Record<string, DashboardMetrics>;
+  complianceTrends: Record<string, ComplianceTrendData>;
+  // New fields for all predefined ranges
   todayMetrics: Record<string, DashboardMetrics>;
   yesterdayMetrics: Record<string, DashboardMetrics>;
   last7DayMetrics: Record<string, DashboardMetrics>;
-  last30DayMetrics: Record<string, DashboardMetrics>;
   thisMonthMetrics: Record<string, DashboardMetrics>;
   // Compliance trends for all predefined ranges by tenant
   todayTrends: Record<string, ComplianceTrendData>;
@@ -62,11 +65,14 @@ export interface CacheRefreshData {
   entities: Entity[];
   teams: Team[];
   tenants: Array<{ id: number; name: string; description?: string }>;
-  // Metrics for all predefined ranges by tenant
+  // Backward compatibility
+  metrics: Record<string, DashboardMetrics>;
+  last30DayMetrics: Record<string, DashboardMetrics>;
+  complianceTrends: Record<string, ComplianceTrendData>;
+  // New fields for all predefined ranges
   todayMetrics: Record<string, DashboardMetrics>;
   yesterdayMetrics: Record<string, DashboardMetrics>;
   last7DayMetrics: Record<string, DashboardMetrics>;
-  last30DayMetrics: Record<string, DashboardMetrics>;
   thisMonthMetrics: Record<string, DashboardMetrics>;
   // Compliance trends for all predefined ranges by tenant
   todayTrends: Record<string, ComplianceTrendData>;

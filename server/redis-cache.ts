@@ -742,10 +742,14 @@ export class RedisCache {
       entities,
       teams,
       tenants,
+      // Backward compatibility - use last30DayMetrics as default metrics
+      metrics: last30DayMetrics,
+      last30DayMetrics,
+      complianceTrends: last30DayTrends,
+      // New predefined range data
       todayMetrics,
       yesterdayMetrics,
       last7DayMetrics,
-      last30DayMetrics,
       thisMonthMetrics,
       todayTrends,
       yesterdayTrends,
