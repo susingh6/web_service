@@ -183,6 +183,13 @@ const ComplianceTrendChart = ({
 }: ComplianceTrendChartProps) => {
   const theme = useTheme();
   
+  // Debug: Log the date range being received
+  console.log('ComplianceTrendChart - Date range:', {
+    startDate: startDate?.toISOString?.() || startDate,
+    endDate: endDate?.toISOString?.() || endDate,
+    entityCount: entities.length
+  });
+  
   // Show loading state
   if (loading) {
     return (
