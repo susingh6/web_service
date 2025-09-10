@@ -64,3 +64,11 @@ Preferred communication style: Simple, everyday language.
 - **typescript**: Language
 - **tailwindcss**: CSS framework
 - **drizzle-kit**: Database migration tools
+
+## Recent Changes
+
+- Completed FastAPI integration for all 8 endpoints with comprehensive error handling and fallback mechanisms
+- Fixed major architectural issue: TeamDashboard now uses team-specific data instead of tenant-level summary data
+- Updated /api/dashboard/summary endpoint to support both team dashboards and summary dashboard with backward compatibility
+- Added team-specific cache methods (getTeamMetricsByRange, getTeamTrendsByRange, calculateTeamMetricsForDateRange)
+- Fixed timezone issue in date range formatting: replaced UTC-based toISOString() methods with date-fns format(date, 'yyyy-MM-dd') to prevent off-by-one-day errors near midnight in different timezones
