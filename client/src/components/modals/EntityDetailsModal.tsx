@@ -38,6 +38,7 @@ import {
   Analytics as AnalyticsIcon,
   Save as SaveIcon,
   Cancel as CancelIcon,
+  Restore as RestoreIcon,
 } from '@mui/icons-material';
 import { format } from 'date-fns';
 import { Entity, Issue } from '@shared/schema';
@@ -100,6 +101,12 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
   const [isEditingOwner, setIsEditingOwner] = useState(false);
   const [ownerEmailInput, setOwnerEmailInput] = useState('');
   const [isUpdatingOwner, setIsUpdatingOwner] = useState(false);
+  
+  // State for rollback functionality
+  const [rollbackConfirmOpen, setRollbackConfirmOpen] = useState(false);
+  const [selectedRollbackVersion, setSelectedRollbackVersion] = useState<number | null>(null);
+  const [isRollingBack, setIsRollingBack] = useState(false);
+  
   const { toast } = useToast();
   const { user } = useAuth();
   
@@ -178,6 +185,71 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
   const cancelEditingOwner = () => {
     setIsEditingOwner(false);
     setOwnerEmailInput('');
+  };
+
+  // Handle rollback functionality
+  const handleRollbackClick = (version: number) => {
+    setSelectedRollbackVersion(version);
+    setRollbackConfirmOpen(true);
+  };
+
+  const handleRollbackConfirm = async () => {
+    if (!entity || !teamName || selectedRollbackVersion === null) return;
+    
+    // Get user email from authentication context
+    const userEmail = user?.email || (user as any)?.mail || (user as any)?.preferredUsername || '';
+    if (!userEmail) {
+      toast({
+        title: 'Error',
+        description: 'User email not found. Please log in again.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    setIsRollingBack(true);
+    try {
+      const payload = {
+        toVersion: selectedRollbackVersion,
+        user_email: userEmail,
+        reason: `Rollback to version ${selectedRollbackVersion}`
+      };
+      
+      // Make POST request to rollback endpoint
+      const response = await apiRequest('POST', buildUrl(`/api/teams/${teamName}/${entity.type}/${entity.name}/rollback`), payload);
+      
+      if (response.ok) {
+        toast({
+          title: 'Success',
+          description: `Successfully rolled back to version ${selectedRollbackVersion}.`,
+          variant: 'default',
+        });
+        
+        // Refresh all entity data after rollback
+        queryClient.invalidateQueries({ queryKey: ['ownerSlaSettings', entity?.type, teamName, entity?.name] });
+        queryClient.invalidateQueries({ queryKey: ['recentSettingsChanges', entity?.type, teamName, entity?.name] });
+        
+        // Close the confirmation dialog
+        setRollbackConfirmOpen(false);
+        setSelectedRollbackVersion(null);
+      } else {
+        throw new Error('Failed to rollback entity');
+      }
+    } catch (error) {
+      console.error('Error rolling back entity:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to rollback entity. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsRollingBack(false);
+    }
+  };
+
+  const handleRollbackCancel = () => {
+    setRollbackConfirmOpen(false);
+    setSelectedRollbackVersion(null);
   };
   
   // Fetch owner and SLA settings (combined API call)
@@ -626,22 +698,35 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
                       primary={
                         <Box>
                           <Typography variant="body2" fontWeight={600}>
-                            {change.fieldChanged || 'Settings Updated'}
+                            {change.actionType || change.fieldChanged || 'Settings Updated'}
                           </Typography>
                           <Typography variant="caption" color="text.secondary">
-                            {change.changedBy || 'System'} • {formatDate(new Date(change.changedAt || change.date))}
+                            {change.user || change.changedBy || 'System'} • {formatDate(new Date(change.timestamp || change.changedAt || change.date))}
                           </Typography>
                         </Box>
                       }
                       secondary={
                         <Typography variant="body2" color="text.secondary">
-                          {change.oldValue && change.newValue ? 
-                            `Changed from "${change.oldValue}" to "${change.newValue}"` :
-                            change.description || 'Configuration updated'
+                          {change.actionType === 'UPDATE' && change.diff ? 
+                            Object.entries(change.diff).map(([field, values]: [string, any]) => 
+                              `${field}: "${values.before}" → "${values.after}"`
+                            ).join(', ') :
+                            change.oldValue && change.newValue ? 
+                              `Changed from "${change.oldValue}" to "${change.newValue}"` :
+                              change.description || 'Configuration updated'
                           }
                         </Typography>
                       }
                     />
+                    <IconButton
+                      size="small"
+                      onClick={() => handleRollbackClick(change.version || index + 1)}
+                      disabled={isRollingBack}
+                      data-testid={`button-rollback-version-${change.version || index + 1}`}
+                      sx={{ ml: 1 }}
+                    >
+                      <RestoreIcon fontSize="small" />
+                    </IconButton>
                   </ListItem>
                 ))}
               </List>
@@ -661,6 +746,17 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
         onConfirm={handleConfirmDelete}
         title="Delete Entity"
         content={`Are you sure you want to delete "${entity.name}"? This action cannot be undone.`}
+      />
+      
+      <ConfirmDialog
+        open={rollbackConfirmOpen}
+        onClose={handleRollbackCancel}
+        onConfirm={handleRollbackConfirm}
+        title="Rollback Entity"
+        content={`Are you sure you want to rollback to version ${selectedRollbackVersion}? Any history after this version will be permanently lost and this action cannot be undone.`}
+        confirmText="Rollback"
+        confirmColor="warning"
+        loading={isRollingBack}
       />
     </>
   );
