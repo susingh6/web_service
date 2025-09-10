@@ -80,6 +80,9 @@ const dashboardSlice = createSlice({
       .addCase(fetchDashboardSummary.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.error.message || 'Failed to fetch dashboard summary';
+        // Clear metrics when API fails so UI shows empty state instead of stale data
+        state.metrics = null;
+        state.complianceTrends = null;
       });
   },
 });
