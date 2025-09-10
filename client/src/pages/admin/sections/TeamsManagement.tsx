@@ -38,13 +38,13 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { buildUrl, endpoints } from '@/config';
-import { apiRequest } from '@/lib/queryClient';
 import { Team } from '@shared/schema';
+import { useOptimisticMutation, CACHE_PATTERNS, INVALIDATION_SCENARIOS } from '@/utils/cache-management';
 
 interface TeamFormDialogProps {
   open: boolean;
   onClose: () => void;
-  team: Team | null;
+  team: any | null; // Use any since API may return different format than schema
   tenants: any[];
   onSubmit: (teamData: any) => void;
 }
@@ -56,8 +56,31 @@ const TeamFormDialog = ({ open, onClose, team, tenants, onSubmit }: TeamFormDial
     tenant_id: team?.tenant_id || '',
   });
 
+  // Update form data when team prop changes
+  useEffect(() => {
+    if (team) {
+      setFormData({
+        name: team.name || '',
+        description: team.description || '',
+        tenant_id: team.tenant_id || '',
+      });
+    } else {
+      setFormData({
+        name: '',
+        description: '',
+        tenant_id: '',
+      });
+    }
+  }, [team]);
+
   const handleSubmit = () => {
-    onSubmit(formData);
+    const teamData = {
+      name: formData.name,
+      description: formData.description,
+      tenant_id: formData.tenant_id,
+    };
+    
+    onSubmit(teamData);
     onClose();
     setFormData({ name: '', description: '', tenant_id: '' });
   };
@@ -104,8 +127,12 @@ const TeamFormDialog = ({ open, onClose, team, tenants, onSubmit }: TeamFormDial
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
-        <Button onClick={handleSubmit} variant="contained">
-          {team ? 'Update' : 'Create'}
+        <Button 
+          onClick={handleSubmit} 
+          variant="contained"
+          disabled={!formData.name || !formData.tenant_id}
+        >
+          {team ? 'Update Team' : 'Create Team'}
         </Button>
       </DialogActions>
     </Dialog>
@@ -114,30 +141,52 @@ const TeamFormDialog = ({ open, onClose, team, tenants, onSubmit }: TeamFormDial
 
 const TeamsManagement = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
+  const [selectedTeam, setSelectedTeam] = useState<any | null>(null); // Use any since API returns different format than schema
   const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { executeWithOptimism, cacheManager } = useOptimisticMutation();
   
   // Debounce search query for better performance
   const deferredSearchQuery = useDeferredValue(searchQuery);
 
-  // Fetch teams
-  const { data: teams = [], isLoading } = useQuery<Team[]>({
-    queryKey: ['/api/teams'],
+  // Fetch teams from admin endpoint with FastAPI headers
+  const { data: teams = [], isLoading } = useQuery({
+    queryKey: ['admin', 'teams'],
+    staleTime: 6 * 60 * 60 * 1000, // Cache for 6 hours
+    gcTime: 6 * 60 * 60 * 1000,    // Keep in memory for 6 hours
     queryFn: async () => {
-      const response = await fetch(buildUrl(endpoints.teams));
+      // Build headers with session ID for RBAC enforcement
+      const headers: Record<string, string> = {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache'
+      };
+      
+      // CRITICAL: Add X-Session-ID header for FastAPI RBAC
+      const sessionId = localStorage.getItem('fastapi_session_id');
+      if (sessionId) {
+        headers['X-Session-ID'] = sessionId;
+      }
+      
+      const response = await fetch(buildUrl(endpoints.teams), {
+        cache: 'no-store',
+        headers,
+        credentials: 'include'
+      });
+      if (!response.ok) {
+        throw new Error('Failed to fetch teams');
+      }
       return response.json();
     },
   });
 
   // Fetch tenants for team creation
   const { data: tenants = [] } = useQuery({
-    queryKey: ['/api/tenants'],
+    queryKey: ['admin', 'tenants'],
     queryFn: async () => {
-      const response = await fetch(buildUrl(endpoints.tenants));
+      const response = await fetch(buildUrl(endpoints.admin.tenants.getAll));
       return response.json();
     },
   });
@@ -162,7 +211,7 @@ const TeamsManagement = () => {
     
     if (searchTokens.length === 0) return teams;
     
-    return teams.filter((team: Team) => {
+    return teams.filter((team: any) => {
       // Create normalized search index for this team
       const tenantName = tenantNameMap.get(team.tenant_id) ?? 'Unknown';
       const searchableFields = [
@@ -194,50 +243,162 @@ const TeamsManagement = () => {
     setPage(0);
   }, [deferredSearchQuery]);
 
-  // Create team mutation
-  const createTeamMutation = useMutation({
-    mutationFn: async (teamData: any) => {
-      return await apiRequest('POST', buildUrl(endpoints.admin.teams.create), teamData);
-    },
-    onSuccess: () => {
-      // Invalidate all team-related caches so new team appears everywhere
-      queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
-      queryClient.invalidateQueries({ queryKey: ['admin', 'teams'] });
+  // Create team mutation with optimistic updates following FastAPI pattern
+  const createTeam = async (teamData: any) => {
+    // Generate optimistic ID for tracking
+    const optimisticId = Date.now();
+    const optimisticTeam = { ...teamData, id: optimisticId };
+    
+    try {
+      const result = await executeWithOptimism({
+        optimisticUpdate: {
+          queryKey: ['admin', 'teams'],
+          updater: (old: any[] | undefined) => old ? [...old, optimisticTeam] : [optimisticTeam],
+        },
+        mutationFn: async () => {
+          // Build headers with session ID for RBAC enforcement
+          const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+          
+          // CRITICAL: Add X-Session-ID header for FastAPI RBAC
+          const sessionId = localStorage.getItem('fastapi_session_id');
+          if (sessionId) {
+            headers['X-Session-ID'] = sessionId;
+          }
+          
+          const response = await fetch(buildUrl(endpoints.admin.teams.create), {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(teamData),
+            credentials: 'include',
+          });
+          if (!response.ok) throw new Error('Failed to create team');
+          return response.json();
+        },
+        // Use generic invalidation since teams don't have specific scenarios yet
+        invalidationScenario: undefined,
+        rollbackKeys: [['admin', 'teams']],
+      });
+
+      // Replace optimistic entry with real server response
+      if (result) {
+        cacheManager.setOptimisticData(['admin', 'teams'], (old: any[] | undefined) => {
+          if (!old) return [result];
+          return old.map(team => team.id === optimisticId ? result : team);
+        });
+      }
+
       toast({
         title: "Team Created",
         description: "New team has been successfully created.",
       });
-    },
-    onError: () => {
+      
+      return result;
+    } catch (error: any) {
+      let errorMessage = "Failed to create team. Please try again.";
+      let errorTitle = "Creation Failed";
+
+      if (error?.message) {
+        errorMessage = error.message;
+      } else if (error?.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error?.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error?.status === 409) {
+        errorMessage = "Team name already exists. Please choose a different name.";
+        errorTitle = "Team Name Taken";
+      } else if (error?.status === 400) {
+        errorMessage = "Invalid team data provided. Please check your input.";
+        errorTitle = "Invalid Data";
+      }
+
       toast({
-        title: "Creation Failed",
-        description: "Failed to create team. Please try again.",
+        title: errorTitle,
+        description: errorMessage,
         variant: "destructive",
       });
-    },
+      throw error;
+    }
+  };
+
+  const createTeamMutation = useMutation({
+    mutationFn: createTeam,
   });
 
-  // Update team mutation
-  const updateTeamMutation = useMutation({
-    mutationFn: async ({ teamId, teamData }: { teamId: number; teamData: any }) => {
-      return await apiRequest('PUT', buildUrl(endpoints.admin.teams.update, teamId), teamData);
-    },
-    onSuccess: () => {
-      // Invalidate all team-related caches so updated team appears everywhere
-      queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
-      queryClient.invalidateQueries({ queryKey: ['admin', 'teams'] });
+  // Update team mutation with optimistic updates following FastAPI pattern
+  const updateTeam = async (teamId: number, teamData: any) => {
+    try {
+      const result = await executeWithOptimism({
+        optimisticUpdate: {
+          queryKey: ['admin', 'teams'],
+          updater: (old: any[] | undefined) => {
+            if (!old) return [];
+            return old.map(team => 
+              team.id === teamId ? { ...team, ...teamData } : team
+            );
+          },
+        },
+        mutationFn: async () => {
+          // Build headers with session ID for RBAC enforcement
+          const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+          
+          // CRITICAL: Add X-Session-ID header for FastAPI RBAC
+          const sessionId = localStorage.getItem('fastapi_session_id');
+          if (sessionId) {
+            headers['X-Session-ID'] = sessionId;
+          }
+          
+          const response = await fetch(buildUrl(endpoints.admin.teams.update, teamId), {
+            method: 'PUT',
+            headers,
+            body: JSON.stringify(teamData),
+            credentials: 'include',
+          });
+          if (!response.ok) throw new Error('Failed to update team');
+          return response.json();
+        },
+        // Use generic invalidation since teams don't have specific scenarios yet
+        invalidationScenario: undefined,
+        rollbackKeys: [['admin', 'teams']],
+      });
+
       toast({
         title: "Team Updated",
         description: "Team has been successfully updated.",
       });
-    },
-    onError: () => {
+      
+      return result;
+    } catch (error: any) {
+      let errorMessage = "Failed to update team. Please try again.";
+      let errorTitle = "Update Failed";
+
+      if (error?.message) {
+        errorMessage = error.message;
+      } else if (error?.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error?.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error?.status === 409) {
+        errorMessage = "Team name already exists. Please choose a different name.";
+        errorTitle = "Team Name Taken";
+      } else if (error?.status === 400) {
+        errorMessage = "Invalid team data provided. Please check your input.";
+        errorTitle = "Invalid Data";
+      } else if (error?.status === 404) {
+        errorMessage = "Team not found. The team may have been deleted.";
+        errorTitle = "Team Not Found";
+      }
+
       toast({
-        title: "Update Failed",
-        description: "Failed to update team. Please try again.",
+        title: errorTitle,
+        description: errorMessage,
         variant: "destructive",
       });
-    },
+      throw error;
+    }
+  };
+
+  const updateTeamMutation = useMutation({
+    mutationFn: ({ teamId, teamData }: { teamId: number; teamData: any }) => updateTeam(teamId, teamData),
   });
 
   const handleCreateTeam = () => {
@@ -245,22 +406,22 @@ const TeamsManagement = () => {
     setDialogOpen(true);
   };
 
-  const handleEditTeam = (team: Team) => {
+  const handleEditTeam = (team: any) => {
     setSelectedTeam(team);
     setDialogOpen(true);
   };
 
-  const handleSubmitTeam = (teamData: any) => {
-    if (selectedTeam) {
-      updateTeamMutation.mutate({ teamId: selectedTeam.id, teamData });
-    } else {
-      createTeamMutation.mutate(teamData);
+  const handleSubmitTeam = async (teamData: any) => {
+    try {
+      if (selectedTeam) {
+        await updateTeamMutation.mutateAsync({ teamId: selectedTeam.id, teamData });
+      } else {
+        await createTeamMutation.mutateAsync(teamData);
+      }
+    } catch (error) {
+      // Error handling is done in the mutation functions
+      console.error('Team submission error:', error);
     }
-  };
-
-  // Helper function for form dialog (still needed for compatibility)
-  const getTenantName = (tenantId: number) => {
-    return tenantNameMap.get(tenantId) ?? 'Unknown';
   };
 
   return (
@@ -343,7 +504,7 @@ const TeamsManagement = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {paginatedTeams?.map((team) => (
+                {paginatedTeams?.map((team: any) => (
                   <TableRow key={team.id}>
                     <TableCell>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -355,7 +516,7 @@ const TeamsManagement = () => {
                     </TableCell>
                     <TableCell>
                       <Chip 
-                        label={tenantNameMap.get(team.tenant_id) ?? 'Unknown'} 
+                        label={String(tenantNameMap.get(team.tenant_id) || 'Unknown')} 
                         size="small" 
                         variant="outlined"
                         color="primary"

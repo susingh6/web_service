@@ -42,6 +42,7 @@ import { useToast } from '@/hooks/use-toast';
 import { buildUrl, endpoints } from '@/config';
 import { apiRequest } from '@/lib/queryClient';
 import { User } from '@shared/schema';
+import { useOptimisticMutation, CACHE_PATTERNS, INVALIDATION_SCENARIOS } from '@/utils/cache-management';
 
 interface UserFormDialogProps {
   open: boolean;
@@ -84,8 +85,8 @@ const UserFormDialog = ({ open, onClose, user, onSubmit }: UserFormDialogProps) 
     const userData = {
       user_name: formData.user_name,
       user_email: formData.user_email,
-      user_slack: formData.user_slack ? formData.user_slack.split(',').map(s => s.trim()).filter(s => s) : null,
-      user_pagerduty: formData.user_pagerduty ? formData.user_pagerduty.split(',').map(s => s.trim()).filter(s => s) : null,
+      user_slack: formData.user_slack ? formData.user_slack.split(',').map((s: string) => s.trim()).filter((s: string) => s) : null,
+      user_pagerduty: formData.user_pagerduty ? formData.user_pagerduty.split(',').map((s: string) => s.trim()).filter((s: string) => s) : null,
       is_active: formData.is_active,
     };
     
@@ -172,23 +173,40 @@ const UserFormDialog = ({ open, onClose, user, onSubmit }: UserFormDialogProps) 
 
 const UsersManagement = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [selectedUser, setSelectedUser] = useState<any | null>(null); // Use any since API returns different format than schema
   const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { executeWithOptimism, cacheManager } = useOptimisticMutation();
   
   // Debounce search query for better performance
   const deferredSearchQuery = useDeferredValue(searchQuery);
 
-  // Fetch users from admin endpoint
+  // Fetch users from admin endpoint with FastAPI headers
   const { data: users = [], isLoading } = useQuery({
     queryKey: ['admin', 'users'],
     staleTime: 6 * 60 * 60 * 1000, // Cache for 6 hours
     gcTime: 6 * 60 * 60 * 1000,    // Keep in memory for 6 hours
     queryFn: async () => {
-      const response = await fetch(buildUrl(endpoints.admin.users.getAll));
+      // Build headers with session ID for RBAC enforcement
+      const headers: Record<string, string> = {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache'
+      };
+      
+      // CRITICAL: Add X-Session-ID header for FastAPI RBAC
+      const sessionId = localStorage.getItem('fastapi_session_id');
+      if (sessionId) {
+        headers['X-Session-ID'] = sessionId;
+      }
+      
+      const response = await fetch(buildUrl(endpoints.admin.users.getAll), {
+        cache: 'no-store',
+        headers,
+        credentials: 'include'
+      });
       if (!response.ok) {
         throw new Error('Failed to fetch users');
       }
@@ -252,23 +270,60 @@ const UsersManagement = () => {
     },
   });
 
-  // Create user mutation
-  const createUserMutation = useMutation({
-    mutationFn: async (userData: any) => {
-      return await apiRequest('POST', buildUrl(endpoints.admin.users.create), userData);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+  // Create user mutation with optimistic updates following FastAPI pattern
+  const createUser = async (userData: any) => {
+    // Generate optimistic ID for tracking
+    const optimisticId = Date.now();
+    const optimisticUser = { ...userData, user_id: optimisticId };
+    
+    try {
+      const result = await executeWithOptimism({
+        optimisticUpdate: {
+          queryKey: ['admin', 'users'],
+          updater: (old: any[] | undefined) => old ? [...old, optimisticUser] : [optimisticUser],
+        },
+        mutationFn: async () => {
+          // Build headers with session ID for RBAC enforcement
+          const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+          
+          // CRITICAL: Add X-Session-ID header for FastAPI RBAC
+          const sessionId = localStorage.getItem('fastapi_session_id');
+          if (sessionId) {
+            headers['X-Session-ID'] = sessionId;
+          }
+          
+          const response = await fetch(buildUrl(endpoints.admin.users.create), {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(userData),
+            credentials: 'include',
+          });
+          if (!response.ok) throw new Error('Failed to create user');
+          return response.json();
+        },
+        // Use generic invalidation since users don't have specific scenarios yet
+        invalidationScenario: undefined,
+        rollbackKeys: [['admin', 'users']],
+      });
+
+      // Replace optimistic entry with real server response
+      if (result) {
+        cacheManager.setOptimisticData(['admin', 'users'], (old: any[] | undefined) => {
+          if (!old) return [result];
+          return old.map(user => user.user_id === optimisticId ? result : user);
+        });
+      }
+
       toast({
         title: "User Created",
         description: "New user has been successfully created.",
       });
-    },
-    onError: (error: any) => {
+      
+      return result;
+    } catch (error: any) {
       let errorMessage = "Failed to create user. Please try again.";
       let errorTitle = "Creation Failed";
 
-      // Extract specific error message from the response
       if (error?.message) {
         errorMessage = error.message;
       } else if (error?.response?.data?.message) {
@@ -288,26 +343,61 @@ const UsersManagement = () => {
         description: errorMessage,
         variant: "destructive",
       });
-    },
+      throw error;
+    }
+  };
+
+  const createUserMutation = useMutation({
+    mutationFn: createUser,
   });
 
-  // Update user mutation
-  const updateUserMutation = useMutation({
-    mutationFn: async ({ userId, userData }: { userId: number; userData: any }) => {
-      return await apiRequest('PUT', buildUrl(endpoints.admin.users.update, userId), userData);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+  // Update user mutation with optimistic updates following FastAPI pattern
+  const updateUser = async (userId: number, userData: any) => {
+    try {
+      const result = await executeWithOptimism({
+        optimisticUpdate: {
+          queryKey: ['admin', 'users'],
+          updater: (old: any[] | undefined) => {
+            if (!old) return [];
+            return old.map(user => 
+              user.user_id === userId ? { ...user, ...userData } : user
+            );
+          },
+        },
+        mutationFn: async () => {
+          // Build headers with session ID for RBAC enforcement
+          const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+          
+          // CRITICAL: Add X-Session-ID header for FastAPI RBAC
+          const sessionId = localStorage.getItem('fastapi_session_id');
+          if (sessionId) {
+            headers['X-Session-ID'] = sessionId;
+          }
+          
+          const response = await fetch(buildUrl(endpoints.admin.users.update, userId), {
+            method: 'PUT',
+            headers,
+            body: JSON.stringify(userData),
+            credentials: 'include',
+          });
+          if (!response.ok) throw new Error('Failed to update user');
+          return response.json();
+        },
+        // Use generic invalidation since users don't have specific scenarios yet
+        invalidationScenario: undefined,
+        rollbackKeys: [['admin', 'users']],
+      });
+
       toast({
         title: "User Updated",
         description: "User has been successfully updated.",
       });
-    },
-    onError: (error: any) => {
+      
+      return result;
+    } catch (error: any) {
       let errorMessage = "Failed to update user. Please try again.";
       let errorTitle = "Update Failed";
 
-      // Extract specific error message from the response
       if (error?.message) {
         errorMessage = error.message;
       } else if (error?.response?.data?.message) {
@@ -330,7 +420,12 @@ const UsersManagement = () => {
         description: errorMessage,
         variant: "destructive",
       });
-    },
+      throw error;
+    }
+  };
+
+  const updateUserMutation = useMutation({
+    mutationFn: ({ userId, userData }: { userId: number; userData: any }) => updateUser(userId, userData),
   });
 
   const handleCreateUser = () => {
@@ -343,11 +438,16 @@ const UsersManagement = () => {
     setDialogOpen(true);
   };
 
-  const handleSubmitUser = (userData: any) => {
-    if (selectedUser) {
-      updateUserMutation.mutate({ userId: selectedUser.user_id, userData });
-    } else {
-      createUserMutation.mutate(userData);
+  const handleSubmitUser = async (userData: any) => {
+    try {
+      if (selectedUser) {
+        await updateUserMutation.mutateAsync({ userId: selectedUser.user_id, userData });
+      } else {
+        await createUserMutation.mutateAsync(userData);
+      }
+    } catch (error) {
+      // Error handling is done in the mutation functions
+      console.error('User submission error:', error);
     }
   };
 
