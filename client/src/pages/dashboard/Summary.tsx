@@ -473,7 +473,7 @@ const Summary = () => {
                   <ChartCard
                     title="Team Performance Comparison"
                     loading={metricsLoading}
-                    chart={<TeamComparisonChart entities={entities} teams={teams} selectedTenant={selectedTenant?.name || ''} loading={metricsLoading} />}
+                    chart={<TeamComparisonChart entities={entities} teams={teams} selectedTenant={selectedTenant?.name || ''} loading={metricsLoading} hasMetrics={metrics !== null} />}
                   />
                 </Box>
               </Box>

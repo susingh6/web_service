@@ -58,6 +58,7 @@ interface TeamComparisonChartProps {
   teams?: any[];
   selectedTenant?: string;
   loading?: boolean;
+  hasMetrics?: boolean; // Add prop to indicate if dashboard metrics are available
 }
 
 const TeamComparisonChart = ({
@@ -66,6 +67,7 @@ const TeamComparisonChart = ({
   teams = [],
   selectedTenant,
   loading = false,
+  hasMetrics = true, // Default to true for backward compatibility
 }: TeamComparisonChartProps) => {
   const theme = useTheme();
   
@@ -75,6 +77,17 @@ const TeamComparisonChart = ({
       <Box sx={{ p: 3, textAlign: 'center' }}>
         <Typography variant="body2" color="text.secondary">
           Loading team performance data...
+        </Typography>
+      </Box>
+    );
+  }
+
+  // Show "No data" when dashboard metrics are not available (API returned 404)
+  if (!hasMetrics) {
+    return (
+      <Box sx={{ p: 3, textAlign: 'center' }}>
+        <Typography variant="body2" color="text.secondary">
+          No data available for selected date range
         </Typography>
       </Box>
     );

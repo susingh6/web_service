@@ -930,8 +930,21 @@ export class RedisCache {
 
   async calculateMetricsForDateRange(tenantName: string, startDate: Date, endDate: Date): Promise<DashboardMetrics | null> {
     if (!this.useRedis || !this.redis) {
-      // For fallback, use the same metrics as we don't have date range calculation
-      return this.fallbackData ? this.fallbackData.metrics[tenantName] || null : null;
+      // TEST MODE: Only return data for "Last 30 Days" range  
+      const now = new Date();
+      const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+      const daysFromNow = Math.ceil((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+      
+      // Check if this is the "Last 30 Days" range (allow some flexibility)
+      const isLast30Days = daysDiff >= 29 && daysDiff <= 31 && daysFromNow <= 31;
+      
+      if (!isLast30Days) {
+        console.log(`Date range ${startDate.toDateString()} to ${endDate.toDateString()} - Not Last 30 Days, returning null (404)`);
+        return null; // This will trigger 404 response
+      }
+      
+      console.log(`Date range ${startDate.toDateString()} to ${endDate.toDateString()} - Is Last 30 Days, returning cached data`);
+      return this.fallbackData ? this.fallbackData.last30DayMetrics[tenantName] || null : null;
     }
     
     // For date range queries, we need to calculate fresh metrics
