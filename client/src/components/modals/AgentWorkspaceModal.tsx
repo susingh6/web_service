@@ -225,6 +225,14 @@ const AgentWorkspaceModal: React.FC<AgentWorkspaceModalProps> = ({
       </DialogTitle>
 
       <DialogContent sx={{ display: 'flex', flexDirection: 'column', flex: 1, gap: 2 }}>
+        {/* Development Warning */}
+        <Alert severity="info">
+          <Typography variant="body2">
+            <strong>Under Development:</strong> This agent workspace feature is currently being developed. 
+            Some functionality may be limited or use mock data.
+          </Typography>
+        </Alert>
+
         {/* DAG Status Overview */}
         <Paper elevation={1} sx={{ p: 2, bgcolor: 'background.default' }}>
           <Typography variant="subtitle2" gutterBottom>

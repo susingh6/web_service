@@ -335,6 +335,14 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
 
       <form onSubmit={handleSubmit(onSubmit)}>
         <DialogContent sx={{ pt: 2 }}>
+          {/* Development Warning */}
+          <Alert severity="info" sx={{ mb: 3 }}>
+            <Typography variant="body2">
+              <strong>Under Development:</strong> This notification timeline feature is currently being developed. 
+              Some functionality may be limited or use mock data.
+            </Typography>
+          </Alert>
+
           {/* Dropdown for selecting existing timeline when updating */}
           {tabValue === 'update' && (
             <Box sx={{ mb: 3 }}>
