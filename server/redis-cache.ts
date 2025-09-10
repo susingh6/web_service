@@ -714,6 +714,10 @@ export class RedisCache {
     const last30DayTrends: Record<string, ComplianceTrendData> = {};
     const thisMonthTrends: Record<string, ComplianceTrendData> = {};
     
+    // Team-specific data structures
+    const teamMetrics: Record<string, Record<string, DashboardMetrics>> = {};
+    const teamTrends: Record<string, Record<string, ComplianceTrendData>> = {};
+    
     // Generate mock data for each tenant and all predefined ranges
     for (const tenant of tenants) {
       const tenantEntities = entities.filter(e => e.tenant_name === tenant.name && e.is_entity_owner === true);
@@ -729,6 +733,24 @@ export class RedisCache {
       // Only populate Last 30 Days data
       last30DayMetrics[tenant.name] = baseMetrics;
       last30DayTrends[tenant.name] = this.generateComplianceTrendForRange(tenantEntities, tenantTables, tenantDags, 30);
+      
+      // Generate team-specific data for each team in the tenant
+      const tenantTeams = teams.filter(t => t.tenant_id === tenant.id);
+      for (const team of tenantTeams) {
+        const teamEntities = tenantEntities.filter(e => e.teamId === team.id);
+        if (teamEntities.length > 0) {
+          const teamTables = teamEntities.filter(e => e.type === 'table');
+          const teamDags = teamEntities.filter(e => e.type === 'dag');
+          
+          // Initialize tenant containers if not exists
+          if (!teamMetrics[tenant.name]) teamMetrics[tenant.name] = {};
+          if (!teamTrends[tenant.name]) teamTrends[tenant.name] = {};
+          
+          // Calculate team-specific metrics and trends
+          teamMetrics[tenant.name][team.name] = this.calculateMetrics(teamEntities, teamTables, teamDags);
+          teamTrends[tenant.name][team.name] = this.generateComplianceTrendForRange(teamEntities, teamTables, teamDags, 30);
+        }
+      }
       
       // Leave all other ranges empty for testing
       // todayMetrics[tenant.name] = null; (default empty)
@@ -759,6 +781,9 @@ export class RedisCache {
       last7DayTrends,
       last30DayTrends,
       thisMonthTrends,
+      // Team-specific data
+      teamMetrics,
+      teamTrends,
       lastUpdated: new Date(),
       recentChanges: []
     };

@@ -57,6 +57,9 @@ export interface CachedData {
   last7DayTrends: Record<string, ComplianceTrendData>;
   last30DayTrends: Record<string, ComplianceTrendData>;
   thisMonthTrends: Record<string, ComplianceTrendData>;
+  // Team-specific data
+  teamMetrics: Record<string, Record<string, DashboardMetrics>>;
+  teamTrends: Record<string, Record<string, ComplianceTrendData>>;
   lastUpdated: Date;
   recentChanges: EntityChange[];
 }
