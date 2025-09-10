@@ -33,7 +33,7 @@ const Summary = () => {
   const { deleteEntity } = useEntityMutation();
   const cacheManager = useCacheManager();
   
-  const { metrics, complianceTrends, isLoading: metricsLoading } = useAppSelector((state) => state.dashboard);
+  const { metrics, complianceTrends, isLoading: metricsLoading, dateRange } = useAppSelector((state) => state.dashboard);
   const { list: entities, teams, isLoading: entitiesLoading } = useAppSelector((state) => state.entities);
   
   const [tabValue, setTabValue] = useState(0);
@@ -141,17 +141,27 @@ const Summary = () => {
     }
   }, [tenants, selectedTenant]);
   
-  // Fetch dashboard data when tenant changes
+  // Fetch dashboard data when tenant or date range changes
   useEffect(() => {
     if (selectedTenant) {
-      if (selectedTenant) dispatch(fetchDashboardSummary({ tenantName: selectedTenant.name }));
+      // Format dates for API call
+      const startDate = dateRange.startDate ? dateRange.startDate.toISOString().split('T')[0] : undefined;
+      const endDate = dateRange.endDate ? dateRange.endDate.toISOString().split('T')[0] : undefined;
+      
+      // Fetch dashboard summary with date range parameters
+      dispatch(fetchDashboardSummary({ 
+        tenantName: selectedTenant.name,
+        startDate,
+        endDate
+      }));
+      
       // Always load ALL entities for Summary dashboard - don't filter by team
       dispatch(fetchEntities({})); // Load ALL entities for summary dashboard
       // Load teams data for chart display (silent load for summary page)
       dispatch(fetchTeams());
       setTeamsLoaded(true);
     }
-  }, [dispatch, selectedTenant]);
+  }, [dispatch, selectedTenant, dateRange]);
   
   // Filter entities based on tab and tenant - only show entity owners
   const filterEntitiesByTenant = (entities: Entity[]) => {

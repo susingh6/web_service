@@ -141,7 +141,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Dashboard endpoints using cache
+  // Helper functions for date range routing
+  function isDateRangePredefined(startDate: string, endDate: string): boolean {
+    const now = new Date();
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    
+    // Check if it matches any predefined range patterns
+    const predefinedRanges = [
+      { start: new Date(now.getFullYear(), now.getMonth(), now.getDate()), end: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59) }, // Today
+      { start: new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1), end: new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59) }, // Yesterday
+      { start: new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6), end: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59) }, // Last 7 Days
+      { start: new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29), end: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59) }, // Last 30 Days
+      { start: new Date(now.getFullYear(), now.getMonth(), 1), end: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59) }, // This Month
+    ];
+    
+    return predefinedRanges.some(range => 
+      Math.abs(start.getTime() - range.start.getTime()) < 24 * 60 * 60 * 1000 && // Within a day
+      Math.abs(end.getTime() - range.end.getTime()) < 24 * 60 * 60 * 1000
+    );
+  }
+  
+  function determinePredefinedRange(startDate: string, endDate: string): 'today' | 'yesterday' | 'last7Days' | 'last30Days' | 'thisMonth' {
+    const now = new Date();
+    const start = new Date(startDate);
+    const daysDiff = Math.ceil((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+    
+    if (daysDiff <= 0) return 'today';
+    if (daysDiff === 1) return 'yesterday';
+    if (daysDiff <= 7) return 'last7Days';
+    if (daysDiff <= 30) return 'last30Days';
+    return 'thisMonth';
+  }
+
+  // Dashboard endpoints using cache with smart routing
   app.get("/api/dashboard/summary", async (req, res) => {
     try {
       const tenantName = req.query.tenant as string;
@@ -152,30 +185,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Tenant parameter is required" });
       }
 
-      let metrics;
+      // Determine if this is a predefined range or custom range
+      const isPredefinedRange = !startDate || !endDate || isDateRangePredefined(startDate, endDate);
+      const USE_FASTAPI = process.env.ENABLE_FASTAPI_INTEGRATION === 'true';
       
-      // If date range is provided, calculate fresh metrics
+      if (isPredefinedRange && !USE_FASTAPI) {
+        // Use cached data for predefined ranges when FastAPI is disabled
+        const rangeType = startDate && endDate ? determinePredefinedRange(startDate, endDate) : 'last30Days';
+        const metrics = await redisCache.getMetricsByTenantAndRange(tenantName, rangeType);
+        const complianceTrends = await redisCache.getComplianceTrendsByTenantAndRange(tenantName, rangeType);
+        
+        if (!metrics) {
+          return res.status(404).json({ message: "No data found for the specified tenant and range" });
+        }
+        
+        req.logger.info(`GET /api/dashboard/summary - Parameters: tenant=${tenantName}, range=${rangeType} (cached) - status: 200`);
+        
+        return res.json({
+          metrics,
+          complianceTrends,
+          lastUpdated: new Date(),
+          cached: true,
+          dateRange: rangeType
+        });
+      }
+      
+      if (USE_FASTAPI) {
+        // TODO: Call FastAPI endpoints
+        req.logger.info(`GET /api/dashboard/summary - Would call FastAPI for tenant=${tenantName}`);
+        // For now, fallback to date range calculation
+      }
+      
+      // Custom date range or FastAPI fallback: calculate metrics for specific date range
       if (startDate && endDate) {
         const start = new Date(startDate);
         const end = new Date(endDate);
-        metrics = await redisCache.calculateMetricsForDateRange(tenantName, start, end);
-      } else {
-        // Use cached 30-day metrics by default
-        metrics = await redisCache.getDashboardMetrics(tenantName);
+        const metrics = await redisCache.calculateMetricsForDateRange(tenantName, start, end);
+        
+        if (!metrics) {
+          return res.status(404).json({ message: "No data found for the specified tenant and date range" });
+        }
+        
+        req.logger.info(`GET /api/dashboard/summary - Parameters: tenant=${tenantName}, custom range=${startDate} to ${endDate} - status: 200`);
+        
+        return res.json({ 
+          metrics,
+          complianceTrends: null, // No trends for custom date ranges yet
+          lastUpdated: new Date(),
+          cached: false,
+          dateRange: { startDate, endDate }
+        });
       }
-
-      const entities = await redisCache.getEntitiesByTenant(tenantName);
-      const teams = await redisCache.getTeamsByTenant(tenantName);
+      
+      // Default: get 30-day cached metrics (backward compatibility)
+      const metrics = await redisCache.getDashboardMetrics(tenantName);
       const complianceTrends = await redisCache.getComplianceTrends(tenantName);
-
+      
+      if (!metrics) {
+        return res.status(404).json({ message: "No data found for the specified tenant" });
+      }
+      
+      req.logger.info(`GET /api/dashboard/summary - Parameters: tenant=${tenantName} (default 30-day) - status: 200`);
+      
       res.json({
         metrics,
-        entities,
-        teams,
         complianceTrends,
-        tenant: tenantName,
-        cached: !startDate && !endDate, // Indicate if data is from cache
-        dateRange: startDate && endDate ? { startDate, endDate } : "last30Days"
+        lastUpdated: new Date(),
+        cached: true,
+        dateRange: "last30Days"
       });
     } catch (error) {
       console.error('Dashboard summary error:', error);

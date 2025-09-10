@@ -761,6 +761,69 @@ export class RedisCache {
     };
   }
 
+  // Methods for accessing cached data by range
+  async getMetricsByTenantAndRange(tenantName: string, range: 'today' | 'yesterday' | 'last7Days' | 'last30Days' | 'thisMonth'): Promise<DashboardMetrics | null> {
+    if (!this.useRedis || !this.redis) {
+      const data = this.fallbackData;
+      if (!data) return null;
+      
+      switch (range) {
+        case 'today': return data.todayMetrics[tenantName] || null;
+        case 'yesterday': return data.yesterdayMetrics[tenantName] || null;
+        case 'last7Days': return data.last7DayMetrics[tenantName] || null;
+        case 'last30Days': return data.last30DayMetrics[tenantName] || null;
+        case 'thisMonth': return data.thisMonthMetrics[tenantName] || null;
+        default: return data.last30DayMetrics[tenantName] || null;
+      }
+    }
+    
+    try {
+      const cacheKey = this.getCacheKeyForRange(range, 'metrics');
+      const metricsData = await this.redis.hget(cacheKey, tenantName);
+      return metricsData ? JSON.parse(metricsData) : null;
+    } catch (error) {
+      console.error('Error getting metrics by tenant and range:', error);
+      return null;
+    }
+  }
+  
+  async getComplianceTrendsByTenantAndRange(tenantName: string, range: 'today' | 'yesterday' | 'last7Days' | 'last30Days' | 'thisMonth'): Promise<ComplianceTrendData | null> {
+    if (!this.useRedis || !this.redis) {
+      const data = this.fallbackData;
+      if (!data) return null;
+      
+      switch (range) {
+        case 'today': return data.todayTrends[tenantName] || null;
+        case 'yesterday': return data.yesterdayTrends[tenantName] || null;
+        case 'last7Days': return data.last7DayTrends[tenantName] || null;
+        case 'last30Days': return data.last30DayTrends[tenantName] || null;
+        case 'thisMonth': return data.thisMonthTrends[tenantName] || null;
+        default: return data.last30DayTrends[tenantName] || null;
+      }
+    }
+    
+    try {
+      const cacheKey = this.getCacheKeyForRange(range, 'trends');
+      const trendsData = await this.redis.hget(cacheKey, tenantName);
+      return trendsData ? JSON.parse(trendsData) : null;
+    } catch (error) {
+      console.error('Error getting trends by tenant and range:', error);
+      return null;
+    }
+  }
+  
+  private getCacheKeyForRange(range: string, type: 'metrics' | 'trends'): string {
+    const prefix = type === 'metrics' ? 'METRICS' : 'TRENDS';
+    switch (range) {
+      case 'today': return `TODAY_${prefix}`;
+      case 'yesterday': return `YESTERDAY_${prefix}`;
+      case 'last7Days': return `LAST7DAY_${prefix}`;
+      case 'last30Days': return `LAST30DAY_${prefix}`;
+      case 'thisMonth': return `THISMONTH_${prefix}`;
+      default: return `LAST30DAY_${prefix}`;
+    }
+  }
+
   // Public methods for accessing cached data
   async getAllEntities(): Promise<Entity[]> {
     if (!this.useRedis || !this.redis) {
