@@ -1136,6 +1136,113 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to update task priority" });
     }
   });
+
+  // ============================================
+  // ADMIN TENANT MANAGEMENT ENDPOINTS
+  // ============================================
+  
+  // Get all tenants for admin (with caching)
+  app.get("/api/admin/tenants", async (req, res) => {
+    try {
+      const cacheKey = 'admin_tenants';
+      let tenants = await redisCache.get(cacheKey);
+      
+      if (!tenants) {
+        tenants = await storage.getTenants();
+        await redisCache.set(cacheKey, tenants, 6 * 60 * 60); // 6 hour cache
+      }
+
+      res.json(tenants);
+    } catch (error) {
+      console.error('Admin tenants fetch error:', error);
+      res.status(500).json({ message: "Failed to fetch tenants" });
+    }
+  });
+
+  // Create new tenant with optimistic update support
+  app.post("/api/admin/tenants", async (req, res) => {
+    try {
+      const tenantSchema = z.object({
+        name: z.string().min(1),
+        description: z.string().optional(),
+      });
+      
+      const result = tenantSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({ 
+          message: "Invalid tenant data", 
+          errors: result.error.format() 
+        });
+      }
+      
+      const tenantData = result.data;
+      
+      // Create tenant
+      const newTenant = await storage.createTenant(tenantData);
+      
+      // Invalidate all tenant-related caches (same pattern as team updates)
+      await Promise.all([
+        redisCache.del('admin_tenants'),           // Admin tenant list
+        redisCache.del('all_tenants'),             // Main app tenant list  
+        redisCache.del(`tenant_${newTenant.id}`),  // Individual tenant cache
+        // Invalidate teams that might reference this tenant
+        redisCache.invalidatePattern('team_*'),
+        redisCache.invalidatePattern('dashboard_*')
+      ]);
+
+      res.status(201).json(newTenant);
+    } catch (error) {
+      console.error('Tenant creation error:', error);
+      res.status(500).json({ message: "Failed to create tenant" });
+    }
+  });
+
+  // Update tenant with optimistic update support
+  app.put("/api/admin/tenants/:id", async (req, res) => {
+    try {
+      const tenantId = parseInt(req.params.id);
+      if (isNaN(tenantId)) {
+        return res.status(400).json({ message: "Invalid tenant ID" });
+      }
+
+      const tenantSchema = z.object({
+        name: z.string().min(1).optional(),
+        description: z.string().optional(),
+      });
+      
+      const result = tenantSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({ 
+          message: "Invalid tenant data", 
+          errors: result.error.format() 
+        });
+      }
+      
+      const tenantData = result.data;
+      
+      // Update tenant
+      const updatedTenant = await storage.updateTenant(tenantId, tenantData);
+      
+      if (!updatedTenant) {
+        return res.status(404).json({ message: "Tenant not found" });
+      }
+      
+      // Invalidate all tenant-related caches
+      await Promise.all([
+        redisCache.del('admin_tenants'),           // Admin tenant list
+        redisCache.del('all_tenants'),             // Main app tenant list  
+        redisCache.del(`tenant_${tenantId}`),      // Individual tenant cache
+        // Invalidate related data that might reference this tenant
+        redisCache.invalidatePattern('team_*'),
+        redisCache.invalidatePattern('dashboard_*')
+      ]);
+
+      res.json(updatedTenant);
+    } catch (error) {
+      console.error('Tenant update error:', error);
+      res.status(500).json({ message: "Failed to update tenant" });
+    }
+  });
   
   // Dashboard summary endpoint
   app.get("/api/dashboard/summary", async (req, res) => {
