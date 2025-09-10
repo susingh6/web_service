@@ -22,7 +22,8 @@ import TeamSelector from '@/components/dashboard/TeamSelector';
 import TeamDashboard from '@/pages/dashboard/TeamDashboard';
 import { useToast } from '@/hooks/use-toast';
 import { queryClient, apiRequest } from '@/lib/queryClient';
-import { getTenants, getDefaultTenant, preloadTenantCache, type Tenant } from '@/lib/tenantCache';
+import { useQuery } from '@tanstack/react-query';
+import type { Tenant } from '@shared/schema';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { useEntityMutation, CACHE_PATTERNS, useCacheManager } from '@/utils/cache-management';
 
@@ -45,8 +46,17 @@ const Summary = () => {
   const [openTaskModal, setOpenTaskModal] = useState(false);
   const [selectedEntity, setSelectedEntity] = useState<Entity | null>(null);
   const [chartFilter, setChartFilter] = useState('All');
-  const [selectedTenant, setSelectedTenant] = useState<Tenant>(getDefaultTenant);
-  const [tenants, setTenants] = useState<Tenant[]>(getTenants);
+  // Use React Query to fetch tenants instead of old cache system
+  const { data: tenants = [], isLoading: tenantsLoading } = useQuery<Tenant[]>({
+    queryKey: ['/api/tenants'],
+    queryFn: async () => {
+      const response = await apiRequest('GET', '/api/tenants');
+      return await response.json();
+    },
+    staleTime: 6 * 60 * 60 * 1000, // 6 hours to match cache TTL
+  });
+  
+  const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
   const [openTeamTabs, setOpenTeamTabs] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState('summary');
   const [teamsLoaded, setTeamsLoaded] = useState(false);
@@ -122,20 +132,26 @@ const Summary = () => {
     }
   });
   
-  // Fetch dashboard data and preload tenant cache
+  // Initialize selected tenant when tenants data loads
   useEffect(() => {
-    dispatch(fetchDashboardSummary({ tenantName: selectedTenant.name }));
-    // Always load ALL entities for Summary dashboard - don't filter by team
-    dispatch(fetchEntities({})); // Load ALL entities for summary dashboard
-    // Load teams data for chart display (silent load for summary page)
-    dispatch(fetchTeams());
-    setTeamsLoaded(true);
-    
-    // Preload tenant cache for future use
-    preloadTenantCache().then(() => {
-      setTenants(getTenants());
-    });
-  }, [dispatch, selectedTenant.name]);
+    if (tenants.length > 0 && !selectedTenant) {
+      // Set default tenant to Data Engineering or first available
+      const defaultTenant = tenants.find(t => t.name === 'Data Engineering') || tenants[0];
+      setSelectedTenant(defaultTenant);
+    }
+  }, [tenants, selectedTenant]);
+  
+  // Fetch dashboard data when tenant changes
+  useEffect(() => {
+    if (selectedTenant) {
+      dispatch(fetchDashboardSummary({ tenantName: selectedTenant.name }));
+      // Always load ALL entities for Summary dashboard - don't filter by team
+      dispatch(fetchEntities({})); // Load ALL entities for summary dashboard
+      // Load teams data for chart display (silent load for summary page)
+      dispatch(fetchTeams());
+      setTeamsLoaded(true);
+    }
+  }, [dispatch, selectedTenant]);
   
   // Filter entities based on tab and tenant - only show entity owners
   const filterEntitiesByTenant = (entities: Entity[]) => {
