@@ -195,9 +195,10 @@ const TeamDashboard = ({
     return parseFloat((sum / items.length).toFixed(1));
   };
   
-  const tablesComplianceAvg = calculateAvgSla(tables);
-  const dagsComplianceAvg = calculateAvgSla(dags);
-  const overallComplianceAvg = calculateAvgSla(teamEntities);
+  // Only calculate metrics when dashboard data is available (for selected date range)
+  const tablesComplianceAvg = metrics ? calculateAvgSla(tables) : 0;
+  const dagsComplianceAvg = metrics ? calculateAvgSla(dags) : 0;
+  const overallComplianceAvg = metrics ? calculateAvgSla(teamEntities) : 0;
   
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
@@ -330,34 +331,34 @@ const TeamDashboard = ({
           {[
             { 
               title: "Overall SLA Compliance", 
-              value: overallComplianceAvg, 
-              trend: 1.2, 
-              progress: overallComplianceAvg, 
-              suffix: "%",
+              value: metrics ? overallComplianceAvg : "No data", 
+              trend: metrics ? 1.2 : 0, 
+              progress: metrics ? overallComplianceAvg : 0, 
+              suffix: metrics ? "%" : "",
               infoTooltip: `Average SLA compliance calculated across all tables and DAGs for ${team.name} team`
             },
             { 
               title: "Tables SLA Compliance", 
-              value: tablesComplianceAvg, 
-              trend: 0.8, 
-              progress: tablesComplianceAvg, 
-              suffix: "%",
+              value: metrics ? tablesComplianceAvg : "No data", 
+              trend: metrics ? 0.8 : 0, 
+              progress: metrics ? tablesComplianceAvg : 0, 
+              suffix: metrics ? "%" : "",
               infoTooltip: `Average SLA compliance percentage calculated across all table entities for ${team.name} team`
             },
             { 
               title: "DAGs SLA Compliance", 
-              value: dagsComplianceAvg, 
-              trend: 1.5, 
-              progress: dagsComplianceAvg, 
-              suffix: "%",
+              value: metrics ? dagsComplianceAvg : "No data", 
+              trend: metrics ? 1.5 : 0, 
+              progress: metrics ? dagsComplianceAvg : 0, 
+              suffix: metrics ? "%" : "",
               infoTooltip: `Average SLA compliance percentage calculated across all DAG entities for ${team.name} team`
             },
             { 
               title: "Entities Monitored", 
-              value: teamEntities.length, 
+              value: metrics ? teamEntities.length : "No data", 
               trend: 0, 
               suffix: "",
-              subtitle: `${tables.length} Tables • ${dags.length} DAGs`
+              subtitle: metrics ? `${tables.length} Tables • ${dags.length} DAGs` : ""
             }
           ].map((card, idx) => (
             <Box key={card.title} flex="1 1 250px" minWidth="250px">
