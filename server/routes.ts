@@ -151,18 +151,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const daysDiff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
     const daysFromNow = Math.ceil((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
     
+    console.log(`Date range check: startDate=${startDate}, endDate=${endDate}, daysDiff=${daysDiff}, daysFromNow=${daysFromNow}`);
+    
     // Check if this matches common predefined ranges based on day differences
-    if (daysDiff <= 1 && daysFromNow <= 1) return true; // Today
-    if (daysDiff <= 1 && daysFromNow >= 1 && daysFromNow <= 2) return true; // Yesterday  
-    if (daysDiff >= 6 && daysDiff <= 8 && daysFromNow <= 1) return true; // Last 7 Days
-    if (daysDiff >= 28 && daysDiff <= 32 && daysFromNow <= 1) return true; // Last 30 Days
+    if (daysDiff <= 1 && daysFromNow <= 1) {
+      console.log('Detected: Today');
+      return true; // Today
+    }
+    if (daysDiff <= 1 && daysFromNow >= 1 && daysFromNow <= 2) {
+      console.log('Detected: Yesterday');
+      return true; // Yesterday  
+    }
+    if (daysDiff >= 6 && daysDiff <= 8 && daysFromNow <= 1) {
+      console.log('Detected: Last 7 Days');
+      return true; // Last 7 Days
+    }
+    if (daysDiff >= 29 && daysDiff <= 31 && daysFromNow <= 31) {
+      console.log('Detected: Last 30 Days');
+      return true; // Last 30 Days (more flexible detection)
+    }
     
     // Check for current month (start of month to now)
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const daysSinceMonthStart = Math.ceil((now.getTime() - monthStart.getTime()) / (1000 * 60 * 60 * 24));
     if (Math.abs(start.getTime() - monthStart.getTime()) < 24 * 60 * 60 * 1000 && 
-        daysDiff >= daysSinceMonthStart - 1 && daysDiff <= daysSinceMonthStart + 1) return true; // This Month
+        daysDiff >= daysSinceMonthStart - 1 && daysDiff <= daysSinceMonthStart + 1) {
+      console.log('Detected: This Month');
+      return true; // This Month
+    }
     
+    console.log('Not detected as predefined range');
     return false;
   }
   
@@ -177,7 +195,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (daysDiff <= 1 && daysFromNow <= 1) return 'today';
     if (daysDiff <= 1 && daysFromNow >= 1 && daysFromNow <= 2) return 'yesterday';
     if (daysDiff >= 6 && daysDiff <= 8) return 'last7Days';
-    if (daysDiff >= 28 && daysDiff <= 32) return 'last30Days';
+    if (daysDiff >= 29 && daysDiff <= 31) return 'last30Days';
     
     // Check for current month
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
