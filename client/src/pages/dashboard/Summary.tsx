@@ -377,15 +377,15 @@ const Summary = () => {
       <Box sx={{ flex: 1, overflow: 'hidden' }}>
         {activeTab === 'summary' ? (
           <Box sx={{ height: '100%', overflow: 'auto', p: 2 }}>
-            {/* Charts Section */}
-            <DashboardCharts 
-              metrics={metrics}
-              isLoading={metricsLoading}
-              chartFilter={chartFilter}
-              onChartFilterChange={setChartFilter}
-              dags={dags}
-              tables={tables}
-            />
+            {/* Charts Section - Temporarily disabled */}
+            <Paper sx={{ p: 2, mb: 2 }}>
+              <Typography variant="h6" gutterBottom>
+                Dashboard Charts
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Charts section will be available soon. Selected tenant: {selectedTenant?.name || 'None'}
+              </Typography>
+            </Paper>
             
             {/* Entities Section */}
             <Paper sx={{ mt: 2, p: 2 }}>
