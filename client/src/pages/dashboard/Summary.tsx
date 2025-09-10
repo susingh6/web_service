@@ -510,6 +510,8 @@ const Summary = () => {
                     onViewDetails={handleViewDetails}
                     onSetNotificationTimeline={handleNotificationTimeline}
                     showActions={false}
+                    hasMetrics={metrics !== null}
+                    trendLabel={`${dateRange.label} Trend`}
                   />
                 )}
               </Box>
@@ -527,6 +529,8 @@ const Summary = () => {
                     onViewTasks={handleViewTasks}
                     onSetNotificationTimeline={handleNotificationTimeline}
                     showActions={false}
+                    hasMetrics={metrics !== null}
+                    trendLabel={`${dateRange.label} Trend`}
                   />
                 )}
               </Box>
