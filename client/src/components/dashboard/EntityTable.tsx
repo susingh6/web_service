@@ -42,6 +42,7 @@ import { Entity } from '@shared/schema';
 import { getEntityTrend } from '@/lib/trendCache';
 import { config } from '@/config';
 import { STANDARD_STATUSES, STATUS_CONFIG, normalizeStatus } from '@/utils/status-normalization';
+import AgentWorkspaceModal from '@/components/modals/AgentWorkspaceModal';
 
 type EntityStatus = 'Pending' | 'Failed' | 'Passed';
 
@@ -128,6 +129,8 @@ const EntityTable = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredEntities, setFilteredEntities] = useState<Entity[]>([]);
   const [trendData, setTrendData] = useState<Map<number, any>>(new Map());
+  const [agentWorkspaceOpen, setAgentWorkspaceOpen] = useState(false);
+  const [selectedDagEntity, setSelectedDagEntity] = useState<Entity | null>(null);
 
   // Load 30-day trend data (independent of global date filter)
   useEffect(() => {
@@ -617,8 +620,8 @@ const EntityTable = ({
                                 size="small" 
                                 color="secondary" 
                                 onClick={() => {
-                                  // TODO: Open agent workspace modal/panel
-                                  console.log('Open agent workspace for DAG:', entity.name);
+                                  setSelectedDagEntity(entity);
+                                  setAgentWorkspaceOpen(true);
                                 }}
                               >
                                 <SmartToy fontSize="small" />
@@ -672,6 +675,16 @@ const EntityTable = ({
         page={page}
         onPageChange={handleChangePage}
         onRowsPerPageChange={handleChangeRowsPerPage}
+      />
+      
+      {/* Agent Workspace Modal */}
+      <AgentWorkspaceModal
+        open={agentWorkspaceOpen}
+        onClose={() => {
+          setAgentWorkspaceOpen(false);
+          setSelectedDagEntity(null);
+        }}
+        dagEntity={selectedDagEntity}
       />
     </Box>
   );
