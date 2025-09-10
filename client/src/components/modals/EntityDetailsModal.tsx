@@ -117,8 +117,23 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
   const updateOwner = async () => {
     if (!entity || !teamName) return;
     
-    // Get user email from authentication context
-    const userEmail = user?.email || (user as any)?.mail || (user as any)?.preferredUsername || '';
+    // Get user email from authentication context with proper type checking
+    const getUserEmail = () => {
+      if (!user) return '';
+      
+      // Check for standard email property
+      if (typeof user.email === 'string') return user.email;
+      
+      // Check for Azure AD properties with type safety
+      const azureUser = user as Record<string, any>;
+      if (typeof azureUser.mail === 'string') return azureUser.mail;
+      if (typeof azureUser.preferredUsername === 'string') return azureUser.preferredUsername;
+      if (typeof azureUser.upn === 'string') return azureUser.upn;
+      
+      return '';
+    };
+    
+    const userEmail = getUserEmail();
     if (!userEmail) {
       toast({
         title: 'Error',
@@ -196,8 +211,23 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
   const handleRollbackConfirm = async () => {
     if (!entity || !teamName || selectedRollbackVersion === null) return;
     
-    // Get user email from authentication context
-    const userEmail = user?.email || (user as any)?.mail || (user as any)?.preferredUsername || '';
+    // Get user email from authentication context with proper type checking
+    const getUserEmail = () => {
+      if (!user) return '';
+      
+      // Check for standard email property
+      if (typeof user.email === 'string') return user.email;
+      
+      // Check for Azure AD properties with type safety
+      const azureUser = user as Record<string, any>;
+      if (typeof azureUser.mail === 'string') return azureUser.mail;
+      if (typeof azureUser.preferredUsername === 'string') return azureUser.preferredUsername;
+      if (typeof azureUser.upn === 'string') return azureUser.upn;
+      
+      return '';
+    };
+    
+    const userEmail = getUserEmail();
     if (!userEmail) {
       toast({
         title: 'Error',
@@ -756,7 +786,6 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
         content={`Are you sure you want to rollback to version ${selectedRollbackVersion}? Any history after this version will be permanently lost and this action cannot be undone.`}
         confirmText="Rollback"
         confirmColor="warning"
-        loading={isRollingBack}
       />
     </>
   );

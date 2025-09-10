@@ -36,6 +36,14 @@ export const stagingConfig = {
       currentDagSettings: (teamName: string, entityName: string) => `/api/dags/current-settings?team=${teamName}&name=${entityName}`,
       currentTableSettings: (teamName: string, entityName: string) => `/api/tables/current-settings?team=${teamName}&name=${entityName}`,
       historyChanges: (entityId: number) => `/api/entities/${entityId}/history-changes`,
+      
+      // New endpoints for entity details modal
+      ownerAndSlaSettings: (entityType: string, teamName: string, entityName: string) => 
+        `/api/teams/${teamName}/${entityType}/${entityName}/owner_sla_settings`,
+      slaStatusHistory: (entityType: string, teamName: string, entityName: string) => 
+        `/api/teams/${teamName}/${entityType}/${entityName}/sla_status_30days`,
+      recentSettingsChanges: (entityType: string, teamName: string, entityName: string) => 
+        `/api/teams/${teamName}/${entityType}/${entityName}/settings_changes`,
     },
 
     // Task operations
