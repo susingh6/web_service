@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { startOfDay, endOfDay, subDays } from 'date-fns';
 import { useQuery } from '@tanstack/react-query';
 import { Box, Typography, Tabs, Tab, Card, CardContent, Chip, Paper, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, FormControl, InputLabel, Select, MenuItem, IconButton } from '@mui/material';
 import { Add as AddIcon, Upload as UploadIcon, Person as PersonIcon, Edit as EditIcon, Delete as DeleteIcon, PersonAdd as PersonAddIcon } from '@mui/icons-material';
 import { useAppDispatch, useAppSelector } from '@/lib/store';
-import { fetchEntities } from '@/features/sla/slices/entitiesSlice';
+import { fetchEntities, fetchTeams } from '@/features/sla/slices/entitiesSlice';
 import { Entity, Team } from '@shared/schema';
 import { calculateMetrics } from '@shared/cache-types';
 import MetricCard from '@/components/dashboard/MetricCard';
@@ -13,6 +14,7 @@ import DateRangePicker from '@/components/dashboard/DateRangePicker';
 import ComplianceTrendChart from '@/components/dashboard/ComplianceTrendChart';
 import EntityPerformanceChart from '@/components/dashboard/EntityPerformanceChart';
 import { apiClient } from '@/config/api';
+import { apiRequest } from '@/lib/queryClient';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { teamMemberSchema } from '@shared/schema';
@@ -25,6 +27,8 @@ import { useQueryClient } from '@tanstack/react-query';
 interface TeamDashboardProps {
   teamName: string;
   tenantName: string;
+  dateRange?: { startDate: Date; endDate: Date; label: string };
+  onDateRangeChange?: (range: { startDate: Date; endDate: Date; label: string }) => void;
   onEditEntity: (entity: Entity) => void;
   onDeleteEntity: (entity: Entity) => void;
   onViewDetails: (entity: Entity) => void;
@@ -37,6 +41,8 @@ interface TeamDashboardProps {
 const TeamDashboard = ({ 
   teamName, 
   tenantName, 
+  dateRange,
+  onDateRangeChange,
   onEditEntity, 
   onDeleteEntity, 
   onViewDetails, 
@@ -47,17 +53,29 @@ const TeamDashboard = ({
 }: TeamDashboardProps) => {
   const dispatch = useAppDispatch();
   const { list: entities, teams, isLoading } = useAppSelector((state) => state.entities);
-  const { metrics, complianceTrends, isLoading: metricsLoading, dateRange, lastFetchFailed } = useAppSelector((state) => state.dashboard);
+  const {} = useAppSelector((state) => state.dashboard);
   const queryClient = useQueryClient();
-  
+
   const [tabValue, setTabValue] = useState(0);
   const { addMember, removeMember } = useTeamMemberMutation();
   const [chartFilter, setChartFilter] = useState('All');
   const [entitiesChartFilter, setEntitiesChartFilter] = useState('All');
-  
+  const [teamDateRange, setTeamDateRange] = useState({
+    startDate: dateRange?.startDate || startOfDay(subDays(new Date(), 29)),
+    endDate: dateRange?.endDate || endOfDay(new Date()),
+    label: dateRange?.label || 'Last 30 Days',
+  });
+
+  // Keep local state in sync with parent-provided dateRange
+  useEffect(() => {
+    if (dateRange) {
+      setTeamDateRange({ ...dateRange });
+    }
+  }, [dateRange?.startDate, dateRange?.endDate, dateRange?.label]);
+
   // Get current team info by name
   const team = teams.find((t: Team) => t.name === teamName);
-  
+
   // Local state for team entities to avoid affecting Summary dashboard
   const [teamEntities, setTeamEntities] = useState<Entity[]>([]);
   const [addMemberDialogOpen, setAddMemberDialogOpen] = useState(false);
@@ -77,7 +95,14 @@ const TeamDashboard = ({
     },
     enabled: !!teamName,
   });
-  
+
+  // Ensure teams are loaded when visiting TeamDashboard directly
+  useEffect(() => {
+    if (!teams || teams.length === 0) {
+      dispatch(fetchTeams());
+    }
+  }, [teams, dispatch]);
+
   // Fetch data when team is found
   // Use React Query for team entities so cache invalidation works
   const { data: teamEntitiesFromQuery = [], isLoading: isLoadingTeamEntities } = useQuery({
@@ -98,6 +123,32 @@ const TeamDashboard = ({
       setTeamEntities(teamEntitiesFromQuery);
     }
   }, [teamEntitiesFromQuery]);
+
+  // Fetch tenant-level summary for this team's selected date range (scoped to component)
+  const { data: teamSummaryData, isLoading: teamSummaryLoading, isError: teamSummaryError } = useQuery({
+    queryKey: ['/api/dashboard/summary', tenantName, teamDateRange.startDate.toISOString().slice(0, 10), teamDateRange.endDate.toISOString().slice(0, 10)],
+    queryFn: async () => {
+      if (!tenantName) return null;
+      const params = new URLSearchParams({
+        tenant: tenantName,
+        startDate: teamDateRange.startDate.toISOString().slice(0, 10),
+        endDate: teamDateRange.endDate.toISOString().slice(0, 10),
+      });
+      const response = await apiRequest('GET', `/api/dashboard/summary?${params.toString()}`);
+      return await response.json();
+    },
+    enabled: !!tenantName,
+    staleTime: 30 * 1000,
+  });
+
+  // Determine if server has any data for the selected range
+  const hasRangeData = !!(
+    teamSummaryData &&
+    teamSummaryData.complianceTrends &&
+    Array.isArray(teamSummaryData.complianceTrends.trend) &&
+    teamSummaryData.complianceTrends.trend.length > 0
+  );
+  const canDisplayTrends = hasRangeData && teamEntities.length > 0;
 
   // Set up real-time updates for this team page
   const { isRealTimeEnabled } = useRealTimeEntities({
@@ -146,12 +197,12 @@ const TeamDashboard = ({
 
     try {
       await addMember(teamName, selectedUserId, selectedUser);
-      
+
       toast({
         title: 'Success',
         description: 'Team member added successfully',
       });
-      
+
       setAddMemberDialogOpen(false);
       setSelectedUserId('');
     } catch (error) {
@@ -168,12 +219,12 @@ const TeamDashboard = ({
 
     try {
       await removeMember(teamName, selectedMemberId);
-      
+
       toast({
         title: 'Success',
         description: 'Team member removed successfully',
       });
-      
+
       setRemoveMemberDialogOpen(false);
       setSelectedMemberId('');
     } catch (error) {
@@ -184,25 +235,25 @@ const TeamDashboard = ({
       });
     }
   };
-  
+
   // Filter entities for this team from local state
   const tables = teamEntities.filter((entity) => entity.type === 'table');
   const dags = teamEntities.filter((entity) => entity.type === 'dag');
-  
+
   // Calculate team-specific metrics from cached data using server logic
-  const teamMetrics = metrics && teamEntities.length > 0 
+  const teamMetrics = teamEntities.length > 0 
     ? calculateMetrics(teamEntities, tables, dags)
     : null;
-  
+
   // Extract individual metrics for display
   const overallComplianceAvg = teamMetrics?.overallCompliance || 0;
   const tablesComplianceAvg = teamMetrics?.tablesCompliance || 0;
   const dagsComplianceAvg = teamMetrics?.dagsCompliance || 0;
-  
+
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
   };
-  
+
   // Show loading state when team is not found
   if (!team) {
     return (
@@ -213,7 +264,7 @@ const TeamDashboard = ({
       </Box>
     );
   }
-  
+
   return (
     <Box sx={{ p: 3 }}>
       <Box mb={4}>
@@ -249,7 +300,7 @@ const TeamDashboard = ({
                   sx={{ bgcolor: 'success.light', color: 'white' }} 
                 />
               </Box>
-              
+
               {/* Team Members Section */}
               <Box mt={2}>
                 <Box display="flex" alignItems="center" justifyContent="space-between" mb={1}>
@@ -300,10 +351,16 @@ const TeamDashboard = ({
                 </Box>
               </Box>
             </Box>
-            
+
             <Box display="flex" alignItems="center" gap={2}>
-              <DateRangePicker />
-              
+              <DateRangePicker 
+                value={teamDateRange} 
+                onChange={(range) => {
+                  setTeamDateRange(range);
+                  if (onDateRangeChange) onDateRangeChange(range);
+                }} 
+              />
+
               <Button
                 variant="contained"
                 color="primary"
@@ -312,7 +369,7 @@ const TeamDashboard = ({
               >
                 Add Entity
               </Button>
-              
+
               <Button
                 variant="outlined"
                 color="primary"
@@ -324,47 +381,47 @@ const TeamDashboard = ({
             </Box>
           </Box>
         </Paper>
-        
+
         {/* Metrics Cards */}
         <Box display="flex" flexWrap="wrap" gap={3} mb={4}>
           {[
             { 
               title: "Overall SLA Compliance", 
-              value: overallComplianceAvg, 
-              trend: teamMetrics ? 1.2 : 0, 
-              progress: overallComplianceAvg, 
+              value: hasRangeData ? overallComplianceAvg : 0, 
+              trend: hasRangeData && teamMetrics ? 1.2 : 0, 
+              progress: hasRangeData ? overallComplianceAvg : undefined, 
               suffix: "%",
-              loading: metricsLoading && !lastFetchFailed,
-              showDataUnavailable: lastFetchFailed && !teamMetrics,
+              loading: teamSummaryLoading,
+              showDataUnavailable: !teamSummaryLoading && !hasRangeData,
               infoTooltip: `Average SLA compliance calculated across all tables and DAGs for ${team.name} team`
             },
             { 
               title: "Tables SLA Compliance", 
-              value: tablesComplianceAvg, 
-              trend: teamMetrics ? 0.8 : 0, 
-              progress: tablesComplianceAvg, 
+              value: hasRangeData ? tablesComplianceAvg : 0, 
+              trend: hasRangeData && teamMetrics ? 0.8 : 0, 
+              progress: hasRangeData ? tablesComplianceAvg : undefined, 
               suffix: "%",
-              loading: metricsLoading && !lastFetchFailed,
-              showDataUnavailable: lastFetchFailed && !teamMetrics,
+              loading: teamSummaryLoading,
+              showDataUnavailable: !teamSummaryLoading && !hasRangeData,
               infoTooltip: `Average SLA compliance percentage calculated across all table entities for ${team.name} team`
             },
             { 
               title: "DAGs SLA Compliance", 
-              value: dagsComplianceAvg, 
-              trend: teamMetrics ? 1.5 : 0, 
-              progress: dagsComplianceAvg, 
+              value: hasRangeData ? dagsComplianceAvg : 0, 
+              trend: hasRangeData && teamMetrics ? 1.5 : 0, 
+              progress: hasRangeData ? dagsComplianceAvg : undefined, 
               suffix: "%",
-              loading: metricsLoading && !lastFetchFailed,
-              showDataUnavailable: lastFetchFailed && !teamMetrics,
+              loading: teamSummaryLoading,
+              showDataUnavailable: !teamSummaryLoading && !hasRangeData,
               infoTooltip: `Average SLA compliance percentage calculated across all DAG entities for ${team.name} team`
             },
             { 
               title: "Entities Monitored", 
-              value: teamMetrics?.entitiesCount || 0, 
+              value: hasRangeData ? (teamMetrics?.entitiesCount || 0) : 0, 
               trend: 0, 
               suffix: "",
-              loading: metricsLoading && !lastFetchFailed,
-              showDataUnavailable: lastFetchFailed && !teamMetrics,
+              loading: teamSummaryLoading,
+              showDataUnavailable: !teamSummaryLoading && !hasRangeData,
               subtitle: teamMetrics ? `${teamMetrics.tablesCount} Tables • ${teamMetrics.dagsCount} DAGs` : ""
             }
           ].map((card, idx) => (
@@ -373,7 +430,7 @@ const TeamDashboard = ({
             </Box>
           ))}
         </Box>
-        
+
         {/* Charts */}
         <Box display="flex" flexWrap="wrap" gap={3} mb={4}>
           <Box flex="1 1 500px" minWidth="500px">
@@ -381,22 +438,22 @@ const TeamDashboard = ({
               title="Compliance Trend"
               filters={['All', 'Tables', 'DAGs']}
               onFilterChange={setChartFilter}
-              loading={metricsLoading && !lastFetchFailed}
-              chart={<ComplianceTrendChart filter={chartFilter.toLowerCase() as 'all' | 'tables' | 'dags'} data={teamEntities.length > 0 ? complianceTrends?.trend || [] : []} entities={teamEntities} loading={metricsLoading} />}
+              loading={teamSummaryLoading}
+              chart={<ComplianceTrendChart filter={chartFilter.toLowerCase() as 'all' | 'tables' | 'dags'} data={canDisplayTrends ? (teamSummaryData?.complianceTrends?.trend || []) : []} entities={canDisplayTrends ? teamEntities : []} loading={teamSummaryLoading} />}
             />
           </Box>
-          
+
           <Box flex="1 1 500px" minWidth="500px">
             <ChartCard
               title="Top 5 Entities Performance"
               filters={['All', 'Tables', 'DAGs']}
               onFilterChange={setEntitiesChartFilter}
-              loading={metricsLoading && !lastFetchFailed}
-              chart={<EntityPerformanceChart entities={metrics ? teamEntities : []} filter={entitiesChartFilter.toLowerCase() as 'all' | 'tables' | 'dags'} />}
+              loading={teamSummaryLoading}
+              chart={<EntityPerformanceChart entities={hasRangeData ? teamEntities : []} filter={entitiesChartFilter.toLowerCase() as 'all' | 'tables' | 'dags'} />}
             />
           </Box>
         </Box>
-        
+
         {/* Tables/DAGs Sub-tabs */}
         <Tabs value={tabValue} onChange={handleTabChange} sx={{ mb: 3 }}>
           <Tab 
@@ -416,7 +473,7 @@ const TeamDashboard = ({
             }} 
           />
         </Tabs>
-        
+
         <Box role="tabpanel" hidden={tabValue !== 0}>
           {tabValue === 0 && (
             <EntityTable
@@ -430,12 +487,12 @@ const TeamDashboard = ({
               onSetNotificationTimeline={onNotificationTimeline}
               showActions={true}
               isTeamDashboard={true}
-              hasMetrics={metrics !== null}
-              trendLabel={`${dateRange.label} Trend`}
+              hasMetrics={canDisplayTrends}
+              trendLabel={`${teamDateRange.label} Trend`}
             />
           )}
         </Box>
-        
+
         <Box role="tabpanel" hidden={tabValue !== 1}>
           {tabValue === 1 && (
             <EntityTable
@@ -450,8 +507,8 @@ const TeamDashboard = ({
               onSetNotificationTimeline={onNotificationTimeline}
               showActions={true}
               isTeamDashboard={true}
-              hasMetrics={metrics !== null}
-              trendLabel={`${dateRange.label} Trend`}
+              hasMetrics={canDisplayTrends}
+              trendLabel={`${teamDateRange.label} Trend`}
             />
           )}
         </Box>

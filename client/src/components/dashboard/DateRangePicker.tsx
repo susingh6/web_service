@@ -16,6 +16,12 @@ import { setDateRange } from '@/features/sla/slices/dashboardSlice';
 import 'react-date-range/dist/styles.css';
 import 'react-date-range/dist/theme/default.css';
 
+type PickerDateRange = {
+  startDate: Date;
+  endDate: Date;
+  label: string;
+};
+
 const predefinedRanges = [
   { label: 'Today', value: 'today', startDate: startOfDay(new Date()), endDate: endOfDay(new Date()) },
   { label: 'Yesterday', value: 'yesterday', startDate: startOfDay(subDays(new Date(), 1)), endDate: endOfDay(subDays(new Date(), 1)) },
@@ -24,55 +30,70 @@ const predefinedRanges = [
   { label: 'This Month', value: 'thisMonth', startDate: startOfDay(new Date(new Date().getFullYear(), new Date().getMonth(), 1)), endDate: endOfDay(new Date()) },
 ];
 
-const DateRangePicker = () => {
+interface DateRangePickerProps {
+  value?: PickerDateRange;
+  onChange?: (range: PickerDateRange) => void;
+}
+
+const DateRangePicker = ({ value, onChange }: DateRangePickerProps) => {
   const dispatch = useAppDispatch();
   const { dateRange } = useAppSelector((state) => state.dashboard);
-  
+
   const [anchorEl, setAnchorEl] = useState<HTMLButtonElement | null>(null);
   const [localRange, setLocalRange] = useState({
-    startDate: dateRange.startDate,
-    endDate: dateRange.endDate,
+    startDate: (value?.startDate || dateRange.startDate),
+    endDate: (value?.endDate || dateRange.endDate),
   });
-  
+
   const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
     setAnchorEl(event.currentTarget);
     setLocalRange({
-      startDate: dateRange.startDate,
-      endDate: dateRange.endDate,
+      startDate: (value?.startDate || dateRange.startDate),
+      endDate: (value?.endDate || dateRange.endDate),
     });
   };
-  
+
   const handleClose = () => {
     setAnchorEl(null);
   };
-  
+
   const handleRangeChange = (ranges: any) => {
     setLocalRange({
       startDate: ranges.selection.startDate,
       endDate: ranges.selection.endDate,
     });
   };
-  
+
   const handleApply = () => {
-    dispatch(setDateRange({
+    const next = {
       startDate: localRange.startDate,
       endDate: localRange.endDate,
       label: 'Custom Range',
-    }));
+    } as PickerDateRange;
+    if (onChange) {
+      onChange(next);
+    } else {
+      dispatch(setDateRange(next));
+    }
     handleClose();
   };
-  
+
   const handlePredefinedRange = (range: typeof predefinedRanges[0]) => {
-    dispatch(setDateRange({
+    const next = {
       startDate: range.startDate,
       endDate: range.endDate,
       label: range.label,
-    }));
+    } as PickerDateRange;
+    if (onChange) {
+      onChange(next);
+    } else {
+      dispatch(setDateRange(next));
+    }
     handleClose();
   };
-  
+
   const open = Boolean(anchorEl);
-  
+
   return (
     <>
       <Button
@@ -88,9 +109,9 @@ const DateRangePicker = () => {
           fontSize: '0.875rem',
         }}
       >
-        {dateRange.label}
+        {(value?.label || dateRange.label)}
       </Button>
-      
+
       <Popover
         open={open}
         anchorEl={anchorEl}
@@ -119,7 +140,7 @@ const DateRangePicker = () => {
             <CloseIcon fontSize="small" />
           </IconButton>
         </Box>
-        
+
         <Stack direction="row" spacing={2}>
           <Box sx={{ width: 150 }}>
             <Typography variant="body2" fontWeight={500} gutterBottom>
@@ -145,7 +166,7 @@ const DateRangePicker = () => {
               </Button>
             ))}
           </Box>
-          
+
           <Box sx={{ flex: 1 }}>
             <Box sx={{ mb: 2 }}>
               <DateRange
@@ -181,7 +202,7 @@ const DateRangePicker = () => {
                 maxDate={new Date()}
               />
             </Box>
-            
+
             <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
               <TextField
                 label="Start Date"
@@ -218,7 +239,7 @@ const DateRangePicker = () => {
                 sx={{ width: '48%' }}
               />
             </Box>
-            
+
             <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
               <Button
                 variant="contained"

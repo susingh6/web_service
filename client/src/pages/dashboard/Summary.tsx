@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { startOfDay, endOfDay, subDays } from 'date-fns';
 import { Box, Grid, Button, Typography, Tabs, Tab, Select, MenuItem, FormControl, InputLabel, IconButton } from '@mui/material';
 import { Add as AddIcon, Upload as UploadIcon, Close as CloseIcon } from '@mui/icons-material';
 import { useAppDispatch, useAppSelector } from '@/lib/store';
@@ -32,10 +33,10 @@ const Summary = () => {
   const { toast } = useToast();
   const { deleteEntity } = useEntityMutation();
   const cacheManager = useCacheManager();
-  
-  const { metrics, complianceTrends, isLoading: metricsLoading, dateRange, lastFetchFailed } = useAppSelector((state) => state.dashboard);
+
+  const { metrics, complianceTrends, isLoading: metricsLoading, lastFetchFailed } = useAppSelector((state) => state.dashboard);
   const { list: entities, teams, isLoading: entitiesLoading } = useAppSelector((state) => state.entities);
-  
+
   const [tabValue, setTabValue] = useState(0);
   const [openAddModal, setOpenAddModal] = useState(false);
   const [openBulkModal, setOpenBulkModal] = useState(false);
@@ -55,12 +56,18 @@ const Summary = () => {
     },
     staleTime: 6 * 60 * 60 * 1000, // 6 hours to match cache TTL
   });
-  
+
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
   const [openTeamTabs, setOpenTeamTabs] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState('summary');
   const [teamsLoaded, setTeamsLoaded] = useState(false);
-  
+  const [teamDateRanges, setTeamDateRanges] = useState<Record<string, { startDate: Date; endDate: Date; label: string }>>({});
+  const [summaryDateRange, setSummaryDateRange] = useState({
+    startDate: startOfDay(subDays(new Date(), 29)),
+    endDate: endOfDay(new Date()),
+    label: 'Last 30 Days',
+  });
+
   // WebSocket connection for real-time updates
   const { isConnected } = useWebSocket({
     onEntityUpdated: (data) => {
@@ -68,7 +75,7 @@ const Summary = () => {
       const operation: 'created' | 'updated' | 'deleted' = data.type || 'updated';
       const entityType = data.entityType as 'table' | 'dag';
       const teamId = data.teamId;
-      
+
       // Use centralized cache patterns for consistent invalidation
       const invalidationKeys: (string | object)[][] = [
         [...CACHE_PATTERNS.ENTITIES.LIST],
@@ -77,14 +84,14 @@ const Summary = () => {
         ...(teamId && entityType ? [CACHE_PATTERNS.ENTITIES.BY_TEAM_AND_TYPE(teamId, entityType)] : []),
         ...(selectedTenant ? [CACHE_PATTERNS.DASHBOARD.SUMMARY(selectedTenant.name)] : [])
       ];
-      
+
       // Invalidate using cache manager for consistency
       cacheManager.invalidateCache(invalidationKeys);
-      
+
       // CRITICAL: Force Redux store refresh - this ensures UI updates immediately
       dispatch(fetchEntities({}));
       if (selectedTenant) dispatch(fetchDashboardSummary({ tenantName: selectedTenant.name }));
-      
+
       // For team-specific pages, also refresh team entities
       if (openTeamTabs.length > 0) {
         openTeamTabs.forEach(teamId => {
@@ -94,14 +101,14 @@ const Summary = () => {
           }
         });
       }
-      
+
       // Show appropriate toast notification based on operation type
       const messages: Record<'created' | 'updated' | 'deleted', string> = {
         created: `${data.entityName} has been created successfully`,
         updated: `${data.entityName} has been updated successfully`,
         deleted: `${data.entityName} has been deleted successfully`
       };
-      
+
       toast({
         title: `Entity ${operation.charAt(0).toUpperCase() + operation.slice(1)}`,
         description: messages[operation] || messages.updated,
@@ -117,7 +124,7 @@ const Summary = () => {
       if (openTeamTabs.length > 0) {
         dispatch(fetchTeams());
       }
-      
+
       toast({
         title: "Data Refreshed",
         description: "Dashboard data has been updated with latest information",
@@ -131,7 +138,7 @@ const Summary = () => {
       // WebSocket disconnected - real-time updates disabled
     }
   });
-  
+
   // Initialize selected tenant when tenants data loads
   useEffect(() => {
     if (tenants.length > 0 && !selectedTenant) {
@@ -140,29 +147,29 @@ const Summary = () => {
       setSelectedTenant(defaultTenant);
     }
   }, [tenants, selectedTenant]);
-  
+
   // Fetch dashboard data when tenant or date range changes
   useEffect(() => {
     if (selectedTenant) {
       // Format dates for API call
-      const startDate = dateRange.startDate ? dateRange.startDate.toISOString().split('T')[0] : undefined;
-      const endDate = dateRange.endDate ? dateRange.endDate.toISOString().split('T')[0] : undefined;
-      
+      const startDate = summaryDateRange.startDate ? summaryDateRange.startDate.toISOString().split('T')[0] : undefined;
+      const endDate = summaryDateRange.endDate ? summaryDateRange.endDate.toISOString().split('T')[0] : undefined;
+
       // Fetch dashboard summary with date range parameters
       dispatch(fetchDashboardSummary({ 
         tenantName: selectedTenant.name,
         startDate,
         endDate
       }));
-      
+
       // Always load ALL entities for Summary dashboard - don't filter by team
       dispatch(fetchEntities({})); // Load ALL entities for summary dashboard
       // Load teams data for chart display (silent load for summary page)
       dispatch(fetchTeams());
       setTeamsLoaded(true);
     }
-  }, [dispatch, selectedTenant, dateRange]);
-  
+  }, [dispatch, selectedTenant, summaryDateRange]);
+
   // Filter entities based on tab and tenant - only show entity owners
   const filterEntitiesByTenant = (entities: Entity[]) => {
     // Filter by tenant_name and only show entity owners
@@ -170,15 +177,15 @@ const Summary = () => {
       entity.tenant_name === selectedTenant?.name && entity.is_entity_owner === true
     );
   };
-  
+
   const filteredEntities = filterEntitiesByTenant(entities);
   const tables = filteredEntities.filter((entity) => entity.type === 'table');
   const dags = filteredEntities.filter((entity) => entity.type === 'dag');
-  
+
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
   };
-  
+
   const handleTenantChange = (event: any) => {
     const tenantName = event.target.value;
     const tenant = tenants.find(t => t.name === tenantName);
@@ -187,10 +194,10 @@ const Summary = () => {
       // DO NOT clear team tabs - tenant filter only affects Summary tab data
       // Refresh Summary dashboard data with new tenant
       // Switching to tenant
-      
+
       // Invalidate cached dashboard data to force fresh fetch
       queryClient.invalidateQueries({ queryKey: ['/api/dashboard/summary'] });
-      
+
       // The useEffect will handle the API calls when selectedTenant changes
       // No need to make manual API calls here to avoid duplicates
     }
@@ -207,6 +214,19 @@ const Summary = () => {
   const handleAddTeamTab = (teamName: string) => {
     if (!openTeamTabs.includes(teamName)) {
       setOpenTeamTabs([...openTeamTabs, teamName]);
+      // Initialize date range for this team if not already set
+      setTeamDateRanges((prev) => (
+        prev[teamName]
+          ? prev
+          : {
+              ...prev,
+              [teamName]: {
+                startDate: startOfDay(subDays(new Date(), 29)),
+                endDate: endOfDay(new Date()),
+                label: 'Last 30 Days',
+              },
+            }
+      ));
     }
     setActiveTab(teamName);
   };
@@ -223,25 +243,25 @@ const Summary = () => {
   const handleDynamicTabChange = (tabName: string) => {
     setActiveTab(tabName);
   };
-  
+
   const handleAddEntity = () => {
     setOpenAddModal(true);
   };
-  
+
   const handleBulkUpload = () => {
     setOpenBulkModal(true);
   };
-  
+
   const handleViewDetails = (entity: Entity) => {
     setSelectedEntity(entity);
     setOpenDetailsDrawer(true);
   };
-  
+
   const handleEditEntity = (entity: Entity) => {
     setSelectedEntity(entity);
     setOpenEditModal(true);
   };
-  
+
   const handleDeleteEntity = (entity: Entity) => {
     setSelectedEntity(entity);
     setOpenDeleteDialog(true);
@@ -256,11 +276,11 @@ const Summary = () => {
     setSelectedEntity(entity);
     setOpenTaskModal(true);
   };
-  
+
   const handleConfirmDelete = async () => {
     try {
       if (!selectedEntity) return;
-      
+
       // Safeguard: Check if entity ID looks like a temporary optimistic ID
       const isOptimisticId = selectedEntity.id > 1000000000000; // Timestamp-based IDs are > 1 trillion
       if (isOptimisticId) {
@@ -272,20 +292,20 @@ const Summary = () => {
         setOpenDeleteDialog(false);
         return;
       }
-      
+
       // Use centralized delete mutation with proper cache management
       await deleteEntity(
         selectedEntity.id, 
         selectedEntity.teamId, 
         selectedEntity.type as 'table' | 'dag'
       );
-      
+
       toast({
         title: 'Success',
         description: `${selectedEntity.name} has been deleted.`,
         variant: 'default',
       });
-      
+
       setOpenDeleteDialog(false);
       setSelectedEntity(null);
     } catch (error) {
@@ -298,7 +318,7 @@ const Summary = () => {
   };
 
 
-  
+
   return (
     <Box>
       {/* Only show title and filters when Summary tab is active */}
@@ -307,7 +327,7 @@ const Summary = () => {
           <Typography variant="h4" component="h1" fontWeight={600} fontFamily="Inter, sans-serif">
             Overall SLA Performance
           </Typography>
-          
+
           <Box display="flex" alignItems="center" gap={2}>
             <FormControl variant="outlined" size="small" sx={{ minWidth: 200 }}>
               <InputLabel id="tenant-filter-label">Tenant</InputLabel>
@@ -325,11 +345,11 @@ const Summary = () => {
                 ))}
               </Select>
             </FormControl>
-            <DateRangePicker />
+            <DateRangePicker value={summaryDateRange} onChange={setSummaryDateRange} />
           </Box>
         </Box>
       )}
-      
+
       {/* Dynamic Tabs System */}
       <Box sx={{ mb: 4, bgcolor: 'background.paper', borderRadius: 1 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', borderBottom: 1, borderColor: 'divider' }}>
@@ -351,7 +371,7 @@ const Summary = () => {
                 '&.Mui-selected': { fontWeight: 600 } 
               }} 
             />
-            
+
             {/* Dynamic Team Tabs with Close Buttons */}
             {openTeamTabs.map((teamName) => (
               <Tab
@@ -387,7 +407,7 @@ const Summary = () => {
               />
             ))}
           </Tabs>
-          
+
           {/* Team Selector - + Button - Right next to tabs */}
           <Box sx={{ ml: 1 }}>
             <TeamSelector
@@ -398,7 +418,7 @@ const Summary = () => {
             />
           </Box>
         </Box>
-        
+
         {/* Summary Tab Content */}
         <Box role="tabpanel" hidden={activeTab !== 'summary'}>
           {activeTab === 'summary' && (
@@ -447,7 +467,7 @@ const Summary = () => {
                   </Box>
                 ))}
               </Box>
-              
+
               {/* Charts */}
               <Box display="flex" flexWrap="wrap" gap={3} mb={4}>
                 <Box flex="1 1 500px" minWidth="500px">
@@ -459,7 +479,7 @@ const Summary = () => {
                     chart={<ComplianceTrendChart filter={chartFilter.toLowerCase() as 'all' | 'tables' | 'dags'} data={complianceTrends?.trend || []} loading={metricsLoading} />}
                   />
                 </Box>
-                
+
                 <Box flex="1 1 500px" minWidth="500px">
                   <ChartCard
                     title="Team Performance Comparison"
@@ -468,7 +488,7 @@ const Summary = () => {
                   />
                 </Box>
               </Box>
-              
+
               {/* Tables/DAGs Sub-tabs */}
               <Tabs value={tabValue} onChange={handleTabChange} sx={{ mb: 3 }}>
                 <Tab 
@@ -488,7 +508,7 @@ const Summary = () => {
                   }} 
                 />
               </Tabs>
-              
+
               <Box role="tabpanel" hidden={tabValue !== 0}>
                 {tabValue === 0 && (
                   <EntityTable
@@ -502,11 +522,11 @@ const Summary = () => {
                     onSetNotificationTimeline={handleNotificationTimeline}
                     showActions={false}
                     hasMetrics={metrics !== null}
-                    trendLabel={`${dateRange.label} Trend`}
+                    trendLabel={`${summaryDateRange.label} Trend`}
                   />
                 )}
               </Box>
-              
+
               <Box role="tabpanel" hidden={tabValue !== 1}>
                 {tabValue === 1 && (
                   <EntityTable
@@ -521,14 +541,14 @@ const Summary = () => {
                     onSetNotificationTimeline={handleNotificationTimeline}
                     showActions={false}
                     hasMetrics={metrics !== null}
-                    trendLabel={`${dateRange.label} Trend`}
+                    trendLabel={`${summaryDateRange.label} Trend`}
                   />
                 )}
               </Box>
             </Box>
           )}
         </Box>
-        
+
         {/* Team Tab Content */}
         {openTeamTabs.map((teamName) => (
           <Box key={teamName} role="tabpanel" hidden={activeTab !== teamName}>
@@ -536,6 +556,8 @@ const Summary = () => {
               <TeamDashboard
                 teamName={teamName}
                 tenantName={selectedTenant?.name || ''}
+                dateRange={teamDateRanges[teamName]}
+                onDateRangeChange={(range) => setTeamDateRanges((prev) => ({ ...prev, [teamName]: range }))}
                 onEditEntity={handleEditEntity}
                 onDeleteEntity={handleDeleteEntity}
                 onViewDetails={handleViewDetails}
@@ -548,33 +570,33 @@ const Summary = () => {
           </Box>
         ))}
       </Box>
-      
+
       {/* Modals */}
       <AddEntityModal
         open={openAddModal}
         onClose={() => setOpenAddModal(false)}
         teams={teams}
       />
-      
+
       <BulkUploadModal
         open={openBulkModal}
         onClose={() => setOpenBulkModal(false)}
       />
-      
+
       <EntityDetailsModal
         open={openDetailsDrawer}
         onClose={() => setOpenDetailsDrawer(false)}
         entity={selectedEntity}
         teams={teams}
       />
-      
+
       <EditEntityModal
         open={openEditModal}
         onClose={() => setOpenEditModal(false)}
         entity={selectedEntity}
         teams={teams}
       />
-      
+
       <ConfirmDialog
         open={openDeleteDialog}
         onClose={() => setOpenDeleteDialog(false)}
@@ -582,7 +604,7 @@ const Summary = () => {
         title="Delete Entity"
         content={`Are you sure you want to delete "${selectedEntity?.name}"? This action cannot be undone.`}
       />
-      
+
       <NotificationTimelineModal
         open={openNotificationModal}
         onClose={() => setOpenNotificationModal(false)}
@@ -596,7 +618,7 @@ const Summary = () => {
           });
         }}
       />
-      
+
       <TaskManagementModal
         isOpen={openTaskModal}
         onClose={() => setOpenTaskModal(false)}
