@@ -255,6 +255,32 @@ export class MemStorage implements IStorage {
     }
 
     
+    // Create demo tenants first (teams reference tenant_id)
+    const tenantData = [
+      {
+        name: 'Data Engineering',
+        description: 'Data Engineering team and related entities'
+      },
+      {
+        name: 'Ad Engineering', 
+        description: 'Ad Engineering team and related entities'
+      },
+      {
+        name: 'Marketing Analytics',
+        description: 'Marketing data and customer insights'
+      }
+    ];
+
+    tenantData.forEach(tenantInfo => {
+      const tenant = {
+        id: this.tenantId++,
+        ...tenantInfo,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      this.tenants.set(tenant.id, tenant);
+    });
+    
     // Create demo teams with the new team names and member data
     const teamData = [
       { 
