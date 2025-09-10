@@ -302,7 +302,7 @@ export class MemStorage implements IStorage {
       { 
         name: 'Viewer Product', 
         description: 'Viewer Product Team',
-        tenant_id: 2,
+        tenant_id: 1,  // Move to Data Engineering
         team_members_ids: ['emily.davis'],
         team_email: ['viewer-product@company.com'],
         team_slack: ['#viewer-product'],
