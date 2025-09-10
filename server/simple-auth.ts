@@ -33,67 +33,6 @@ async function authenticateWithFastAPI(username: string, password: string): Prom
   }
 }
 
-// Reusable FastAPI session validation function for all SLA/entity endpoints
-export async function validateFastAPISession(
-  sessionId: string,
-  action: string = 'view',
-  resourceDetails?: {
-    teamName?: string;
-    entityType?: string;
-    entityName?: string;
-  }
-): Promise<{ authorized: boolean; user?: any; error?: string }> {
-  try {
-    const response = await fetch('http://localhost:8080/api/v1/auth/validate-session', {
-      method: 'POST',
-      headers: {
-        'X-Session-ID': sessionId,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        action,
-        resource: resourceDetails || {}
-      })
-    });
-    
-    if (response.ok) {
-      const authResult = await response.json();
-      return {
-        authorized: true,
-        user: authResult.user || null
-      };
-    }
-    
-    if (response.status === 401) {
-      return {
-        authorized: false,
-        error: 'Invalid or expired session'
-      };
-    }
-    
-    if (response.status === 403) {
-      const errorData = await response.json().catch(() => ({}));
-      return {
-        authorized: false,
-        error: errorData.message || 'Access denied'
-      };
-    }
-    
-    // Other errors
-    return {
-      authorized: false,
-      error: 'Authorization service unavailable'
-    };
-  } catch (error) {
-    // FastAPI authorization service unavailable - fallback to local session
-    console.warn('FastAPI authorization service unavailable, falling back to local session validation');
-    return {
-      authorized: false,
-      error: 'Authorization service unavailable'
-    };
-  }
-}
-
 // FastAPI authorization function for rollback operations
 export async function authorizeRollbackWithFastAPI(
   sessionId: string,

@@ -43,7 +43,7 @@ function createRollbackAuditLog(event: string, req: Request, additionalData?: an
     ...additionalData
   };
 }
-import { setupSimpleAuth, authorizeRollbackWithFastAPI, validateFastAPISession } from "./simple-auth";
+import { setupSimpleAuth, authorizeRollbackWithFastAPI } from "./simple-auth";
 import { setupTestRoutes } from "./test-routes";
 
 // Structured error response helpers
@@ -79,49 +79,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
     res.status(401).json({ message: "Unauthorized" });
   };
-
-  // FastAPI session validation middleware for SLA/entity endpoints
-  const validateFastAPIAuth = (action: string = 'view') => {
-    return async (req: Request, res: Response, next: NextFunction) => {
-      const sessionId = req.headers['x-session-id'] as string;
-      
-      if (!sessionId) {
-        return res.status(401).json({ 
-          message: "Unauthorized - Session ID required",
-          type: 'auth_error' 
-        });
-      }
-
-      // Extract resource details from request params if available
-      const resourceDetails = {
-        teamName: req.params.teamName || req.query.team as string,
-        entityType: req.params.entityType || req.query.entityType as string,
-        entityName: req.params.entityName || req.query.entityName as string
-      };
-
-      try {
-        const authResult = await validateFastAPISession(sessionId, action, resourceDetails);
-        
-        if (!authResult.authorized) {
-          const statusCode = authResult.error === 'Invalid or expired session' ? 401 : 403;
-          return res.status(statusCode).json({
-            message: authResult.error || 'Access denied',
-            type: 'auth_error'
-          });
-        }
-
-        // Store authenticated user info for use in the route handler
-        (req as any).fastApiUser = authResult.user;
-        next();
-      } catch (error) {
-        console.error('FastAPI session validation error:', error);
-        return res.status(500).json({
-          message: 'Authentication service error',
-          type: 'auth_service_error'
-        });
-      }
-    };
-  };
   
   
   // API Routes
@@ -146,7 +103,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Teams endpoints - using cache
-  app.get("/api/teams", validateFastAPIAuth('view'), async (req, res) => {
+  app.get("/api/teams", async (req, res) => {
     try {
       const { teamName } = req.query;
       const teams = await redisCache.getAllTeams();
@@ -375,7 +332,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.post("/api/teams", validateFastAPIAuth('create'), async (req, res) => {
+  app.post("/api/teams", async (req, res) => {
     try {
       const result = insertTeamSchema.safeParse(req.body);
       
@@ -394,7 +351,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.get("/api/teams/:id", validateFastAPIAuth('view'), async (req, res) => {
+  app.get("/api/teams/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -413,7 +370,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get team details by team name with member information
-  app.get("/api/get_team_details/:teamName", validateFastAPIAuth('view'), async (req, res) => {
+  app.get("/api/get_team_details/:teamName", async (req, res) => {
     try {
       const { teamName } = req.params;
       
@@ -447,7 +404,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get team members endpoint with caching
-  app.get("/api/get_team_members/:teamName", validateFastAPIAuth('view'), async (req, res) => {
+  app.get("/api/get_team_members/:teamName", async (req, res) => {
     try {
       const { teamName } = req.params;
       
@@ -488,7 +445,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Team member management endpoints
-  app.post("/api/teams/:teamName/members", validateFastAPIAuth('update'), async (req, res) => {
+  app.post("/api/teams/:teamName/members", async (req, res) => {
     try {
       const { teamName } = req.params;
       
@@ -538,7 +495,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Entities endpoints - using cache with pre-defined date filtering
-  app.get("/api/entities", validateFastAPIAuth('view'), async (req, res) => {
+  app.get("/api/entities", async (req, res) => {
     try {
       let entities = await redisCache.getAllEntities();
       
@@ -647,7 +604,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Custom entities endpoint for ad-hoc date range queries (no caching)
-  app.get("/api/entities/custom", validateFastAPIAuth('view'), async (req, res) => {
+  app.get("/api/entities/custom", async (req, res) => {
     try {
       const { start_date, end_date, team_id, tenant } = req.query;
       
@@ -700,7 +657,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.post("/api/entities", validateFastAPIAuth('create'), async (req, res) => {
+  app.post("/api/entities", async (req, res) => {
     try {
       const result = insertEntitySchema.safeParse(req.body);
       
@@ -743,7 +700,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get detailed entity information for editing
-  app.get("/api/entities/:id/details", validateFastAPIAuth('view'), async (req, res) => {
+  app.get("/api/entities/:id/details", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -792,7 +749,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.put("/api/entities/:id", validateFastAPIAuth('update'), async (req, res) => {
+  app.put("/api/entities/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -868,7 +825,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.delete("/api/entities/:id", validateFastAPIAuth('delete'), async (req, res) => {
+  app.delete("/api/entities/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -1196,7 +1153,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create notification timeline
-  app.post("/api/notification-timelines", validateFastAPIAuth('create'), async (req: Request, res: Response) => {
+  app.post("/api/notification-timelines", isAuthenticated, async (req: Request, res: Response) => {
     try {
       const validatedData = insertNotificationTimelineSchema.parse(req.body);
       const timeline = await storage.createNotificationTimeline(validatedData);
@@ -1211,7 +1168,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get notification timeline by ID
-  app.get("/api/notification-timelines/:id", validateFastAPIAuth('view'), async (req: Request, res: Response) => {
+  app.get("/api/notification-timelines/:id", isAuthenticated, async (req: Request, res: Response) => {
     try {
       const timelineId = req.params.id;
       // Implementation would retrieve timeline by ID from storage
@@ -1223,7 +1180,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update notification timeline
-  app.put("/api/notification-timelines/:id", validateFastAPIAuth('update'), async (req: Request, res: Response) => {
+  app.put("/api/notification-timelines/:id", isAuthenticated, async (req: Request, res: Response) => {
     try {
       const timelineId = req.params.id;
       
@@ -1255,7 +1212,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Delete notification timeline
-  app.delete("/api/notification-timelines/:id", validateFastAPIAuth('delete'), async (req: Request, res: Response) => {
+  app.delete("/api/notification-timelines/:id", isAuthenticated, async (req: Request, res: Response) => {
     try {
       const timelineId = req.params.id;
       const deleted = await storage.deleteNotificationTimeline(timelineId);
@@ -1273,7 +1230,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Task API routes
   // Get tasks for a specific DAG
-  app.get("/api/dags/:dagId/tasks", validateFastAPIAuth('view'), async (req: Request, res: Response) => {
+  app.get("/api/dags/:dagId/tasks", isAuthenticated, async (req: Request, res: Response) => {
     try {
       const dagId = parseInt(req.params.dagId);
       if (isNaN(dagId)) {
@@ -1317,7 +1274,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update task priority
-  app.patch("/api/tasks/:taskId", validateFastAPIAuth('update'), async (req: Request, res: Response) => {
+  app.patch("/api/tasks/:taskId", isAuthenticated, async (req: Request, res: Response) => {
     try {
       const taskId = parseInt(req.params.taskId);
       if (isNaN(taskId)) {
@@ -1689,7 +1646,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Owner and SLA settings endpoint for entity details modal
-  app.get('/api/teams/:teamName/:entityType/:entityName/owner_sla_settings', validateFastAPIAuth('view'), async (req: Request, res: Response) => {
+  app.get('/api/teams/:teamName/:entityType/:entityName/owner_sla_settings', async (req: Request, res: Response) => {
     try {
       const { teamName, entityType, entityName } = req.params;
       
@@ -1730,7 +1687,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // SLA status 30 days endpoint for entity details modal
-  app.get('/api/teams/:teamName/:entityType/:entityName/sla_status_30days', validateFastAPIAuth('view'), async (req: Request, res: Response) => {
+  app.get('/api/teams/:teamName/:entityType/:entityName/sla_status_30days', async (req: Request, res: Response) => {
     try {
       const { teamName, entityType, entityName } = req.params;
       
@@ -1761,7 +1718,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Settings changes endpoint for entity details modal
-  app.get('/api/teams/:teamName/:entityType/:entityName/settings_changes', validateFastAPIAuth('view'), async (req: Request, res: Response) => {
+  app.get('/api/teams/:teamName/:entityType/:entityName/settings_changes', async (req: Request, res: Response) => {
     try {
       const { teamName, entityType, entityName } = req.params;
       
