@@ -342,11 +342,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const team = await storage.createTeam(result.data);
       
-      // Invalidate all team-related caches (comprehensive pattern like tenant creation)
+      // Invalidate all team-related caches using correct main cache keys
       await redisCache.invalidateCache({
         keys: [
-          'admin_teams',             // Admin team list
-          'all_teams',               // Main app team list  
           `team_${team.id}`,         // Individual team cache
           `team_details_${team.name}`, // Team details cache
           `team_members_${team.name}`  // Team members cache
@@ -355,7 +353,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           'team_*',      // All team-related cache keys
           'dashboard_*', // Dashboard data that uses team filters
           'summary_*'    // Dashboard summary with team filters
-        ]
+        ],
+        mainCacheKeys: ['TEAMS'], // This invalidates CACHE_KEYS.TEAMS used by getAllTeams()
+        refreshAffectedData: true
       });
       
       res.status(201).json(team);
@@ -1447,11 +1447,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const team = await storage.createTeam(result.data);
       
-      // Invalidate all team-related caches (comprehensive pattern like tenant creation)
+      // Invalidate all team-related caches using correct main cache keys
       await redisCache.invalidateCache({
         keys: [
-          'admin_teams',             // Admin team list
-          'all_teams',               // Main app team list  
           `team_${team.id}`,         // Individual team cache
           `team_details_${team.name}`, // Team details cache
           `team_members_${team.name}`  // Team members cache
@@ -1460,7 +1458,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           'team_*',      // All team-related cache keys
           'dashboard_*', // Dashboard data that uses team filters
           'summary_*'    // Dashboard summary with team filters
-        ]
+        ],
+        mainCacheKeys: ['TEAMS'], // This invalidates CACHE_KEYS.TEAMS used by getAllTeams()
+        refreshAffectedData: true
       });
       
       res.status(201).json(team);
