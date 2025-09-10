@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -31,7 +31,6 @@ import {
   Add as AddIcon,
   Edit as EditIcon,
   Person as PersonIcon,
-  Block as BlockIcon,
   CheckCircle as EnableIcon
 } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -55,6 +54,27 @@ const UserFormDialog = ({ open, onClose, user, onSubmit }: UserFormDialogProps) 
     user_pagerduty: user?.user_pagerduty ? user.user_pagerduty.join(', ') : '',
     is_active: user?.is_active ?? true,
   });
+
+  // Update form data when user prop changes
+  useEffect(() => {
+    if (user) {
+      setFormData({
+        user_name: user.user_name || '',
+        user_email: user.user_email || '',
+        user_slack: user.user_slack ? user.user_slack.join(', ') : '',
+        user_pagerduty: user.user_pagerduty ? user.user_pagerduty.join(', ') : '',
+        is_active: user.is_active ?? true,
+      });
+    } else {
+      setFormData({
+        user_name: '',
+        user_email: '',
+        user_slack: '',
+        user_pagerduty: '',
+        is_active: true,
+      });
+    }
+  }, [user]);
 
   const handleSubmit = () => {
     const userData = {
@@ -386,11 +406,6 @@ const UsersManagement = () => {
                             onClick={() => handleEditUser(user)}
                           >
                             <EditIcon />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Disable User">
-                          <IconButton size="small" color="error">
-                            <BlockIcon />
                           </IconButton>
                         </Tooltip>
                       </Box>
