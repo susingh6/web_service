@@ -264,10 +264,6 @@ export class MemStorage implements IStorage {
       {
         name: 'Ad Engineering', 
         description: 'Ad Engineering team and related entities'
-      },
-      {
-        name: 'Marketing Analytics',
-        description: 'Marketing data and customer insights'
       }
     ];
 
@@ -276,7 +272,7 @@ export class MemStorage implements IStorage {
         id: this.tenantId++,
         ...tenantInfo,
         isActive: true,        // Default to active status
-        teamsCount: 0,         // Default teams count  
+        teamsCount: 0,         // Will be calculated after teams are created
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
@@ -353,6 +349,9 @@ export class MemStorage implements IStorage {
     teamData.forEach(teamInfo => {
       this.createTeam(teamInfo);
     });
+
+    // Calculate and update team counts for tenants after teams are created
+    this.updateTenantTeamCounts();
     
     // Load mock DAG data using FS instead of require
     await this.loadMockDags();
@@ -913,6 +912,29 @@ export class MemStorage implements IStorage {
 
     this.teams.set(team.id, updatedTeam);
     return updatedTeam;
+  }
+
+  /**
+   * Update team counts for all tenants based on actual team assignments
+   */
+  private updateTenantTeamCounts(): void {
+    // Count teams per tenant
+    const teamCounts = new Map<number, number>();
+    
+    for (const team of this.teams.values()) {
+      const tenantId = team.tenant_id;
+      teamCounts.set(tenantId, (teamCounts.get(tenantId) || 0) + 1);
+    }
+    
+    // Update each tenant's team count
+    for (const [tenantId, tenant] of this.tenants.entries()) {
+      const teamCount = teamCounts.get(tenantId) || 0;
+      this.tenants.set(tenantId, {
+        ...tenant,
+        teamsCount: teamCount,
+        updatedAt: new Date().toISOString()
+      });
+    }
   }
   
   // Tenant operations
