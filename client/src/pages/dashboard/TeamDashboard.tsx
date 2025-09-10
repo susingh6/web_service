@@ -47,7 +47,7 @@ const TeamDashboard = ({
 }: TeamDashboardProps) => {
   const dispatch = useAppDispatch();
   const { list: entities, teams, isLoading } = useAppSelector((state) => state.entities);
-  const { metrics, complianceTrends, isLoading: metricsLoading, lastFetchFailed } = useAppSelector((state) => state.dashboard);
+  const { metrics, complianceTrends, isLoading: metricsLoading, dateRange, lastFetchFailed } = useAppSelector((state) => state.dashboard);
   const queryClient = useQueryClient();
   
   const [tabValue, setTabValue] = useState(0);
@@ -60,14 +60,6 @@ const TeamDashboard = ({
   
   // Local state for team entities to avoid affecting Summary dashboard
   const [teamEntities, setTeamEntities] = useState<Entity[]>([]);
-  
-  // Local date range state for Team dashboard (independent of other dashboards)
-  const [dateRange, setDateRange] = useState({
-    startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // 30 days ago
-    endDate: new Date(),
-    label: 'Last 30 Days',
-  });
-  
   const [addMemberDialogOpen, setAddMemberDialogOpen] = useState(false);
   const [removeMemberDialogOpen, setRemoveMemberDialogOpen] = useState(false);
   const [availableUsers, setAvailableUsers] = useState<any[]>([]);
@@ -310,7 +302,7 @@ const TeamDashboard = ({
             </Box>
             
             <Box display="flex" alignItems="center" gap={2}>
-              <DateRangePicker dateRange={dateRange} onChange={setDateRange} />
+              <DateRangePicker />
               
               <Button
                 variant="contained"
@@ -390,7 +382,7 @@ const TeamDashboard = ({
               filters={['All', 'Tables', 'DAGs']}
               onFilterChange={setChartFilter}
               loading={metricsLoading && !lastFetchFailed}
-              chart={<ComplianceTrendChart filter={chartFilter.toLowerCase() as 'all' | 'tables' | 'dags'} data={dateRange.label === 'Last 30 Days' && teamEntities.length > 0 ? complianceTrends?.trend || [] : []} entities={teamEntities} startDate={dateRange.startDate} endDate={dateRange.endDate} loading={metricsLoading} />}
+              chart={<ComplianceTrendChart filter={chartFilter.toLowerCase() as 'all' | 'tables' | 'dags'} data={teamEntities.length > 0 ? complianceTrends?.trend || [] : []} entities={teamEntities} loading={metricsLoading} />}
             />
           </Box>
           

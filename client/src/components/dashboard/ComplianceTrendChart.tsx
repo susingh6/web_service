@@ -13,20 +13,13 @@ import {
 } from 'recharts';
 import { format, parseISO, differenceInDays, startOfMonth, isSameMonth } from 'date-fns';
 
-// Generate compliance data from real entities with date range support
-const generateDataFromEntities = (entities: any[], startDate?: Date, endDate?: Date) => {
+// Generate compliance data from real entities
+const generateDataFromEntities = (entities: any[]) => {
   const data = [];
+  const now = new Date();
   
-  // Use provided date range or default to last 30 days
-  const rangeStart = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-  const rangeEnd = endDate || new Date();
-  
-  // Calculate the number of days in the range
-  const daysDifference = Math.ceil((rangeEnd.getTime() - rangeStart.getTime()) / (1000 * 60 * 60 * 24));
-  const daysToGenerate = Math.max(1, Math.min(daysDifference, 365)); // Between 1 and 365 days
-  
-  for (let i = daysToGenerate - 1; i >= 0; i--) {
-    const date = new Date(rangeEnd);
+  for (let i = 29; i >= 0; i--) {
+    const date = new Date(now);
     date.setDate(date.getDate() - i);
     
     // Calculate compliance based on entities
@@ -174,8 +167,6 @@ interface ComplianceTrendChartProps {
 
 const ComplianceTrendChart = ({
   data,
-  startDate,
-  endDate,
   filter = 'all',
   entities = [],
   selectedTenant,
@@ -195,7 +186,7 @@ const ComplianceTrendChart = ({
   }
 
   // Use provided data (from cache) or generate from entities as fallback
-  let chartData = data && data.length > 0 ? data : generateDataFromEntities(entities, startDate, endDate);
+  let chartData = data || [];
   
   // Determine if we should use monthly aggregation
   const useMonthlyAggregation = shouldUseMonthlyAggregation(chartData);

@@ -33,7 +33,7 @@ const Summary = () => {
   const { deleteEntity } = useEntityMutation();
   const cacheManager = useCacheManager();
   
-  const { metrics, complianceTrends, isLoading: metricsLoading, lastFetchFailed } = useAppSelector((state) => state.dashboard);
+  const { metrics, complianceTrends, isLoading: metricsLoading, dateRange, lastFetchFailed } = useAppSelector((state) => state.dashboard);
   const { list: entities, teams, isLoading: entitiesLoading } = useAppSelector((state) => state.entities);
   
   const [tabValue, setTabValue] = useState(0);
@@ -60,13 +60,6 @@ const Summary = () => {
   const [openTeamTabs, setOpenTeamTabs] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState('summary');
   const [teamsLoaded, setTeamsLoaded] = useState(false);
-  
-  // Local date range state for Summary dashboard (independent of other dashboards)
-  const [dateRange, setDateRange] = useState({
-    startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // 30 days ago
-    endDate: new Date(),
-    label: 'Last 30 Days',
-  });
   
   // WebSocket connection for real-time updates
   const { isConnected } = useWebSocket({
@@ -332,7 +325,7 @@ const Summary = () => {
                 ))}
               </Select>
             </FormControl>
-            <DateRangePicker dateRange={dateRange} onChange={setDateRange} />
+            <DateRangePicker />
           </Box>
         </Box>
       )}

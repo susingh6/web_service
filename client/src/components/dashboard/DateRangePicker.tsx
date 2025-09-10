@@ -11,6 +11,8 @@ import {
 import { DateRange as DateRangeIcon, Close as CloseIcon } from '@mui/icons-material';
 import { DateRange, DateRangePicker as MuiDateRangePicker } from 'react-date-range';
 import { format, addDays, startOfDay, endOfDay, subDays } from 'date-fns';
+import { useAppDispatch, useAppSelector } from '@/lib/store';
+import { setDateRange } from '@/features/sla/slices/dashboardSlice';
 import 'react-date-range/dist/styles.css';
 import 'react-date-range/dist/theme/default.css';
 
@@ -22,18 +24,10 @@ const predefinedRanges = [
   { label: 'This Month', value: 'thisMonth', startDate: startOfDay(new Date(new Date().getFullYear(), new Date().getMonth(), 1)), endDate: endOfDay(new Date()) },
 ];
 
-interface DateRangeState {
-  startDate: Date;
-  endDate: Date;
-  label: string;
-}
-
-interface DateRangePickerProps {
-  dateRange: DateRangeState;
-  onChange: (dateRange: DateRangeState) => void;
-}
-
-const DateRangePicker = ({ dateRange, onChange }: DateRangePickerProps) => {
+const DateRangePicker = () => {
+  const dispatch = useAppDispatch();
+  const { dateRange } = useAppSelector((state) => state.dashboard);
+  
   const [anchorEl, setAnchorEl] = useState<HTMLButtonElement | null>(null);
   const [localRange, setLocalRange] = useState({
     startDate: dateRange.startDate,
@@ -60,20 +54,20 @@ const DateRangePicker = ({ dateRange, onChange }: DateRangePickerProps) => {
   };
   
   const handleApply = () => {
-    onChange({
+    dispatch(setDateRange({
       startDate: localRange.startDate,
       endDate: localRange.endDate,
       label: 'Custom Range',
-    });
+    }));
     handleClose();
   };
   
   const handlePredefinedRange = (range: typeof predefinedRanges[0]) => {
-    onChange({
+    dispatch(setDateRange({
       startDate: range.startDate,
       endDate: range.endDate,
       label: range.label,
-    });
+    }));
     handleClose();
   };
   
