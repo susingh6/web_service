@@ -1593,6 +1593,121 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Owner and SLA settings endpoint for entity details modal
+  app.get('/api/teams/:teamName/:entityType/:entityName/owner_sla_settings', async (req: Request, res: Response) => {
+    try {
+      const { teamName, entityType, entityName } = req.params;
+      
+      // Get all entities from cache
+      const entities = await redisCache.getAllEntities();
+      
+      // Find the specific entity
+      const entity = entities.find(e => 
+        e.name === entityName && 
+        e.type === entityType &&
+        e.team_name === teamName
+      );
+      
+      if (!entity) {
+        return res.status(404).json({ message: 'Entity not found' });
+      }
+      
+      // Return owner and SLA settings data
+      res.json({
+        owner: entity.owner || 'Unknown Owner',
+        ownerEmail: entity.ownerEmail || entity.owner_email || 'owner@company.com',
+        userEmail: 'user@company.com',
+        entityName: entity.name,
+        team: teamName,
+        description: entity.description || `${entity.type} entity for data processing`,
+        schedule: entity.dag_schedule || entity.table_schedule || '0 2 * * *',
+        expectedRuntime: entity.expected_runtime_minutes || 45,
+        donemarkerLocation: entity.donemarker_location || `s3://analytics-${entity.type}s/${entity.name}/`,
+        donemarkerLookback: entity.donemarker_lookback || 2,
+        dependency: entity.dag_dependency || entity.table_dependency || 'upstream_dependencies',
+        isActive: entity.is_active !== undefined ? entity.is_active : true,
+        ...(entity.type === 'dag' && { serverName: 'airflow-prod-01' }),
+      });
+    } catch (error) {
+      console.error('Owner SLA settings error:', error);
+      res.status(500).json({ message: 'Failed to fetch owner and SLA settings' });
+    }
+  });
+
+  // SLA status 30 days endpoint for entity details modal
+  app.get('/api/teams/:teamName/:entityType/:entityName/sla_status_30days', async (req: Request, res: Response) => {
+    try {
+      const { teamName, entityType, entityName } = req.params;
+      
+      // Generate mock 30-day SLA status data
+      const days = [];
+      const today = new Date();
+      
+      for (let i = 29; i >= 0; i--) {
+        const date = new Date(today);
+        date.setDate(today.getDate() - i);
+        
+        // Generate realistic SLA data with some variation
+        const baseSla = 85 + Math.random() * 15; // Between 85-100%
+        const status = baseSla >= 95 ? 'Passed' : baseSla >= 85 ? 'Warning' : 'Failed';
+        
+        days.push({
+          date: date.toISOString().split('T')[0],
+          sla: parseFloat(baseSla.toFixed(1)),
+          status: status
+        });
+      }
+      
+      res.json({ days });
+    } catch (error) {
+      console.error('SLA status 30 days error:', error);
+      res.status(500).json({ message: 'Failed to fetch SLA status data' });
+    }
+  });
+
+  // Settings changes endpoint for entity details modal
+  app.get('/api/teams/:teamName/:entityType/:entityName/settings_changes', async (req: Request, res: Response) => {
+    try {
+      const { teamName, entityType, entityName } = req.params;
+      
+      // Generate mock settings changes data
+      const changes = [
+        {
+          id: 1,
+          timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+          user: 'john.doe@company.com',
+          field: 'SLA Target',
+          oldValue: '90%',
+          newValue: '95%',
+          reason: 'Updated to align with new business requirements'
+        },
+        {
+          id: 2,
+          timestamp: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+          user: 'jane.smith@company.com',
+          field: 'Owner',
+          oldValue: 'legacy.owner@company.com',
+          newValue: 'new.owner@company.com',
+          reason: 'Team restructuring - ownership transfer'
+        },
+        {
+          id: 3,
+          timestamp: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(),
+          user: 'admin@company.com',
+          field: 'Schedule',
+          oldValue: '0 1 * * *',
+          newValue: '0 2 * * *',
+          reason: 'Adjusted runtime to avoid peak hours'
+        }
+      ];
+      
+      res.json({ changes });
+    } catch (error) {
+      console.error('Settings changes error:', error);
+      res.status(500).json({ message: 'Failed to fetch settings changes' });
+    }
+  });
+
 
 
   const httpServer = createServer(app);
