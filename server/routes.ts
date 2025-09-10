@@ -81,13 +81,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Tenants endpoints - using cache
+  // Tenants endpoints - using cache (same data source as admin)
   app.get("/api/tenants", async (req, res) => {
     try {
-      const tenants = await redisCache.getAllTenants();
+      const cacheKey = 'all_tenants';
+      let tenants = await redisCache.get(cacheKey);
+      
+      if (!tenants) {
+        tenants = await storage.getTenants();
+        await redisCache.set(cacheKey, tenants, 6 * 60 * 60); // 6 hour cache
+      }
+
       res.json(tenants);
     } catch (error) {
-      res.status(500).json({ message: "Failed to fetch tenants from cache" });
+      res.status(500).json({ message: "Failed to fetch tenants" });
     }
   });
 
@@ -1181,14 +1188,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const newTenant = await storage.createTenant(tenantData);
       
       // Invalidate all tenant-related caches (same pattern as team updates)
-      await Promise.all([
-        redisCache.del('admin_tenants'),           // Admin tenant list
-        redisCache.del('all_tenants'),             // Main app tenant list  
-        redisCache.del(`tenant_${newTenant.id}`),  // Individual tenant cache
-        // Invalidate teams that might reference this tenant
-        redisCache.invalidatePattern('team_*'),
-        redisCache.invalidatePattern('dashboard_*')
-      ]);
+      await redisCache.invalidateCache({
+        keys: [
+          'admin_tenants',           // Admin tenant list
+          'all_tenants',             // Main app tenant list  
+          `tenant_${newTenant.id}`,  // Individual tenant cache
+        ],
+        patterns: [
+          'team_*',      // Teams that might reference this tenant
+          'dashboard_*'  // Dashboard data that uses tenant filters
+        ]
+      });
 
       res.status(201).json(newTenant);
     } catch (error) {
@@ -1228,14 +1238,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Invalidate all tenant-related caches
-      await Promise.all([
-        redisCache.del('admin_tenants'),           // Admin tenant list
-        redisCache.del('all_tenants'),             // Main app tenant list  
-        redisCache.del(`tenant_${tenantId}`),      // Individual tenant cache
-        // Invalidate related data that might reference this tenant
-        redisCache.invalidatePattern('team_*'),
-        redisCache.invalidatePattern('dashboard_*')
-      ]);
+      await redisCache.invalidateCache({
+        keys: [
+          'admin_tenants',           // Admin tenant list
+          'all_tenants',             // Main app tenant list  
+          `tenant_${tenantId}`,      // Individual tenant cache
+        ],
+        patterns: [
+          'team_*',      // Teams that might reference this tenant
+          'dashboard_*'  // Dashboard data that uses tenant filters
+        ]
+      });
 
       res.json(updatedTenant);
     } catch (error) {
