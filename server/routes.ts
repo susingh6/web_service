@@ -1432,6 +1432,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // ============================================
+  // ADMIN TEAM MANAGEMENT ENDPOINTS
+  // ============================================
+  
+  // Create new team from admin panel with comprehensive cache invalidation
+  app.post("/api/admin/teams", async (req, res) => {
+    try {
+      const result = insertTeamSchema.safeParse(req.body);
+      
+      if (!result.success) {
+        return res.status(400).json({ message: "Invalid team data", errors: result.error.format() });
+      }
+      
+      const team = await storage.createTeam(result.data);
+      
+      // Invalidate all team-related caches (comprehensive pattern like tenant creation)
+      await redisCache.invalidateCache({
+        keys: [
+          'admin_teams',             // Admin team list
+          'all_teams',               // Main app team list  
+          `team_${team.id}`,         // Individual team cache
+          `team_details_${team.name}`, // Team details cache
+          `team_members_${team.name}`  // Team members cache
+        ],
+        patterns: [
+          'team_*',      // All team-related cache keys
+          'dashboard_*', // Dashboard data that uses team filters
+          'summary_*'    // Dashboard summary with team filters
+        ]
+      });
+      
+      res.status(201).json(team);
+    } catch (error) {
+      console.error('Admin team creation error:', error);
+      res.status(500).json({ message: "Failed to create team" });
+    }
+  });
+  
   // Dashboard summary endpoint
   app.get("/api/dashboard/summary", async (req, res) => {
     try {
