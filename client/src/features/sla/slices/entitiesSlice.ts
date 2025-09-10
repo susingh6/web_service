@@ -1,6 +1,23 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { entitiesApi, teamsApi } from '../api';
-import { Entity, Team, EntityFilter, CreateEntityPayload, UpdateEntityPayload } from '../types';
+import { Entity, Team, InsertEntity } from '@shared/schema';
+
+// Define local types for the slice
+interface EntityFilter {
+  search: string;
+  status: 'all' | 'healthy' | 'warning' | 'critical';
+  teamId?: number;
+  type?: string;
+  sortBy: 'name' | 'status' | 'slaTarget' | 'lastRefreshed';
+  sortDirection: 'asc' | 'desc';
+}
+
+interface CreateEntityPayload extends InsertEntity {}
+
+interface UpdateEntityPayload {
+  id: number;
+  updates: any;
+}
 
 interface EntitiesState {
   list: Entity[];
@@ -156,7 +173,7 @@ const entitiesSlice = createSlice({
       })
       .addCase(updateEntity.fulfilled, (state, action) => {
         state.isLoading = false;
-        const index = state.list.findIndex(entity => entity.id === action.payload.id);
+        const index = state.list.findIndex((entity: Entity) => entity.id === action.payload.id);
         if (index !== -1) {
           state.list[index] = action.payload;
         }
@@ -176,7 +193,7 @@ const entitiesSlice = createSlice({
       })
       .addCase(deleteEntity.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.list = state.list.filter(entity => entity.id !== action.payload);
+        state.list = state.list.filter((entity: Entity) => entity.id !== action.payload);
         if (state.selectedEntity && state.selectedEntity.id === action.payload) {
           state.selectedEntity = null;
         }

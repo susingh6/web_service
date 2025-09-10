@@ -78,8 +78,6 @@ export const useRealTimeEntities = (options: UseRealTimeEntitiesOptions) => {
       if (data?.teamName === options.teamName && options.tenantName && options.teamId) {
         // Invalidate team members cache using normalized key
         queryClient.invalidateQueries({ queryKey: ['teamMembers', options.tenantName, options.teamId] });
-        // Also invalidate team data cache
-        queryClient.invalidateQueries({ queryKey: ['teams', options.tenantName] });
       }
       
       // Call custom handler

@@ -197,7 +197,7 @@ const TeamsManagement = () => {
   };
 
   const getTenantName = (tenantId: number) => {
-    const tenant = tenants.find(t => t.id === tenantId);
+    const tenant = tenants.find((t: any) => t.id === tenantId);
     return tenant?.name || 'Unknown';
   };
 

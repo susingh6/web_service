@@ -121,8 +121,8 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
     const getUserEmail = () => {
       if (!user) return '';
       
-      // Check for standard email property
-      if (typeof user.email === 'string') return user.email;
+      // Type guard to check if user has email property
+      if ('email' in user && typeof user.email === 'string') return user.email;
       
       // Check for Azure AD properties with type safety
       const azureUser = user as Record<string, any>;
@@ -215,8 +215,8 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
     const getUserEmail = () => {
       if (!user) return '';
       
-      // Check for standard email property
-      if (typeof user.email === 'string') return user.email;
+      // Type guard to check if user has email property
+      if ('email' in user && typeof user.email === 'string') return user.email;
       
       // Check for Azure AD properties with type safety
       const azureUser = user as Record<string, any>;
