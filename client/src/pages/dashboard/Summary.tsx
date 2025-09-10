@@ -446,7 +446,7 @@ const Summary = () => {
                   <ChartCard
                     title="Team Performance Comparison"
                     loading={metricsLoading}
-                    chart={<TeamComparisonChart entities={entities} teams={teams} selectedTenant={selectedTenant.name} />}
+                    chart={<TeamComparisonChart entities={entities} teams={teams} selectedTenant={selectedTenant?.name || ''} />}
                   />
                 </Box>
               </Box>
@@ -513,7 +513,7 @@ const Summary = () => {
             {activeTab === teamName && (
               <TeamDashboard
                 teamName={teamName}
-                tenantName={selectedTenant.name}
+                tenantName={selectedTenant?.name || ''}
                 onEditEntity={handleEditEntity}
                 onDeleteEntity={handleDeleteEntity}
                 onViewDetails={handleViewDetails}
