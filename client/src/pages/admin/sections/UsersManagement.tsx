@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useDeferredValue } from 'react';
 import {
   Box,
   Typography,
@@ -25,13 +25,17 @@ import {
   IconButton,
   Tooltip,
   Switch,
-  FormControlLabel
+  FormControlLabel,
+  TablePagination,
+  InputAdornment
 } from '@mui/material';
 import {
   Add as AddIcon,
   Edit as EditIcon,
   Person as PersonIcon,
-  CheckCircle as EnableIcon
+  CheckCircle as EnableIcon,
+  Search as SearchIcon,
+  Clear as ClearIcon
 } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
@@ -169,8 +173,14 @@ const UserFormDialog = ({ open, onClose, user, onSubmit }: UserFormDialogProps) 
 const UsersManagement = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(25);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  
+  // Debounce search query for better performance
+  const deferredSearchQuery = useDeferredValue(searchQuery);
 
   // Fetch users from admin endpoint
   const { data: users = [], isLoading } = useQuery({
@@ -186,7 +196,52 @@ const UsersManagement = () => {
     },
   });
 
-  // Users data loaded successfully
+  // Multi-field search logic with normalized search index
+  const filteredUsers = useMemo(() => {
+    if (!users || users.length === 0) return [];
+    
+    if (!deferredSearchQuery.trim()) {
+      return users;
+    }
+    
+    // Split search query into tokens (case-insensitive, AND semantics)
+    const searchTokens = deferredSearchQuery
+      .toLowerCase()
+      .split(' ')
+      .filter(token => token.trim().length > 0);
+    
+    if (searchTokens.length === 0) return users;
+    
+    return users.filter((user: any) => {
+      // Create normalized search index for this user
+      const searchableFields = [
+        user.user_name || '',
+        user.user_email || '',
+        ...(user.user_slack || []),
+        ...(user.user_pagerduty || [])
+      ];
+      
+      // Join all searchable fields into a single lowercase string
+      const searchBlob = searchableFields
+        .map(field => String(field).toLowerCase())
+        .join(' ');
+      
+      // All search tokens must match (AND semantics)
+      return searchTokens.every(token => searchBlob.includes(token));
+    });
+  }, [users, deferredSearchQuery]);
+
+  // Pagination logic - calculate displayed users
+  const paginatedUsers = useMemo(() => {
+    const startIndex = page * rowsPerPage;
+    const endIndex = startIndex + rowsPerPage;
+    return filteredUsers.slice(startIndex, endIndex);
+  }, [filteredUsers, page, rowsPerPage]);
+
+  // Reset pagination when search changes
+  useEffect(() => {
+    setPage(0);
+  }, [deferredSearchQuery]);
 
   // Fetch teams for user assignment
   const { data: teams = [] } = useQuery({
@@ -326,9 +381,48 @@ const UsersManagement = () => {
 
       <Card elevation={2}>
         <CardContent>
-          <Typography variant="h6" gutterBottom>
-            System Users ({users?.length || 0})
-          </Typography>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Typography variant="h6">
+              System Users ({users?.length || 0} total)
+            </Typography>
+            <TextField
+              size="small"
+              placeholder="Search users..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              data-testid="input-search-users"
+              sx={{ minWidth: 300 }}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon />
+                  </InputAdornment>
+                ),
+                endAdornment: searchQuery && (
+                  <InputAdornment position="end">
+                    <IconButton
+                      size="small"
+                      onClick={() => setSearchQuery('')}
+                      edge="end"
+                    >
+                      <ClearIcon />
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
+            />
+          </Box>
+          
+          {filteredUsers.length > 0 && (
+            <Typography 
+              variant="body2" 
+              color="text.secondary" 
+              sx={{ mb: 2 }}
+              data-testid="status-result-count"
+            >
+              Showing {Math.min(filteredUsers.length, (page + 1) * rowsPerPage)} of {filteredUsers.length} result{filteredUsers.length !== 1 ? 's' : ''}
+            </Typography>
+          )}
           
           <TableContainer component={Paper} elevation={0}>
             <Table>
@@ -344,7 +438,7 @@ const UsersManagement = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {users?.map((user: any) => (
+                {paginatedUsers?.map((user: any) => (
                   <TableRow key={user.user_id}>
                     <TableCell>
                       <Typography variant="body2" fontWeight="medium">
@@ -415,6 +509,21 @@ const UsersManagement = () => {
               </TableBody>
             </Table>
           </TableContainer>
+          
+          <TablePagination
+            component="div"
+            count={filteredUsers.length}
+            page={page}
+            onPageChange={(event, newPage) => setPage(newPage)}
+            rowsPerPage={rowsPerPage}
+            onRowsPerPageChange={(event) => {
+              setRowsPerPage(parseInt(event.target.value, 10));
+              setPage(0);
+            }}
+            rowsPerPageOptions={[10, 25, 50, 100]}
+            showFirstButton
+            showLastButton
+          />
         </CardContent>
       </Card>
 

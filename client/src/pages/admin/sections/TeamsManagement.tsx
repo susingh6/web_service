@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo, useDeferredValue } from 'react';
 import {
   Box,
   Typography,
@@ -23,13 +23,17 @@ import {
   MenuItem,
   Paper,
   IconButton,
-  Tooltip
+  Tooltip,
+  TablePagination,
+  InputAdornment
 } from '@mui/material';
 import {
   Add as AddIcon,
   Edit as EditIcon,
   Group as GroupIcon,
-  Visibility as ViewIcon
+  Visibility as ViewIcon,
+  Search as SearchIcon,
+  Clear as ClearIcon
 } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
@@ -111,8 +115,14 @@ const TeamFormDialog = ({ open, onClose, team, tenants, onSubmit }: TeamFormDial
 const TeamsManagement = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(25);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  
+  // Debounce search query for better performance
+  const deferredSearchQuery = useDeferredValue(searchQuery);
 
   // Fetch teams
   const { data: teams = [], isLoading } = useQuery<Team[]>({
@@ -131,6 +141,58 @@ const TeamsManagement = () => {
       return response.json();
     },
   });
+
+  // Create efficient tenant name lookup map (O(1) vs O(n) Array.find)
+  const tenantNameMap = useMemo(() => 
+    new Map(tenants.map((t: any) => [t.id, t.name])), [tenants]);
+
+  // Multi-field search logic with normalized search index
+  const filteredTeams = useMemo(() => {
+    if (!teams || teams.length === 0) return [];
+    
+    if (!deferredSearchQuery.trim()) {
+      return teams;
+    }
+    
+    // Split search query into tokens (case-insensitive, AND semantics)
+    const searchTokens = deferredSearchQuery
+      .toLowerCase()
+      .split(' ')
+      .filter(token => token.trim().length > 0);
+    
+    if (searchTokens.length === 0) return teams;
+    
+    return teams.filter((team: Team) => {
+      // Create normalized search index for this team
+      const tenantName = tenantNameMap.get(team.tenant_id) ?? 'Unknown';
+      const searchableFields = [
+        team.name || '',
+        team.id?.toString() || '',
+        tenantName,
+        team.description || ''
+      ];
+      
+      // Join all searchable fields into a single lowercase string
+      const searchBlob = searchableFields
+        .map(field => String(field).toLowerCase())
+        .join(' ');
+      
+      // All search tokens must match (AND semantics)
+      return searchTokens.every(token => searchBlob.includes(token));
+    });
+  }, [teams, deferredSearchQuery, tenantNameMap]);
+
+  // Pagination logic - calculate displayed teams
+  const paginatedTeams = useMemo(() => {
+    const startIndex = page * rowsPerPage;
+    const endIndex = startIndex + rowsPerPage;
+    return filteredTeams.slice(startIndex, endIndex);
+  }, [filteredTeams, page, rowsPerPage]);
+
+  // Reset pagination when search changes
+  useEffect(() => {
+    setPage(0);
+  }, [deferredSearchQuery]);
 
   // Create team mutation
   const createTeamMutation = useMutation({
@@ -196,9 +258,9 @@ const TeamsManagement = () => {
     }
   };
 
+  // Helper function for form dialog (still needed for compatibility)
   const getTenantName = (tenantId: number) => {
-    const tenant = tenants.find((t: any) => t.id === tenantId);
-    return tenant?.name || 'Unknown';
+    return tenantNameMap.get(tenantId) ?? 'Unknown';
   };
 
   return (
@@ -216,6 +278,7 @@ const TeamsManagement = () => {
           variant="contained"
           startIcon={<AddIcon />}
           onClick={handleCreateTeam}
+          data-testid="button-new-team"
         >
           New Team
         </Button>
@@ -223,9 +286,49 @@ const TeamsManagement = () => {
 
       <Card elevation={2}>
         <CardContent>
-          <Typography variant="h6" gutterBottom>
-            Active Teams ({teams.length})
-          </Typography>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Typography variant="h6">
+              Active Teams ({teams?.length || 0} total)
+            </Typography>
+            <TextField
+              size="small"
+              placeholder="Search teams..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              data-testid="input-search-teams"
+              sx={{ minWidth: 300 }}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon />
+                  </InputAdornment>
+                ),
+                endAdornment: searchQuery && (
+                  <InputAdornment position="end">
+                    <IconButton
+                      size="small"
+                      onClick={() => setSearchQuery('')}
+                      edge="end"
+                      data-testid="button-clear-search"
+                    >
+                      <ClearIcon />
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
+            />
+          </Box>
+          
+          {filteredTeams.length > 0 && (
+            <Typography 
+              variant="body2" 
+              color="text.secondary" 
+              sx={{ mb: 2 }}
+              data-testid="status-result-count"
+            >
+              Showing {page * rowsPerPage + 1}–{Math.min(filteredTeams.length, (page + 1) * rowsPerPage)} of {filteredTeams.length} result{filteredTeams.length !== 1 ? 's' : ''}
+            </Typography>
+          )}
           
           <TableContainer component={Paper} elevation={0}>
             <Table>
@@ -240,7 +343,7 @@ const TeamsManagement = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {teams.map((team) => (
+                {paginatedTeams?.map((team) => (
                   <TableRow key={team.id}>
                     <TableCell>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -252,7 +355,7 @@ const TeamsManagement = () => {
                     </TableCell>
                     <TableCell>
                       <Chip 
-                        label={getTenantName(team.tenant_id)} 
+                        label={tenantNameMap.get(team.tenant_id) ?? 'Unknown'} 
                         size="small" 
                         variant="outlined"
                         color="primary"
@@ -280,6 +383,7 @@ const TeamsManagement = () => {
                             size="small" 
                             color="primary"
                             onClick={() => handleEditTeam(team)}
+                            data-testid={`button-edit-team-${team.id}`}
                           >
                             <EditIcon />
                           </IconButton>
@@ -291,6 +395,21 @@ const TeamsManagement = () => {
               </TableBody>
             </Table>
           </TableContainer>
+          
+          <TablePagination
+            component="div"
+            count={filteredTeams.length}
+            page={page}
+            onPageChange={(event, newPage) => setPage(newPage)}
+            rowsPerPage={rowsPerPage}
+            onRowsPerPageChange={(event) => {
+              setRowsPerPage(parseInt(event.target.value, 10));
+              setPage(0);
+            }}
+            rowsPerPageOptions={[10, 25, 50, 100]}
+            showFirstButton
+            showLastButton
+          />
         </CardContent>
       </Card>
 
