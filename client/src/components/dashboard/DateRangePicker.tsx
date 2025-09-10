@@ -11,8 +11,6 @@ import {
 import { DateRange as DateRangeIcon, Close as CloseIcon } from '@mui/icons-material';
 import { DateRange, DateRangePicker as MuiDateRangePicker } from 'react-date-range';
 import { format, addDays, startOfDay, endOfDay, subDays } from 'date-fns';
-import { useAppDispatch, useAppSelector } from '@/lib/store';
-import { setDateRange } from '@/features/sla/slices/dashboardSlice';
 import 'react-date-range/dist/styles.css';
 import 'react-date-range/dist/theme/default.css';
 
@@ -31,25 +29,22 @@ const predefinedRanges = [
 ];
 
 interface DateRangePickerProps {
-  value?: PickerDateRange;
-  onChange?: (range: PickerDateRange) => void;
+  value: PickerDateRange;
+  onChange: (range: PickerDateRange) => void;
 }
 
 const DateRangePicker = ({ value, onChange }: DateRangePickerProps) => {
-  const dispatch = useAppDispatch();
-  const { dateRange } = useAppSelector((state) => state.dashboard);
-
   const [anchorEl, setAnchorEl] = useState<HTMLButtonElement | null>(null);
   const [localRange, setLocalRange] = useState({
-    startDate: (value?.startDate || dateRange.startDate),
-    endDate: (value?.endDate || dateRange.endDate),
+    startDate: value.startDate,
+    endDate: value.endDate,
   });
 
   const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
     setAnchorEl(event.currentTarget);
     setLocalRange({
-      startDate: (value?.startDate || dateRange.startDate),
-      endDate: (value?.endDate || dateRange.endDate),
+      startDate: value.startDate,
+      endDate: value.endDate,
     });
   };
 
@@ -70,11 +65,7 @@ const DateRangePicker = ({ value, onChange }: DateRangePickerProps) => {
       endDate: localRange.endDate,
       label: 'Custom Range',
     } as PickerDateRange;
-    if (onChange) {
-      onChange(next);
-    } else {
-      dispatch(setDateRange(next));
-    }
+    onChange(next);
     handleClose();
   };
 
@@ -84,11 +75,7 @@ const DateRangePicker = ({ value, onChange }: DateRangePickerProps) => {
       endDate: range.endDate,
       label: range.label,
     } as PickerDateRange;
-    if (onChange) {
-      onChange(next);
-    } else {
-      dispatch(setDateRange(next));
-    }
+    onChange(next);
     handleClose();
   };
 
@@ -109,7 +96,7 @@ const DateRangePicker = ({ value, onChange }: DateRangePickerProps) => {
           fontSize: '0.875rem',
         }}
       >
-        {(value?.label || dateRange.label)}
+        {value.label}
       </Button>
 
       <Popover
