@@ -36,6 +36,7 @@ import {
 import EditIcon from '@mui/icons-material/Edit';
 import HistoryIcon from '@mui/icons-material/History';
 import DeleteIcon from '@mui/icons-material/Delete';
+import SmartToyIcon from '@mui/icons-material/SmartToy';
 import { Entity } from '@shared/schema';
 import TaskManagementModal from '@/components/modals/TaskManagementModal';
 import { STANDARD_STATUSES, STATUS_CONFIG } from '@/utils/status-normalization';
@@ -387,6 +388,23 @@ const DagList: React.FC<DagListProps> = ({ dags, isLoading, error, showActions =
                             <HistoryIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>
+                        
+                        {/* Agent Workspace - Only for DAG owners */}
+                        {dag.is_entity_owner && (
+                          <Tooltip title="Agent Workspace">
+                            <IconButton 
+                              size="small"
+                              color="secondary"
+                              onClick={(e) => { 
+                                e.stopPropagation(); 
+                                // TODO: Open agent workspace modal/panel
+                                console.log('Open agent workspace for DAG:', dag.name);
+                              }}
+                            >
+                              <SmartToyIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
                         
                         <Tooltip title="Delete">
                           <IconButton 
