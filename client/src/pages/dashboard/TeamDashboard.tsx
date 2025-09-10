@@ -71,7 +71,7 @@ const TeamDashboard = ({
     if (dateRange) {
       setTeamDateRange({ ...dateRange });
     }
-  }, [dateRange?.startDate, dateRange?.endDate, dateRange?.label]);
+  }, [+dateRange?.startDate, +dateRange?.endDate, dateRange?.label]);
 
   // Get current team info by name
   const team = teams.find((t: Team) => t.name === teamName);
