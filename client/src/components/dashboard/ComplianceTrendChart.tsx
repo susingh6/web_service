@@ -194,11 +194,8 @@ const ComplianceTrendChart = ({
     );
   }
 
-  // Always use date-range-aware generation when startDate/endDate provided
-  // This ensures the chart responds to date filter changes
-  let chartData = (startDate || endDate) 
-    ? generateDataFromEntities(entities, startDate, endDate)
-    : (data && data.length > 0 ? data : generateDataFromEntities(entities, startDate, endDate));
+  // Use provided data (from cache) or generate from entities as fallback
+  let chartData = data && data.length > 0 ? data : generateDataFromEntities(entities, startDate, endDate);
   
   // Determine if we should use monthly aggregation
   const useMonthlyAggregation = shouldUseMonthlyAggregation(chartData);
