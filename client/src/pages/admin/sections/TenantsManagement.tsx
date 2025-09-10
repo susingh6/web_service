@@ -32,7 +32,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { buildUrl, endpoints } from '@/config';
-import { apiRequest } from '@/lib/queryClient';
+import { apiRequest, getQueryFn } from '@/lib/queryClient';
 
 interface Tenant {
   id: number;
@@ -116,59 +116,98 @@ const TenantsManagement = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Fetch tenants
+  // Fetch tenants with real API
   const { data: tenants = [], isLoading } = useQuery<Tenant[]>({
     queryKey: ['/api/admin/tenants'],
-    queryFn: async () => {
-      // Mock data for now - replace with real API
-      return [
-        {
-          id: 1,
-          name: 'Data Engineering',
-          description: 'Core data infrastructure and processing',
-          isActive: true,
-          teamsCount: 3,
-          createdAt: '2024-01-15',
-        },
-        {
-          id: 2,
-          name: 'Analytics Engineering', 
-          description: 'Business intelligence and analytics',
-          isActive: true,
-          teamsCount: 2,
-          createdAt: '2024-02-01',
-        },
-        {
-          id: 3,
-          name: 'Marketing Analytics',
-          description: 'Marketing data and customer insights',
-          isActive: false,
-          teamsCount: 1,
-          createdAt: '2024-03-10',
-        },
-      ] as Tenant[];
-    },
+    queryFn: getQueryFn(),
   });
 
-  // Create tenant mutation
+  // Create tenant mutation with optimistic updates and race condition prevention
   const createTenantMutation = useMutation({
     mutationFn: async (tenantData: any) => {
       return await apiRequest('POST', buildUrl(endpoints.admin.tenants.create), tenantData);
     },
-    onSuccess: () => {
-      // Invalidate all tenant-related caches so new tenant appears everywhere
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/tenants'] }); // Admin section
-      queryClient.invalidateQueries({ queryKey: ['/api/tenants'] });       // Main app filters
-      toast({
-        title: "Tenant Created",
-        description: "New tenant has been successfully created.",
-      });
+    onMutate: async (newTenantData) => {
+      // Cancel any outgoing refetches to prevent race conditions
+      await queryClient.cancelQueries({ queryKey: ['/api/admin/tenants'] });
+      await queryClient.cancelQueries({ queryKey: ['/api/tenants'] });
+      
+      // Snapshot the previous value for rollback
+      const previousAdminTenants = queryClient.getQueryData(['/api/admin/tenants']);
+      const previousMainTenants = queryClient.getQueryData(['/api/tenants']);
+      
+      // Optimistically update to new value
+      const tempId = Date.now(); // Temporary ID for optimistic update
+      const optimisticTenant = {
+        id: tempId,
+        name: newTenantData.name,
+        description: newTenantData.description || '',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        isActive: true,
+        teamsCount: 0
+      };
+      
+      // Update admin tenant list
+      if (previousAdminTenants) {
+        queryClient.setQueryData(['/api/admin/tenants'], [
+          ...(previousAdminTenants as any[]),
+          optimisticTenant
+        ]);
+      }
+      
+      // Update main app tenant list
+      if (previousMainTenants) {
+        queryClient.setQueryData(['/api/tenants'], [
+          ...(previousMainTenants as any[]),
+          { id: tempId, name: optimisticTenant.name, description: optimisticTenant.description }
+        ]);
+      }
+      
+      // Return context object with the snapshots
+      return { previousAdminTenants, previousMainTenants, tempId };
     },
-    onError: () => {
+    onError: (err, newTenantData, context) => {
+      // Rollback to previous state on error
+      if (context?.previousAdminTenants) {
+        queryClient.setQueryData(['/api/admin/tenants'], context.previousAdminTenants);
+      }
+      if (context?.previousMainTenants) {
+        queryClient.setQueryData(['/api/tenants'], context.previousMainTenants);
+      }
+      
       toast({
         title: "Creation Failed",
         description: "Failed to create tenant. Please try again.",
         variant: "destructive",
+      });
+    },
+    onSuccess: (data, variables, context) => {
+      // Replace optimistic update with real data
+      const currentAdminTenants = queryClient.getQueryData(['/api/admin/tenants']) as any[];
+      const currentMainTenants = queryClient.getQueryData(['/api/tenants']) as any[];
+      
+      if (currentAdminTenants && context?.tempId) {
+        const updatedAdminTenants = currentAdminTenants.map(tenant => 
+          tenant.id === context.tempId ? data : tenant
+        );
+        queryClient.setQueryData(['/api/admin/tenants'], updatedAdminTenants);
+      }
+      
+      if (currentMainTenants && context?.tempId) {
+        const updatedMainTenants = currentMainTenants.map(tenant => 
+          tenant.id === context.tempId ? { id: data.id, name: data.name, description: data.description } : tenant
+        );
+        queryClient.setQueryData(['/api/tenants'], updatedMainTenants);
+      }
+      
+      // Invalidate to ensure fresh data (but optimistic update already visible)
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/tenants'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/tenants'] });
+      
+      toast({
+        title: "Tenant Created",
+        description: "New tenant has been successfully created.",
       });
     },
   });
