@@ -275,6 +275,8 @@ export class MemStorage implements IStorage {
       const tenant = {
         id: this.tenantId++,
         ...tenantInfo,
+        isActive: true,        // Default to active status
+        teamsCount: 0,         // Default teams count  
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
@@ -926,6 +928,8 @@ export class MemStorage implements IStorage {
       id: this.tenantId++,
       name: tenantData.name,
       description: tenantData.description || '',
+      isActive: true,        // Default to active status
+      teamsCount: 0,         // Default teams count
       createdAt: now,
       updatedAt: now
     };

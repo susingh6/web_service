@@ -1196,7 +1196,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ],
         patterns: [
           'team_*',      // Teams that might reference this tenant
-          'dashboard_*'  // Dashboard data that uses tenant filters
+          'dashboard_*', // Dashboard data that uses tenant filters
+          'summary_*'    // Dashboard summary with tenant filters
         ]
       });
 
