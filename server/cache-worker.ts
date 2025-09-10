@@ -144,7 +144,7 @@ async function refreshFromFastAPI(): Promise<CacheRefreshData> {
     const conflicts = mapFastAPIConflictsToConflicts(conflictsData);
     
     // Extract metrics and trends from presets and compliance data (with fallback calculation)
-    const { last30DayMetrics, complianceTrends } = extractMetricsAndTrends(presetsData, complianceData, entities, tenants);
+    const { last30DayMetrics, complianceTrends, teamMetrics, teamTrends } = extractMetricsAndTrends(presetsData, complianceData, entities, tenants);
 
     const cacheData: CacheRefreshData & { users: any[], roles: any[], conflicts: any[] } = {
       entities,
@@ -390,39 +390,116 @@ function extractMetricsAndTrends(
 ): {
   last30DayMetrics: Record<string, DashboardMetrics>;
   complianceTrends: Record<string, ComplianceTrendData>;
+  teamMetrics: Record<string, Record<string, DashboardMetrics>>;
+  teamTrends: Record<string, Record<string, ComplianceTrendData>>;
 } {
   const last30DayMetrics: Record<string, DashboardMetrics> = {};
   const complianceTrends: Record<string, ComplianceTrendData> = {};
+  const teamMetrics: Record<string, Record<string, DashboardMetrics>> = {};
+  const teamTrends: Record<string, Record<string, ComplianceTrendData>> = {};
 
   try {
-    // Extract metrics from presets data
-    if (presetsData && typeof presetsData === 'object') {
+    // Extract metrics from presets data - handle both array and object formats
+    if (Array.isArray(presetsData)) {
+      // New format: array of records with team_id and tenant_id
+      presetsData.forEach((record: any) => {
+        const tenantName = record.tenant_name || `Tenant ${record.tenant_id}`;
+        const teamId = record.team_id || 0;
+        
+        if (teamId === 0) {
+          // Summary data for tenant (no specific team - used in summary dashboard)
+          if (record.last30Days) {
+            last30DayMetrics[tenantName] = {
+              overallCompliance: record.last30Days.overallCompliance || 0,
+              tablesCompliance: record.last30Days.tablesCompliance || 0,
+              dagsCompliance: record.last30Days.dagsCompliance || 0,
+              entitiesCount: record.last30Days.totalEntities || 0,
+              tablesCount: record.last30Days.totalTables || 0,
+              dagsCount: record.last30Days.totalDags || 0,
+            };
+          }
+        } else {
+          // Team-specific data for individual teams (team_id > 0 - used in team dashboards)
+          const teamName = record.team_name || `Team ${teamId}`;
+          
+          if (!teamMetrics[tenantName]) {
+            teamMetrics[tenantName] = {};
+          }
+          
+          if (record.last30Days) {
+            teamMetrics[tenantName][teamName] = {
+              overallCompliance: record.last30Days.overallCompliance || 0,
+              tablesCompliance: record.last30Days.tablesCompliance || 0,
+              dagsCompliance: record.last30Days.dagsCompliance || 0,
+              entitiesCount: record.last30Days.totalEntities || 0,
+              tablesCount: record.last30Days.totalTables || 0,
+              dagsCount: record.last30Days.totalDags || 0,
+            };
+          }
+        }
+      });
+    } else if (presetsData && typeof presetsData === 'object') {
+      // Legacy format: object keyed by tenant name
       Object.keys(presetsData).forEach(tenantName => {
         const tenantData = presetsData[tenantName];
         if (tenantData && tenantData.last30Days) {
           last30DayMetrics[tenantName] = {
-            totalEntities: tenantData.last30Days.totalEntities || 0,
-            passedEntities: tenantData.last30Days.passedEntities || 0,
-            failedEntities: tenantData.last30Days.failedEntities || 0,
-            unknownEntities: tenantData.last30Days.unknownEntities || 0,
-            totalTables: tenantData.last30Days.totalTables || 0,
-            passedTables: tenantData.last30Days.passedTables || 0,
-            failedTables: tenantData.last30Days.failedTables || 0,
-            unknownTables: tenantData.last30Days.unknownTables || 0,
-            totalDags: tenantData.last30Days.totalDags || 0,
-            passedDags: tenantData.last30Days.passedDags || 0,
-            failedDags: tenantData.last30Days.failedDags || 0,
-            unknownDags: tenantData.last30Days.unknownDags || 0,
             overallCompliance: tenantData.last30Days.overallCompliance || 0,
             tablesCompliance: tenantData.last30Days.tablesCompliance || 0,
             dagsCompliance: tenantData.last30Days.dagsCompliance || 0,
+            entitiesCount: tenantData.last30Days.totalEntities || 0,
+            tablesCount: tenantData.last30Days.totalTables || 0,
+            dagsCount: tenantData.last30Days.totalDags || 0,
           };
         }
       });
     }
 
-    // Extract trends from compliance data
-    if (complianceData && typeof complianceData === 'object') {
+    // Extract trends from compliance data - handle both array and object formats
+    if (Array.isArray(complianceData)) {
+      // New format: array of records with team_id and tenant_id
+      complianceData.forEach((record: any) => {
+        const tenantName = record.tenant_name || `Tenant ${record.tenant_id}`;
+        const teamId = record.team_id || 0;
+        
+        if (teamId === 0) {
+          // Summary trends for tenant (no specific team - used in summary dashboard)
+          if (record.trend && Array.isArray(record.trend)) {
+            complianceTrends[tenantName] = {
+              trend: record.trend.map((point: any) => ({
+                date: point.date,
+                dateFormatted: point.dateFormatted || new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(new Date(point.date)),
+                overall: point.overall || 0,
+                tables: point.tables || 0,
+                dags: point.dags || 0,
+              })),
+              lastUpdated: record.lastUpdated ? new Date(record.lastUpdated) : new Date(),
+            };
+          }
+        } else {
+          // Team-specific trends for individual teams (team_id > 0 - used in team dashboards)
+          const teamName = record.team_name || `Team ${teamId}`;
+          
+          if (!teamTrends[tenantName]) {
+            teamTrends[tenantName] = {};
+          }
+          
+          if (record.trend && Array.isArray(record.trend)) {
+            teamTrends[tenantName][teamName] = {
+              trend: record.trend.map((point: any) => ({
+                date: point.date,
+                dateFormatted: point.dateFormatted || new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(new Date(point.date)),
+                overall: point.overall || 0,
+                tables: point.tables || 0,
+                dags: point.dags || 0,
+              })),
+              lastUpdated: record.lastUpdated ? new Date(record.lastUpdated) : new Date(),
+            };
+          }
+        }
+      });
+    } else if (complianceData && typeof complianceData === 'object') {
+      // Legacy format: object keyed by tenant name
       Object.keys(complianceData).forEach(tenantName => {
         const tenantTrends = complianceData[tenantName];
         if (tenantTrends && Array.isArray(tenantTrends.trend)) {
@@ -472,7 +549,7 @@ function extractMetricsAndTrends(
     console.error('[Cache Worker] Error extracting metrics and trends:', error);
   }
 
-  return { last30DayMetrics, complianceTrends };
+  return { last30DayMetrics, complianceTrends, teamMetrics, teamTrends };
 }
 
 // Generate 30-day compliance trend data for a tenant with realistic fluctuations
