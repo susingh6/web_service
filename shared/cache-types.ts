@@ -9,6 +9,19 @@ export interface DashboardMetrics {
   dagsCount: number;
 }
 
+export interface ComplianceTrendPoint {
+  date: string;
+  dateFormatted: string;
+  overall: number;
+  tables: number;
+  dags: number;
+}
+
+export interface ComplianceTrendData {
+  trend: ComplianceTrendPoint[];
+  lastUpdated: Date;
+}
+
 export interface EntityChange {
   entityId: number;
   entityName: string;
@@ -28,6 +41,7 @@ export interface CachedData {
   tenants: Array<{ id: number; name: string; description?: string }>;
   metrics: Record<string, DashboardMetrics>;
   last30DayMetrics: Record<string, DashboardMetrics>;
+  complianceTrends: Record<string, ComplianceTrendData>;
   lastUpdated: Date;
   recentChanges: EntityChange[];
 }
@@ -38,6 +52,7 @@ export interface CacheRefreshData {
   tenants: Array<{ id: number; name: string; description?: string }>;
   metrics: Record<string, DashboardMetrics>;
   last30DayMetrics: Record<string, DashboardMetrics>;
+  complianceTrends: Record<string, ComplianceTrendData>;
   lastUpdated: Date;
 }
 

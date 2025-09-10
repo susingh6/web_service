@@ -1,9 +1,22 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { dashboardApi } from '../api';
-import { DashboardMetrics, DateRange, TeamPerformance } from '../types';
+import { DashboardMetrics, ComplianceTrendData } from '@shared/cache-types';
+
+interface DateRange {
+  startDate: Date;
+  endDate: Date;
+  label: string;
+}
+
+interface TeamPerformance {
+  teamName: string;
+  entitiesCount: number;
+  compliance: number;
+}
 
 interface DashboardState {
   metrics: DashboardMetrics | null;
+  complianceTrends: ComplianceTrendData | null;
   dateRange: DateRange;
   teamPerformance: TeamPerformance[];
   selectedTeam: string | null; // null means "All Teams"
@@ -19,6 +32,7 @@ const defaultDateRange: DateRange = {
 
 const initialState: DashboardState = {
   metrics: null,
+  complianceTrends: null,
   dateRange: defaultDateRange,
   teamPerformance: [],
   selectedTeam: null, // null means "All Teams"
@@ -48,6 +62,9 @@ const dashboardSlice = createSlice({
       state.selectedTeam = action.payload;
     },
     resetDashboard: () => initialState,
+    setComplianceTrends: (state, action: PayloadAction<ComplianceTrendData | null>) => {
+      state.complianceTrends = action.payload;
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -58,6 +75,7 @@ const dashboardSlice = createSlice({
       .addCase(fetchDashboardSummary.fulfilled, (state, action) => {
         state.isLoading = false;
         state.metrics = action.payload.metrics;
+        state.complianceTrends = action.payload.complianceTrends;
       })
       .addCase(fetchDashboardSummary.rejected, (state, action) => {
         state.isLoading = false;
@@ -66,6 +84,6 @@ const dashboardSlice = createSlice({
   },
 });
 
-export const { setDateRange, setTeamPerformance, setSelectedTeam, resetDashboard } = dashboardSlice.actions;
+export const { setDateRange, setTeamPerformance, setSelectedTeam, resetDashboard, setComplianceTrends } = dashboardSlice.actions;
 
 export default dashboardSlice.reducer;

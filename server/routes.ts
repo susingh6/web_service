@@ -166,11 +166,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const entities = await redisCache.getEntitiesByTenant(tenantName);
       const teams = await redisCache.getTeamsByTenant(tenantName);
+      const complianceTrends = await redisCache.getComplianceTrends(tenantName);
 
       res.json({
         metrics,
         entities,
         teams,
+        complianceTrends,
         tenant: tenantName,
         cached: !startDate && !endDate, // Indicate if data is from cache
         dateRange: startDate && endDate ? { startDate, endDate } : "last30Days"

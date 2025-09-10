@@ -33,7 +33,7 @@ const Summary = () => {
   const { deleteEntity } = useEntityMutation();
   const cacheManager = useCacheManager();
   
-  const { metrics, isLoading: metricsLoading } = useAppSelector((state) => state.dashboard);
+  const { metrics, complianceTrends, isLoading: metricsLoading } = useAppSelector((state) => state.dashboard);
   const { list: entities, teams, isLoading: entitiesLoading } = useAppSelector((state) => state.entities);
   
   const [tabValue, setTabValue] = useState(0);
@@ -438,7 +438,7 @@ const Summary = () => {
                     filters={['All', 'Tables', 'DAGs']}
                     onFilterChange={setChartFilter}
                     loading={metricsLoading}
-                    chart={<ComplianceTrendChart filter={chartFilter.toLowerCase() as 'all' | 'tables' | 'dags'} />}
+                    chart={<ComplianceTrendChart filter={chartFilter.toLowerCase() as 'all' | 'tables' | 'dags'} data={complianceTrends?.trend || []} />}
                   />
                 </Box>
                 

@@ -4,7 +4,7 @@ import { Worker } from 'worker_threads';
 import { config } from './config';
 import { Entity, Team } from '@shared/schema';
 import { storage } from './storage';
-import { DashboardMetrics, EntityChange, CachedData, calculateMetrics } from '@shared/cache-types';
+import { DashboardMetrics, EntityChange, CachedData, calculateMetrics, ComplianceTrendData, ComplianceTrendPoint } from '@shared/cache-types';
 
 // Standardized event envelope for real-time updates with race condition protection
 interface EntityChangeEvent {
@@ -49,6 +49,7 @@ const CACHE_KEYS = {
   TENANTS: 'sla:tenants',
   METRICS: 'sla:metrics',
   LAST_30_DAY_METRICS: 'sla:last30DayMetrics',
+  COMPLIANCE_TRENDS: 'sla:complianceTrends',
   LAST_UPDATED: 'sla:lastUpdated',
   RECENT_CHANGES: 'sla:recentChanges',
   CACHE_LOCK: 'sla:cache_lock',
@@ -212,6 +213,56 @@ export class RedisCache {
 
   private calculateMetrics(entities: Entity[], tables: Entity[], dags: Entity[]): DashboardMetrics {
     return calculateMetrics(entities, tables, dags);
+  }
+
+  // Generate 30-day compliance trend data for a tenant
+  private generateComplianceTrend(entities: Entity[], tables: Entity[], dags: Entity[]): ComplianceTrendData {
+    const trendData: ComplianceTrendPoint[] = [];
+    const now = new Date();
+    
+    // Generate 30 days of compliance data
+    for (let i = 29; i >= 0; i--) {
+      const date = new Date(now);
+      date.setDate(date.getDate() - i);
+      
+      // For new tenants with no entities, return all zeros
+      if (entities.length === 0) {
+        trendData.push({
+          date: date.toISOString().split('T')[0],
+          dateFormatted: new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(date),
+          overall: 0,
+          tables: 0,
+          dags: 0
+        });
+        continue;
+      }
+      
+      // Calculate compliance based on entity SLA status
+      const tablesCompliance = tables.length > 0 
+        ? (tables.filter(t => t.sla_status === 'compliant').length / tables.length) * 100
+        : 0;
+      
+      const dagsCompliance = dags.length > 0
+        ? (dags.filter(d => d.sla_status === 'compliant').length / dags.length) * 100
+        : 0;
+      
+      const overallCompliance = entities.length > 0
+        ? (entities.filter(e => e.sla_status === 'compliant').length / entities.length) * 100
+        : 0;
+      
+      trendData.push({
+        date: date.toISOString().split('T')[0],
+        dateFormatted: new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(date),
+        overall: parseFloat(overallCompliance.toFixed(1)),
+        tables: parseFloat(tablesCompliance.toFixed(1)),
+        dags: parseFloat(dagsCompliance.toFixed(1))
+      });
+    }
+    
+    return {
+      trend: trendData,
+      lastUpdated: new Date()
+    };
   }
 
   private async validateCache(): Promise<void> {
@@ -593,6 +644,7 @@ export class RedisCache {
     multi.setex(CACHE_KEYS.TENANTS, expireTime, JSON.stringify(data.tenants));
     multi.setex(CACHE_KEYS.METRICS, expireTime, JSON.stringify(data.metrics));
     multi.setex(CACHE_KEYS.LAST_30_DAY_METRICS, expireTime, JSON.stringify(data.last30DayMetrics));
+    multi.setex(CACHE_KEYS.COMPLIANCE_TRENDS, expireTime, JSON.stringify(data.complianceTrends || {}));
     multi.setex(CACHE_KEYS.RECENT_CHANGES, expireTime, JSON.stringify(data.recentChanges || []));
     multi.setex(CACHE_KEYS.LAST_UPDATED, expireTime, JSON.stringify(data.lastUpdated));
     
@@ -612,18 +664,20 @@ export class RedisCache {
     const teams = await storage.getTeams();
     const tenants = await storage.getTenants();
     
-    // Calculate metrics for each tenant
+    // Calculate metrics and compliance trends for each tenant
     const metrics: Record<string, DashboardMetrics> = {};
     const last30DayMetrics: Record<string, DashboardMetrics> = {};
+    const complianceTrends: Record<string, ComplianceTrendData> = {};
     
     for (const tenant of tenants) {
-      const tenantEntities = entities.filter(e => e.tenant_name === tenant.name);
+      const tenantEntities = entities.filter(e => e.tenant_name === tenant.name && e.is_entity_owner === true);
       const tenantTables = tenantEntities.filter(e => e.type === 'table');
       const tenantDags = tenantEntities.filter(e => e.type === 'dag');
       
       const tenantMetrics = this.calculateMetrics(tenantEntities, tenantTables, tenantDags);
       metrics[tenant.name] = tenantMetrics;
       last30DayMetrics[tenant.name] = tenantMetrics;
+      complianceTrends[tenant.name] = this.generateComplianceTrend(tenantEntities, tenantTables, tenantDags);
     }
     
     return {
@@ -632,6 +686,7 @@ export class RedisCache {
       tenants,
       metrics,
       last30DayMetrics,
+      complianceTrends,
       lastUpdated: new Date(),
       recentChanges: []
     };
@@ -718,6 +773,23 @@ export class RedisCache {
     } catch (error) {
       console.error('Error getting dashboard metrics:', error);
       return this.fallbackData ? this.fallbackData.metrics[tenantName] || null : null;
+    }
+  }
+
+  async getComplianceTrends(tenantName: string): Promise<ComplianceTrendData | null> {
+    if (!this.useRedis || !this.redis) {
+      return this.fallbackData ? this.fallbackData.complianceTrends[tenantName] || null : null;
+    }
+    
+    try {
+      const data = await this.redis.get(CACHE_KEYS.COMPLIANCE_TRENDS);
+      if (!data) return null;
+      
+      const trends = JSON.parse(data);
+      return trends[tenantName] || null;
+    } catch (error) {
+      console.error('Error getting compliance trends:', error);
+      return this.fallbackData ? this.fallbackData.complianceTrends[tenantName] || null : null;
     }
   }
 
