@@ -4,30 +4,129 @@ import { storage } from './storage';
 import { Entity, Team } from '@shared/schema';
 import { DashboardMetrics, CacheRefreshData, calculateMetrics, ComplianceTrendData, ComplianceTrendPoint } from '@shared/cache-types';
 
+// FastAPI configuration
+const FASTAPI_BASE_URL = process.env.FASTAPI_BASE_URL || 'http://localhost:8080';
+const USE_FASTAPI = process.env.ENABLE_FASTAPI_INTEGRATION === 'true';
+
+// FastAPI client functions with timeout and retry
+async function fastApiRequest(endpoint: string, retries = 2): Promise<any> {
+  const url = `${FASTAPI_BASE_URL}${endpoint}`;
+  console.log(`[Cache Worker] FastAPI request: ${url}`);
+  
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      // Add timeout using AbortController
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new Error(`FastAPI request failed: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      console.log(`[Cache Worker] FastAPI response from ${endpoint} (${attempt + 1}/${retries + 1}): Success`);
+      return data;
+      
+    } catch (error) {
+      const isLastAttempt = attempt === retries;
+      
+      if ((error as Error).name === 'AbortError') {
+        console.error(`[Cache Worker] FastAPI request to ${endpoint} timed out (attempt ${attempt + 1}/${retries + 1})`);
+      } else {
+        console.error(`[Cache Worker] FastAPI request to ${endpoint} failed (attempt ${attempt + 1}/${retries + 1}):`, error);
+      }
+      
+      if (isLastAttempt) {
+        throw error;
+      }
+      
+      // Exponential backoff: 1s, 2s, 4s
+      const backoffMs = Math.pow(2, attempt) * 1000;
+      console.log(`[Cache Worker] Retrying in ${backoffMs}ms...`);
+      await new Promise(resolve => setTimeout(resolve, backoffMs));
+    }
+  }
+}
+
+// FastAPI endpoint functions
+async function fetchTenantsFromFastAPI(): Promise<any[]> {
+  return await fastApiRequest('/api/tenants');
+}
+
+async function fetchTeamsFromFastAPI(): Promise<any[]> {
+  return await fastApiRequest('/api/teams');
+}
+
+async function fetchPresetsFromFastAPI(): Promise<any> {
+  return await fastApiRequest('/api/presets');
+}
+
+async function fetchComplianceFromFastAPI(): Promise<any> {
+  return await fastApiRequest('/api/compliance');
+}
+
+async function fetchSlaFromFastAPI(): Promise<any[]> {
+  return await fastApiRequest('/api/sla');
+}
+
 // Worker thread main function
 async function refreshCacheData(): Promise<CacheRefreshData> {
   try {
-    // [Cache Worker] Starting cache refresh
+    console.log(`[Cache Worker] Starting cache refresh (FastAPI: ${USE_FASTAPI ? 'enabled' : 'disabled'})`);
     
-    // Load all entities, teams, and tenants
-    const entities = await storage.getEntities();
-    const teams = await storage.getTeams();
-    const tenants = await storage.getTenants();
-
-    // Calculate metrics for each tenant (default 30-day cache)
-    const last30DayMetrics: Record<string, DashboardMetrics> = {};
-    const complianceTrends: Record<string, ComplianceTrendData> = {};
-    
-    for (const tenant of tenants) {
-      const allTenantEntities = entities.filter(e => e.tenant_name === tenant.name);
-      // Only consider entity owners for metrics calculations
-      const tenantEntities = allTenantEntities.filter(e => e.is_entity_owner === true);
-      const tenantTables = tenantEntities.filter(e => e.type === 'table');
-      const tenantDags = tenantEntities.filter(e => e.type === 'dag');
-
-      last30DayMetrics[tenant.name] = calculateMetrics(tenantEntities, tenantTables, tenantDags);
-      complianceTrends[tenant.name] = generateComplianceTrend(tenantEntities, tenantTables, tenantDags);
+    if (USE_FASTAPI) {
+      return await refreshFromFastAPI();
+    } else {
+      return await refreshFromStorage();
     }
+    
+  } catch (error) {
+    console.error('[Cache Worker] Failed to refresh cache:', error);
+    // Try fallback to storage if FastAPI fails
+    if (USE_FASTAPI) {
+      console.log('[Cache Worker] FastAPI failed, falling back to storage');
+      try {
+        return await refreshFromStorage();
+      } catch (storageError) {
+        console.error('[Cache Worker] Storage fallback also failed:', storageError);
+        throw error;
+      }
+    }
+    throw error;
+  }
+}
+
+// FastAPI data refresh
+async function refreshFromFastAPI(): Promise<CacheRefreshData> {
+  console.log('[Cache Worker] Refreshing cache from FastAPI endpoints');
+  
+  try {
+    // Call all FastAPI endpoints in parallel for better performance
+    const [tenantsData, teamsData, presetsData, complianceData, slaData] = await Promise.all([
+      fetchTenantsFromFastAPI(),
+      fetchTeamsFromFastAPI(),
+      fetchPresetsFromFastAPI(),
+      fetchComplianceFromFastAPI(),
+      fetchSlaFromFastAPI(),
+    ]);
+
+    // Map FastAPI data to our cache structure
+    const entities = mapSlaDataToEntities(slaData);
+    const teams = mapFastAPITeamsToTeams(teamsData);
+    const tenants = mapFastAPITenantsToTenants(tenantsData);
+    
+    // Extract metrics and trends from presets and compliance data (with fallback calculation)
+    const { last30DayMetrics, complianceTrends } = extractMetricsAndTrends(presetsData, complianceData, entities, tenants);
 
     const cacheData: CacheRefreshData = {
       entities,
@@ -36,16 +135,256 @@ async function refreshCacheData(): Promise<CacheRefreshData> {
       metrics: {}, // Empty for dynamic calculations
       last30DayMetrics,
       complianceTrends,
+      todayMetrics: {},
+      yesterdayMetrics: {},
+      last7DayMetrics: {},
+      thisMonthMetrics: {},
+      todayTrends: {},
+      yesterdayTrends: {},
+      last7DayTrends: {},
+      thisMonthTrends: {},
       lastUpdated: new Date()
     };
 
-    // [Cache Worker] Cache refresh completed
+    console.log('[Cache Worker] FastAPI cache refresh completed');
     return cacheData;
     
   } catch (error) {
-    console.error('[Cache Worker] Failed to refresh cache:', error);
+    console.error('[Cache Worker] FastAPI refresh failed:', error);
     throw error;
   }
+}
+
+// Storage-based data refresh (original logic)
+async function refreshFromStorage(): Promise<CacheRefreshData> {
+  console.log('[Cache Worker] Refreshing cache from storage');
+  
+  // Load all entities, teams, and tenants
+  const entities = await storage.getEntities();
+  const teams = await storage.getTeams();
+  const tenants = await storage.getTenants();
+
+  // Calculate metrics for each tenant (default 30-day cache)
+  const last30DayMetrics: Record<string, DashboardMetrics> = {};
+  const complianceTrends: Record<string, ComplianceTrendData> = {};
+  
+  for (const tenant of tenants) {
+    const allTenantEntities = entities.filter(e => e.tenant_name === tenant.name);
+    // Only consider entity owners for metrics calculations
+    const tenantEntities = allTenantEntities.filter(e => e.is_entity_owner === true);
+    const tenantTables = tenantEntities.filter(e => e.type === 'table');
+    const tenantDags = tenantEntities.filter(e => e.type === 'dag');
+
+    last30DayMetrics[tenant.name] = calculateMetrics(tenantEntities, tenantTables, tenantDags);
+    complianceTrends[tenant.name] = generateComplianceTrend(tenantEntities, tenantTables, tenantDags);
+  }
+
+  const cacheData: CacheRefreshData = {
+    entities,
+    teams,
+    tenants,
+    metrics: {}, // Empty for dynamic calculations
+    last30DayMetrics,
+    complianceTrends,
+    todayMetrics: {},
+    yesterdayMetrics: {},
+    last7DayMetrics: {},
+    thisMonthMetrics: {},
+    todayTrends: {},
+    yesterdayTrends: {},
+    last7DayTrends: {},
+    thisMonthTrends: {},
+    recentChanges: [],
+    lastUpdated: new Date()
+  };
+
+  console.log('[Cache Worker] Storage cache refresh completed');
+  return cacheData;
+}
+
+// Data mapping functions for FastAPI responses
+function mapSlaDataToEntities(slaData: any[]): Entity[] {
+  if (!Array.isArray(slaData)) {
+    console.warn('[Cache Worker] SLA data is not an array, returning empty entities');
+    return [];
+  }
+
+  return slaData.map((item: any, index: number) => ({
+    id: item.id || index + 1,
+    name: item.name || item.entity_name || `Entity ${index + 1}`,
+    type: item.type || item.entity_type || 'table',
+    teamId: item.team_id || 1,
+    description: item.description || null,
+    slaTarget: item.sla_target || item.target_sla || 95,
+    currentSla: item.current_sla || item.compliance_percentage || null,
+    status: item.status || item.sla_status || 'Unknown',
+    refreshFrequency: item.refresh_frequency || 'daily',
+    lastRefreshed: item.last_refreshed ? new Date(item.last_refreshed) : null,
+    tenant_name: item.tenant_name || item.tenant || 'Default',
+    team_name: item.team_name || item.team || 'Default Team',
+    owner_email: item.owner_email || item.email || null,
+    notification_preference_id: item.notification_preference_id || null,
+    notification_timeline_id: item.notification_timeline_id || null,
+    priority_zone: item.priority_zone || 'medium',
+    dependency_entities: item.dependency_entities || [],
+    downstream_entities: item.downstream_entities || [],
+    tags: item.tags || [],
+    business_criticality: item.business_criticality || 'medium',
+    data_sensitivity: item.data_sensitivity || 'internal',
+    compliance_frameworks: item.compliance_frameworks || [],
+    last_incident_date: item.last_incident_date ? new Date(item.last_incident_date) : null,
+    incident_count_30d: item.incident_count_30d || 0,
+    avg_resolution_time_hours: item.avg_resolution_time_hours || null,
+    escalation_path: item.escalation_path || [],
+    monitoring_enabled: item.monitoring_enabled !== false,
+    auto_remediation_enabled: item.auto_remediation_enabled === true,
+    custom_metrics: item.custom_metrics || {},
+    documentation_url: item.documentation_url || null,
+    runbook_url: item.runbook_url || null,
+    source_system: item.source_system || null,
+    created_by_user_id: item.created_by_user_id || null,
+    is_entity_owner: item.is_entity_owner !== false,
+    createdAt: item.created_at ? new Date(item.created_at) : new Date(),
+    updatedAt: item.updated_at ? new Date(item.updated_at) : new Date(),
+  }));
+}
+
+function mapFastAPITeamsToTeams(teamsData: any[]): Team[] {
+  if (!Array.isArray(teamsData)) {
+    console.warn('[Cache Worker] Teams data is not an array, returning empty teams');
+    return [];
+  }
+
+  return teamsData.map((item: any, index: number) => ({
+    id: item.id || item.team_id || index + 1, // Ensure ID is always present
+    name: item.name || item.team_name || `Team ${index + 1}`,
+    description: item.description || null,
+    tenant_id: item.tenant_id || 1,
+    team_members_ids: Array.isArray(item.team_members_ids) ? item.team_members_ids : [],
+    team_email: Array.isArray(item.team_email) ? item.team_email : (item.team_email ? [item.team_email] : []),
+    team_slack: Array.isArray(item.team_slack) ? item.team_slack : (item.team_slack ? [item.team_slack] : []),
+    team_pagerduty: Array.isArray(item.team_pagerduty) ? item.team_pagerduty : (item.team_pagerduty ? [item.team_pagerduty] : []),
+    team_notify_preference_id: item.team_notify_preference_id || null,
+    createdAt: item.created_at ? new Date(item.created_at) : new Date(),
+    updatedAt: item.updated_at ? new Date(item.updated_at) : new Date(),
+  }));
+}
+
+// Fix type safety for tenants
+interface Tenant {
+  id: number;
+  name: string;
+  description?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+function mapFastAPITenantsToTenants(tenantsData: any[]): Tenant[] {
+  if (!Array.isArray(tenantsData)) {
+    console.warn('[Cache Worker] Tenants data is not an array, returning empty tenants');
+    return [];
+  }
+
+  return tenantsData.map((item: any, index: number) => ({
+    id: item.id || item.tenant_id || index + 1, // Ensure ID is always present
+    name: item.name || item.tenant_name || `Tenant ${index + 1}`,
+    description: item.description || undefined,
+    createdAt: item.created_at ? new Date(item.created_at) : new Date(),
+    updatedAt: item.updated_at ? new Date(item.updated_at) : new Date(),
+  }));
+}
+
+function extractMetricsAndTrends(
+  presetsData: any, 
+  complianceData: any, 
+  entities: Entity[], 
+  tenants: Tenant[]
+): {
+  last30DayMetrics: Record<string, DashboardMetrics>;
+  complianceTrends: Record<string, ComplianceTrendData>;
+} {
+  const last30DayMetrics: Record<string, DashboardMetrics> = {};
+  const complianceTrends: Record<string, ComplianceTrendData> = {};
+
+  try {
+    // Extract metrics from presets data
+    if (presetsData && typeof presetsData === 'object') {
+      Object.keys(presetsData).forEach(tenantName => {
+        const tenantData = presetsData[tenantName];
+        if (tenantData && tenantData.last30Days) {
+          last30DayMetrics[tenantName] = {
+            totalEntities: tenantData.last30Days.totalEntities || 0,
+            passedEntities: tenantData.last30Days.passedEntities || 0,
+            failedEntities: tenantData.last30Days.failedEntities || 0,
+            unknownEntities: tenantData.last30Days.unknownEntities || 0,
+            totalTables: tenantData.last30Days.totalTables || 0,
+            passedTables: tenantData.last30Days.passedTables || 0,
+            failedTables: tenantData.last30Days.failedTables || 0,
+            unknownTables: tenantData.last30Days.unknownTables || 0,
+            totalDags: tenantData.last30Days.totalDags || 0,
+            passedDags: tenantData.last30Days.passedDags || 0,
+            failedDags: tenantData.last30Days.failedDags || 0,
+            unknownDags: tenantData.last30Days.unknownDags || 0,
+            overallCompliance: tenantData.last30Days.overallCompliance || 0,
+            tablesCompliance: tenantData.last30Days.tablesCompliance || 0,
+            dagsCompliance: tenantData.last30Days.dagsCompliance || 0,
+          };
+        }
+      });
+    }
+
+    // Extract trends from compliance data
+    if (complianceData && typeof complianceData === 'object') {
+      Object.keys(complianceData).forEach(tenantName => {
+        const tenantTrends = complianceData[tenantName];
+        if (tenantTrends && Array.isArray(tenantTrends.trend)) {
+          complianceTrends[tenantName] = {
+            trend: tenantTrends.trend.map((point: any) => ({
+              date: point.date,
+              dateFormatted: point.dateFormatted || new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(new Date(point.date)),
+              overall: point.overall || 0,
+              tables: point.tables || 0,
+              dags: point.dags || 0,
+            })),
+            lastUpdated: tenantTrends.lastUpdated ? new Date(tenantTrends.lastUpdated) : new Date(),
+          };
+        }
+      });
+    }
+
+    // Fallback: compute metrics and trends from entities when presets/compliance data is missing or incomplete
+    const missingMetricsTenants = tenants.filter(tenant => !last30DayMetrics[tenant.name]);
+    const missingTrendsTenants = tenants.filter(tenant => !complianceTrends[tenant.name]);
+    
+    if (missingMetricsTenants.length > 0 || missingTrendsTenants.length > 0) {
+      console.log('[Cache Worker] Some metrics/trends missing from FastAPI, computing fallback data');
+      
+      for (const tenant of tenants) {
+        const allTenantEntities = entities.filter(e => e.tenant_name === tenant.name);
+        // Only consider entity owners for metrics calculations (matching storage behavior)
+        const tenantEntities = allTenantEntities.filter(e => e.is_entity_owner === true);
+        const tenantTables = tenantEntities.filter(e => e.type === 'table');
+        const tenantDags = tenantEntities.filter(e => e.type === 'dag');
+        
+        // Compute missing metrics using the same logic as storage
+        if (!last30DayMetrics[tenant.name]) {
+          last30DayMetrics[tenant.name] = calculateMetrics(tenantEntities, tenantTables, tenantDags);
+          console.log(`[Cache Worker] Computed fallback metrics for tenant: ${tenant.name}`);
+        }
+        
+        // Compute missing trends using the same logic as storage
+        if (!complianceTrends[tenant.name]) {
+          complianceTrends[tenant.name] = generateComplianceTrend(tenantEntities, tenantTables, tenantDags);
+          console.log(`[Cache Worker] Computed fallback trends for tenant: ${tenant.name}`);
+        }
+      }
+    }
+
+  } catch (error) {
+    console.error('[Cache Worker] Error extracting metrics and trends:', error);
+  }
+
+  return { last30DayMetrics, complianceTrends };
 }
 
 // Generate 30-day compliance trend data for a tenant with realistic fluctuations
