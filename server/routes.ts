@@ -342,8 +342,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const team = await storage.createTeam(result.data);
       
-      // Invalidate team data after creation
-      await redisCache.invalidateTeamData();
+      // Invalidate all team-related caches (comprehensive pattern like tenant creation)
+      await redisCache.invalidateCache({
+        keys: [
+          'admin_teams',             // Admin team list
+          'all_teams',               // Main app team list  
+          `team_${team.id}`,         // Individual team cache
+          `team_details_${team.name}`, // Team details cache
+          `team_members_${team.name}`  // Team members cache
+        ],
+        patterns: [
+          'team_*',      // All team-related cache keys
+          'dashboard_*', // Dashboard data that uses team filters
+          'summary_*'    // Dashboard summary with team filters
+        ]
+      });
       
       res.status(201).json(team);
     } catch (error) {
