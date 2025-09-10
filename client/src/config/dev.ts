@@ -161,4 +161,14 @@ export const devConfig = {
   debug: true,
   logLevel: 'debug',
   enableMockData: true,
+  
+  // FastAPI Integration Control
+  fastApiIntegration: {
+    enabled: false, // Set to true when ready to use FastAPI instead of mock data
+    endpoints: {
+      allEntitiesPresets: '/all_entities/presets',
+      complianceTrends: '/all_entities/compliance_trends',
+      customDateRange: '/all_entities/custom_range', // For custom date ranges
+    },
+  },
 }; 

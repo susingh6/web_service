@@ -215,14 +215,14 @@ export class RedisCache {
     return calculateMetrics(entities, tables, dags);
   }
 
-  // Generate 30-day compliance trend data for a tenant with realistic fluctuations
-  private generateComplianceTrend(entities: Entity[], tables: Entity[], dags: Entity[]): ComplianceTrendData {
+  // Generate compliance trend data for a tenant with realistic fluctuations
+  private generateComplianceTrendForRange(entities: Entity[], tables: Entity[], dags: Entity[], days: number): ComplianceTrendData {
     const trendData: ComplianceTrendPoint[] = [];
     const now = new Date();
     
     // For new tenants with no entities, return all zeros
     if (entities.length === 0) {
-      for (let i = 29; i >= 0; i--) {
+      for (let i = days - 1; i >= 0; i--) {
         const date = new Date(now);
         date.setDate(date.getDate() - i);
         trendData.push({
@@ -249,15 +249,15 @@ export class RedisCache {
       ? (entities.filter(e => e.status === 'Passed').length / entities.length) * 100
       : 0;
     
-    // Generate 30 days of realistic fluctuating data
-    for (let i = 29; i >= 0; i--) {
+    // Generate realistic fluctuating data for the specified range
+    for (let i = days - 1; i >= 0; i--) {
       const date = new Date(now);
       date.setDate(date.getDate() - i);
       
       // Add realistic fluctuations with some trends
       const dayVariation = Math.sin(i * 0.1) * 3; // Cyclical variation
       const randomNoise = (Math.random() - 0.5) * 4; // Random noise ±2%
-      const trendImpact = (29 - i) * 0.1; // Slight improvement trend over time
+      const trendImpact = (days - 1 - i) * 0.1; // Slight improvement trend over time
       
       // Apply variations to each metric
       const tablesCompliance = Math.max(0, Math.min(100, 
@@ -285,6 +285,11 @@ export class RedisCache {
       trend: trendData,
       lastUpdated: new Date()
     };
+  }
+
+  // Legacy method for backward compatibility
+  private generateComplianceTrend(entities: Entity[], tables: Entity[], dags: Entity[]): ComplianceTrendData {
+    return this.generateComplianceTrendForRange(entities, tables, dags, 30);
   }
 
   private async validateCache(): Promise<void> {
@@ -681,34 +686,72 @@ export class RedisCache {
   }
 
   private async getCacheRefreshData(): Promise<CachedData> {
-    // Reuse the same logic as refreshFallbackData but return structured data
+    // Check if FastAPI integration is enabled
+    const USE_FASTAPI = process.env.ENABLE_FASTAPI_INTEGRATION === 'true';
+    
+    if (USE_FASTAPI) {
+      // TODO: Implement FastAPI integration
+      console.log('FastAPI integration enabled - would call FastAPI endpoints here');
+      // For now, fallback to mock data even when FastAPI is "enabled"
+      // return await this.fetchFromFastAPI();
+    }
+    
+    // Generate mock data (current behavior)
     const entities = await storage.getEntities();
     const teams = await storage.getTeams();
     const tenants = await storage.getTenants();
     
-    // Calculate metrics and compliance trends for each tenant
-    const metrics: Record<string, DashboardMetrics> = {};
+    // Initialize metrics and trends for all predefined ranges
+    const todayMetrics: Record<string, DashboardMetrics> = {};
+    const yesterdayMetrics: Record<string, DashboardMetrics> = {};
+    const last7DayMetrics: Record<string, DashboardMetrics> = {};
     const last30DayMetrics: Record<string, DashboardMetrics> = {};
-    const complianceTrends: Record<string, ComplianceTrendData> = {};
+    const thisMonthMetrics: Record<string, DashboardMetrics> = {};
     
+    const todayTrends: Record<string, ComplianceTrendData> = {};
+    const yesterdayTrends: Record<string, ComplianceTrendData> = {};
+    const last7DayTrends: Record<string, ComplianceTrendData> = {};
+    const last30DayTrends: Record<string, ComplianceTrendData> = {};
+    const thisMonthTrends: Record<string, ComplianceTrendData> = {};
+    
+    // Generate mock data for each tenant and all predefined ranges
     for (const tenant of tenants) {
       const tenantEntities = entities.filter(e => e.tenant_name === tenant.name && e.is_entity_owner === true);
       const tenantTables = tenantEntities.filter(e => e.type === 'table');
       const tenantDags = tenantEntities.filter(e => e.type === 'dag');
       
-      const tenantMetrics = this.calculateMetrics(tenantEntities, tenantTables, tenantDags);
-      metrics[tenant.name] = tenantMetrics;
-      last30DayMetrics[tenant.name] = tenantMetrics;
-      complianceTrends[tenant.name] = this.generateComplianceTrend(tenantEntities, tenantTables, tenantDags);
+      // Calculate base metrics
+      const baseMetrics = this.calculateMetrics(tenantEntities, tenantTables, tenantDags);
+      
+      // Use mock data for all ranges
+      todayMetrics[tenant.name] = baseMetrics;
+      yesterdayMetrics[tenant.name] = baseMetrics;
+      last7DayMetrics[tenant.name] = baseMetrics;
+      last30DayMetrics[tenant.name] = baseMetrics;
+      thisMonthMetrics[tenant.name] = baseMetrics;
+      
+      // Generate compliance trends for different ranges
+      todayTrends[tenant.name] = this.generateComplianceTrendForRange(tenantEntities, tenantTables, tenantDags, 1);
+      yesterdayTrends[tenant.name] = this.generateComplianceTrendForRange(tenantEntities, tenantTables, tenantDags, 1);
+      last7DayTrends[tenant.name] = this.generateComplianceTrendForRange(tenantEntities, tenantTables, tenantDags, 7);
+      last30DayTrends[tenant.name] = this.generateComplianceTrendForRange(tenantEntities, tenantTables, tenantDags, 30);
+      thisMonthTrends[tenant.name] = this.generateComplianceTrendForRange(tenantEntities, tenantTables, tenantDags, 30); // Approximate this month as 30 days
     }
     
     return {
       entities,
       teams,
       tenants,
-      metrics,
+      todayMetrics,
+      yesterdayMetrics,
+      last7DayMetrics,
       last30DayMetrics,
-      complianceTrends,
+      thisMonthMetrics,
+      todayTrends,
+      yesterdayTrends,
+      last7DayTrends,
+      last30DayTrends,
+      thisMonthTrends,
       lastUpdated: new Date(),
       recentChanges: []
     };
