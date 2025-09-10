@@ -358,14 +358,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         oid: "test-azure-object-id"
       };
       
-      // Call Azure validation endpoint with centralized config
-      const azureValidateUrl = endpoints.auth?.azureValidate || '/api/auth/azure/validate';
-      const res = await apiRequest("POST", buildUrl(azureValidateUrl), {
-        token: "mock-azure-token", // In production, this would be real Azure JWT
-        claims: mockAzureClaims
-      });
-      
-      const response = await res.json();
+      // Call Azure validation endpoint using fallback auth system
+      const response = await authFallback.validateAzure("mock-azure-token", mockAzureClaims);
       
       if (!response.success) {
         // Admin role validation failed

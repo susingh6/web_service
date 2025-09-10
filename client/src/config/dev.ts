@@ -1,5 +1,5 @@
 export const devConfig = {
-  baseUrl: 'http://localhost:8080',
+  baseUrl: '', // Use relative URLs to match the current domain and port (5000)
   
   endpoints: {
     // Authentication - FastAPI primary, Express fallback

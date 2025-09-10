@@ -72,53 +72,110 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Set up test routes for development
   setupTestRoutes(app);
   
-  // CRITICAL: Block all legacy Express /api/* routes EXCEPT auth fallbacks to prevent RBAC bypass
-  // All API calls should go through FastAPI at /api/v1/*, but auth endpoints can fallback to Express
+  // Environment-aware Express API routing middleware
+  // In development: Allow auth fallback routes for testing
+  // In production: Block legacy Express routes except critical fallbacks to prevent RBAC bypass
+  const environment = process.env.NODE_ENV || 'development';
+  const isDevelopment = environment === 'development';
+  
   app.use('/api', (req: Request, res: Response, next: NextFunction) => {
-    // Allow FastAPI endpoints to pass through
-    if (req.path.startsWith('/api/v1/')) {
-      return next();
-    }
-    
-    // Allow auth endpoints as fallbacks when FastAPI is unavailable
-    const allowedFallbackPaths = [
-      '/api/health',
-      '/api/debug/teams', // Debug endpoint for development
-      '/api/cache/status',
-      '/api/cache/refresh',
-      // AUTH FALLBACK ENDPOINTS - These work when FastAPI is unavailable
-      '/api/login',
-      '/api/logout', 
-      '/api/register',
-      '/api/user',
-      '/api/auth/azure/validate',
-      '/api/dev/create-test-user'
-    ];
-    
-    // Allow specific endpoints through
-    if (allowedFallbackPaths.includes(req.path)) {
-      structuredLogger.info('EXPRESS_FALLBACK_AUTH_ENDPOINT', {
+    // Always allow FastAPI endpoints to pass through
+    // Note: req.path doesn't include '/api' when middleware is mounted on '/api'
+    if (req.path.startsWith('/v1/')) {
+      structuredLogger.info('EXPRESS_FASTAPI_ENDPOINT', {
         path: req.path,
         method: req.method,
+        environment,
         timestamp: new Date().toISOString(),
-        message: 'Using Express auth fallback endpoint'
+        message: 'Allowing FastAPI endpoint through Express'
       });
       return next();
     }
     
-    // Block all other /api/* calls 
+    // Core system endpoints - always allowed
+    const coreSystemPaths = [
+      '/health',
+      '/cache/status',
+      '/cache/refresh'
+    ];
+    
+    // Authentication fallback endpoints - environment-specific
+    const authFallbackPaths = [
+      '/login',
+      '/logout', 
+      '/register',
+      '/user',
+      '/auth/azure/validate',
+      '/dev/create-test-user'
+    ];
+    
+    // Development-only endpoints
+    const developmentPaths = [
+      '/debug/teams',
+      '/teams',
+      '/entities',
+      '/dashboard/summary',
+      '/users',
+      '/tenants'
+    ];
+    
+    // Check core system paths first (always allowed)
+    if (coreSystemPaths.includes(req.path)) {
+      structuredLogger.info('EXPRESS_CORE_ENDPOINT', {
+        path: req.path,
+        method: req.method,
+        environment,
+        timestamp: new Date().toISOString(),
+        message: 'Using Express core system endpoint'
+      });
+      return next();
+    }
+    
+    // In development mode: Allow auth fallbacks and development endpoints
+    if (isDevelopment) {
+      if (authFallbackPaths.includes(req.path) || developmentPaths.some(path => req.path.startsWith(path))) {
+        structuredLogger.info('EXPRESS_DEVELOPMENT_ENDPOINT', {
+          path: req.path,
+          method: req.method,
+          environment,
+          timestamp: new Date().toISOString(),
+          message: 'Using Express endpoint in development mode'
+        });
+        return next();
+      }
+    } else {
+      // In production: Only allow auth fallbacks for emergency access
+      if (authFallbackPaths.includes(req.path)) {
+        structuredLogger.info('EXPRESS_AUTH_FALLBACK', {
+          path: req.path,
+          method: req.method,
+          environment,
+          timestamp: new Date().toISOString(),
+          message: 'Using Express auth fallback in production (FastAPI unavailable)'
+        });
+        return next();
+      }
+    }
+    
+    // Block all other /api/* calls with environment-specific messaging
+    const blockReason = isDevelopment 
+      ? 'Legacy Express API call blocked in development - use FastAPI /api/v1/* instead'
+      : 'Legacy Express API call blocked in production - use FastAPI /api/v1/* for security';
+      
     structuredLogger.warn('BLOCKED_LEGACY_EXPRESS_CALL', {
       path: req.path,
       method: req.method,
+      environment,
       headers: req.headers,
       timestamp: new Date().toISOString(),
-      message: 'Legacy Express API call blocked - use FastAPI /api/v1/* instead'
+      message: blockReason
     });
     
     return res.status(410).json({
       error: 'LEGACY_ENDPOINT_DISABLED',
       message: `Legacy Express endpoint ${req.path} is disabled. Use FastAPI /api/v1/* endpoints instead.`,
       fastapi_endpoint: req.path.replace('/api/', '/api/v1/'),
+      environment,
       timestamp: new Date().toISOString()
     });
   });
