@@ -5,6 +5,7 @@ import { config } from './config';
 import { Entity, Team } from '@shared/schema';
 import { storage } from './storage';
 import { DashboardMetrics, EntityChange, CachedData, calculateMetrics, ComplianceTrendData, ComplianceTrendPoint } from '@shared/cache-types';
+import { serviceAuth, serviceAuthenticatedFetch, initializeServiceAuth } from './service-auth';
 
 // Standardized event envelope for real-time updates with race condition protection
 interface EntityChangeEvent {
@@ -171,6 +172,10 @@ export class RedisCache {
       }
 
       this.startAutoRefresh();
+      
+      // Initialize service authentication if FastAPI integration is enabled
+      await this.initializeServiceAuthIfNeeded();
+      
       this.isInitialized = true;
       // Redis cache system initialized successfully
       
@@ -194,6 +199,9 @@ export class RedisCache {
     
     // Initialize fallback data directly
     await this.refreshFallbackData();
+    
+    // Initialize service authentication if FastAPI integration is enabled
+    await this.initializeServiceAuthIfNeeded();
     
     this.isInitialized = true;
     // Fallback cache system initialized successfully
@@ -686,14 +694,19 @@ export class RedisCache {
   }
 
   private async getCacheRefreshData(): Promise<CachedData> {
-    // Check if FastAPI integration is enabled
+    // Check if FastAPI integration is enabled and service account is configured
     const USE_FASTAPI = process.env.ENABLE_FASTAPI_INTEGRATION === 'true';
     
-    if (USE_FASTAPI) {
-      // TODO: Implement FastAPI integration
-      console.log('FastAPI integration enabled - would call FastAPI endpoints here');
-      // For now, fallback to mock data even when FastAPI is "enabled"
-      // return await this.fetchFromFastAPI();
+    if (USE_FASTAPI && config.serviceAccount.isConfigured()) {
+      try {
+        console.log('🔄 FastAPI integration enabled - fetching cache data with service authentication...');
+        return await this.fetchFromFastAPIWithServiceAuth();
+      } catch (error) {
+        console.error('❌ FastAPI cache fetch failed, falling back to mock data:', error.message);
+        // Fallback to mock data if FastAPI fails
+      }
+    } else if (USE_FASTAPI) {
+      console.warn('⚠️ FastAPI integration enabled but service account not configured - using mock data');
     }
     
     // Generate mock data (current behavior)
@@ -762,6 +775,206 @@ export class RedisCache {
       lastUpdated: new Date(),
       recentChanges: []
     };
+  }
+
+  /**
+   * Fetch cache data from FastAPI using service authentication
+   */
+  private async fetchFromFastAPIWithServiceAuth(): Promise<CachedData> {
+    const { fastApiBaseUrl } = config.serviceAccount;
+    
+    try {
+      console.log('🔑 Fetching cache data from FastAPI with service authentication...');
+      
+      // Ensure service account is authenticated
+      const sessionId = await serviceAuth.getServiceSessionId();
+      if (!sessionId) {
+        console.log('🔑 No service session available, attempting login...');
+        await serviceAuth.loginServiceAccount();
+      }
+      
+      // Fetch entities data
+      console.log('📊 Fetching entities from FastAPI...');
+      const entitiesResponse = await serviceAuthenticatedFetch(
+        `${fastApiBaseUrl}/api/v1/cache/entities`,
+        { method: 'GET' }
+      );
+      
+      if (!entitiesResponse.ok) {
+        throw new Error(`Failed to fetch entities: ${entitiesResponse.status} ${entitiesResponse.statusText}`);
+      }
+      
+      const entitiesData = await entitiesResponse.json();
+      const entities: Entity[] = entitiesData.entities || [];
+      
+      // Fetch teams data
+      console.log('👥 Fetching teams from FastAPI...');
+      const teamsResponse = await serviceAuthenticatedFetch(
+        `${fastApiBaseUrl}/api/v1/cache/teams`,
+        { method: 'GET' }
+      );
+      
+      if (!teamsResponse.ok) {
+        throw new Error(`Failed to fetch teams: ${teamsResponse.status} ${teamsResponse.statusText}`);
+      }
+      
+      const teamsData = await teamsResponse.json();
+      const teams: Team[] = teamsData.teams || [];
+      
+      // Fetch tenants data
+      console.log('🏢 Fetching tenants from FastAPI...');
+      const tenantsResponse = await serviceAuthenticatedFetch(
+        `${fastApiBaseUrl}/api/v1/cache/tenants`,
+        { method: 'GET' }
+      );
+      
+      if (!tenantsResponse.ok) {
+        throw new Error(`Failed to fetch tenants: ${tenantsResponse.status} ${tenantsResponse.statusText}`);
+      }
+      
+      const tenantsData = await tenantsResponse.json();
+      const tenants = tenantsData.tenants || [];
+      
+      // Process metrics and trends for all tenants and date ranges
+      console.log('📈 Processing metrics and compliance trends...');
+      const todayMetrics: Record<string, DashboardMetrics> = {};
+      const yesterdayMetrics: Record<string, DashboardMetrics> = {};
+      const last7DayMetrics: Record<string, DashboardMetrics> = {};
+      const last30DayMetrics: Record<string, DashboardMetrics> = {};
+      const thisMonthMetrics: Record<string, DashboardMetrics> = {};
+      
+      const todayTrends: Record<string, ComplianceTrendData> = {};
+      const yesterdayTrends: Record<string, ComplianceTrendData> = {};
+      const last7DayTrends: Record<string, ComplianceTrendData> = {};
+      const last30DayTrends: Record<string, ComplianceTrendData> = {};
+      const thisMonthTrends: Record<string, ComplianceTrendData> = {};
+      
+      // Calculate metrics for each tenant
+      for (const tenant of tenants) {
+        const tenantEntities = entities.filter(e => e.tenant_name === tenant.name && e.is_entity_owner === true);
+        const tenantTables = tenantEntities.filter(e => e.type === 'table');
+        const tenantDags = tenantEntities.filter(e => e.type === 'dag');
+        
+        // Calculate metrics for each date range
+        const baseMetrics = this.calculateMetrics(tenantEntities, tenantTables, tenantDags);
+        
+        // For now, use the same base metrics for all ranges
+        // In a real implementation, you would fetch range-specific data from FastAPI
+        todayMetrics[tenant.name] = baseMetrics;
+        yesterdayMetrics[tenant.name] = baseMetrics;
+        last7DayMetrics[tenant.name] = baseMetrics;
+        last30DayMetrics[tenant.name] = baseMetrics;
+        thisMonthMetrics[tenant.name] = baseMetrics;
+        
+        // Generate compliance trends for each range
+        todayTrends[tenant.name] = this.generateComplianceTrendForRange(tenantEntities, tenantTables, tenantDags, 1);
+        yesterdayTrends[tenant.name] = this.generateComplianceTrendForRange(tenantEntities, tenantTables, tenantDags, 1);
+        last7DayTrends[tenant.name] = this.generateComplianceTrendForRange(tenantEntities, tenantTables, tenantDags, 7);
+        last30DayTrends[tenant.name] = this.generateComplianceTrendForRange(tenantEntities, tenantTables, tenantDags, 30);
+        thisMonthTrends[tenant.name] = this.generateComplianceTrendForRange(tenantEntities, tenantTables, tenantDags, 30);
+      }
+      
+      console.log(`✅ Successfully fetched cache data from FastAPI: ${entities.length} entities, ${teams.length} teams, ${tenants.length} tenants`);
+      
+      return {
+        entities,
+        teams,
+        tenants,
+        // Backward compatibility - use last30DayMetrics as default metrics
+        metrics: last30DayMetrics,
+        last30DayMetrics,
+        complianceTrends: last30DayTrends,
+        // New predefined range data
+        todayMetrics,
+        yesterdayMetrics,
+        last7DayMetrics,
+        thisMonthMetrics,
+        todayTrends,
+        yesterdayTrends,
+        last7DayTrends,
+        last30DayTrends,
+        thisMonthTrends,
+        lastUpdated: new Date(),
+        recentChanges: []
+      };
+      
+    } catch (error) {
+      console.error('❌ FastAPI cache fetch failed:', error.message);
+      // Logout service account on error to force fresh authentication next time
+      await serviceAuth.logoutServiceAccount();
+      throw error;
+    }
+  }
+
+  /**
+   * Initialize service authentication if FastAPI integration is enabled
+   */
+  private async initializeServiceAuthIfNeeded(): Promise<void> {
+    const USE_FASTAPI = process.env.ENABLE_FASTAPI_INTEGRATION === 'true';
+    
+    if (USE_FASTAPI && config.serviceAccount.isConfigured()) {
+      try {
+        console.log('🔐 Initializing service account authentication for cache building...');
+        await initializeServiceAuth();
+        console.log('✅ Service account authentication initialized for cache building');
+      } catch (error) {
+        console.warn('⚠️ Service account authentication initialization failed:', error.message);
+        console.warn('Cache building will fall back to mock data if FastAPI calls fail');
+        // Don't throw here - allow cache to function with fallback data
+      }
+    } else if (USE_FASTAPI) {
+      console.warn('⚠️ FastAPI integration enabled but service account not configured');
+      console.warn('Set SERVICE_CLIENT_ID and SERVICE_CLIENT_SECRET environment variables');
+    }
+  }
+
+  /**
+   * Cleanup resources and service authentication on shutdown
+   */
+  async cleanup(): Promise<void> {
+    console.log('🧹 Cleaning up Redis cache system...');
+    
+    try {
+      // Clean up auto-refresh timer
+      if (this.refreshInterval) {
+        clearInterval(this.refreshInterval);
+        this.refreshInterval = null;
+      }
+      
+      // Clean up cache worker
+      if (this.cacheWorker) {
+        this.cacheWorker.terminate();
+        this.cacheWorker = null;
+      }
+      
+      // Clean up service authentication
+      const USE_FASTAPI = process.env.ENABLE_FASTAPI_INTEGRATION === 'true';
+      if (USE_FASTAPI && config.serviceAccount.isConfigured()) {
+        console.log('🔐 Cleaning up service account authentication...');
+        const { shutdownServiceAuth } = await import('./service-auth');
+        await shutdownServiceAuth();
+      }
+      
+      // Disconnect Redis clients
+      if (this.redis) {
+        this.redis.disconnect();
+        this.redis = null;
+      }
+      
+      if (this.subscriber) {
+        this.subscriber.disconnect();
+        this.subscriber = null;
+      }
+      
+      // Clear fallback data
+      this.fallbackData = null;
+      this.isInitialized = false;
+      
+      console.log('✅ Redis cache cleanup completed');
+      
+    } catch (error) {
+      console.error('❌ Error during Redis cache cleanup:', error.message);
+    }
   }
 
   // Methods for accessing cached data by range
