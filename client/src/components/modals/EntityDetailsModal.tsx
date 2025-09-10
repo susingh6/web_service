@@ -23,6 +23,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TextField,
 } from '@mui/material';
 import {
   Close as CloseIcon,
@@ -35,6 +36,8 @@ import {
   Schedule as ScheduleIcon,
   Person as PersonIcon,
   Analytics as AnalyticsIcon,
+  Save as SaveIcon,
+  Cancel as CancelIcon,
 } from '@mui/icons-material';
 import { format } from 'date-fns';
 import { Entity, Issue } from '@shared/schema';
@@ -42,6 +45,7 @@ import EntityPerformanceChart from '@/components/dashboard/EntityPerformanceChar
 import SlaStatusChart from '@/components/charts/SlaStatusChart';
 import ConfirmDialog from './ConfirmDialog';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/use-auth';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 import { buildUrl, endpoints } from '@/config';
 import { useQuery } from '@tanstack/react-query';
@@ -93,10 +97,81 @@ const mockIssues: Issue[] = [
 
 const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModalProps) => {
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
+  const [isEditingOwner, setIsEditingOwner] = useState(false);
+  const [ownerEmailInput, setOwnerEmailInput] = useState('');
+  const [isUpdatingOwner, setIsUpdatingOwner] = useState(false);
   const { toast } = useToast();
+  const { user } = useAuth();
   
   // Find team name - do this before early return to avoid hooks order issues
   const teamName = entity ? teams.find(team => team.id === entity.teamId)?.name || 'Unknown Team' : '';
+  
+  // Update owner functionality
+  const updateOwner = async () => {
+    if (!entity || !teamName) return;
+    
+    // Get user email from authentication context
+    const userEmail = user?.email || (user as any)?.mail || (user as any)?.preferredUsername || '';
+    if (!userEmail) {
+      toast({
+        title: 'Error',
+        description: 'User email not found. Please log in again.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    setIsUpdatingOwner(true);
+    try {
+      const payload = {
+        user_email: userEmail,
+        team_name: teamName,
+        tenant_name: entity.tenant_name || 'Data Engineering',
+        owner_email: ownerEmailInput,
+      };
+      
+      // Make PATCH request to update owner
+      const response = await apiRequest('PATCH', buildUrl(`/api/entities/${entity.id}/owner`), payload);
+      
+      if (response.ok) {
+        toast({
+          title: 'Success',
+          description: 'Owner updated successfully.',
+          variant: 'default',
+        });
+        
+        // Refresh the owner data
+        queryClient.invalidateQueries({ queryKey: ['ownerSlaSettings', entity?.type, teamName, entity?.name] });
+        
+        // Reset edit state
+        setIsEditingOwner(false);
+        setOwnerEmailInput('');
+      } else {
+        throw new Error('Failed to update owner');
+      }
+    } catch (error) {
+      console.error('Error updating owner:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to update owner. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUpdatingOwner(false);
+    }
+  };
+  
+  // Handle starting edit mode
+  const startEditingOwner = () => {
+    setOwnerEmailInput(ownerSlaSettings?.ownerEmail || '');
+    setIsEditingOwner(true);
+  };
+  
+  // Handle canceling edit mode
+  const cancelEditingOwner = () => {
+    setIsEditingOwner(false);
+    setOwnerEmailInput('');
+  };
   
   // Fetch owner and SLA settings (combined API call)
   const { data: ownerSlaSettings, isLoading: ownerSlaLoading } = useQuery({
