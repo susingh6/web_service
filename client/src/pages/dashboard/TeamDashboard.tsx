@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { startOfDay, endOfDay, subDays } from 'date-fns';
+import { startOfDay, endOfDay, subDays, format } from 'date-fns';
 import { useQuery } from '@tanstack/react-query';
 import { Box, Typography, Tabs, Tab, Card, CardContent, Chip, Paper, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, FormControl, InputLabel, Select, MenuItem, IconButton } from '@mui/material';
 import { Add as AddIcon, Upload as UploadIcon, Person as PersonIcon, Edit as EditIcon, Delete as DeleteIcon, PersonAdd as PersonAddIcon } from '@mui/icons-material';
@@ -126,14 +126,14 @@ const TeamDashboard = ({
 
   // Fetch tenant-level summary for this team's selected date range (scoped to component)
   const { data: teamSummaryData, isLoading: teamSummaryLoading, isError: teamSummaryError } = useQuery({
-    queryKey: ['/api/dashboard/summary', tenantName, teamName, teamDateRange.startDate.toISOString().slice(0, 10), teamDateRange.endDate.toISOString().slice(0, 10)],
+    queryKey: ['/api/dashboard/summary', tenantName, teamName, format(teamDateRange.startDate, 'yyyy-MM-dd'), format(teamDateRange.endDate, 'yyyy-MM-dd')],
     queryFn: async () => {
       if (!tenantName) return null;
       const params = new URLSearchParams({
         tenant: tenantName,
         team: teamName,
-        startDate: teamDateRange.startDate.toISOString().slice(0, 10),
-        endDate: teamDateRange.endDate.toISOString().slice(0, 10),
+        startDate: format(teamDateRange.startDate, 'yyyy-MM-dd'),
+        endDate: format(teamDateRange.endDate, 'yyyy-MM-dd'),
       });
       const response = await apiRequest('GET', `/api/dashboard/summary?${params.toString()}`);
       return await response.json();

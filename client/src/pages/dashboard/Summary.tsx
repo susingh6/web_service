@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { startOfDay, endOfDay, subDays } from 'date-fns';
+import { startOfDay, endOfDay, subDays, format } from 'date-fns';
 import { Box, Grid, Button, Typography, Tabs, Tab, Select, MenuItem, FormControl, InputLabel, IconButton } from '@mui/material';
 import { Add as AddIcon, Upload as UploadIcon, Close as CloseIcon } from '@mui/icons-material';
 import { useAppDispatch, useAppSelector } from '@/lib/store';
@@ -152,8 +152,8 @@ const Summary = () => {
   useEffect(() => {
     if (selectedTenant) {
       // Format dates for API call
-      const startDate = summaryDateRange.startDate ? summaryDateRange.startDate.toISOString().split('T')[0] : undefined;
-      const endDate = summaryDateRange.endDate ? summaryDateRange.endDate.toISOString().split('T')[0] : undefined;
+      const startDate = summaryDateRange.startDate ? format(summaryDateRange.startDate, 'yyyy-MM-dd') : undefined;
+      const endDate = summaryDateRange.endDate ? format(summaryDateRange.endDate, 'yyyy-MM-dd') : undefined;
 
       // Fetch dashboard summary with date range parameters
       dispatch(fetchDashboardSummary({ 
