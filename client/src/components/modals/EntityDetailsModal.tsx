@@ -255,9 +255,33 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
           variant: 'default',
         });
         
-        // Refresh all entity data after rollback
+        // Comprehensive cache invalidation after rollback to ensure all entity data is refreshed
+        
+        // 1. Entity-specific modal data (current implementation)
         queryClient.invalidateQueries({ queryKey: ['ownerSlaSettings', entity?.type, teamName, entity?.name] });
         queryClient.invalidateQueries({ queryKey: ['recentSettingsChanges', entity?.type, teamName, entity?.name] });
+        queryClient.invalidateQueries({ queryKey: ['slaStatusHistory', entity?.type, teamName, entity?.name] });
+        
+        // 2. General entity list caches (used throughout the application)
+        queryClient.invalidateQueries({ queryKey: ['/api/entities'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/entities', { teamId: entity.teamId }] });
+        queryClient.invalidateQueries({ queryKey: ['/api/entities', { type: entity.type }] });
+        queryClient.invalidateQueries({ queryKey: ['/api/entities', { teamId: entity.teamId, type: entity.type }] });
+        
+        // 3. Specific entity detail and history caches
+        queryClient.invalidateQueries({ queryKey: [`/api/entities/${entity.id}`] });
+        queryClient.invalidateQueries({ queryKey: [`/api/entities/${entity.id}/history`] });
+        
+        // 4. WebSocket real-time entity caches (used by useRealTimeEntities)
+        queryClient.invalidateQueries({ queryKey: ['entities', entity.id] });
+        
+        // 5. Dashboard summary cache (rollback affects overall metrics)
+        queryClient.invalidateQueries({ queryKey: ['/api/dashboard/summary'] });
+        
+        // 6. Team data caches (rollback may affect team-level aggregations)
+        queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
+        
+        console.log(`Cache invalidated after rollback for entity ${entity.name} (${entity.type}) to version ${selectedRollbackVersion}`);
         
         // Close the confirmation dialog
         setRollbackConfirmOpen(false);
