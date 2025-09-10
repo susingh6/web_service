@@ -11,7 +11,7 @@ import {
   ResponsiveContainer,
   TooltipProps 
 } from 'recharts';
-import { format } from 'date-fns';
+import { format, parseISO, differenceInDays, startOfMonth, isSameMonth } from 'date-fns';
 
 // Generate compliance data from real entities
 const generateDataFromEntities = (entities: any[]) => {
@@ -49,6 +49,84 @@ const generateDataFromEntities = (entities: any[]) => {
   }
   
   return data;
+};
+
+// Helper function to determine if date range exceeds 40 days
+const shouldUseMonthlyAggregation = (data: any[]): boolean => {
+  if (!data || data.length <= 1) return false;
+  
+  // Parse first and last dates
+  const firstDate = parseISO(data[0].date);
+  const lastDate = parseISO(data[data.length - 1].date);
+  
+  // Calculate difference in days
+  const daysDifference = differenceInDays(lastDate, firstDate);
+  
+  return daysDifference > 40;
+};
+
+// Helper function to aggregate daily data to monthly averages
+const aggregateToMonthly = (dailyData: any[]): any[] => {
+  if (!dailyData || dailyData.length === 0) return [];
+  
+  const monthlyMap = new Map<string, {
+    overall: number[];
+    tables: number[];
+    dags: number[];
+    count: number;
+    monthKey: string;
+    firstDate: Date;
+  }>();
+  
+  // Group data by month
+  dailyData.forEach(item => {
+    const date = parseISO(item.date);
+    const monthStart = startOfMonth(date);
+    const monthKey = format(monthStart, 'yyyy-MM');
+    
+    if (!monthlyMap.has(monthKey)) {
+      monthlyMap.set(monthKey, {
+        overall: [],
+        tables: [],
+        dags: [],
+        count: 0,
+        monthKey,
+        firstDate: monthStart
+      });
+    }
+    
+    const monthData = monthlyMap.get(monthKey)!;
+    monthData.overall.push(item.overall || 0);
+    monthData.tables.push(item.tables || 0);
+    monthData.dags.push(item.dags || 0);
+    monthData.count++;
+  });
+  
+  // Calculate monthly averages
+  const monthlyData = Array.from(monthlyMap.values())
+    .sort((a, b) => a.firstDate.getTime() - b.firstDate.getTime())
+    .map(monthInfo => {
+      const avgOverall = monthInfo.overall.length > 0 
+        ? monthInfo.overall.reduce((sum, val) => sum + val, 0) / monthInfo.overall.length 
+        : 0;
+      const avgTables = monthInfo.tables.length > 0 
+        ? monthInfo.tables.reduce((sum, val) => sum + val, 0) / monthInfo.tables.length 
+        : 0;
+      const avgDags = monthInfo.dags.length > 0 
+        ? monthInfo.dags.reduce((sum, val) => sum + val, 0) / monthInfo.dags.length 
+        : 0;
+      
+      return {
+        date: format(monthInfo.firstDate, 'yyyy-MM-dd'),
+        dateFormatted: format(monthInfo.firstDate, 'MMM yyyy'),
+        overall: parseFloat(avgOverall.toFixed(1)),
+        tables: parseFloat(avgTables.toFixed(1)),
+        dags: parseFloat(avgDags.toFixed(1)),
+        isMonthly: true
+      };
+    });
+  
+  return monthlyData;
 };
 
 // Demo data - only used as fallback when no entities are available
@@ -108,7 +186,15 @@ const ComplianceTrendChart = ({
   }
 
   // Use provided data (from cache) or generate from entities as fallback
-  const chartData = data || [];
+  let chartData = data || [];
+  
+  // Determine if we should use monthly aggregation
+  const useMonthlyAggregation = shouldUseMonthlyAggregation(chartData);
+  
+  // Aggregate to monthly if date range > 40 days
+  if (useMonthlyAggregation) {
+    chartData = aggregateToMonthly(chartData);
+  }
   
   // Show empty state if no data
   if (!chartData || chartData.length === 0) {
@@ -135,6 +221,11 @@ const ComplianceTrendChart = ({
         >
           <Typography variant="body2" fontWeight={600} sx={{ mb: 1 }}>
             {payload[0]?.payload.dateFormatted}
+            {payload[0]?.payload.isMonthly && (
+              <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                (Monthly Average)
+              </Typography>
+            )}
           </Typography>
           
           {payload.map((entry) => (
