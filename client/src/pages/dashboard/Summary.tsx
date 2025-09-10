@@ -21,14 +21,15 @@ import {
 } from '@mui/material';
 import { Add, Edit, Delete, Notifications, Assignment, Close } from '@mui/icons-material';
 import { useAppDispatch, useAppSelector } from '@/lib/store';
-import { fetchDashboardSummary, fetchEntities, fetchTeams } from '@/features/sla/slices/entitiesSlice';
+import { fetchEntities, fetchTeams } from '@/features/sla/slices/entitiesSlice';
+import { fetchDashboardSummary } from '@/features/sla/slices/dashboardSlice';
 import { Entity } from '@/features/sla/slices/entitiesSlice';
 import AddEntityModal from '@/components/modals/AddEntityModal';
 import EditEntityModal from '@/components/modals/EditEntityModal';
 import BulkUploadModal from '@/components/modals/BulkUploadModal';
 import EntityDetailsModal from '@/components/modals/EntityDetailsModal';
 import TaskManagementModal from '@/components/modals/TaskManagementModal';
-import NotificationConfigManager from '@/components/notifications/NotificationConfigManager';
+import { NotificationTimelineModal } from '@/components/notifications/timeline/NotificationTimelineModal';
 import TeamSelector from '@/components/dashboard/TeamSelector';
 import TeamDashboard from '@/pages/dashboard/TeamDashboard';
 import { useToast } from '@/hooks/use-toast';
@@ -528,7 +529,7 @@ const Summary = () => {
         entities={filteredEntities}
       />
 
-      <NotificationConfigManager
+      <NotificationTimelineModal
         open={openNotificationModal}
         onClose={handleCloseModals}
         entity={selectedEntity}
