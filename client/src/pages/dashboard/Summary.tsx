@@ -1,41 +1,28 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Box, 
-  Paper, 
-  Typography,
-  Tabs,
-  Tab,
-  Button,
-  IconButton,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
-  Chip,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  DialogContentText,
-  Drawer
-} from '@mui/material';
-import { Add, Edit, Delete, Notifications, Assignment, Close } from '@mui/icons-material';
+import { useState, useEffect } from 'react';
+import { Box, Grid, Button, Typography, Tabs, Tab, Select, MenuItem, FormControl, InputLabel, IconButton } from '@mui/material';
+import { Add as AddIcon, Upload as UploadIcon, Close as CloseIcon } from '@mui/icons-material';
 import { useAppDispatch, useAppSelector } from '@/lib/store';
-import { fetchEntities, fetchTeams } from '@/features/sla/slices/entitiesSlice';
 import { fetchDashboardSummary } from '@/features/sla/slices/dashboardSlice';
-import { Entity } from '@/features/sla/slices/entitiesSlice';
+import { fetchEntities, fetchTeams } from '@/features/sla/slices/entitiesSlice';
+import { Entity } from '@shared/schema';
+import MetricCard from '@/components/dashboard/MetricCard';
+import ChartCard from '@/components/dashboard/ChartCard';
+import ComplianceTrendChart from '@/components/dashboard/ComplianceTrendChart';
+import TeamComparisonChart from '@/components/dashboard/TeamComparisonChart';
+import EntityTable from '@/components/dashboard/EntityTable';
+import DateRangePicker from '@/components/dashboard/DateRangePicker';
 import AddEntityModal from '@/components/modals/AddEntityModal';
-import EditEntityModal from '@/components/modals/EditEntityModal';
 import BulkUploadModal from '@/components/modals/BulkUploadModal';
 import EntityDetailsModal from '@/components/modals/EntityDetailsModal';
+import EditEntityModal from '@/components/modals/EditEntityModal';
+import ConfirmDialog from '@/components/modals/ConfirmDialog';
+import NotificationTimelineModal from '@/components/notifications/timeline/NotificationTimelineModal';
 import TaskManagementModal from '@/components/modals/TaskManagementModal';
-import { NotificationTimelineModal } from '@/components/notifications/timeline/NotificationTimelineModal';
 import TeamSelector from '@/components/dashboard/TeamSelector';
 import TeamDashboard from '@/pages/dashboard/TeamDashboard';
 import { useToast } from '@/hooks/use-toast';
 import { queryClient, apiRequest } from '@/lib/queryClient';
-import { type Tenant } from '@/lib/tenantCache';
-import { useQuery } from '@tanstack/react-query';
+import { getTenants, getDefaultTenant, preloadTenantCache, type Tenant } from '@/lib/tenantCache';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { useEntityMutation, CACHE_PATTERNS, useCacheManager } from '@/utils/cache-management';
 
@@ -58,16 +45,8 @@ const Summary = () => {
   const [openTaskModal, setOpenTaskModal] = useState(false);
   const [selectedEntity, setSelectedEntity] = useState<Entity | null>(null);
   const [chartFilter, setChartFilter] = useState('All');
-  // Use React Query for tenants (consistent with other CRUD operations)
-  const { data: tenants = [], isLoading: tenantsLoading } = useQuery<Tenant[]>({
-    queryKey: ['/api/tenants'],
-    queryFn: async () => {
-      const response = await apiRequest('GET', '/api/tenants');
-      return response.json();
-    }
-  });
-  
-  const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
+  const [selectedTenant, setSelectedTenant] = useState<Tenant>(getDefaultTenant);
+  const [tenants, setTenants] = useState<Tenant[]>(getTenants);
   const [openTeamTabs, setOpenTeamTabs] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState('summary');
   const [teamsLoaded, setTeamsLoaded] = useState(false);
@@ -86,7 +65,7 @@ const Summary = () => {
         ...(teamId ? [CACHE_PATTERNS.ENTITIES.BY_TEAM(teamId)] : []),
         ...(entityType ? [CACHE_PATTERNS.ENTITIES.BY_TYPE(entityType)] : []),
         ...(teamId && entityType ? [CACHE_PATTERNS.ENTITIES.BY_TEAM_AND_TYPE(teamId, entityType)] : []),
-        ...(selectedTenant?.name ? [CACHE_PATTERNS.DASHBOARD.SUMMARY(selectedTenant.name)] : [])
+        CACHE_PATTERNS.DASHBOARD.SUMMARY(selectedTenant.name)
       ];
       
       // Invalidate using cache manager for consistency
@@ -94,9 +73,7 @@ const Summary = () => {
       
       // CRITICAL: Force Redux store refresh - this ensures UI updates immediately
       dispatch(fetchEntities({}));
-      if (selectedTenant?.name) {
-        dispatch(fetchDashboardSummary({ tenantName: selectedTenant.name }));
-      }
+      dispatch(fetchDashboardSummary({ tenantName: selectedTenant.name }));
       
       // For team-specific pages, also refresh team entities
       if (openTeamTabs.length > 0) {
@@ -124,9 +101,7 @@ const Summary = () => {
     onCacheUpdated: (data) => {
       // Cache updated via WebSocket
       // Refresh all dashboard data
-      if (selectedTenant?.name) {
-        dispatch(fetchDashboardSummary({ tenantName: selectedTenant.name }));
-      }
+      dispatch(fetchDashboardSummary({ tenantName: selectedTenant.name }));
       dispatch(fetchEntities({}));
       // Only refresh teams if we already have team tabs open
       if (openTeamTabs.length > 0) {
@@ -147,39 +122,35 @@ const Summary = () => {
     }
   });
   
-  // Set default tenant when tenants are loaded
+  // Fetch dashboard data and preload tenant cache
   useEffect(() => {
-    if (tenants.length > 0 && !selectedTenant) {
-      const defaultTenant = tenants.find(t => t.name === 'Data Engineering') || tenants[0];
-      setSelectedTenant(defaultTenant);
-    }
-  }, [tenants, selectedTenant]);
-
-  useEffect(() => {
-    if (selectedTenant?.name) {
-      dispatch(fetchDashboardSummary({ tenantName: selectedTenant.name }));
-      // Always load ALL entities for Summary dashboard - don't filter by team
-      dispatch(fetchEntities({})); // Load ALL entities for summary dashboard
-      // Load teams data for chart display (silent load for summary page)
-      dispatch(fetchTeams());
-      setTeamsLoaded(true);
-    }
-  }, [dispatch, selectedTenant?.name]);
+    dispatch(fetchDashboardSummary({ tenantName: selectedTenant.name }));
+    // Always load ALL entities for Summary dashboard - don't filter by team
+    dispatch(fetchEntities({})); // Load ALL entities for summary dashboard
+    // Load teams data for chart display (silent load for summary page)
+    dispatch(fetchTeams());
+    setTeamsLoaded(true);
+    
+    // Preload tenant cache for future use
+    preloadTenantCache().then(() => {
+      setTenants(getTenants());
+    });
+  }, [dispatch, selectedTenant.name]);
   
   // Filter entities based on tab and tenant - only show entity owners
   const filterEntitiesByTenant = (entities: Entity[]) => {
-    if (!selectedTenant) return [];
     // Filter by tenant_name and only show entity owners
     return entities.filter(entity => 
       entity.tenant_name === selectedTenant.name && entity.is_entity_owner === true
     );
   };
-
-  const filterEntitiesByTab = (entities: Entity[]) => {
-    if (tabValue === 0) return entities; // All entities
-    if (tabValue === 1) return entities.filter(entity => entity.type === 'table'); // Tables only
-    if (tabValue === 2) return entities.filter(entity => entity.type === 'dag'); // DAGs only
-    return entities;
+  
+  const filteredEntities = filterEntitiesByTenant(entities);
+  const tables = filteredEntities.filter((entity) => entity.type === 'table');
+  const dags = filteredEntities.filter((entity) => entity.type === 'dag');
+  
+  const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
+    setTabValue(newValue);
   };
   
   const handleTenantChange = (event: any) => {
@@ -199,363 +170,400 @@ const Summary = () => {
     }
   };
 
-  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
-    setTabValue(newValue);
-  };
-
-  const handleEntityAction = (action: 'view' | 'edit' | 'delete', entity: Entity) => {
-    setSelectedEntity(entity);
-    if (action === 'view') {
-      setOpenDetailsDrawer(true);
-    } else if (action === 'edit') {
-      setOpenEditModal(true);
-    } else if (action === 'delete') {
-      setOpenDeleteDialog(true);
+  const handleLoadTeamsForSelector = async () => {
+    if (!teamsLoaded) {
+      // Load all teams when "+" button is clicked to populate the dropdown
+      dispatch(fetchTeams());
+      setTeamsLoaded(true);
     }
   };
 
-  const handleDeleteConfirm = async () => {
-    if (selectedEntity) {
-      await deleteEntity.mutateAsync(selectedEntity.id);
+  const handleAddTeamTab = (teamName: string) => {
+    if (!openTeamTabs.includes(teamName)) {
+      setOpenTeamTabs([...openTeamTabs, teamName]);
     }
-    setOpenDeleteDialog(false);
-    setSelectedEntity(null);
+    setActiveTab(teamName);
   };
 
-  const handleCloseModals = () => {
-    setOpenAddModal(false);
-    setOpenBulkModal(false);
-    setOpenEditModal(false);
-    setOpenDeleteDialog(false);
-    setOpenDetailsDrawer(false);
-    setOpenNotificationModal(false);
-    setOpenTaskModal(false);
-    setSelectedEntity(null);
-  };
-
-  const handleTeamTabOpen = (teamId: string) => {
-    if (!openTeamTabs.includes(teamId)) {
-      setOpenTeamTabs(prev => [...prev, teamId]);
-    }
-    setActiveTab(`team-${teamId}`);
-  };
-
-  const handleTeamTabClose = (teamId: string) => {
-    setOpenTeamTabs(prev => prev.filter(id => id !== teamId));
-    if (activeTab === `team-${teamId}`) {
-      setActiveTab('summary');
+  const handleCloseTeamTab = (teamName: string) => {
+    const newOpenTabs = openTeamTabs.filter(tab => tab !== teamName);
+    setOpenTeamTabs(newOpenTabs);
+    // If we're closing the active tab, switch to summary or first available tab
+    if (activeTab === teamName) {
+      setActiveTab(newOpenTabs.length > 0 ? newOpenTabs[0] : 'summary');
     }
   };
 
-  // Filter entities by tenant and tab
-  const filteredEntities = filterEntitiesByTab(filterEntitiesByTenant(entities));
+  const handleDynamicTabChange = (tabName: string) => {
+    setActiveTab(tabName);
+  };
   
-  // Get the DAGs and Tables for the charts - filtered by tenant
-  const tenantFilteredEntities = filterEntitiesByTenant(entities);
-  const dags = tenantFilteredEntities.filter(entity => entity.type === 'dag');
-  const tables = tenantFilteredEntities.filter(entity => entity.type === 'table');
-
-  const getTabLabel = (index: number) => {
-    const labels = ['All', 'Tables', 'DAGs'];
-    const counts = [
-      filteredEntities.length,
-      filterEntitiesByTab(filterEntitiesByTenant(entities)).filter(e => e.type === 'table').length,
-      filterEntitiesByTab(filterEntitiesByTenant(entities)).filter(e => e.type === 'dag').length
-    ];
-    return `${labels[index]} (${counts[index]})`;
+  const handleAddEntity = () => {
+    setOpenAddModal(true);
+  };
+  
+  const handleBulkUpload = () => {
+    setOpenBulkModal(true);
+  };
+  
+  const handleViewDetails = (entity: Entity) => {
+    setSelectedEntity(entity);
+    setOpenDetailsDrawer(true);
+  };
+  
+  const handleEditEntity = (entity: Entity) => {
+    setSelectedEntity(entity);
+    setOpenEditModal(true);
+  };
+  
+  const handleDeleteEntity = (entity: Entity) => {
+    setSelectedEntity(entity);
+    setOpenDeleteDialog(true);
   };
 
-  if (tenantsLoading) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
-        <Typography>Loading tenants...</Typography>
-      </Box>
-    );
-  }
+  const handleNotificationTimeline = (entity: Entity) => {
+    setSelectedEntity(entity);
+    setOpenNotificationModal(true);
+  };
 
-  if (!selectedTenant) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
-        <Typography>No tenants available</Typography>
-      </Box>
-    );
-  }
+  const handleViewTasks = (entity: Entity) => {
+    setSelectedEntity(entity);
+    setOpenTaskModal(true);
+  };
+  
+  const handleConfirmDelete = async () => {
+    try {
+      if (!selectedEntity) return;
+      
+      // Safeguard: Check if entity ID looks like a temporary optimistic ID
+      const isOptimisticId = selectedEntity.id > 1000000000000; // Timestamp-based IDs are > 1 trillion
+      if (isOptimisticId) {
+        toast({
+          title: 'Please wait',
+          description: `${selectedEntity.name} is still being created. Please try again in a moment.`,
+          variant: 'default',
+        });
+        setOpenDeleteDialog(false);
+        return;
+      }
+      
+      // Use centralized delete mutation with proper cache management
+      await deleteEntity(
+        selectedEntity.id, 
+        selectedEntity.teamId, 
+        selectedEntity.type as 'table' | 'dag'
+      );
+      
+      toast({
+        title: 'Success',
+        description: `${selectedEntity.name} has been deleted.`,
+        variant: 'default',
+      });
+      
+      setOpenDeleteDialog(false);
+      setSelectedEntity(null);
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: `Failed to delete: ${error}`,
+        variant: 'destructive',
+      });
+    }
+  };
 
+
+  
   return (
-    <Box sx={{ width: '100%', height: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-      {/* Header with tenant selector */}
-      <Box sx={{ 
-        borderBottom: 1, 
-        borderColor: 'divider', 
-        px: 2, 
-        py: 1, 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'space-between',
-        backgroundColor: 'background.paper'
-      }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <Typography variant="h6" component="h1">
+    <Box>
+      {/* Only show title and filters when Summary tab is active */}
+      {activeTab === 'summary' && (
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
+          <Typography variant="h4" component="h1" fontWeight={600} fontFamily="Inter, sans-serif">
             Overall SLA Performance
           </Typography>
-          {isConnected && (
-            <Chip 
-              label="Live" 
-              color="success" 
-              size="small" 
-              sx={{ height: 20, fontSize: '0.7rem' }}
-            />
-          )}
-        </Box>
-        
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          {/* Team Selector for opening new team tabs */}
-          <TeamSelector 
-            teams={teams}
-            onTeamSelect={handleTeamTabOpen}
-            selectedTeams={openTeamTabs}
-          />
           
-          {/* Tenant Filter */}
-          <FormControl variant="outlined" size="small" sx={{ minWidth: 200 }}>
-            <InputLabel id="tenant-filter-label">Tenant</InputLabel>
-            <Select
-              labelId="tenant-filter-label"
-              id="tenant-filter"
-              value={selectedTenant?.name || ''}
-              onChange={handleTenantChange}
-              label="Tenant"
-              disabled={!selectedTenant}
-            >
-              {tenants.map((tenant) => (
-                <MenuItem key={tenant.id} value={tenant.name}>
-                  {tenant.name}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+          <Box display="flex" alignItems="center" gap={2}>
+            <FormControl variant="outlined" size="small" sx={{ minWidth: 200 }}>
+              <InputLabel id="tenant-filter-label">Tenant</InputLabel>
+              <Select
+                labelId="tenant-filter-label"
+                id="tenant-filter"
+                value={selectedTenant.name}
+                onChange={handleTenantChange}
+                label="Tenant"
+              >
+                {tenants.map((tenant) => (
+                  <MenuItem key={tenant.id} value={tenant.name}>
+                    {tenant.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <DateRangePicker />
+          </Box>
         </Box>
-      </Box>
-
-      {/* Tab Navigation */}
-      <Box sx={{ borderBottom: 1, borderColor: 'divider', backgroundColor: 'background.paper' }}>
-        <Tabs value={activeTab} variant="scrollable" scrollButtons="auto">
-          <Tab 
-            value="summary" 
-            label="Summary" 
-            onClick={() => setActiveTab('summary')}
-          />
-          {openTeamTabs.map(teamId => {
-            const team = teams.find(t => t.id === parseInt(teamId));
-            return (
+      )}
+      
+      {/* Dynamic Tabs System */}
+      <Box sx={{ mb: 4, bgcolor: 'background.paper', borderRadius: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', borderBottom: 1, borderColor: 'divider' }}>
+          <Tabs 
+            value={activeTab} 
+            onChange={(_, newValue) => handleDynamicTabChange(newValue)}
+            sx={{ minWidth: 'auto' }}
+          >
+            {/* Summary Tab - Always Present (No Close Button) */}
+            <Tab 
+              value="summary"
+              label="Summary" 
+              sx={{ 
+                fontWeight: 500, 
+                textTransform: 'none',
+                fontSize: '1rem',
+                minHeight: 48,
+                px: 3,
+                '&.Mui-selected': { fontWeight: 600 } 
+              }} 
+            />
+            
+            {/* Dynamic Team Tabs with Close Buttons */}
+            {openTeamTabs.map((teamName) => (
               <Tab
-                key={`team-${teamId}`}
-                value={`team-${teamId}`}
+                key={teamName}
+                value={teamName}
                 label={
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    {team?.name || `Team ${teamId}`}
+                    {teamName}
                     <IconButton
                       size="small"
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleTeamTabClose(teamId);
+                        handleCloseTeamTab(teamName);
                       }}
-                      sx={{ ml: 1, p: 0.25 }}
-                    >
-                      <Close fontSize="small" />
-                    </IconButton>
-                  </Box>
-                }
-                onClick={() => setActiveTab(`team-${teamId}`)}
-              />
-            );
-          })}
-        </Tabs>
-      </Box>
-
-      {/* Tab Content */}
-      <Box sx={{ flex: 1, overflow: 'hidden' }}>
-        {activeTab === 'summary' ? (
-          <Box sx={{ height: '100%', overflow: 'auto', p: 2 }}>
-            {/* Charts Section - Temporarily disabled */}
-            <Paper sx={{ p: 2, mb: 2 }}>
-              <Typography variant="h6" gutterBottom>
-                Dashboard Charts
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Charts section will be available soon. Selected tenant: {selectedTenant?.name || 'None'}
-              </Typography>
-            </Paper>
-            
-            {/* Entities Section */}
-            <Paper sx={{ mt: 2, p: 2 }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                <Typography variant="h6">
-                  Entities ({selectedTenant?.name})
-                </Typography>
-                <Box sx={{ display: 'flex', gap: 1 }}>
-                  <Button
-                    variant="contained"
-                    startIcon={<Add />}
-                    onClick={() => setOpenAddModal(true)}
-                    size="small"
-                  >
-                    Add Entity
-                  </Button>
-                  <Button
-                    variant="outlined"
-                    startIcon={<Add />}
-                    onClick={() => setOpenBulkModal(true)}
-                    size="small"
-                  >
-                    Bulk Add
-                  </Button>
-                  <Button
-                    variant="outlined"
-                    startIcon={<Assignment />}
-                    onClick={() => setOpenTaskModal(true)}
-                    size="small"
-                  >
-                    Task Management
-                  </Button>
-                </Box>
-              </Box>
-
-              {/* Entity Tabs */}
-              <Tabs value={tabValue} onChange={handleTabChange} sx={{ mb: 2 }}>
-                <Tab label={getTabLabel(0)} />
-                <Tab label={getTabLabel(1)} />
-                <Tab label={getTabLabel(2)} />
-              </Tabs>
-
-              {/* Entity List */}
-              {entitiesLoading ? (
-                <Typography>Loading entities...</Typography>
-              ) : filteredEntities.length === 0 ? (
-                <Typography color="textSecondary">
-                  No entities found for {selectedTenant?.name}
-                </Typography>
-              ) : (
-                <Box sx={{ display: 'grid', gap: 1 }}>
-                  {filteredEntities.map((entity) => (
-                    <Box
-                      key={entity.id}
-                      sx={{
-                        p: 2,
-                        border: 1,
-                        borderColor: 'divider',
-                        borderRadius: 1,
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
+                      sx={{ 
+                        ml: 0.5,
+                        p: 0.25,
                         '&:hover': { bgcolor: 'action.hover' }
                       }}
                     >
-                      <Box>
-                        <Typography variant="subtitle1" fontWeight="medium">
-                          {entity.name}
-                        </Typography>
-                        <Typography variant="body2" color="textSecondary">
-                          {entity.type.toUpperCase()} • {entity.teamName}
-                        </Typography>
-                      </Box>
-                      <Box sx={{ display: 'flex', gap: 1 }}>
-                        <IconButton 
-                          size="small" 
-                          onClick={() => handleEntityAction('view', entity)}
-                        >
-                          <Edit fontSize="small" />
-                        </IconButton>
-                        <IconButton 
-                          size="small" 
-                          onClick={() => handleEntityAction('edit', entity)}
-                        >
-                          <Edit fontSize="small" />
-                        </IconButton>
-                        <IconButton 
-                          size="small" 
-                          onClick={() => handleEntityAction('delete', entity)}
-                          color="error"
-                        >
-                          <Delete fontSize="small" />
-                        </IconButton>
-                        <IconButton 
-                          size="small"
-                          onClick={() => setOpenNotificationModal(true)}
-                        >
-                          <Notifications fontSize="small" />
-                        </IconButton>
-                      </Box>
-                    </Box>
-                  ))}
-                </Box>
-              )}
-            </Paper>
-          </Box>
-        ) : (
-          // Team Dashboard
-          openTeamTabs.map(teamId => (
-            activeTab === `team-${teamId}` && (
-              <TeamDashboard
-                key={teamId}
-                teamId={parseInt(teamId)}
-                onClose={() => handleTeamTabClose(teamId)}
+                      <CloseIcon fontSize="small" />
+                    </IconButton>
+                  </Box>
+                }
+                sx={{ 
+                  fontWeight: 500, 
+                  textTransform: 'none',
+                  fontSize: '1rem',
+                  minHeight: 48,
+                  px: 3,
+                  '&.Mui-selected': { fontWeight: 600 } 
+                }}
               />
-            )
-          ))
-        )}
+            ))}
+          </Tabs>
+          
+          {/* Team Selector - + Button - Right next to tabs */}
+          <Box sx={{ ml: 1 }}>
+            <TeamSelector
+              teams={teams}
+              openTeamTabs={openTeamTabs}
+              onAddTeamTab={handleAddTeamTab}
+              onLoadTeams={handleLoadTeamsForSelector}
+            />
+          </Box>
+        </Box>
+        
+        {/* Summary Tab Content */}
+        <Box role="tabpanel" hidden={activeTab !== 'summary'}>
+          {activeTab === 'summary' && (
+            <Box sx={{ p: 3 }}>
+              {/* Metrics Cards */}
+              <Box display="flex" flexWrap="wrap" gap={3} mb={4}>
+                {[
+                  { 
+                    title: "Overall SLA Compliance", 
+                    value: metrics?.overallCompliance || 0, 
+                    suffix: "%", 
+                    progress: metrics?.overallCompliance || 0,
+                    infoTooltip: "Average SLA compliance calculated across all tables and DAGs monitored across all teams"
+                  },
+                  { 
+                    title: "Tables SLA Compliance", 
+                    value: metrics?.tablesCompliance || 0, 
+                    suffix: "%", 
+                    progress: metrics?.tablesCompliance || 0,
+                    infoTooltip: "Average SLA compliance percentage calculated across all table entities"
+                  },
+                  { 
+                    title: "DAGs SLA Compliance", 
+                    value: metrics?.dagsCompliance || 0, 
+                    suffix: "%", 
+                    progress: metrics?.dagsCompliance || 0,
+                    infoTooltip: "Average SLA compliance percentage calculated across all DAG entities"
+                  },
+                  { 
+                    title: "Entities Monitored", 
+                    value: metrics?.entitiesCount || 0, 
+                    suffix: "",
+                    subtitle: `${tables.length} Tables • ${dags.length} DAGs`
+                  }
+                ].map((card, idx) => (
+                  <Box key={card.title} flex="1 1 250px" minWidth="250px">
+                    <MetricCard {...card} />
+                  </Box>
+                ))}
+              </Box>
+              
+              {/* Charts */}
+              <Box display="flex" flexWrap="wrap" gap={3} mb={4}>
+                <Box flex="1 1 500px" minWidth="500px">
+                  <ChartCard
+                    title="Compliance Trend"
+                    filters={['All', 'Tables', 'DAGs']}
+                    onFilterChange={setChartFilter}
+                    loading={metricsLoading}
+                    chart={<ComplianceTrendChart filter={chartFilter.toLowerCase() as 'all' | 'tables' | 'dags'} />}
+                  />
+                </Box>
+                
+                <Box flex="1 1 500px" minWidth="500px">
+                  <ChartCard
+                    title="Team Performance Comparison"
+                    loading={metricsLoading}
+                    chart={<TeamComparisonChart entities={entities} teams={teams} selectedTenant={selectedTenant.name} />}
+                  />
+                </Box>
+              </Box>
+              
+              {/* Tables/DAGs Sub-tabs */}
+              <Tabs value={tabValue} onChange={handleTabChange} sx={{ mb: 3 }}>
+                <Tab 
+                  label="Tables" 
+                  sx={{ 
+                    fontWeight: 500, 
+                    textTransform: 'none',
+                    '&.Mui-selected': { fontWeight: 600 } 
+                  }} 
+                />
+                <Tab 
+                  label="DAGs" 
+                  sx={{ 
+                    fontWeight: 500, 
+                    textTransform: 'none',
+                    '&.Mui-selected': { fontWeight: 600 } 
+                  }} 
+                />
+              </Tabs>
+              
+              <Box role="tabpanel" hidden={tabValue !== 0}>
+                {tabValue === 0 && (
+                  <EntityTable
+                    entities={tables}
+                    type="table"
+                    teams={teams}
+                    onEditEntity={handleEditEntity}
+                    onDeleteEntity={handleDeleteEntity}
+                    onViewHistory={() => {}}
+                    onViewDetails={handleViewDetails}
+                    onSetNotificationTimeline={handleNotificationTimeline}
+                    showActions={false}
+                  />
+                )}
+              </Box>
+              
+              <Box role="tabpanel" hidden={tabValue !== 1}>
+                {tabValue === 1 && (
+                  <EntityTable
+                    entities={dags}
+                    type="dag"
+                    teams={teams}
+                    onEditEntity={handleEditEntity}
+                    onDeleteEntity={handleDeleteEntity}
+                    onViewHistory={() => {}}
+                    onViewDetails={handleViewDetails}
+                    onViewTasks={handleViewTasks}
+                    onSetNotificationTimeline={handleNotificationTimeline}
+                    showActions={false}
+                  />
+                )}
+              </Box>
+            </Box>
+          )}
+        </Box>
+        
+        {/* Team Tab Content */}
+        {openTeamTabs.map((teamName) => (
+          <Box key={teamName} role="tabpanel" hidden={activeTab !== teamName}>
+            {activeTab === teamName && (
+              <TeamDashboard
+                teamName={teamName}
+                tenantName={selectedTenant.name}
+                onEditEntity={handleEditEntity}
+                onDeleteEntity={handleDeleteEntity}
+                onViewDetails={handleViewDetails}
+                onAddEntity={() => setOpenAddModal(true)}
+                onBulkUpload={() => setOpenBulkModal(true)}
+                onNotificationTimeline={handleNotificationTimeline}
+                onViewTasks={handleViewTasks}
+              />
+            )}
+          </Box>
+        ))}
       </Box>
-
-      {/* Modals and Drawers */}
+      
+      {/* Modals */}
       <AddEntityModal
         open={openAddModal}
-        onClose={handleCloseModals}
+        onClose={() => setOpenAddModal(false)}
+        teams={teams}
       />
-
-      <EditEntityModal
-        open={openEditModal}
-        onClose={handleCloseModals}
-        entity={selectedEntity}
-      />
-
+      
       <BulkUploadModal
         open={openBulkModal}
-        onClose={handleCloseModals}
+        onClose={() => setOpenBulkModal(false)}
       />
-
-      <TaskManagementModal
-        open={openTaskModal}
-        onClose={handleCloseModals}
-        entities={filteredEntities}
-      />
-
-      <NotificationTimelineModal
-        open={openNotificationModal}
-        onClose={handleCloseModals}
-        entity={selectedEntity}
-      />
-
+      
       <EntityDetailsModal
         open={openDetailsDrawer}
-        onClose={handleCloseModals}
+        onClose={() => setOpenDetailsDrawer(false)}
         entity={selectedEntity}
+        teams={teams}
       />
-
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={openDeleteDialog} onClose={handleCloseModals}>
-        <DialogTitle>Delete Entity</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            Are you sure you want to delete "{selectedEntity?.name}"? This action cannot be undone.
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseModals}>Cancel</Button>
-          <Button onClick={handleDeleteConfirm} color="error" variant="contained">
-            Delete
-          </Button>
-        </DialogActions>
-      </Dialog>
+      
+      <EditEntityModal
+        open={openEditModal}
+        onClose={() => setOpenEditModal(false)}
+        entity={selectedEntity}
+        teams={teams}
+      />
+      
+      <ConfirmDialog
+        open={openDeleteDialog}
+        onClose={() => setOpenDeleteDialog(false)}
+        onConfirm={handleConfirmDelete}
+        title="Delete Entity"
+        content={`Are you sure you want to delete "${selectedEntity?.name}"? This action cannot be undone.`}
+      />
+      
+      <NotificationTimelineModal
+        open={openNotificationModal}
+        onClose={() => setOpenNotificationModal(false)}
+        entity={selectedEntity}
+        onSuccess={() => {
+          setOpenNotificationModal(false);
+          toast({
+            title: 'Success',
+            description: 'Notification timeline has been configured.',
+            variant: 'default',
+          });
+        }}
+      />
+      
+      <TaskManagementModal
+        isOpen={openTaskModal}
+        onClose={() => setOpenTaskModal(false)}
+        dag={selectedEntity?.type === 'dag' ? selectedEntity : null}
+      />
     </Box>
   );
 };
