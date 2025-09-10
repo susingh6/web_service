@@ -247,12 +247,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/dashboard/summary", async (req, res) => {
     try {
       const tenantName = req.query.tenant as string;
+      const teamName = req.query.team as string;
       const startDate = req.query.startDate as string;
       const endDate = req.query.endDate as string;
       
       if (!tenantName) {
         return res.status(400).json({ message: "Tenant parameter is required" });
       }
+      
+      const isTeamDashboard = teamName && teamName !== '0';
 
       // Determine if this is a predefined range or custom range
       const isPredefinedRange = !startDate || !endDate || isDateRangePredefined(startDate, endDate);
@@ -261,21 +264,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (isPredefinedRange && !USE_FASTAPI) {
         // Use cached data for predefined ranges when FastAPI is disabled
         const rangeType = startDate && endDate ? determinePredefinedRange(startDate, endDate) : 'last30Days';
-        const metrics = await redisCache.getMetricsByTenantAndRange(tenantName, rangeType);
-        const complianceTrends = await redisCache.getComplianceTrendsByTenantAndRange(tenantName, rangeType);
         
-        if (!metrics) {
-          return res.status(404).json({ message: "No data found for the specified tenant and range" });
+        let metrics, complianceTrends;
+        
+        if (isTeamDashboard) {
+          // Team Dashboard: Get team-specific cached data
+          metrics = await redisCache.getTeamMetricsByRange(tenantName, teamName, rangeType);
+          complianceTrends = await redisCache.getTeamTrendsByRange(tenantName, teamName, rangeType);
+        } else {
+          // Summary Dashboard: Get tenant-level cached data
+          metrics = await redisCache.getMetricsByTenantAndRange(tenantName, rangeType);
+          complianceTrends = await redisCache.getComplianceTrendsByTenantAndRange(tenantName, rangeType);
         }
         
-        console.log(`GET /api/dashboard/summary - Parameters: tenant=${tenantName}, range=${rangeType} (cached) - status: 200`);
+        if (!metrics) {
+          const scope = isTeamDashboard ? `team=${teamName}` : 'tenant-wide';
+          return res.status(404).json({ message: `No data found for the specified ${scope} and range` });
+        }
+        
+        const logScope = isTeamDashboard ? `team=${teamName}` : 'tenant-wide';
+        console.log(`GET /api/dashboard/summary - Parameters: tenant=${tenantName}, ${logScope}, range=${rangeType} (cached) - status: 200`);
         
         return res.json({
           metrics,
           complianceTrends,
           lastUpdated: new Date(),
           cached: true,
-          dateRange: rangeType
+          dateRange: rangeType,
+          scope: isTeamDashboard ? 'team' : 'tenant'
         });
       }
       
@@ -289,26 +305,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (startDate && endDate) {
         const start = new Date(startDate);
         const end = new Date(endDate);
-        const metrics = await redisCache.calculateMetricsForDateRange(tenantName, start, end);
         
-        if (!metrics) {
-          return res.status(404).json({ message: "No data found for the specified tenant and date range" });
+        let metrics;
+        if (isTeamDashboard) {
+          // Team Dashboard: Calculate team-specific metrics for custom date range
+          metrics = await redisCache.calculateTeamMetricsForDateRange(tenantName, teamName, start, end);
+        } else {
+          // Summary Dashboard: Calculate tenant-level metrics for custom date range
+          metrics = await redisCache.calculateMetricsForDateRange(tenantName, start, end);
         }
         
-        console.log(`GET /api/dashboard/summary - Parameters: tenant=${tenantName}, custom range=${startDate} to ${endDate} - status: 200`);
+        if (!metrics) {
+          const scope = isTeamDashboard ? `team=${teamName}` : 'tenant';
+          return res.status(404).json({ message: `No data found for the specified ${scope} and date range` });
+        }
+        
+        const logScope = isTeamDashboard ? `team=${teamName}` : 'tenant-wide';
+        console.log(`GET /api/dashboard/summary - Parameters: tenant=${tenantName}, ${logScope}, custom range=${startDate} to ${endDate} - status: 200`);
         
         return res.json({ 
           metrics,
           complianceTrends: null, // No trends for custom date ranges yet
           lastUpdated: new Date(),
           cached: false,
-          dateRange: { startDate, endDate }
+          dateRange: { startDate, endDate },
+          scope: isTeamDashboard ? 'team' : 'tenant'
         });
       }
       
       // Default: get 30-day cached metrics (backward compatibility)
-      const metrics = await redisCache.getDashboardMetrics(tenantName);
-      const complianceTrends = await redisCache.getComplianceTrends(tenantName);
+      let metrics, complianceTrends;
+      
+      if (isTeamDashboard) {
+        // Team Dashboard: Get team-specific cached data (default to last30Days)
+        metrics = await redisCache.getTeamMetricsByRange(tenantName, teamName, 'last30Days');
+        complianceTrends = await redisCache.getTeamTrendsByRange(tenantName, teamName, 'last30Days');
+      } else {
+        // Summary Dashboard: Get tenant-level cached data
+        metrics = await redisCache.getDashboardMetrics(tenantName);
+        complianceTrends = await redisCache.getComplianceTrends(tenantName);
+      }
       
       if (!metrics) {
         return res.status(404).json({ message: "No data found for the specified tenant" });

@@ -126,11 +126,12 @@ const TeamDashboard = ({
 
   // Fetch tenant-level summary for this team's selected date range (scoped to component)
   const { data: teamSummaryData, isLoading: teamSummaryLoading, isError: teamSummaryError } = useQuery({
-    queryKey: ['/api/dashboard/summary', tenantName, teamDateRange.startDate.toISOString().slice(0, 10), teamDateRange.endDate.toISOString().slice(0, 10)],
+    queryKey: ['/api/dashboard/summary', tenantName, teamName, teamDateRange.startDate.toISOString().slice(0, 10), teamDateRange.endDate.toISOString().slice(0, 10)],
     queryFn: async () => {
       if (!tenantName) return null;
       const params = new URLSearchParams({
         tenant: tenantName,
+        team: teamName,
         startDate: teamDateRange.startDate.toISOString().slice(0, 10),
         endDate: teamDateRange.endDate.toISOString().slice(0, 10),
       });

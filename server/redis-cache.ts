@@ -814,6 +814,81 @@ export class RedisCache {
       return null;
     }
   }
+
+  // Team-specific cache methods
+  async getTeamMetricsByRange(tenantName: string, teamName: string, range: 'today' | 'yesterday' | 'last7Days' | 'last30Days' | 'thisMonth'): Promise<DashboardMetrics | null> {
+    if (!this.useRedis || !this.redis) {
+      const data = this.fallbackData;
+      if (!data || !(data as any).teamMetrics) return null;
+      
+      const teamMetrics = (data as any).teamMetrics[tenantName];
+      if (!teamMetrics || !teamMetrics[teamName]) return null;
+      
+      // For fallback, we only have last30Days team metrics currently
+      return teamMetrics[teamName] || null;
+    }
+    
+    try {
+      const cacheKey = `${this.getCacheKeyForRange(range, 'metrics')}:TEAMS`;
+      const teamKey = `${tenantName}:${teamName}`;
+      const metricsData = await this.redis.hget(cacheKey, teamKey);
+      return metricsData ? JSON.parse(metricsData) : null;
+    } catch (error) {
+      console.error('Error getting team metrics by range:', error);
+      return null;
+    }
+  }
+
+  async getTeamTrendsByRange(tenantName: string, teamName: string, range: 'today' | 'yesterday' | 'last7Days' | 'last30Days' | 'thisMonth'): Promise<ComplianceTrendData | null> {
+    if (!this.useRedis || !this.redis) {
+      const data = this.fallbackData;
+      if (!data || !(data as any).teamTrends) return null;
+      
+      const teamTrends = (data as any).teamTrends[tenantName];
+      if (!teamTrends || !teamTrends[teamName]) return null;
+      
+      // For fallback, we only have last30Days team trends currently
+      return teamTrends[teamName] || null;
+    }
+    
+    try {
+      const cacheKey = `${this.getCacheKeyForRange(range, 'trends')}:TEAMS`;
+      const teamKey = `${tenantName}:${teamName}`;
+      const trendsData = await this.redis.hget(cacheKey, teamKey);
+      return trendsData ? JSON.parse(trendsData) : null;
+    } catch (error) {
+      console.error('Error getting team trends by range:', error);
+      return null;
+    }
+  }
+
+  async calculateTeamMetricsForDateRange(tenantName: string, teamName: string, startDate: Date, endDate: Date): Promise<DashboardMetrics | null> {
+    try {
+      // Get all entities for the tenant
+      const allEntities = await this.getAllEntities();
+      if (!allEntities || allEntities.length === 0) return null;
+      
+      // Filter entities by tenant and team for the date range
+      const teamEntities = allEntities.filter(entity => 
+        entity.tenant_name === tenantName && 
+        entity.team_name === teamName &&
+        entity.lastRefreshed &&
+        entity.lastRefreshed >= startDate &&
+        entity.lastRefreshed <= endDate
+      );
+      
+      if (teamEntities.length === 0) return null;
+      
+      // Calculate metrics for team entities
+      const tables = teamEntities.filter(e => e.type === 'table');
+      const dags = teamEntities.filter(e => e.type === 'dag');
+      
+      return this.calculateMetrics(teamEntities, tables, dags);
+    } catch (error) {
+      console.error('Error calculating team metrics for date range:', error);
+      return null;
+    }
+  }
   
   private getCacheKeyForRange(range: string, type: 'metrics' | 'trends'): string {
     const prefix = type === 'metrics' ? 'METRICS' : 'TRENDS';
