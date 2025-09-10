@@ -79,6 +79,18 @@ async function fetchSlaFromFastAPI(): Promise<any[]> {
   return await fastApiRequest('/api/sla');
 }
 
+async function fetchUsersFromFastAPI(): Promise<any[]> {
+  return await fastApiRequest('/api/users');
+}
+
+async function fetchRolesFromFastAPI(): Promise<any[]> {
+  return await fastApiRequest('/api/roles');
+}
+
+async function fetchConflictsFromFastAPI(): Promise<any[]> {
+  return await fastApiRequest('/api/conflicts');
+}
+
 // Worker thread main function
 async function refreshCacheData(): Promise<CacheRefreshData> {
   try {
@@ -112,26 +124,35 @@ async function refreshFromFastAPI(): Promise<CacheRefreshData> {
   
   try {
     // Call all FastAPI endpoints in parallel for better performance
-    const [tenantsData, teamsData, presetsData, complianceData, slaData] = await Promise.all([
+    const [tenantsData, teamsData, presetsData, complianceData, slaData, usersData, rolesData, conflictsData] = await Promise.all([
       fetchTenantsFromFastAPI(),
       fetchTeamsFromFastAPI(),
       fetchPresetsFromFastAPI(),
       fetchComplianceFromFastAPI(),
       fetchSlaFromFastAPI(),
+      fetchUsersFromFastAPI(),
+      fetchRolesFromFastAPI(),
+      fetchConflictsFromFastAPI(),
     ]);
 
     // Map FastAPI data to our cache structure
     const entities = mapSlaDataToEntities(slaData);
     const teams = mapFastAPITeamsToTeams(teamsData);
     const tenants = mapFastAPITenantsToTenants(tenantsData);
+    const users = mapFastAPIUsersToUsers(usersData);
+    const roles = mapFastAPIRolesToRoles(rolesData);
+    const conflicts = mapFastAPIConflictsToConflicts(conflictsData);
     
     // Extract metrics and trends from presets and compliance data (with fallback calculation)
     const { last30DayMetrics, complianceTrends } = extractMetricsAndTrends(presetsData, complianceData, entities, tenants);
 
-    const cacheData: CacheRefreshData = {
+    const cacheData: CacheRefreshData & { users: any[], roles: any[], conflicts: any[] } = {
       entities,
       teams,
       tenants,
+      users,
+      roles,
+      conflicts,
       metrics: {}, // Empty for dynamic calculations
       last30DayMetrics,
       complianceTrends,
@@ -159,10 +180,13 @@ async function refreshFromFastAPI(): Promise<CacheRefreshData> {
 async function refreshFromStorage(): Promise<CacheRefreshData> {
   console.log('[Cache Worker] Refreshing cache from storage');
   
-  // Load all entities, teams, and tenants
+  // Load all entities, teams, tenants, users, roles, and conflicts
   const entities = await storage.getEntities();
   const teams = await storage.getTeams();
   const tenants = await storage.getTenants();
+  const users = await storage.getUsers();
+  const roles = await storage.getUserRoles();
+  const conflicts = await storage.getConflictNotifications();
 
   // Calculate metrics for each tenant (default 30-day cache)
   const last30DayMetrics: Record<string, DashboardMetrics> = {};
@@ -179,10 +203,13 @@ async function refreshFromStorage(): Promise<CacheRefreshData> {
     complianceTrends[tenant.name] = generateComplianceTrend(tenantEntities, tenantTables, tenantDags);
   }
 
-  const cacheData: CacheRefreshData = {
+  const cacheData: CacheRefreshData & { users: any[], roles: any[], conflicts: any[] } = {
     entities,
     teams,
     tenants,
+    users,
+    roles,
+    conflicts,
     metrics: {}, // Empty for dynamic calculations
     last30DayMetrics,
     complianceTrends,
@@ -194,7 +221,6 @@ async function refreshFromStorage(): Promise<CacheRefreshData> {
     yesterdayTrends: {},
     last7DayTrends: {},
     thisMonthTrends: {},
-    recentChanges: [],
     lastUpdated: new Date()
   };
 
@@ -291,6 +317,68 @@ function mapFastAPITenantsToTenants(tenantsData: any[]): Tenant[] {
     description: item.description || undefined,
     createdAt: item.created_at ? new Date(item.created_at) : new Date(),
     updatedAt: item.updated_at ? new Date(item.updated_at) : new Date(),
+  }));
+}
+
+// Map users data from FastAPI to cache format
+function mapFastAPIUsersToUsers(usersData: any[]): any[] {
+  if (!Array.isArray(usersData)) {
+    console.warn('[Cache Worker] Users data is not an array, returning empty users');
+    return [];
+  }
+
+  return usersData.map((item: any, index: number) => ({
+    id: item.id || item.user_id || index + 1,
+    username: item.username || item.user_name || `user${index + 1}`,
+    email: item.email || item.user_email,
+    displayName: item.display_name || item.displayName,
+    team: item.team || null,
+    role: item.role || 'user',
+    azureObjectId: item.azure_object_id || item.azureObjectId || null,
+    createdAt: item.created_at ? new Date(item.created_at) : new Date(),
+    updatedAt: item.updated_at ? new Date(item.updated_at) : new Date(),
+    // Don't include password in cache for security
+  }));
+}
+
+// Map roles data from FastAPI to cache format
+function mapFastAPIRolesToRoles(rolesData: any[]): any[] {
+  if (!Array.isArray(rolesData)) {
+    console.warn('[Cache Worker] Roles data is not an array, returning empty roles');
+    return [];
+  }
+
+  return rolesData.map((item: any, index: number) => ({
+    id: item.id || `role${index + 1}`,
+    role: item.role || item.name,
+    label: item.label || item.display_name || item.role || item.name,
+    description: item.description || `Role: ${item.role || item.name}`,
+    emails: Array.isArray(item.emails) ? item.emails : [],
+  }));
+}
+
+// Map conflicts data from FastAPI to cache format  
+function mapFastAPIConflictsToConflicts(conflictsData: any[]): any[] {
+  if (!Array.isArray(conflictsData)) {
+    console.warn('[Cache Worker] Conflicts data is not an array, returning empty conflicts');
+    return [];
+  }
+
+  return conflictsData.map((item: any, index: number) => ({
+    id: item.id || index + 1,
+    notificationId: item.notification_id || item.notificationId || `CONF-${Date.now()}-${index}`,
+    entityType: item.entity_type || item.entityType || 'unknown',
+    entityName: item.entity_name || item.entityName,
+    conflictingTeams: Array.isArray(item.conflicting_teams) ? item.conflicting_teams : 
+                     Array.isArray(item.conflictingTeams) ? item.conflictingTeams : [],
+    conflictDetails: item.conflict_details || item.conflictDetails || {},
+    originalPayload: item.original_payload || item.originalPayload || {},
+    status: item.status || 'pending',
+    resolutionType: item.resolution_type || item.resolutionType || null,
+    resolutionNotes: item.resolution_notes || item.resolutionNotes || null,
+    resolvedBy: item.resolved_by || item.resolvedBy || null,
+    createdAt: item.created_at ? new Date(item.created_at) : new Date(),
+    resolvedAt: item.resolved_at ? new Date(item.resolved_at) : null,
   }));
 }
 
