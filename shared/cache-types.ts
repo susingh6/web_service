@@ -35,13 +35,25 @@ export interface EntityChange {
   timestamp: Date;
 }
 
+// Predefined date range types
+export type PredefinedRange = 'today' | 'yesterday' | 'last7Days' | 'last30Days' | 'thisMonth';
+
 export interface CachedData {
   entities: Entity[];
   teams: Team[];
   tenants: Array<{ id: number; name: string; description?: string }>;
-  metrics: Record<string, DashboardMetrics>;
+  // Metrics for all predefined ranges by tenant
+  todayMetrics: Record<string, DashboardMetrics>;
+  yesterdayMetrics: Record<string, DashboardMetrics>;
+  last7DayMetrics: Record<string, DashboardMetrics>;
   last30DayMetrics: Record<string, DashboardMetrics>;
-  complianceTrends: Record<string, ComplianceTrendData>;
+  thisMonthMetrics: Record<string, DashboardMetrics>;
+  // Compliance trends for all predefined ranges by tenant
+  todayTrends: Record<string, ComplianceTrendData>;
+  yesterdayTrends: Record<string, ComplianceTrendData>;
+  last7DayTrends: Record<string, ComplianceTrendData>;
+  last30DayTrends: Record<string, ComplianceTrendData>;
+  thisMonthTrends: Record<string, ComplianceTrendData>;
   lastUpdated: Date;
   recentChanges: EntityChange[];
 }
@@ -50,9 +62,18 @@ export interface CacheRefreshData {
   entities: Entity[];
   teams: Team[];
   tenants: Array<{ id: number; name: string; description?: string }>;
-  metrics: Record<string, DashboardMetrics>;
+  // Metrics for all predefined ranges by tenant
+  todayMetrics: Record<string, DashboardMetrics>;
+  yesterdayMetrics: Record<string, DashboardMetrics>;
+  last7DayMetrics: Record<string, DashboardMetrics>;
   last30DayMetrics: Record<string, DashboardMetrics>;
-  complianceTrends: Record<string, ComplianceTrendData>;
+  thisMonthMetrics: Record<string, DashboardMetrics>;
+  // Compliance trends for all predefined ranges by tenant
+  todayTrends: Record<string, ComplianceTrendData>;
+  yesterdayTrends: Record<string, ComplianceTrendData>;
+  last7DayTrends: Record<string, ComplianceTrendData>;
+  last30DayTrends: Record<string, ComplianceTrendData>;
+  thisMonthTrends: Record<string, ComplianceTrendData>;
   lastUpdated: Date;
 }
 
