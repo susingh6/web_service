@@ -109,7 +109,11 @@ const AgentWorkspaceModal: React.FC<AgentWorkspaceModalProps> = ({
           }))
         };
         
-        setExpandedConversations(prev => new Map([...Array.from(prev), [conversationId, conversationWithDates]]));
+        setExpandedConversations(prev => {
+          const newMap = new Map(prev);
+          newMap.set(conversationId, conversationWithDates);
+          return newMap;
+        });
         setLoadingConversations(prev => {
           const newSet = new Set(prev);
           newSet.delete(conversationId);
