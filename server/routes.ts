@@ -199,7 +199,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(404).json({ message: "No data found for the specified tenant and range" });
         }
         
-        req.logger.info(`GET /api/dashboard/summary - Parameters: tenant=${tenantName}, range=${rangeType} (cached) - status: 200`);
+        console.log(`GET /api/dashboard/summary - Parameters: tenant=${tenantName}, range=${rangeType} (cached) - status: 200`);
         
         return res.json({
           metrics,
@@ -212,7 +212,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (USE_FASTAPI) {
         // TODO: Call FastAPI endpoints
-        req.logger.info(`GET /api/dashboard/summary - Would call FastAPI for tenant=${tenantName}`);
+        console.log(`GET /api/dashboard/summary - Would call FastAPI for tenant=${tenantName}`);
         // For now, fallback to date range calculation
       }
       
@@ -226,7 +226,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(404).json({ message: "No data found for the specified tenant and date range" });
         }
         
-        req.logger.info(`GET /api/dashboard/summary - Parameters: tenant=${tenantName}, custom range=${startDate} to ${endDate} - status: 200`);
+        console.log(`GET /api/dashboard/summary - Parameters: tenant=${tenantName}, custom range=${startDate} to ${endDate} - status: 200`);
         
         return res.json({ 
           metrics,
@@ -245,7 +245,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "No data found for the specified tenant" });
       }
       
-      req.logger.info(`GET /api/dashboard/summary - Parameters: tenant=${tenantName} (default 30-day) - status: 200`);
+      console.log(`GET /api/dashboard/summary - Parameters: tenant=${tenantName} (default 30-day) - status: 200`);
       
       res.json({
         metrics,
