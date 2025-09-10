@@ -189,10 +189,28 @@ const UsersManagement = () => {
         description: "New user has been successfully created.",
       });
     },
-    onError: () => {
+    onError: (error: any) => {
+      let errorMessage = "Failed to create user. Please try again.";
+      let errorTitle = "Creation Failed";
+
+      // Extract specific error message from the response
+      if (error?.message) {
+        errorMessage = error.message;
+      } else if (error?.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error?.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error?.status === 409) {
+        errorMessage = "Username already exists. Please choose a different username.";
+        errorTitle = "Username Taken";
+      } else if (error?.status === 400) {
+        errorMessage = "Invalid user data provided. Please check your input.";
+        errorTitle = "Invalid Data";
+      }
+
       toast({
-        title: "Creation Failed",
-        description: "Failed to create user. Please try again.",
+        title: errorTitle,
+        description: errorMessage,
         variant: "destructive",
       });
     },
@@ -210,10 +228,31 @@ const UsersManagement = () => {
         description: "User has been successfully updated.",
       });
     },
-    onError: () => {
+    onError: (error: any) => {
+      let errorMessage = "Failed to update user. Please try again.";
+      let errorTitle = "Update Failed";
+
+      // Extract specific error message from the response
+      if (error?.message) {
+        errorMessage = error.message;
+      } else if (error?.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error?.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error?.status === 409) {
+        errorMessage = "Username already exists. Please choose a different username.";
+        errorTitle = "Username Taken";
+      } else if (error?.status === 400) {
+        errorMessage = "Invalid user data provided. Please check your input.";
+        errorTitle = "Invalid Data";
+      } else if (error?.status === 404) {
+        errorMessage = "User not found. The user may have been deleted.";
+        errorTitle = "User Not Found";
+      }
+
       toast({
-        title: "Update Failed",
-        description: "Failed to update user. Please try again.",
+        title: errorTitle,
+        description: errorMessage,
         variant: "destructive",
       });
     },
