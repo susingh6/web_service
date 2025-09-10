@@ -119,13 +119,14 @@ const TenantsManagement = () => {
   // Fetch tenants with real API
   const { data: tenants = [], isLoading } = useQuery<Tenant[]>({
     queryKey: ['/api/admin/tenants'],
-    queryFn: getQueryFn(),
+    queryFn: getQueryFn({ on401: 'returnNull' }),
   });
 
   // Create tenant mutation with optimistic updates and race condition prevention
   const createTenantMutation = useMutation({
     mutationFn: async (tenantData: any) => {
-      return await apiRequest('POST', buildUrl(endpoints.admin.tenants.create), tenantData);
+      const response = await apiRequest('POST', buildUrl(endpoints.admin.tenants.create), tenantData);
+      return await response.json();
     },
     onMutate: async (newTenantData) => {
       // Cancel any outgoing refetches to prevent race conditions
@@ -215,7 +216,8 @@ const TenantsManagement = () => {
   // Update tenant mutation
   const updateTenantMutation = useMutation({
     mutationFn: async ({ tenantId, tenantData }: { tenantId: number; tenantData: any }) => {
-      return await apiRequest('PUT', buildUrl(endpoints.admin.tenants.update, tenantId), tenantData);
+      const response = await apiRequest('PUT', buildUrl(endpoints.admin.tenants.update, tenantId), tenantData);
+      return await response.json();
     },
     onSuccess: () => {
       // Invalidate all tenant-related caches so updated tenant appears everywhere
