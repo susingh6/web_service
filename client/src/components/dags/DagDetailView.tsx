@@ -27,7 +27,7 @@ import {
 import { Entity, Task } from '@/features/sla/types';
 import { format } from 'date-fns';
 import { normalizeStatus, getStatusColor, STANDARD_STATUSES } from '@/utils/status-normalization';
-import { getTasksForDag, updateTaskPriority } from '@/features/sla/mockService';
+import { useGetDagTasks, useUpdateTaskPriority } from '@/features/sla/taskService.enhanced';
 import TaskCard from './TaskCard';
 import TaskDragLayer from './TaskDragLayer';
 import PriorityZone from './PriorityZone';
@@ -63,10 +63,13 @@ interface GroupedTasks {
 }
 
 const DagDetailView: React.FC<DagDetailViewProps> = ({ entity, onBack }) => {
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [groupedTasks, setGroupedTasks] = useState<GroupedTasks>({ normal: [], high: [] });
+  
+  // Use enhanced task service with 6-hour caching
+  const { data: tasks = [], isLoading: loading, error: queryError } = useGetDagTasks(entity.id);
+  const { mutate: updateTaskPriority, isPending: isUpdatingPriority } = useUpdateTaskPriority();
+  
+  const error = queryError ? 'Failed to load tasks. Please try again.' : null;
 
   // Status icon mapping
   const statusIconMap: Record<string, JSX.Element> = {

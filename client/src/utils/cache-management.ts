@@ -208,6 +208,17 @@ export const CACHE_PATTERNS = {
       ['/api/dashboard/summary', { tenant }] : 
       ['/api/dashboard/summary'],
   },
+  
+  // Task-related cache keys (6-hourly caching for tasks in team dashboards)
+  TASKS: {
+    LIST: ['/api/tasks'],
+    BY_DAG: (dagId: number) => [`/api/dags/${dagId}/tasks`],
+    BY_ENTITY: (entityId: number) => [`/api/entities/${entityId}/tasks`],
+    DETAILS: (taskId: number) => [`/api/tasks/${taskId}`],
+    BY_PRIORITY: (priority: 'high' | 'normal') => [`/api/tasks`, { priority }],
+    BY_DAG_AND_PRIORITY: (dagId: number, priority: 'high' | 'normal') => [`/api/dags/${dagId}/tasks`, { priority }],
+    BY_TEAM_DAG: (teamId: number, dagName: string) => [`/api/teams/${teamId}/dags/${dagName}/tasks`],
+  },
 } as const;
 
 // Cache invalidation scenarios configuration
@@ -300,6 +311,35 @@ export const INVALIDATION_SCENARIOS = {
   TEAM_CREATED: () => [
     ...CACHE_PATTERNS.TEAMS.LIST,
     ...CACHE_PATTERNS.DASHBOARD.SUMMARY(),
+  ],
+  
+  // Task-specific cache invalidation scenarios
+  TASK_CREATED: (dagId: number, teamId?: number) => [
+    ...CACHE_PATTERNS.TASKS.BY_DAG(dagId),
+    ...CACHE_PATTERNS.TASKS.LIST,
+    ...(teamId ? [] : []), // Add team-specific patterns if teamId provided
+  ],
+  
+  TASK_UPDATED: (taskId: number, dagId: number, teamId?: number) => [
+    ...CACHE_PATTERNS.TASKS.BY_DAG(dagId),
+    ...CACHE_PATTERNS.TASKS.DETAILS(taskId),
+    ...CACHE_PATTERNS.TASKS.LIST,
+    ...(teamId ? [] : []), // Add team-specific patterns if teamId provided
+  ],
+  
+  TASK_DELETED: (dagId: number, teamId?: number) => [
+    ...CACHE_PATTERNS.TASKS.BY_DAG(dagId),
+    ...CACHE_PATTERNS.TASKS.LIST,
+    ...(teamId ? [] : []), // Add team-specific patterns if teamId provided
+  ],
+  
+  TASK_PRIORITY_CHANGED: (taskId: number, dagId: number, oldPriority: 'high' | 'normal', newPriority: 'high' | 'normal') => [
+    ...CACHE_PATTERNS.TASKS.BY_DAG(dagId),
+    ...CACHE_PATTERNS.TASKS.DETAILS(taskId),
+    ...CACHE_PATTERNS.TASKS.BY_PRIORITY(oldPriority),
+    ...CACHE_PATTERNS.TASKS.BY_PRIORITY(newPriority),
+    ...CACHE_PATTERNS.TASKS.BY_DAG_AND_PRIORITY(dagId, oldPriority),
+    ...CACHE_PATTERNS.TASKS.BY_DAG_AND_PRIORITY(dagId, newPriority),
   ],
 } as const;
 
