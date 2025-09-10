@@ -32,6 +32,7 @@ import {
   Assignment,
   Notifications,
   FiberNew,
+  SmartToy,
 } from '@mui/icons-material';
 import { visuallyHidden } from '@mui/utils';
 import { useAppDispatch } from '@/lib/store';
@@ -605,6 +606,22 @@ const EntityTable = ({
                             <Tooltip title="View Tasks">
                               <IconButton size="small" color="info" onClick={() => onViewTasks(entity)}>
                                 <Assignment fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          )}
+                          
+                          {/* Agent Workspace - Only for DAG owners */}
+                          {type === 'dag' && entity.is_entity_owner && (
+                            <Tooltip title="Agent Workspace">
+                              <IconButton 
+                                size="small" 
+                                color="secondary" 
+                                onClick={() => {
+                                  // TODO: Open agent workspace modal/panel
+                                  console.log('Open agent workspace for DAG:', entity.name);
+                                }}
+                              >
+                                <SmartToy fontSize="small" />
                               </IconButton>
                             </Tooltip>
                           )}
