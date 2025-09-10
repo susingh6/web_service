@@ -183,13 +183,6 @@ const ComplianceTrendChart = ({
 }: ComplianceTrendChartProps) => {
   const theme = useTheme();
   
-  // Debug: Log the date range being received
-  console.log('ComplianceTrendChart - Date range:', {
-    startDate: startDate?.toISOString?.() || startDate,
-    endDate: endDate?.toISOString?.() || endDate,
-    entityCount: entities.length
-  });
-  
   // Show loading state
   if (loading) {
     return (
@@ -201,8 +194,11 @@ const ComplianceTrendChart = ({
     );
   }
 
-  // Use provided data (from cache) or generate from entities with date range as fallback
-  let chartData = data && data.length > 0 ? data : generateDataFromEntities(entities, startDate, endDate);
+  // Always use date-range-aware generation when startDate/endDate provided
+  // This ensures the chart responds to date filter changes
+  let chartData = (startDate || endDate) 
+    ? generateDataFromEntities(entities, startDate, endDate)
+    : (data && data.length > 0 ? data : generateDataFromEntities(entities, startDate, endDate));
   
   // Determine if we should use monthly aggregation
   const useMonthlyAggregation = shouldUseMonthlyAggregation(chartData);

@@ -67,13 +67,6 @@ const TeamDashboard = ({
     endDate: new Date(),
     label: 'Last 30 Days',
   });
-
-  // Debug: Log when dateRange changes
-  console.log('TeamDashboard dateRange updated:', {
-    label: dateRange.label,
-    startDate: dateRange.startDate.toISOString(),
-    endDate: dateRange.endDate.toISOString()
-  });
   
   const [addMemberDialogOpen, setAddMemberDialogOpen] = useState(false);
   const [removeMemberDialogOpen, setRemoveMemberDialogOpen] = useState(false);
