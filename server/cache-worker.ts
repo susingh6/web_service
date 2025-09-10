@@ -70,17 +70,17 @@ function generateComplianceTrend(entities: Entity[], tables: Entity[], dags: Ent
       continue;
     }
     
-    // Calculate compliance based on entity SLA status
+    // Calculate compliance based on entity status ('Passed' = compliant)
     const tablesCompliance = tables.length > 0 
-      ? (tables.filter(t => t.sla_status === 'compliant').length / tables.length) * 100
+      ? (tables.filter(t => t.status === 'Passed').length / tables.length) * 100
       : 0;
     
     const dagsCompliance = dags.length > 0
-      ? (dags.filter(d => d.sla_status === 'compliant').length / dags.length) * 100
+      ? (dags.filter(d => d.status === 'Passed').length / dags.length) * 100
       : 0;
     
     const overallCompliance = entities.length > 0
-      ? (entities.filter(e => e.sla_status === 'compliant').length / entities.length) * 100
+      ? (entities.filter(e => e.status === 'Passed').length / entities.length) * 100
       : 0;
     
     trendData.push({
