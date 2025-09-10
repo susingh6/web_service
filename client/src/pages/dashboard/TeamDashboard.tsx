@@ -382,7 +382,7 @@ const TeamDashboard = ({
               filters={['All', 'Tables', 'DAGs']}
               onFilterChange={setChartFilter}
               loading={metricsLoading && !lastFetchFailed}
-              chart={<ComplianceTrendChart filter={chartFilter.toLowerCase() as 'all' | 'tables' | 'dags'} entities={teamEntities} loading={metricsLoading} />}
+              chart={<ComplianceTrendChart filter={chartFilter.toLowerCase() as 'all' | 'tables' | 'dags'} data={teamEntities.length > 0 ? complianceTrends?.trend || [] : []} entities={teamEntities} loading={metricsLoading} />}
             />
           </Box>
           
