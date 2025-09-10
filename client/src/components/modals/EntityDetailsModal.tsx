@@ -401,15 +401,62 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
             </Grid>
             <Grid size={6}>
               <Paper elevation={0} sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
-                <Typography variant="caption" color="text.secondary">
-                  Owner
-                </Typography>
+                <Box display="flex" alignItems="center" justifyContent="space-between" mb={1}>
+                  <Typography variant="caption" color="text.secondary">
+                    Owner
+                  </Typography>
+                  {!ownerSlaLoading && !isEditingOwner && (
+                    <IconButton
+                      size="small"
+                      onClick={startEditingOwner}
+                      sx={{ ml: 1, width: 20, height: 20 }}
+                    >
+                      <EditIcon fontSize="small" />
+                    </IconButton>
+                  )}
+                </Box>
+                
                 {ownerSlaLoading ? (
                   <Box display="flex" alignItems="center" mt={1}>
                     <CircularProgress size={16} sx={{ mr: 1 }} />
                     <Typography variant="body2" color="text.secondary">
                       Loading...
                     </Typography>
+                  </Box>
+                ) : isEditingOwner ? (
+                  <Box sx={{ mt: 1 }}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      value={ownerEmailInput}
+                      onChange={(e) => setOwnerEmailInput(e.target.value)}
+                      placeholder="Enter comma-separated emails"
+                      disabled={isUpdatingOwner}
+                      helperText="Enter owner emails separated by commas"
+                      sx={{ mb: 1 }}
+                    />
+                    <Box display="flex" gap={1}>
+                      <Button
+                        size="small"
+                        variant="contained"
+                        onClick={updateOwner}
+                        disabled={isUpdatingOwner || !ownerEmailInput.trim()}
+                        startIcon={isUpdatingOwner ? <CircularProgress size={14} /> : <SaveIcon />}
+                        sx={{ minWidth: 'auto', px: 1 }}
+                      >
+                        {isUpdatingOwner ? 'Saving...' : 'Save'}
+                      </Button>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        onClick={cancelEditingOwner}
+                        disabled={isUpdatingOwner}
+                        startIcon={<CancelIcon />}
+                        sx={{ minWidth: 'auto', px: 1 }}
+                      >
+                        Cancel
+                      </Button>
+                    </Box>
                   </Box>
                 ) : (
                   <Box display="flex" alignItems="center" mt={1}>
