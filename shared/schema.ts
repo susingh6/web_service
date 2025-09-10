@@ -12,6 +12,9 @@ export const users = pgTable("users", {
   team: text("team"),
   role: text("role").default("user"), // admin, user
   azureObjectId: text("azure_object_id"), // Azure AD object ID
+  user_slack: json("user_slack").$type<string[]>(), // Slack handles for notifications
+  user_pagerduty: json("user_pagerduty").$type<string[]>(), // PagerDuty contacts for notifications
+  is_active: boolean("is_active").default(true), // Active status for admin management
 });
 
 // Teams schema
@@ -122,6 +125,18 @@ export const insertUserSchema = createInsertSchema(users).pick({
   team: true,
   role: true,
   azureObjectId: true,
+  user_slack: true,
+  user_pagerduty: true,
+  is_active: true,
+});
+
+// Admin user schema for admin panel (maps to frontend expectations)
+export const adminUserSchema = z.object({
+  user_name: z.string().min(1, "Username is required"),
+  user_email: z.string().email("Valid email is required"),
+  user_slack: z.array(z.string()).nullable().optional(),
+  user_pagerduty: z.array(z.string()).nullable().optional(),
+  is_active: z.boolean().default(true),
 });
 
 export const insertTeamSchema = createInsertSchema(teams).pick({

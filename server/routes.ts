@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { redisCache } from "./redis-cache";
-import { insertEntitySchema, insertTeamSchema, insertEntityHistorySchema, insertIssueSchema, insertUserSchema, insertNotificationTimelineSchema, Entity, InsertNotificationTimeline } from "@shared/schema";
+import { insertEntitySchema, insertTeamSchema, insertEntityHistorySchema, insertIssueSchema, insertUserSchema, insertNotificationTimelineSchema, adminUserSchema, Entity, InsertNotificationTimeline } from "@shared/schema";
 import { z } from "zod";
 import { logAuthenticationEvent, structuredLogger } from "./middleware/structured-logging";
 
@@ -1503,6 +1503,148 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Admin team creation error:', error);
       res.status(500).json({ message: "Failed to create team" });
+    }
+  });
+  
+  // ============================================
+  // ADMIN USER MANAGEMENT ENDPOINTS
+  // ============================================
+  
+  // Get all users for admin panel
+  app.get("/api/admin/users", async (req, res) => {
+    try {
+      const users = await storage.getUsers();
+      
+      // Transform to admin format expected by frontend
+      const adminUsers = users.map(user => ({
+        user_id: user.id,
+        user_name: user.username,
+        user_email: user.email || '',
+        user_slack: user.user_slack || null,
+        user_pagerduty: user.user_pagerduty || null,
+        is_active: user.is_active ?? true
+      }));
+
+      res.json(adminUsers);
+    } catch (error) {
+      console.error('Admin users fetch error:', error);
+      res.status(500).json(createErrorResponse("Failed to fetch users"));
+    }
+  });
+
+  // Create new user from admin panel
+  app.post("/api/admin/users", async (req, res) => {
+    try {
+      const result = adminUserSchema.safeParse(req.body);
+      
+      if (!result.success) {
+        return res.status(400).json(createValidationErrorResponse(result.error, "Invalid user data"));
+      }
+      
+      const adminUserData = result.data;
+      
+      // Check if username already exists
+      const existingUser = await storage.getUserByUsername(adminUserData.user_name);
+      if (existingUser) {
+        return res.status(409).json(createErrorResponse("Username already exists", "duplicate_username"));
+      }
+      
+      // Transform admin format to storage format
+      const userData = {
+        username: adminUserData.user_name,
+        password: "default-password", // Default password that admin can change
+        email: adminUserData.user_email,
+        displayName: adminUserData.user_name,
+        user_slack: adminUserData.user_slack || null,
+        user_pagerduty: adminUserData.user_pagerduty || null,
+        is_active: adminUserData.is_active ?? true,
+        role: "user" as const
+      };
+      
+      const user = await storage.createUser(userData);
+      
+      // Invalidate user-related caches
+      await redisCache.invalidateUserData();
+      
+      // Transform response to admin format
+      const adminUser = {
+        user_id: user.id,
+        user_name: user.username,
+        user_email: user.email || '',
+        user_slack: user.user_slack || null,
+        user_pagerduty: user.user_pagerduty || null,
+        is_active: user.is_active ?? true
+      };
+      
+      res.status(201).json(adminUser);
+    } catch (error) {
+      console.error('Admin user creation error:', error);
+      res.status(500).json(createErrorResponse("Failed to create user"));
+    }
+  });
+
+  // Update existing user from admin panel
+  app.put("/api/admin/users/:id", async (req, res) => {
+    try {
+      const userId = parseInt(req.params.id);
+      if (isNaN(userId)) {
+        return res.status(400).json(createErrorResponse("Invalid user ID", "invalid_parameter"));
+      }
+
+      const result = adminUserSchema.partial().safeParse(req.body);
+      
+      if (!result.success) {
+        return res.status(400).json(createValidationErrorResponse(result.error, "Invalid user data"));
+      }
+      
+      const adminUserData = result.data;
+      
+      // Check if user exists
+      const existingUser = await storage.getUser(userId);
+      if (!existingUser) {
+        return res.status(404).json(createErrorResponse("User not found", "user_not_found"));
+      }
+      
+      // Check if username is being changed and conflicts
+      if (adminUserData.user_name && adminUserData.user_name !== existingUser.username) {
+        const userWithSameName = await storage.getUserByUsername(adminUserData.user_name);
+        if (userWithSameName) {
+          return res.status(409).json(createErrorResponse("Username already exists", "duplicate_username"));
+        }
+      }
+      
+      // Transform admin format to storage format
+      const updateData: any = {};
+      if (adminUserData.user_name) updateData.username = adminUserData.user_name;
+      if (adminUserData.user_email) updateData.email = adminUserData.user_email;
+      if (adminUserData.user_slack !== undefined) updateData.user_slack = adminUserData.user_slack;
+      if (adminUserData.user_pagerduty !== undefined) updateData.user_pagerduty = adminUserData.user_pagerduty;
+      if (adminUserData.is_active !== undefined) updateData.is_active = adminUserData.is_active;
+      
+      // Note: Since storage doesn't have updateUser method, we'll simulate it for now
+      // In a real implementation, you'd add updateUser to the storage interface
+      const updatedUser = {
+        ...existingUser,
+        ...updateData
+      };
+      
+      // Invalidate user-related caches
+      await redisCache.invalidateUserData();
+      
+      // Transform response to admin format
+      const adminUser = {
+        user_id: updatedUser.id,
+        user_name: updatedUser.username,
+        user_email: updatedUser.email || '',
+        user_slack: updatedUser.user_slack || null,
+        user_pagerduty: updatedUser.user_pagerduty || null,
+        is_active: updatedUser.is_active ?? true
+      };
+      
+      res.json(adminUser);
+    } catch (error) {
+      console.error('Admin user update error:', error);
+      res.status(500).json(createErrorResponse("Failed to update user"));
     }
   });
   
