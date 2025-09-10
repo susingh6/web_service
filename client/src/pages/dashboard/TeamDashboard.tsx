@@ -46,7 +46,7 @@ const TeamDashboard = ({
 }: TeamDashboardProps) => {
   const dispatch = useAppDispatch();
   const { list: entities, teams, isLoading } = useAppSelector((state) => state.entities);
-  const { metrics, complianceTrends, isLoading: metricsLoading } = useAppSelector((state) => state.dashboard);
+  const { metrics, complianceTrends, isLoading: metricsLoading, dateRange } = useAppSelector((state) => state.dashboard);
   const queryClient = useQueryClient();
   
   const [tabValue, setTabValue] = useState(0);
@@ -384,7 +384,7 @@ const TeamDashboard = ({
               filters={['All', 'Tables', 'DAGs']}
               onFilterChange={setEntitiesChartFilter}
               loading={isLoading}
-              chart={<EntityPerformanceChart entities={teamEntities} filter={entitiesChartFilter.toLowerCase() as 'all' | 'tables' | 'dags'} />}
+              chart={<EntityPerformanceChart entities={metrics ? teamEntities : []} filter={entitiesChartFilter.toLowerCase() as 'all' | 'tables' | 'dags'} />}
             />
           </Box>
         </Box>
@@ -422,6 +422,8 @@ const TeamDashboard = ({
               onSetNotificationTimeline={onNotificationTimeline}
               showActions={true}
               isTeamDashboard={true}
+              hasMetrics={metrics !== null}
+              trendLabel={`${dateRange.label} Trend`}
             />
           )}
         </Box>
@@ -440,6 +442,8 @@ const TeamDashboard = ({
               onSetNotificationTimeline={onNotificationTimeline}
               showActions={true}
               isTeamDashboard={true}
+              hasMetrics={metrics !== null}
+              trendLabel={`${dateRange.label} Trend`}
             />
           )}
         </Box>
