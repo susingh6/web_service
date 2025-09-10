@@ -59,6 +59,11 @@ interface ApiConfig {
     debug: {
       teams: string;
     };
+    agent: {
+      conversationSummaries: (dagId: number) => string;
+      fullConversation: (conversationId: string) => string;
+      sendMessage: (dagId: number) => string;
+    };
     admin: {
       conflicts: {
         getAll: string;
@@ -131,6 +136,14 @@ interface ApiConfig {
   debug: boolean;
   logLevel: string;
   enableMockData: boolean;
+  mock?: {
+    entities?: boolean;
+    dashboard?: boolean;
+    teams?: boolean;
+    tasks?: boolean;
+    notifications?: boolean;
+    agent?: boolean;
+  };
 }
 
 const configs: Record<string, ApiConfig> = {

@@ -61,6 +61,84 @@ export const stagingConfig = {
     debug: {
       teams: '/api/debug/teams',
     },
+
+    // Agent workspace endpoints
+    agent: {
+      conversationSummaries: (dagId: number) => `/api/agent/conversations/summaries/${dagId}`,
+      fullConversation: (conversationId: string) => `/api/agent/conversations/${conversationId}`,
+      sendMessage: (dagId: number) => `/api/agent/conversations/${dagId}/send`,
+    },
+
+    // Missing properties from dev config
+    tenants: '/api/tenants',
+    teamDetails: (teamName: string) => `/api/get_team_details/${teamName}`,
+    teamMembers: (teamName: string) => `/api/teams/${teamName}/members`,
+
+    users: {
+      getAll: '/api/get_user',
+      getTeamMembers: (teamName: string) => `/api/get_team_members/${teamName}`,
+    },
+
+    admin: {
+      conflicts: {
+        getAll: '/api/admin/conflicts',
+        getById: (notificationId: string) => `/api/admin/conflicts/${notificationId}`,
+        resolve: (notificationId: string) => `/api/admin/conflicts/${notificationId}/resolve`,
+        create: '/api/admin/conflicts',
+      },
+      teams: {
+        create: '/api/admin/teams',
+        update: (teamId: number) => `/api/admin/teams/${teamId}`,
+        disable: (teamId: number) => `/api/admin/teams/${teamId}/disable`,
+        enable: (teamId: number) => `/api/admin/teams/${teamId}/enable`,
+      },
+      tenants: {
+        create: '/api/admin/tenants',
+        getAll: '/api/admin/tenants',
+        update: (tenantId: number) => `/api/admin/tenants/${tenantId}`,
+        disable: (tenantId: number) => `/api/admin/tenants/${tenantId}/disable`,
+      },
+      users: {
+        getAll: '/api/admin/users',
+        create: '/api/admin/users',
+        update: (userId: number) => `/api/admin/users/${userId}`,
+        disable: (userId: number) => `/api/admin/users/${userId}/disable`,
+        enable: (userId: number) => `/api/admin/users/${userId}/enable`,
+      },
+      roles: {
+        getAll: '/api/admin/roles',
+        create: '/api/admin/roles',
+        update: (roleId: number) => `/api/admin/roles/${roleId}`,
+      },
+    },
+  },
+
+  // Cache configuration
+  cacheConfig: {
+    tenantRefreshHours: 6,
+    entityRefreshHours: 6,
+    trendRefreshHours: 6,
+    cacheStatus: '/api/cache/status',
+    cacheRefresh: '/api/cache/refresh',
+    incrementalUpdate: '/api/cache/incremental-update',
+    recentChanges: '/api/cache/recent-changes',
+  },
+
+  // WebSocket configuration
+  websocket: {
+    path: '/ws',
+    events: {
+      cacheUpdated: 'cache-updated',
+      entityUpdated: 'entity-updated',
+      entitiesUpdated: 'entities-updated',
+      teamMembersUpdated: 'team-members-updated',
+      echoToOrigin: 'echo-to-origin',
+    },
+    features: {
+      enableEchoToOrigin: true,
+      enableEventVersioning: true,
+      multiTabSubscriptions: true,
+    },
   },
   
   // SLA Compliance Color Thresholds
@@ -81,4 +159,14 @@ export const stagingConfig = {
   debug: false,
   logLevel: 'info',
   enableMockData: false,
+  
+  // Mock data flags - Independent control for different features
+  mock: {
+    entities: false,
+    dashboard: false,
+    teams: false,
+    tasks: false,
+    notifications: false,
+    agent: false, // Separate flag for agent workspace data
+  },
 }; 

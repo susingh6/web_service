@@ -70,6 +70,13 @@ export const devConfig = {
     debug: {
       teams: '/api/debug/teams',
     },
+
+    // Agent workspace endpoints
+    agent: {
+      conversationSummaries: (dagId: number) => `/api/agent/conversations/summaries/${dagId}`,
+      fullConversation: (conversationId: string) => `/api/agent/conversations/${conversationId}`,
+      sendMessage: (dagId: number) => `/api/agent/conversations/${dagId}/send`,
+    },
     
     // Admin endpoints - pointing to FastAPI
     admin: {
@@ -161,6 +168,16 @@ export const devConfig = {
   debug: true,
   logLevel: 'debug',
   enableMockData: true,
+  
+  // Mock data flags - Independent control for different features
+  mock: {
+    entities: true,
+    dashboard: true,
+    teams: true,
+    tasks: true,
+    notifications: true,
+    agent: true, // Separate flag for agent workspace data
+  },
   
   // FastAPI Integration Control
   fastApiIntegration: {

@@ -33,6 +33,7 @@ import {
 } from '@mui/icons-material';
 import { Entity } from '@shared/schema';
 import { format } from 'date-fns';
+import { agentApi, ConversationSummary, FullConversation } from '@/features/sla/agentApi';
 
 interface AgentWorkspaceModalProps {
   open: boolean;
@@ -40,28 +41,7 @@ interface AgentWorkspaceModalProps {
   dagEntity: Entity | null;
 }
 
-interface ConversationSummary {
-  id: string;
-  date_key: string; // e.g., "2025-09-10"
-  task_name: string;
-  summary: string;
-  timestamp: Date;
-  status: 'resolved' | 'pending' | 'failed';
-  messageCount: number;
-}
-
-interface FullConversation {
-  id: string;
-  date_key: string;
-  task_name: string;
-  messages: {
-    id: string;
-    type: 'user' | 'agent';
-    content: string;
-    timestamp: Date;
-  }[];
-  status: 'resolved' | 'pending' | 'failed';
-}
+// Types are now imported from agentApi
 
 interface CurrentConversation {
   userMessage: string;
@@ -75,8 +55,8 @@ const AgentWorkspaceModal: React.FC<AgentWorkspaceModalProps> = ({
   dagEntity,
 }) => {
   const [message, setMessage] = useState('');
-  const [conversationSummaries, setConversationSummaries] = useState<ConversationSummary[]>([]);
-  const [expandedConversations, setExpandedConversations] = useState<Map<string, FullConversation>>(new Map());
+  const [conversationSummaries, setConversationSummaries] = useState<(ConversationSummary & { timestamp: Date })[]>([]);
+  const [expandedConversations, setExpandedConversations] = useState<Map<string, FullConversation & { messages: Array<{ id: string; type: 'user' | 'agent'; content: string; timestamp: Date; }> }>>(new Map());
   const [loadingConversations, setLoadingConversations] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [currentConversation, setCurrentConversation] = useState<CurrentConversation | null>(null);
@@ -85,41 +65,22 @@ const AgentWorkspaceModal: React.FC<AgentWorkspaceModalProps> = ({
   useEffect(() => {
     if (open && dagEntity) {
       setLoading(true);
-      // Simulate API call to fetch last 10 conversation summaries
-      setTimeout(() => {
-        const mockSummaries: ConversationSummary[] = [
-          {
-            id: '1',
-            date_key: '2025-09-10',
-            task_name: 'daily_aggregation_task',
-            summary: 'Investigated job failure during maintenance window - resolved with retry logic',
-            timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000),
-            status: 'resolved',
-            messageCount: 6,
-          },
-          {
-            id: '2',
-            date_key: '2025-09-10', 
-            task_name: 'data_quality_check',
-            summary: 'Performance optimization for increased data volume - provided ETA updates',
-            timestamp: new Date(Date.now() - 30 * 60 * 1000),
-            status: 'resolved',
-            messageCount: 4,
-          },
-          {
-            id: '3',
-            date_key: '2025-09-09',
-            task_name: 'user_segmentation_job',
-            summary: 'Memory optimization for large dataset processing',
-            timestamp: new Date(Date.now() - 26 * 60 * 60 * 1000),
-            status: 'resolved',
-            messageCount: 8,
-          },
-        ];
-        // Limit to last 10 conversation summaries
-        setConversationSummaries(mockSummaries.slice(0, 10));
-        setLoading(false);
-      }, 800); // Simulate network delay
+      
+      // API call to fetch conversation summaries
+      agentApi.getConversationSummaries(dagEntity.id)
+        .then(summaries => {
+          // Convert string timestamps to Date objects for display
+          const summariesWithDates = summaries.map(s => ({
+            ...s,
+            timestamp: new Date(s.timestamp)
+          }));
+          setConversationSummaries(summariesWithDates);
+          setLoading(false);
+        })
+        .catch(error => {
+          console.error('Failed to load conversation summaries:', error);
+          setLoading(false);
+        });
     }
   }, [open, dagEntity]);
 
@@ -134,60 +95,39 @@ const AgentWorkspaceModal: React.FC<AgentWorkspaceModalProps> = ({
     }
 
     // Mark as loading
-    setLoadingConversations(prev => new Set([...prev, conversationId]));
+    setLoadingConversations(prev => new Set([...Array.from(prev), conversationId]));
 
-    // Simulate API call to fetch full conversation
-    setTimeout(() => {
-      const mockFullConversation: FullConversation = {
-        id: conversationId,
-        date_key: '2025-09-10',
-        task_name: 'daily_aggregation_task',
-        messages: [
-          {
-            id: '1',
-            type: 'user',
-            content: 'The daily aggregation job failed this morning. Can you investigate?',
-            timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000),
-          },
-          {
-            id: '2',
-            type: 'agent',
-            content: 'I\'ll investigate the failure right away. Let me check the logs...',
-            timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000 + 30000),
-          },
-          {
-            id: '3',
-            type: 'agent',
-            content: 'I found the issue - the source table was locked during the maintenance window. I\'ll reschedule the job with proper retry logic.',
-            timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000 + 60000),
-          },
-          {
-            id: '4',
-            type: 'user',
-            content: 'Thanks! How can we prevent this in the future?',
-            timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000 + 120000),
-          },
-          {
-            id: '5',
-            type: 'agent',
-            content: 'I recommend adding a pre-check for table locks and implementing exponential backoff retry logic.',
-            timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000 + 150000),
-          },
-        ],
-        status: 'resolved',
-      };
-
-      setExpandedConversations(prev => new Map([...prev, [conversationId, mockFullConversation]]));
-      setLoadingConversations(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(conversationId);
-        return newSet;
+    // API call to fetch full conversation
+    agentApi.getFullConversation(conversationId)
+      .then(fullConversation => {
+        // Convert string timestamps to Date objects for display
+        const conversationWithDates = {
+          ...fullConversation,
+          messages: fullConversation.messages.map(msg => ({
+            ...msg,
+            timestamp: new Date(msg.timestamp)
+          }))
+        };
+        
+        setExpandedConversations(prev => new Map([...Array.from(prev), [conversationId, conversationWithDates]]));
+        setLoadingConversations(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(conversationId);
+          return newSet;
+        });
+      })
+      .catch(error => {
+        console.error('Failed to load full conversation:', error);
+        setLoadingConversations(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(conversationId);
+          return newSet;
+        });
       });
-    }, 1000);
   };
 
   const handleSendMessage = () => {
-    if (!message.trim()) return;
+    if (!message.trim() || !dagEntity) return;
 
     // Create current conversation
     setCurrentConversation({
@@ -196,27 +136,47 @@ const AgentWorkspaceModal: React.FC<AgentWorkspaceModalProps> = ({
       status: 'sending',
     });
 
+    const messageText = message;
     setMessage('');
 
-    // Simulate sending and waiting for response
+    // Mark as sending
     setTimeout(() => {
       setCurrentConversation(prev => prev ? { ...prev, status: 'waiting' } : null);
       
-      // Simulate agent response
-      setTimeout(() => {
-        setCurrentConversation(prev => prev ? {
-          ...prev,
-          agentResponse: 'Based on my analysis of the current task status, everything appears to be running normally. The last execution completed successfully at ' + format(new Date(), 'HH:mm') + '. No issues detected in the monitored tasks.',
-          status: 'complete'
-        } : null);
-        
-        // Auto-close current conversation after 3 seconds
-        setTimeout(() => {
-          setCurrentConversation(null);
-          // Refresh conversation summaries to include new conversation
-          // In real implementation, this would be handled by the API
-        }, 3000);
-      }, 2000);
+      // API call to send message
+      agentApi.sendMessage(dagEntity.id, { message: messageText })
+        .then(response => {
+          setCurrentConversation(prev => prev ? {
+            ...prev,
+            agentResponse: response.agent_response,
+            status: 'complete'
+          } : null);
+          
+          // Auto-close current conversation after 3 seconds
+          setTimeout(() => {
+            setCurrentConversation(null);
+            // Refresh conversation summaries to include new conversation
+            if (dagEntity) {
+              agentApi.getConversationSummaries(dagEntity.id)
+                .then(summaries => {
+                  const summariesWithDates = summaries.map(s => ({
+                    ...s,
+                    timestamp: new Date(s.timestamp)
+                  }));
+                  setConversationSummaries(summariesWithDates);
+                })
+                .catch(error => console.error('Failed to refresh summaries:', error));
+            }
+          }, 3000);
+        })
+        .catch(error => {
+          console.error('Failed to send message:', error);
+          setCurrentConversation(prev => prev ? {
+            ...prev,
+            agentResponse: 'Sorry, I encountered an error while processing your message. Please try again.',
+            status: 'complete'
+          } : null);
+        });
     }, 500);
   };
 
@@ -357,7 +317,7 @@ const AgentWorkspaceModal: React.FC<AgentWorkspaceModalProps> = ({
                               )}
                             </IconButton>
                             <Typography variant="caption" color="text.secondary">
-                              {format(summary.timestamp, 'MMM dd, HH:mm')}
+                              {format(new Date(summary.timestamp), 'MMM dd, HH:mm')}
                             </Typography>
                           </Box>
                         </Box>
@@ -377,7 +337,7 @@ const AgentWorkspaceModal: React.FC<AgentWorkspaceModalProps> = ({
                               {expandedConversations.get(summary.id)?.messages.map((msg, msgIndex) => (
                                 <Box key={msg.id} sx={{ mt: 1, mb: 1 }}>
                                   <Typography variant="caption" fontWeight={500} color={msg.type === 'user' ? 'primary.main' : 'secondary.main'}>
-                                    {msg.type === 'user' ? 'You' : 'Agent'} • {format(msg.timestamp, 'HH:mm')}
+                                    {msg.type === 'user' ? 'You' : 'Agent'} • {format(new Date(msg.timestamp), 'HH:mm')}
                                   </Typography>
                                   <Typography variant="body2" sx={{ ml: 1 }}>
                                     {msg.content}
