@@ -1587,7 +1587,11 @@ export class RedisCache {
     mainCacheKeys: (keyof typeof CACHE_KEYS)[],
     refreshData: boolean = true
   ): Promise<void> {
+    // Handle fallback mode when Redis is unavailable
     if (!this.useRedis || !this.redis) {
+      if (refreshData) {
+        await this.refreshFallbackDataForKeys(mainCacheKeys);
+      }
       return;
     }
 
@@ -1639,6 +1643,39 @@ export class RedisCache {
 
     } catch (error) {
       console.error('Error refreshing main cache data:', error);
+    }
+  }
+
+  private async refreshFallbackDataForKeys(affectedKeys: (keyof typeof CACHE_KEYS)[]): Promise<void> {
+    if (!this.fallbackData) {
+      await this.refreshFallbackData();
+      return;
+    }
+
+    try {
+      // Update specific parts of fallback data based on the keys
+      for (const key of affectedKeys) {
+        switch (key) {
+          case 'TEAMS':
+            this.fallbackData.teams = await storage.getTeams();
+            break;
+          case 'ENTITIES':
+            this.fallbackData.entities = await storage.getEntities();
+            break;
+          case 'TENANTS':
+            this.fallbackData.tenants = await storage.getTenants();
+            break;
+          case 'METRICS':
+            // Recalculate all fallback data to get fresh metrics
+            const refreshedData = await this.getCacheRefreshData();
+            this.fallbackData = refreshedData;
+            break;
+        }
+      }
+    } catch (error) {
+      console.error('Error refreshing fallback data for keys:', error);
+      // Fallback to full refresh if specific update fails
+      await this.refreshFallbackData();
     }
   }
 
