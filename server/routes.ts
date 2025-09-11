@@ -201,6 +201,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // FastAPI fallback route for admin users endpoint
+  app.get("/api/v1/users", async (req, res) => {
+    try {
+      const users = await storage.getUsers();
+      res.json(users);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch users from FastAPI fallback" });
+    }
+  });
+
   app.get("/api/users/roles", async (req, res) => {
     try {
       const roles = await storage.getUserRoles();

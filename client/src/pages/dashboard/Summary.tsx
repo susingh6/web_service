@@ -35,7 +35,23 @@ const Summary = () => {
   const cacheManager = useCacheManager();
 
   const { metrics, complianceTrends, isLoading: metricsLoading, lastFetchFailed } = useAppSelector((state) => state.dashboard);
+  
+  // DEBUG: Log Redux store data
+  console.log('[DEBUG] Dashboard Redux State:', {
+    metrics,
+    complianceTrends,
+    metricsLoading,
+    lastFetchFailed
+  });
   const { list: entities, teams, isLoading: entitiesLoading } = useAppSelector((state) => state.entities);
+  
+  // DEBUG: Log Entities Redux State
+  console.log('[DEBUG] Entities Redux State:', {
+    entities: entities?.length || 0,
+    teamsCount: teams?.length || 0,
+    entitiesLoading,
+    entitiesSample: entities?.slice(0, 2)
+  });
 
   const [tabValue, setTabValue] = useState(0);
   const [openAddModal, setOpenAddModal] = useState(false);

@@ -46,7 +46,10 @@ const initialState: DashboardState = {
 export const fetchDashboardSummary = createAsyncThunk(
   'dashboard/fetchSummary',
   async (params: { tenantName: string; startDate?: string; endDate?: string }) => {
-    return await dashboardApi.getSummary(params.tenantName, params.startDate, params.endDate);
+    console.log('[DEBUG] fetchDashboardSummary called with params:', params);
+    const result = await dashboardApi.getSummary(params.tenantName, params.startDate, params.endDate);
+    console.log('[DEBUG] fetchDashboardSummary API response:', result);
+    return result;
   }
 );
 
@@ -76,12 +79,15 @@ const dashboardSlice = createSlice({
         state.lastFetchFailed = false;
       })
       .addCase(fetchDashboardSummary.fulfilled, (state, action) => {
+        console.log('[DEBUG] fetchDashboardSummary.fulfilled - payload:', action.payload);
+        console.log('[DEBUG] fetchDashboardSummary.fulfilled - metrics:', action.payload?.metrics);
         state.isLoading = false;
         state.lastFetchFailed = false;
         state.metrics = action.payload.metrics;
         state.complianceTrends = action.payload.complianceTrends;
       })
       .addCase(fetchDashboardSummary.rejected, (state, action) => {
+        console.log('[DEBUG] fetchDashboardSummary.rejected - error:', action.error);
         state.isLoading = false;
         state.lastFetchFailed = true;
         state.error = action.error.message || 'Failed to fetch dashboard summary';

@@ -20,8 +20,8 @@ export const devConfig = {
     },
     
     // Core entities - FastAPI
-    entities: '/api/v1/entities',
-    teams: '/api/v1/teams',
+    entities: '/api/entities',
+    teams: '/api/teams',
     tenants: '/api/v1/tenants',
     teamDetails: (teamName: string) => `/api/v1/get_team_details/${teamName}`,
     teamMembers: (teamName: string) => `/api/v1/teams/${teamName}/members`,
@@ -34,7 +34,7 @@ export const devConfig = {
     
     // Dashboard - FastAPI
     dashboard: {
-      summary: '/api/v1/dashboard/summary',
+      summary: '/api/dashboard/summary',
       teamPerformance: (teamId: number) => `/api/v1/dashboard/team/${teamId}`,
       complianceTrend: '/api/v1/dashboard/compliance-trend',
     },

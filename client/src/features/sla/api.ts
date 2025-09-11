@@ -179,8 +179,11 @@ export const dashboardApi = {
       url += `?${params.toString()}`;
     }
     
+    console.log('[DEBUG] dashboardApi.getSummary - calling URL:', url);
     const res = await environmentAwareApiRequest('GET', url);
-    return await res.json();
+    const jsonData = await res.json();
+    console.log('[DEBUG] dashboardApi.getSummary - received data:', jsonData);
+    return jsonData;
   },
   getTeamPerformance: async (teamId: number) => {
     const res = await environmentAwareApiRequest('GET', endpoints.dashboard.teamPerformance(teamId));
