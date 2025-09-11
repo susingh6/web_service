@@ -83,6 +83,84 @@ const Summary = () => {
     label: 'Last 30 Days',
   });
 
+  // Persist/restore dashboard UI state across route navigations
+  const STORAGE_KEY = 'dashboard_ui_state_v1';
+  const [restored, setRestored] = useState(false);
+
+  // Restore when tenants are loaded (so we can match tenant by name)
+  useEffect(() => {
+    if (restored) return;
+    if (!tenants || tenants.length === 0) return;
+    try {
+      const raw = sessionStorage.getItem(STORAGE_KEY);
+      if (!raw) {
+        setRestored(true);
+        return;
+      }
+      const parsed = JSON.parse(raw);
+      // Restore selected tenant by name if it still exists
+      if (parsed?.selectedTenantName) {
+        const t = tenants.find(tn => tn.name === parsed.selectedTenantName);
+        if (t) setSelectedTenant(t);
+      }
+      // Restore open team tabs and active tab
+      if (Array.isArray(parsed?.openTeamTabs)) setOpenTeamTabs(parsed.openTeamTabs);
+      if (typeof parsed?.activeTab === 'string') setActiveTab(parsed.activeTab);
+      // Restore summary date range
+      if (parsed?.summaryDateRange) {
+        setSummaryDateRange({
+          startDate: parsed.summaryDateRange.startDate ? new Date(parsed.summaryDateRange.startDate) : startOfDay(subDays(new Date(), 29)),
+          endDate: parsed.summaryDateRange.endDate ? new Date(parsed.summaryDateRange.endDate) : endOfDay(new Date()),
+          label: parsed.summaryDateRange.label || 'Last 30 Days',
+        });
+      }
+      // Restore team date ranges
+      if (parsed?.teamDateRanges && typeof parsed.teamDateRanges === 'object') {
+        const restoredRanges: Record<string, { startDate: Date; endDate: Date; label: string }>= {} as any;
+        Object.entries(parsed.teamDateRanges).forEach(([teamName, range]: any) => {
+          if (range) {
+            restoredRanges[teamName] = {
+              startDate: range.startDate ? new Date(range.startDate) : startOfDay(subDays(new Date(), 29)),
+              endDate: range.endDate ? new Date(range.endDate) : endOfDay(new Date()),
+              label: range.label || 'Last 30 Days',
+            };
+          }
+        });
+        setTeamDateRanges(restoredRanges);
+      }
+    } catch (_e) {
+      // Ignore corrupt state
+    } finally {
+      setRestored(true);
+    }
+  }, [tenants, restored]);
+
+  // Save on relevant state changes
+  useEffect(() => {
+    try {
+      const state = {
+        selectedTenantName: selectedTenant?.name,
+        openTeamTabs,
+        activeTab,
+        summaryDateRange: {
+          startDate: summaryDateRange.startDate?.toISOString?.() || null,
+          endDate: summaryDateRange.endDate?.toISOString?.() || null,
+          label: summaryDateRange.label,
+        },
+        teamDateRanges: Object.fromEntries(
+          Object.entries(teamDateRanges).map(([k, v]) => [k, {
+            startDate: v.startDate?.toISOString?.() || null,
+            endDate: v.endDate?.toISOString?.() || null,
+            label: v.label,
+          }])
+        ),
+      };
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch (_e) {
+      // Ignore quota or serialization errors
+    }
+  }, [selectedTenant?.name, openTeamTabs, activeTab, summaryDateRange, teamDateRanges]);
+
   // WebSocket connection for real-time updates
   const { isConnected } = useWebSocket({
     onEntityUpdated: (data) => {
