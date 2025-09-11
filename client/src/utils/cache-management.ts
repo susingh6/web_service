@@ -685,6 +685,9 @@ export function useEntityMutation() {
     const entityType = entityData.type as 'table' | 'dag';
     const scenario = entityType === 'table' ? 'TABLE_ENTITY_UPDATED' : 'DAG_ENTITY_UPDATED';
     
+    // Use TeamDashboard's React Query key pattern for cache invalidation
+    const teamQueryKey = ['entities', entityData.tenant_name, entityData.teamId];
+    
     // Handle optimistic entities differently
     if (isOptimisticId(entityId)) {
       // Queue the operation for when real ID arrives
@@ -700,7 +703,7 @@ export function useEntityMutation() {
       
       // Apply optimistic update to cache immediately
       cacheManager.setOptimisticData(
-        CACHE_PATTERNS.ENTITIES.BY_TEAM(entityData.teamId),
+        teamQueryKey,
         (old: any[] | undefined) => {
           if (!old) return [];
           return old.map(entity => 
@@ -715,7 +718,7 @@ export function useEntityMutation() {
     
     return executeWithOptimism({
       optimisticUpdate: {
-        queryKey: CACHE_PATTERNS.ENTITIES.BY_TEAM(entityData.teamId),
+        queryKey: teamQueryKey,
         updater: (old: any[] | undefined) => {
           if (!old) return [];
           return old.map(entity => 
@@ -747,19 +750,24 @@ export function useEntityMutation() {
         params: [entityId, entityData.teamId],
         rebuildOptions: { teamId: entityData.teamId, entityType },
       },
-      rollbackKeys: [CACHE_PATTERNS.ENTITIES.BY_TEAM(entityData.teamId)],
+      rollbackKeys: [teamQueryKey],
     });
   };
 
-  const deleteEntity = async (entityId: number, teamId: number, entityType: 'table' | 'dag') => {
+  const deleteEntity = async (entityId: number, teamId: number, entityType: 'table' | 'dag', tenantName?: string) => {
     const scenario = entityType === 'table' ? 'TABLE_ENTITY_DELETED' : 'DAG_ENTITY_DELETED';
+    
+    // Use TeamDashboard's React Query key pattern for cache invalidation
+    // Default to 'Data Engineering' if no tenantName provided
+    const effectiveTenantName = tenantName || 'Data Engineering';
+    const teamQueryKey = ['entities', effectiveTenantName, teamId];
     
     // Handle optimistic entities differently  
     if (isOptimisticId(entityId)) {
       // For optimistic entities, just remove from cache immediately
       // No API call needed since entity doesn't exist on server yet
       cacheManager.setOptimisticData(
-        CACHE_PATTERNS.ENTITIES.BY_TEAM(teamId),
+        teamQueryKey,
         (old: any[] | undefined) => 
           old ? old.filter(entity => entity.id !== entityId) : []
       );
@@ -773,7 +781,7 @@ export function useEntityMutation() {
     
     return executeWithOptimism({
       optimisticUpdate: {
-        queryKey: CACHE_PATTERNS.ENTITIES.BY_TEAM(teamId),
+        queryKey: teamQueryKey,
         updater: (old: any[] | undefined) => 
           old ? old.filter(entity => entity.id !== entityId) : [],
       },
@@ -800,7 +808,7 @@ export function useEntityMutation() {
         params: [teamId],
         rebuildOptions: { teamId, entityType },
       },
-      rollbackKeys: [CACHE_PATTERNS.ENTITIES.BY_TEAM(teamId)],
+      rollbackKeys: [teamQueryKey],
     });
   };
 
