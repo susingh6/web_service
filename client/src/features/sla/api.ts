@@ -152,8 +152,20 @@ export const entitiesApi = {
     return await res.json();
   },
   update: async (payload: { id: number; updates: any }) => {
+    console.log('🌐 API UPDATE REQUEST START:', payload);
+    
     const res = await environmentAwareApiRequest('PUT', endpoints.entity.byId(payload.id), payload.updates);
-    return await res.json();
+    
+    console.log('🌐 API UPDATE RESPONSE:', { status: res.status, ok: res.ok, statusText: res.statusText });
+    
+    if (!res.ok) {
+      console.error('🌐 API UPDATE ERROR:', { status: res.status, statusText: res.statusText });
+      throw new Error(`Failed to update entity: ${res.status} ${res.statusText}`);
+    }
+    
+    const result = await res.json();
+    console.log('🌐 API UPDATE SUCCESS:', result);
+    return result;
   },
   delete: async (id: number) => {
     const res = await environmentAwareApiRequest('DELETE', endpoints.entity.byId(id));
