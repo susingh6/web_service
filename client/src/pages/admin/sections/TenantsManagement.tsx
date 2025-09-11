@@ -32,6 +32,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { buildUrl, endpoints } from '@/config';
+import { tenantsApi } from '@/features/sla/api';
 import { useOptimisticMutation } from '@/utils/cache-management';
 
 interface Tenant {
@@ -138,33 +139,14 @@ const TenantsManagement = () => {
   const queryClient = useQueryClient();
   const { executeWithOptimism, cacheManager } = useOptimisticMutation();
 
-  // Fetch tenants from admin endpoint with FastAPI headers
+  // Fetch ALL tenants for admin (not just active ones)
   const { data: tenants = [], isLoading } = useQuery({
     queryKey: ['admin', 'tenants'],
     staleTime: 6 * 60 * 60 * 1000, // Cache for 6 hours
     gcTime: 6 * 60 * 60 * 1000,    // Keep in memory for 6 hours
     queryFn: async () => {
-      // Build headers with session ID for RBAC enforcement
-      const headers: Record<string, string> = {
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache'
-      };
-      
-      // CRITICAL: Add X-Session-ID header for FastAPI RBAC
-      const sessionId = localStorage.getItem('fastapi_session_id');
-      if (sessionId) {
-        headers['X-Session-ID'] = sessionId;
-      }
-      
-      const response = await fetch(buildUrl(endpoints.admin.tenants.getAll), {
-        cache: 'no-store',
-        headers,
-        credentials: 'include'
-      });
-      if (!response.ok) {
-        throw new Error('Failed to fetch tenants');
-      }
-      return response.json();
+      // Use environment-aware tenant API (admin needs all tenants, not just active)
+      return await tenantsApi.getAll(false); // active_only=false for admin
     },
   });
 
@@ -187,23 +169,8 @@ const TenantsManagement = () => {
           updater: (old: any[] | undefined) => old ? [...old, optimisticTenant] : [optimisticTenant],
         },
         mutationFn: async () => {
-          // Build headers with session ID for RBAC enforcement
-          const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-          
-          // CRITICAL: Add X-Session-ID header for FastAPI RBAC
-          const sessionId = localStorage.getItem('fastapi_session_id');
-          if (sessionId) {
-            headers['X-Session-ID'] = sessionId;
-          }
-          
-          const response = await fetch(buildUrl(endpoints.admin.tenants.create), {
-            method: 'POST',
-            headers,
-            body: JSON.stringify(tenantData),
-            credentials: 'include',
-          });
-          if (!response.ok) throw new Error('Failed to create tenant');
-          return response.json();
+          // Use environment-aware tenant API for creating tenants
+          return await tenantsApi.create(tenantData);
         },
         // Use generic invalidation since tenants don't have specific scenarios yet
         invalidationScenario: undefined,
@@ -271,23 +238,8 @@ const TenantsManagement = () => {
           },
         },
         mutationFn: async () => {
-          // Build headers with session ID for RBAC enforcement
-          const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-          
-          // CRITICAL: Add X-Session-ID header for FastAPI RBAC
-          const sessionId = localStorage.getItem('fastapi_session_id');
-          if (sessionId) {
-            headers['X-Session-ID'] = sessionId;
-          }
-          
-          const response = await fetch(buildUrl(endpoints.admin.tenants.update, tenantId), {
-            method: 'PUT',
-            headers,
-            body: JSON.stringify(tenantData),
-            credentials: 'include',
-          });
-          if (!response.ok) throw new Error('Failed to update tenant');
-          return response.json();
+          // Use environment-aware tenant API for updating tenants
+          return await tenantsApi.update(tenantId, tenantData);
         },
         // Use generic invalidation since tenants don't have specific scenarios yet
         invalidationScenario: undefined,

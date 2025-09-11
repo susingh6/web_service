@@ -25,6 +25,7 @@ import { useToast } from '@/hooks/use-toast';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 import { useQuery } from '@tanstack/react-query';
 import type { Tenant } from '@/lib/tenantCache';
+import { tenantsApi } from '@/features/sla/api';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { useEntityMutation, CACHE_PATTERNS, useCacheManager } from '@/utils/cache-management';
 
@@ -63,12 +64,12 @@ const Summary = () => {
   const [openTaskModal, setOpenTaskModal] = useState(false);
   const [selectedEntity, setSelectedEntity] = useState<Entity | null>(null);
   const [chartFilter, setChartFilter] = useState('All');
-  // Use React Query to fetch tenants instead of old cache system
+  // Use environment-aware tenant API with active_only filter for dashboard
   const { data: tenants = [], isLoading: tenantsLoading } = useQuery<Tenant[]>({
-    queryKey: ['/api/tenants'],
+    queryKey: ['/api/tenants', 'active'],
     queryFn: async () => {
-      const response = await apiRequest('GET', '/api/tenants');
-      return await response.json();
+      // Only fetch active tenants for dashboard filtering
+      return await tenantsApi.getAll(true); // active_only=true
     },
     staleTime: 6 * 60 * 60 * 1000, // 6 hours to match cache TTL
   });

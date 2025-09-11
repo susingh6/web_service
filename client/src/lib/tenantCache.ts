@@ -1,5 +1,6 @@
 import { config, buildUrl } from '@/config';
 import { fetchWithCacheGeneric, getFromCacheGeneric } from './cacheUtils';
+import { tenantsApi } from '@/features/sla/api';
 
 export interface Tenant {
   id: number;
@@ -23,19 +24,13 @@ const getTenantCacheTTL = (): number => {
 
 /**
  * Fetch tenants from API with caching
+ * @param activeOnly Whether to fetch only active tenants (for dashboard filtering)
  * @returns Promise<Tenant[]>
  */
-export const fetchTenants = async (): Promise<Tenant[]> => {
+export const fetchTenants = async (activeOnly?: boolean): Promise<Tenant[]> => {
   try {
-    const url = buildUrl(config.endpoints.tenants);
-    const customTTL = getTenantCacheTTL();
-    
-    // Now using actual API call to fetch tenants from backend
-    return await fetchWithCacheGeneric<Tenant[]>(
-      url,
-      TENANT_CACHE_KEY,
-      DEFAULT_TENANTS
-    );
+    // Use environment-aware tenant API instead of direct URL
+    return await tenantsApi.getAll(activeOnly);
   } catch (error) {
     console.error('Error fetching tenants:', error);
     return DEFAULT_TENANTS;
@@ -57,6 +52,19 @@ export const getTenants = (): Tenant[] => {
 export const getDefaultTenant = (): Tenant => {
   const tenants = getTenants();
   return tenants.find(t => t.name === 'Data Engineering') || tenants[0];
+};
+
+/**
+ * Fetch only active tenants for dashboard filtering
+ * @returns Promise<Tenant[]>
+ */
+export const fetchActiveTenants = async (): Promise<Tenant[]> => {
+  try {
+    return await tenantsApi.getAll(true); // active_only=true
+  } catch (error) {
+    console.error('Error fetching active tenants:', error);
+    return DEFAULT_TENANTS;
+  }
 };
 
 /**

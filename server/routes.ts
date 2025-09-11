@@ -34,7 +34,8 @@ const adminTenantSchema = z.object({
 
 const updateTenantSchema = z.object({
   name: z.string().min(1, "Tenant name is required").optional(),
-  description: z.string().optional()
+  description: z.string().optional(),
+  isActive: z.boolean().optional()
 }).refine(data => Object.keys(data).length > 0, {
   message: "At least one field must be provided for update"
 });
@@ -377,7 +378,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await redisCache.set(cacheKey, tenants, 6 * 60 * 60); // 6 hour cache
       }
 
-      res.json(tenants);
+      // Filter out inactive tenants for dashboard tenant filter dropdown
+      const activeTenants = tenants.filter(tenant => tenant.isActive !== false);
+
+      res.json(activeTenants);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch tenants" });
     }
@@ -1750,6 +1754,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const tenantSchema = z.object({
         name: z.string().min(1).optional(),
         description: z.string().optional(),
+        isActive: z.boolean().optional(),
       });
       
       const result = tenantSchema.safeParse(req.body);

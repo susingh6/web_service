@@ -103,6 +103,29 @@ export const teamsApi = {
   },
 };
 
+export const tenantsApi = {
+  getAll: async (activeOnly?: boolean) => {
+    let url = endpoints.tenants;
+    if (activeOnly) {
+      url += `?active_only=true`;
+    }
+    const res = await environmentAwareApiRequest('GET', url);
+    return await res.json();
+  },
+  create: async (tenantData: any) => {
+    const res = await environmentAwareApiRequest('POST', endpoints.admin.tenants.create, tenantData);
+    return await res.json();
+  },
+  update: async (tenantId: number, tenantData: any) => {
+    const res = await environmentAwareApiRequest('PUT', endpoints.admin.tenants.update(tenantId), tenantData);
+    return await res.json();
+  },
+  disable: async (tenantId: number) => {
+    const res = await environmentAwareApiRequest('PUT', endpoints.admin.tenants.disable(tenantId));
+    return await res.json();
+  },
+};
+
 export const entitiesApi = {
   getAll: async (tenant?: string) => {
     let url = endpoints.entities;
