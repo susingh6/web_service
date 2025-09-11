@@ -487,7 +487,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           'team_trends:*',
           'dashboard_summary:*',
           'entities:*'
-        ]
+        ],
+        mainCacheKeys: ['TEAMS'], // This invalidates CACHE_KEYS.TEAMS used by getAllTeams()
+        refreshAffectedData: true
       });
 
       res.status(201).json(newTeam);
