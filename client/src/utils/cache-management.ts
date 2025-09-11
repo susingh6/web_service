@@ -736,14 +736,26 @@ export function useEntityMutation() {
           headers['X-Session-ID'] = sessionId;
         }
         
+        console.log('🔧 CACHE UPDATE START:', { entityId, entityData });
+        
         const response = await fetch(`/api/entities/${entityId}`, {
           method: 'PUT',
           headers,
           body: JSON.stringify(entityData),
           credentials: 'include',
         });
-        if (!response.ok) throw new Error('Failed to update entity');
-        return response.json();
+        
+        console.log('🔧 CACHE UPDATE RESPONSE:', { status: response.status, ok: response.ok });
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('🔧 CACHE UPDATE FAILED:', { status: response.status, errorText });
+          throw new Error('Failed to update entity');
+        }
+        
+        const result = await response.json();
+        console.log('🔧 CACHE UPDATE SUCCESS:', result);
+        return result;
       },
       invalidationScenario: {
         scenario,
