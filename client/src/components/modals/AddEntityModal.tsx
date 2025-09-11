@@ -226,21 +226,19 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
       const entityData = {
         ...data,
         user_email: userEmail, // Use authenticated user's email
-        // Map form fields to API fields - use correct field for each type
-        name: entityType === 'dag' ? data.dag_name : data.entity_name,
+        // Map form fields to API fields - use entity_name for both table and DAG
+        name: data.entity_name,
         description: entityType === 'dag' ? data.dag_description : data.description,
         type: entityType,
         teamId: team.id, // Add team ID for cache invalidation
         
         is_entity_owner: isEntityOwner, // CRITICAL: Map the ownership state to the entity field
-        // Ensure required table fields are included
-        ...(entityType === 'table' && {
-          slaTarget: data.slaTarget || 95,
-          status: data.status || 'Active', 
-          refreshFrequency: data.refreshFrequency || 'Daily',
-          owner: data.owner || data.owner_email || '',
-          ownerEmail: data.ownerEmail || data.owner_email || '',
-        })
+        // Ensure required fields are included for both table and DAG entities
+        slaTarget: data.slaTarget || 95,
+        status: data.status || 'Active', 
+        refreshFrequency: data.refreshFrequency || 'Daily',
+        owner: data.owner || data.owner_email || '',
+        ownerEmail: data.ownerEmail || data.owner_email || '',
       };
       
       console.log('📤 Final entity data to submit:', entityData);
