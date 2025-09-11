@@ -19,81 +19,78 @@ import {
   ListItemText,
   ListItemIcon
 } from '@mui/material';
+import { Dialog, DialogTitle, DialogContent, DialogActions, FormControlLabel, Switch } from '@mui/material';
 import {
   Add as AddIcon,
   Edit as EditIcon,
   Security as SecurityIcon,
   Check as CheckIcon,
-  Close as CloseIcon,
+  Delete as DeleteIcon,
   Search as SearchIcon,
   Clear as ClearIcon
 } from '@mui/icons-material';
 import TextField from '@mui/material/TextField';
 import InputAdornment from '@mui/material/InputAdornment';
 import { useDeferredValue, useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { buildUrl, endpoints } from '@/config';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { buildUrl, endpoints, isDevelopment } from '@/config';
+import { useToast } from '@/hooks/use-toast';
+import { invalidateAdminCaches } from '@/lib/cacheKeys';
+import { FormControl, InputLabel, Select, MenuItem } from '@mui/material';
+import Autocomplete from '@mui/material/Autocomplete';
 
 interface Role {
   id: number;
-  name: string;
+  role_name: string;
   description: string;
-  permissions: string[];
-  userCount: number;
-  isSystemRole: boolean;
+  team_name?: string | null;
+  tenant_name?: string | null;
+  role_permissions: string[];
+  userCount?: number;
+  is_system_role: boolean;
+  is_active: boolean;
 }
 
 const RolesManagement = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const deferredSearchQuery = useDeferredValue(searchQuery);
-  // Fetch roles
+
+  // Preload tenants (active) and teams for dropdowns
+  const { data: tenants = [] } = useQuery({
+    queryKey: ['/api/tenants', 'active'],
+    queryFn: async () => {
+      const res = await fetch(buildUrl(endpoints.admin.tenants.getAll));
+      const all = await res.json();
+      return (all || []).filter((t: any) => t.isActive !== false);
+    },
+    staleTime: 6 * 60 * 60 * 1000,
+  });
+  const { data: teams = [] } = useQuery({
+    queryKey: ['/api/teams'],
+    queryFn: async () => {
+      const res = await fetch(buildUrl(endpoints.teams));
+      const all = await res.json();
+      return (all || []).filter((tm: any) => tm.isActive !== false);
+    },
+    staleTime: 6 * 60 * 60 * 1000,
+  });
+
   const { data: roles = [], isLoading } = useQuery<Role[]>({
     queryKey: ['admin', 'roles'],
     queryFn: async () => {
-      // Mock data for now - replace with real API
-      return [
-        {
-          id: 1,
-          name: 'Admin',
-          description: 'Full system administration access',
-          permissions: [
-            'manage_users',
-            'manage_teams',
-            'manage_tenants',
-            'resolve_conflicts',
-            'view_all_entities',
-            'manage_system_settings'
-          ],
-          userCount: 3,
-          isSystemRole: true,
-        },
-        {
-          id: 2,
-          name: 'User',
-          description: 'Standard user with entity management permissions',
-          permissions: [
-            'view_entities',
-            'create_entities',
-            'edit_own_entities',
-            'view_team_entities',
-            'create_notifications'
-          ],
-          userCount: 42,
-          isSystemRole: true,
-        },
-        {
-          id: 3,
-          name: 'Viewer',
-          description: 'Read-only access to assigned entities',
-          permissions: [
-            'view_entities',
-            'view_team_entities'
-          ],
-          userCount: 8,
-          isSystemRole: false,
-        },
-      ] as Role[];
+      const mock: Role[] = [
+        { id: 1, role_name: 'sla-admin', description: 'Admin role', role_permissions: ['admin'], is_system_role: true, is_active: true, userCount: 3 },
+        { id: 2, role_name: 'sla-dag-entity-editor', description: 'DAG Entity Editor role', role_permissions: ['dag-status-editor', 'dag-sla-editor', 'dag-progress-editor', 'viewer'], is_system_role: true, is_active: true, userCount: 12 },
+        { id: 3, role_name: 'sla-table-entity-editor', description: 'Table Entity Editor role', role_permissions: ['table-status-editor', 'table-sla-editor', 'table-progress-editor', 'viewer'], is_system_role: true, is_active: true, userCount: 10 },
+        { id: 4, role_name: 'sla-viewer', description: 'Viewer role', role_permissions: ['viewer'], is_system_role: true, is_active: true, userCount: 8 },
+        // Non-system role example for Data Engineering / PGM
+        { id: 5, role_name: 'sla-pgm-dag-entity-editor', description: 'PGM DAG Entity Editor', tenant_name: 'Data Engineering', team_name: 'PGM', role_permissions: ['dag-status-editor', 'dag-sla-editor', 'dag-progress-editor', 'viewer'], is_system_role: false, is_active: true, userCount: 2 },
+      ];
+      return mock;
     },
+    staleTime: 6 * 60 * 60 * 1000,
+    gcTime: 6 * 60 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   const filteredRoles = useMemo(() => {
@@ -103,15 +100,24 @@ const RolesManagement = () => {
     const tokens = q.split(' ').filter(Boolean);
     return (roles as Role[]).filter((r) => {
       const blob = [
-        r.name,
+        r.role_name,
         r.description,
-        r.permissions.join(' '),
-        r.isSystemRole ? 'system' : 'custom',
-        String(r.userCount)
+        (r.role_permissions || []).join(' '),
+        r.is_system_role ? 'system' : 'team-specific',
+        r.is_active ? 'active' : 'inactive',
+        (r.tenant_name || ''),
+        (r.team_name || '')
       ].join(' ').toLowerCase();
       return tokens.every(tok => blob.includes(tok));
     });
   }, [roles, deferredSearchQuery]);
+
+  // Unique permission list sourced from cached roles (6h cache)
+  const permissionOptions = useMemo(() => {
+    const set = new Set<string>();
+    (roles as Role[]).forEach(r => (r.role_permissions || []).forEach(p => set.add(p)));
+    return Array.from(set).sort();
+  }, [roles]);
 
   const getPermissionLabel = (permission: string) => {
     const labels: Record<string, string> = {
@@ -131,9 +137,149 @@ const RolesManagement = () => {
   };
 
   const getRoleColor = (role: Role) => {
-    if (role.name === 'Admin') return 'error';
-    if (role.name === 'User') return 'primary';
+    if (role.role_name?.toLowerCase() === 'admin') return 'error';
+    if (role.role_name?.toLowerCase() === 'user') return 'primary';
     return 'default';
+  };
+
+  // State for dialogs and selection
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [selectedRole, setSelectedRole] = useState<Role | null>(null);
+  const [roleForm, setRoleForm] = useState<Partial<Role>>({ role_name: '', description: '', role_permissions: [], is_active: true, is_system_role: false });
+  const [roleToDelete, setRoleToDelete] = useState<Role | null>(null);
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  // Create role (optimistic)
+  const createRoleMutation = useMutation({
+    mutationFn: async (data: Partial<Role>) => {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      const res = await fetch(buildUrl(endpoints.admin.roles.create), { method: 'POST', headers, body: JSON.stringify(data), credentials: 'include' });
+      if (!res.ok) {
+        if (isDevelopment) {
+          return { id: Date.now(), ...data } as Role;
+        }
+        throw new Error('Failed to create role');
+      }
+      return res.json();
+    },
+    onMutate: async (data) => {
+      await queryClient.cancelQueries({ queryKey: ['admin', 'roles'] });
+      const previous = queryClient.getQueryData<Role[]>(['admin', 'roles']);
+      const optimistic: Role = {
+        id: Date.now(),
+        role_name: data.role_name || 'new-role',
+        description: data.description || '',
+        role_permissions: data.role_permissions || [],
+        is_system_role: !!data.is_system_role,
+        is_active: data.is_active ?? true,
+        tenant_name: data.tenant_name,
+        team_name: data.team_name,
+      } as Role;
+      queryClient.setQueryData<Role[]>(['admin', 'roles'], (old) => old ? [...old, optimistic] : [optimistic]);
+      return { previous };
+    },
+    onError: (_e, _v, ctx) => { if (ctx?.previous) queryClient.setQueryData(['admin', 'roles'], ctx.previous); },
+    onSuccess: () => { toast({ title: 'Role Created', description: 'New role has been created.' }); },
+    onSettled: async () => {
+      await invalidateAdminCaches(queryClient);
+      // In development, keep optimistic cache; in prod, refetch from API
+      if (!isDevelopment) {
+        await queryClient.invalidateQueries({ queryKey: ['admin', 'roles'] });
+      }
+    }
+  });
+
+  // Update role (optimistic), includes Active toggle (soft delete)
+  const updateRoleMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: Partial<Role> }) => {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      const res = await fetch(buildUrl(endpoints.admin.roles.update, id), { method: 'PUT', headers, body: JSON.stringify(data), credentials: 'include' });
+      if (!res.ok) {
+        if (isDevelopment) return { id, ...data } as any;
+        throw new Error('Failed to update role');
+      }
+      return res.json();
+    },
+    onMutate: async ({ id, data }) => {
+      await queryClient.cancelQueries({ queryKey: ['admin', 'roles'] });
+      const previous = queryClient.getQueryData<Role[]>(['admin', 'roles']);
+      queryClient.setQueryData<Role[]>(['admin', 'roles'], (old) => old ? old.map(r => r.id === id ? { ...r, ...data } as Role : r) : []);
+      return { previous };
+    },
+    onError: (_e, _v, ctx) => { if (ctx?.previous) queryClient.setQueryData(['admin', 'roles'], ctx.previous); },
+    onSuccess: () => { toast({ title: 'Role Updated', description: 'Role has been updated.' }); },
+    onSettled: async () => {
+      await invalidateAdminCaches(queryClient);
+      if (!isDevelopment) {
+        await queryClient.invalidateQueries({ queryKey: ['admin', 'roles'] });
+      }
+    }
+  });
+
+  // Hard delete (DELETE)
+  const deleteRoleMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await fetch(buildUrl(endpoints.admin.roles.update, id), { method: 'DELETE', credentials: 'include' });
+      if (!res.ok) {
+        if (isDevelopment) return true;
+        throw new Error('Failed to delete role');
+      }
+      return true;
+    },
+    onMutate: async (id: number) => {
+      await queryClient.cancelQueries({ queryKey: ['admin', 'roles'] });
+      const previous = queryClient.getQueryData<Role[]>(['admin', 'roles']);
+      queryClient.setQueryData<Role[]>(['admin', 'roles'], (old) => old ? old.filter(r => r.id !== id) : []);
+      return { previous };
+    },
+    onError: (_e, _v, ctx) => { if (ctx?.previous) queryClient.setQueryData(['admin', 'roles'], ctx.previous); },
+    onSuccess: () => { toast({ title: 'Role Deleted', description: 'Role removed.' }); },
+    onSettled: async () => {
+      await invalidateAdminCaches(queryClient);
+      if (!isDevelopment) {
+        await queryClient.invalidateQueries({ queryKey: ['admin', 'roles'] });
+      }
+    }
+  });
+
+  const handleCreate = () => {
+    setSelectedRole(null);
+    setRoleForm({ role_name: '', description: '', role_permissions: [], is_active: true, is_system_role: false });
+    setDialogOpen(true);
+  };
+  const handleEdit = (role: Role) => {
+    setSelectedRole(role);
+    setRoleForm({
+      role_name: role.role_name,
+      description: role.description,
+      role_permissions: role.role_permissions,
+      is_active: role.is_active,
+      is_system_role: role.is_system_role,
+      team_name: role.team_name || '',
+      tenant_name: role.tenant_name || ''
+    });
+    setDialogOpen(true);
+  };
+  const handleSubmit = async () => {
+    try {
+      if (selectedRole) {
+        await updateRoleMutation.mutateAsync({ id: selectedRole.id, data: roleForm });
+      } else {
+        await createRoleMutation.mutateAsync(roleForm);
+      }
+      setDialogOpen(false);
+      setSelectedRole(null);
+    } catch (e) { /* toast handled in mutations */ }
+  };
+  const handleAskDelete = (role: Role) => { setRoleToDelete(role); setDeleteOpen(true); };
+  const handleConfirmDelete = async () => {
+    if (!roleToDelete) return;
+    try { await deleteRoleMutation.mutateAsync(roleToDelete.id); } finally {
+      setDeleteOpen(false);
+      setRoleToDelete(null);
+    }
   };
 
   return (
@@ -144,13 +290,13 @@ const RolesManagement = () => {
             Roles & Permissions
           </Typography>
           <Typography variant="body1" color="text.secondary">
-            Manage user roles and their associated permissions
+            Manage roles and their associated permissions
           </Typography>
         </Box>
         <Button
           variant="contained"
           startIcon={<AddIcon />}
-          disabled // Disable for now until we implement role creation
+          onClick={handleCreate}
         >
           New Role
         </Button>
@@ -184,14 +330,14 @@ const RolesManagement = () => {
               }}
             />
           </Box>
-          
           <TableContainer component={Paper} elevation={0}>
             <Table>
               <TableHead>
                 <TableRow>
                   <TableCell>Role Name</TableCell>
                   <TableCell>Description</TableCell>
-                  <TableCell>Users</TableCell>
+                  <TableCell>Tenant</TableCell>
+                  <TableCell>Team</TableCell>
                   <TableCell>Type</TableCell>
                   <TableCell>Permissions</TableCell>
                   <TableCell>Actions</TableCell>
@@ -204,7 +350,7 @@ const RolesManagement = () => {
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <SecurityIcon color="primary" />
                         <Typography variant="body2" fontWeight="medium">
-                          {role.name}
+                          {role.role_name}
                         </Typography>
                       </Box>
                     </TableCell>
@@ -214,28 +360,29 @@ const RolesManagement = () => {
                       </Typography>
                     </TableCell>
                     <TableCell>
-                      <Typography variant="body2">
-                        {role.userCount} users
-                      </Typography>
+                      <Chip label={role.tenant_name || '—'} size="small" variant="outlined" color={role.tenant_name ? 'primary' : 'default'} />
+                    </TableCell>
+                    <TableCell>
+                      <Chip label={role.team_name || '—'} size="small" variant="outlined" color={role.team_name ? 'secondary' : 'default'} />
                     </TableCell>
                     <TableCell>
                       <Chip 
-                        label={role.isSystemRole ? 'System' : 'Custom'} 
+                        label={role.is_system_role ? 'System' : 'Team-specific'} 
                         size="small" 
-                        color={role.isSystemRole ? 'primary' : 'default'}
-                        variant={role.isSystemRole ? 'filled' : 'outlined'}
+                        color={role.is_system_role ? 'primary' : 'default'}
+                        variant={role.is_system_role ? 'filled' : 'outlined'}
                       />
                     </TableCell>
                     <TableCell>
                       <Tooltip 
                         title={
                           <List dense>
-                            {role.permissions.map((permission) => (
-                              <ListItem key={permission}>
+                            {(role.role_permissions || []).map((permission) => (
+                              <ListItem key={permission as string}>
                                 <ListItemIcon>
                                   <CheckIcon fontSize="small" />
                                 </ListItemIcon>
-                                <ListItemText primary={getPermissionLabel(permission)} />
+                                <ListItemText primary={permission as string} />
                               </ListItem>
                             ))}
                           </List>
@@ -243,7 +390,7 @@ const RolesManagement = () => {
                         arrow
                       >
                         <Chip 
-                          label={`${role.permissions.length} permissions`} 
+                          label={`${(role.role_permissions || []).length} permissions`} 
                           size="small" 
                           variant="outlined"
                           color={getRoleColor(role) as any}
@@ -252,16 +399,17 @@ const RolesManagement = () => {
                     </TableCell>
                     <TableCell>
                       <Box sx={{ display: 'flex', gap: 1 }}>
-                        <Tooltip title={role.isSystemRole ? 'System role cannot be edited' : 'Edit Role'}>
+                        <Tooltip title={'Edit Role'}>
                           <span>
-                            <IconButton 
-                              size="small" 
-                              color="primary"
-                              disabled={role.isSystemRole}
-                            >
+                            <IconButton size="small" color="primary" onClick={() => handleEdit(role)}>
                               <EditIcon />
                             </IconButton>
                           </span>
+                        </Tooltip>
+                        <Tooltip title="Delete Role">
+                          <IconButton size="small" color="error" onClick={() => handleAskDelete(role)}>
+                            <DeleteIcon />
+                          </IconButton>
                         </Tooltip>
                       </Box>
                     </TableCell>
@@ -272,6 +420,93 @@ const RolesManagement = () => {
           </TableContainer>
         </CardContent>
       </Card>
+
+      {/* Create/Edit Role Dialog */}
+      <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>{selectedRole ? 'Edit Role' : 'Create New Role'}</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+            <TextField label="Role Name" value={roleForm.role_name || ''} onChange={(e) => setRoleForm({ ...roleForm, role_name: e.target.value })} required fullWidth />
+            <TextField label="Description" value={roleForm.description || ''} onChange={(e) => setRoleForm({ ...roleForm, description: e.target.value })} fullWidth multiline rows={3} />
+            <FormControlLabel control={<Switch checked={!!roleForm.is_system_role} onChange={(e) => {
+              const isSystem = e.target.checked;
+              setRoleForm({ ...roleForm, is_system_role: isSystem, tenant_name: isSystem ? '' : (roleForm.tenant_name || ''), team_name: isSystem ? '' : (roleForm.team_name || '') });
+            }} />} label="System Role" />
+            {!roleForm.is_system_role && (
+              <>
+                <FormControl fullWidth required>
+                  <InputLabel>Tenant</InputLabel>
+                  <Select
+                    label="Tenant"
+                    value={roleForm.tenant_name || ''}
+                    onChange={(e) => setRoleForm({ ...roleForm, tenant_name: e.target.value as string })}
+                  >
+                    {tenants.map((t: any) => (
+                      <MenuItem key={t.id} value={t.name}>{t.name}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                <FormControl fullWidth required>
+                  <InputLabel>Team</InputLabel>
+                  <Select
+                    label="Team"
+                    value={roleForm.team_name || ''}
+                    onChange={(e) => setRoleForm({ ...roleForm, team_name: e.target.value as string })}
+                  >
+                    {teams.map((tm: any) => (
+                      <MenuItem key={tm.id} value={tm.name}>{tm.name}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </>
+            )}
+            <Autocomplete
+              multiple
+              freeSolo
+              options={permissionOptions}
+              value={(roleForm.role_permissions || []) as string[]}
+              onChange={(_e, newValue) => {
+                const cleaned = (newValue || []).map(v => (typeof v === 'string' ? v : String(v))).map(s => s.trim()).filter(Boolean);
+                setRoleForm({ ...roleForm, role_permissions: cleaned });
+              }}
+              renderTags={(value: readonly string[], getTagProps) =>
+                value.map((option: string, index: number) => (
+                  <Chip variant="outlined" label={option} {...getTagProps({ index })} key={`${option}-${index}`} />
+                ))
+              }
+              renderInput={(params) => (
+                <TextField {...params} label="Permissions" placeholder="Type to add or select" />
+              )}
+            />
+            <FormControlLabel control={<Switch checked={!!roleForm.is_active} onChange={(e) => setRoleForm({ ...roleForm, is_active: e.target.checked })} />} label="Active" />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDialogOpen(false)}>Cancel</Button>
+          <Button
+            onClick={handleSubmit}
+            variant="contained"
+            disabled={
+              !roleForm.role_name ||
+              (!roleForm.is_system_role && (!roleForm.tenant_name || !roleForm.team_name))
+            }
+          >
+            Save
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete confirmation */}
+      <Dialog open={deleteOpen} onClose={() => setDeleteOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Delete Role</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2">Are you sure you want to delete "{roleToDelete?.role_name}"?</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteOpen(false)}>Cancel</Button>
+          <Button onClick={handleConfirmDelete} variant="contained" color="error">Delete</Button>
+        </DialogActions>
+      </Dialog>
 
       <Card elevation={2} sx={{ mt: 3 }}>
         <CardContent>
