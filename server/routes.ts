@@ -564,14 +564,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Get entities by type
         entities = await storage.getEntitiesByType(type as string);
         console.log(`GET /api/v1/entities - Parameters: type=${type} - status: 200`);
-      } else if (tenant) {
-        // Get entities by tenant (filtered - entity owners only)
-        entities = await storage.getEntitiesByTenant(tenant as string);
-        console.log(`GET /api/v1/entities - Parameters: tenant=${tenant} - status: 200`);
       } else {
-        // Get all entities (filtered - entity owners only)
-        entities = await storage.getEntitiesByTenant();
-        console.log(`GET /api/v1/entities - status: 200`);
+        // Get all entities
+        entities = await storage.getEntities();
+        
+        if (tenant) {
+          // Filter by tenant on the client side
+          entities = entities.filter(entity => entity.tenant_name === tenant);
+          console.log(`GET /api/v1/entities - Parameters: tenant=${tenant} - status: 200`);
+        } else {
+          console.log(`GET /api/v1/entities - status: 200`);
+        }
       }
       
       res.json(entities);

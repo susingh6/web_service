@@ -109,8 +109,7 @@ const TeamDashboard = ({
     queryKey: ['entities', tenantName, team?.id],
     queryFn: async () => {
       if (!team?.id) return [];
-      const response = await apiRequest('GET', `/api/entities?teamId=${team.id}`);
-      return response.json();
+      return await entitiesApi.getByTeam(team.id);
     },
     enabled: !!team?.id,
     staleTime: 30 * 1000, // 30 seconds

@@ -22,6 +22,9 @@ function normalizeEntity(entity: any): Entity {
     ...entity,
     is_active: entity.is_active ?? entity.isActive,
     is_entity_owner: entity.is_entity_owner ?? entity.isEntityOwner,
+    // Ensure camelCase fields for UI compatibility
+    isActive: entity.isActive ?? entity.is_active,
+    isEntityOwner: entity.isEntityOwner ?? entity.is_entity_owner,
   };
 }
 
