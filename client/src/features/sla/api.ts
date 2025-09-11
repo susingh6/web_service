@@ -16,6 +16,15 @@ async function checkFastAPIAvailable(): Promise<boolean> {
   }
 }
 
+// Normalize entity field names (camelCase ↔ snake_case)
+function normalizeEntity(entity: any): Entity {
+  return {
+    ...entity,
+    is_active: entity.is_active ?? entity.isActive,
+    is_entity_owner: entity.is_entity_owner ?? entity.isEntityOwner,
+  };
+}
+
 // Express fallback request function (development only)
 async function expressApiRequest(
   method: string,
@@ -133,7 +142,8 @@ export const entitiesApi = {
       url += `?tenant=${encodeURIComponent(tenant)}`;
     }
     const res = await environmentAwareApiRequest('GET', url);
-    return await res.json();
+    const entities = await res.json();
+    return entities.map(normalizeEntity);
   },
   getById: async (id: number) => {
     const res = await environmentAwareApiRequest('GET', endpoints.entity.byId(id));
@@ -141,7 +151,8 @@ export const entitiesApi = {
   },
   getByTeam: async (teamId: number) => {
     const res = await environmentAwareApiRequest('GET', endpoints.entity.byTeam(teamId));
-    return await res.json();
+    const entities = await res.json();
+    return entities.map(normalizeEntity);
   },
   getByType: async (type: string) => {
     const res = await environmentAwareApiRequest('GET', `${endpoints.entities}?type=${encodeURIComponent(type)}`);
@@ -165,7 +176,7 @@ export const entitiesApi = {
     
     const result = await res.json();
     console.log('🌐 API UPDATE SUCCESS:', result);
-    return result;
+    return normalizeEntity(result);
   },
   delete: async (id: number) => {
     const res = await environmentAwareApiRequest('DELETE', endpoints.entity.byId(id));
