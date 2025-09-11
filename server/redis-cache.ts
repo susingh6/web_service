@@ -1097,9 +1097,12 @@ export class RedisCache {
         lastRefreshed: entityData.lastRefreshed || null
       };
       
-      entities.push(entity);
+      // CRITICAL FIX: Save to persistent storage first
+      const storedEntity = await storage.createEntity(entity);
       
-      // Update fallback data
+      entities.push(storedEntity);
+      
+      // Update fallback data with persisted entity
       if (this.fallbackData) {
         this.fallbackData.entities = entities;
       }
