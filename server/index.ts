@@ -87,15 +87,26 @@ app.use((req, res, next) => {
 (async () => {
   const server = await registerRoutes(app);
 
-  // Terminal API 404 handler - prevents API routes from falling through to SPA fallback
-  app.use('/api', (req: Request, res: Response) => {
-    res.status(404).json({ 
-      error: 'NOT_FOUND', 
-      message: `API endpoint ${req.originalUrl} not found`,
-      method: req.method,
-      path: req.originalUrl,
-      timestamp: new Date().toISOString()
-    });
+  // Terminal API 404 handler - prevents unhandled API routes from falling through to SPA fallback
+  // But allow FastAPI fallback routes to pass through first
+  app.use('/api', (req: Request, res: Response, next: NextFunction) => {
+    // Only catch routes that don't match expected patterns
+    if (req.originalUrl.startsWith('/api/v1/') || req.originalUrl.startsWith('/api/entities') || 
+        req.originalUrl.startsWith('/api/dashboard') || req.originalUrl.startsWith('/api/teams') ||
+        req.originalUrl.startsWith('/api/tenants') || req.originalUrl.startsWith('/api/users') ||
+        req.originalUrl.startsWith('/api/auth') || req.originalUrl.startsWith('/api/health') ||
+        req.originalUrl.startsWith('/api/cache') || req.originalUrl.startsWith('/api/debug')) {
+      // These should have been handled by actual routes - if we get here, they're truly missing
+      return res.status(404).json({ 
+        error: 'NOT_FOUND', 
+        message: `API endpoint ${req.originalUrl} not found`,
+        method: req.method,
+        path: req.originalUrl,
+        timestamp: new Date().toISOString()
+      });
+    }
+    // Let other /api/* routes fall through to potential handlers
+    next();
   });
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
