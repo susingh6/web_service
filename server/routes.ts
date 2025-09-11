@@ -355,12 +355,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { teamName } = req.query;
       const teams = await redisCache.getAllTeams();
       
+      // Filter out inactive teams for dashboard team dropdown (like tenants)
+      const activeTeams = teams.filter(team => team.isActive !== false);
+      
       // If team name is provided, filter teams or log the specific team request
       if (teamName) {
-        const filteredTeams = teams.filter(team => team.name === teamName);
+        const filteredTeams = activeTeams.filter(team => team.name === teamName);
         res.json(filteredTeams);
       } else {
-        res.json(teams);
+        res.json(activeTeams);
       }
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch teams from cache" });
