@@ -1036,12 +1036,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.removeHeader('Last-Modified');
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       
-      let entities = await redisCache.getAllEntities();
+      let entities;
       
-      // Filter by tenant if tenant parameter is provided
-      if (req.query.tenant) {
-        const tenantName = req.query.tenant as string;
-        entities = await redisCache.getEntitiesByTenant(tenantName);
+      // Team dashboard requests: bypass entity owner filtering to show all entities
+      if (req.query.teamId) {
+        // For team-specific requests, get ALL entities directly from storage 
+        // (not filtered cache) to show both entity owners and non-owners
+        entities = await storage.getEntities();
+      } else {
+        // Summary dashboard requests: use filtered cache (entity owners only)
+        entities = await redisCache.getAllEntities();
+        
+        // Filter by tenant if tenant parameter is provided
+        if (req.query.tenant) {
+          const tenantName = req.query.tenant as string;
+          entities = await redisCache.getEntitiesByTenant(tenantName);
+        }
       }
       
       // Pre-defined date filtering (served from cache)
