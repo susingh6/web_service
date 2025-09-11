@@ -20,7 +20,7 @@ export const devConfig = {
     },
     
     // Core entities - FastAPI
-    entities: '/api/entities',
+    entities: '/api/v1/entities',
     teams: '/api/teams',
     tenants: '/api/v1/tenants',
     teamDetails: (teamName: string) => `/api/v1/get_team_details/${teamName}`,

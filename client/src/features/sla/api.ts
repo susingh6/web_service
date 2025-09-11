@@ -156,11 +156,13 @@ export const entitiesApi = {
   },
   getByType: async (type: string) => {
     const res = await environmentAwareApiRequest('GET', `${endpoints.entities}?type=${encodeURIComponent(type)}`);
-    return await res.json();
+    const entities = await res.json();
+    return entities.map(normalizeEntity);
   },
   create: async (entityData: any) => {
     const res = await environmentAwareApiRequest('POST', endpoints.entities, entityData);
-    return await res.json();
+    const entity = await res.json();
+    return normalizeEntity(entity);
   },
   update: async (payload: { id: number; updates: any }) => {
     console.log('🌐 API UPDATE REQUEST START:', payload);

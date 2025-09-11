@@ -166,6 +166,9 @@ const TeamDashboard = ({
       } else {
         dispatch(fetchEntities({ tenant: tenantName }));
       }
+      
+      // Force refetch to ensure fresh data after updates
+      queryClient.refetchQueries({ queryKey: ['entities', 'team', team?.id] });
     },
     onTeamMembersUpdated: (data) => {
       // Refresh team members when real-time update received
