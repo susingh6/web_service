@@ -543,6 +543,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // FastAPI fallback route for getting entities (with teamId support)
+  app.get("/api/v1/entities", async (req, res) => {
+    try {
+      console.log("EXPRESS_FASTAPI_FALLBACK_DEV", req.sessionID);
+      
+      const { teamId, type, tenant } = req.query;
+      
+      let entities: Entity[];
+      
+      if (teamId) {
+        // Get all entities for specific team (unfiltered - show both active and inactive)
+        const teamIdNum = parseInt(teamId as string);
+        if (isNaN(teamIdNum)) {
+          return res.status(400).json(createErrorResponse("Invalid team ID", "validation_error"));
+        }
+        entities = await storage.getEntitiesByTeam(teamIdNum); // Uses unfiltered storage
+        console.log(`GET /api/v1/entities - Parameters: teamId=${teamId} - status: 200`);
+      } else if (type) {
+        // Get entities by type
+        entities = await storage.getEntitiesByType(type as string);
+        console.log(`GET /api/v1/entities - Parameters: type=${type} - status: 200`);
+      } else if (tenant) {
+        // Get entities by tenant (filtered - entity owners only)
+        entities = await redisCache.getFilteredEntitiesByTenant(tenant as string);
+        console.log(`GET /api/v1/entities - Parameters: tenant=${tenant} - status: 200`);
+      } else {
+        // Get all entities (filtered - entity owners only)
+        entities = await redisCache.getFilteredEntitiesByTenant();
+        console.log(`GET /api/v1/entities - status: 200`);
+      }
+      
+      res.json(entities);
+    } catch (error) {
+      console.error('FastAPI fallback GET /api/v1/entities error:', error);
+      res.status(500).json(createErrorResponse("Failed to get entities", "server_error"));
+    }
+  });
+
   // FastAPI fallback route for updating entities
   app.put("/api/v1/entities/:entityId", async (req, res) => {
     try {
