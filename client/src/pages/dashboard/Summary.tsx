@@ -28,15 +28,14 @@ import { cacheKeys } from '@/lib/cacheKeys';
 import type { Tenant } from '@/lib/tenantCache';
 import { tenantsApi } from '@/features/sla/api';
 import { useWebSocket } from '@/hooks/useWebSocket';
-import { useEntityMutation, CACHE_PATTERNS, useCacheManager } from '@/utils/cache-management';
+import { useEntityMutation } from '@/utils/cache-management';
 import { invalidateEntityCaches, invalidateTenantCaches } from '@/lib/cacheKeys';
 
 const Summary = () => {
   const dispatch = useAppDispatch();
   const { toast } = useToast();
   const { deleteEntity } = useEntityMutation();
-  const cacheManager = useCacheManager();
-  // Normalized WS invalidation (additive, debounced) - does not change legacy behavior
+  // Normalized WS invalidation (additive, debounced)
   const normalizedEntityQueueRef = useRef<Array<{ tenant?: string; teamId?: number; entityId?: number | string }>>([]);
   const normalizedTenantQueueRef = useRef<Set<string>>(new Set());
   const normalizedFlushTimerRef = useRef<any>(null);
@@ -196,38 +195,13 @@ const Summary = () => {
   const { isConnected } = useWebSocket({
     onEntityUpdated: (data) => {
       const operation: 'created' | 'updated' | 'deleted' = data.type || 'updated';
-      const entityType = data.entityType as 'table' | 'dag';
-      const teamId = data.teamId;
-
-      const invalidationKeys: (string | object)[][] = [
-        [...CACHE_PATTERNS.ENTITIES.LIST],
-        ...(teamId ? [CACHE_PATTERNS.ENTITIES.BY_TEAM(teamId)] : []),
-        ...(entityType ? [CACHE_PATTERNS.ENTITIES.BY_TYPE(entityType)] : []),
-        ...(teamId && entityType ? [CACHE_PATTERNS.ENTITIES.BY_TEAM_AND_TYPE(teamId, entityType)] : []),
-        ...(selectedTenant ? [CACHE_PATTERNS.DASHBOARD.SUMMARY(selectedTenant.name)] : [])
-      ];
-
-      cacheManager.invalidateCache(invalidationKeys);
-
-      // Also queue normalized invalidations (debounced, additive)
+      // Queue normalized invalidations (debounced, single path)
       normalizedEntityQueueRef.current.push({
         tenant: selectedTenant?.name,
         teamId: data?.teamId,
         entityId: data?.data?.entityId || data?.entityId,
       });
       scheduleNormalizedFlush();
-
-      dispatch(fetchEntities({}));
-      if (selectedTenant) dispatch(fetchDashboardSummary({ tenantName: selectedTenant.name }));
-
-      if (openTeamTabs.length > 0) {
-        openTeamTabs.forEach(teamId => {
-          const teamIdNum = parseInt(teamId);
-          if (!isNaN(teamIdNum)) {
-            dispatch(fetchEntities({ teamId: teamIdNum }));
-          }
-        });
-      }
 
       const messages: Record<'created' | 'updated' | 'deleted', string> = {
         created: `${data.entityName} has been created successfully`,
@@ -241,18 +215,12 @@ const Summary = () => {
         variant: operation === 'deleted' ? "destructive" : "default",
       });
     },
-    onCacheUpdated: (data) => {
-      if (selectedTenant) dispatch(fetchDashboardSummary({ tenantName: selectedTenant.name }));
-      dispatch(fetchEntities({}));
-      if (openTeamTabs.length > 0) {
-        dispatch(fetchTeams());
-      }
-      // Queue normalized tenant invalidation (additive)
+    onCacheUpdated: () => {
+      // Queue normalized tenant invalidation (debounced, single path)
       if (selectedTenant?.name) {
         normalizedTenantQueueRef.current.add(selectedTenant.name);
         scheduleNormalizedFlush();
       }
-
       toast({
         title: "Data Refreshed",
         description: "Dashboard data has been updated with latest information",

@@ -70,6 +70,8 @@ export class RedisCache {
   private isInitialized = false;
   private fallbackData: CachedData | null = null;
   private useRedis = false;
+  // Coalescing buffers for change events to avoid WS storms
+  private changeCoalesceBuffers: Map<string, { count: number; lastEvent: EntityChangeEvent; timer: any }> = new Map();
 
   constructor() {
     this.initialize();
@@ -108,9 +110,34 @@ export class RedisCache {
       } else if (channel === CACHE_KEYS.CHANGES_CHANNEL) {
         // Entity change notification received - filtered broadcast
         const changeEvent: EntityChangeEvent = JSON.parse(message);
-        this.broadcastToClients('entity-updated', changeEvent);
+        this.enqueueCoalescedBroadcast(changeEvent);
       }
     });
+  }
+
+  // Compute coalescing key per tenant/team/type bucket
+  private getCoalesceKey(e: EntityChangeEvent): string {
+    return `${e.tenantName || 'unknown'}::${e.teamName || 'unknown'}::${e.type || 'updated'}`;
+  }
+
+  // Buffer change events briefly and broadcast once per bucket
+  private enqueueCoalescedBroadcast(e: EntityChangeEvent): void {
+    const key = this.getCoalesceKey(e);
+    const existing = this.changeCoalesceBuffers.get(key);
+    if (existing) {
+      existing.count += 1;
+      existing.lastEvent = e;
+      // timer already scheduled
+      return;
+    }
+    const timer = setTimeout(() => {
+      const entry = this.changeCoalesceBuffers.get(key);
+      if (!entry) return;
+      // Broadcast a single event using the last event payload to preserve shape
+      this.broadcastToClients('entity-updated', entry.lastEvent);
+      this.changeCoalesceBuffers.delete(key);
+    }, 250);
+    this.changeCoalesceBuffers.set(key, { count: 1, lastEvent: e, timer });
   }
 
   private async initialize(): Promise<void> {
@@ -1149,10 +1176,9 @@ export class RedisCache {
         lastRefreshed: entityData.lastRefreshed || null
       };
       
-      // Add entity to Redis
+      // Add entity to Redis (pipelined with RECENT_CHANGES & LAST_UPDATED later)
       entities.push(entity);
       const expireTime = Math.floor(this.CACHE_DURATION_MS / 1000) + 300;
-      await this.redis.setex(CACHE_KEYS.ENTITIES, expireTime, JSON.stringify(entities));
       
       // Record the change
       const change: EntityChange = {
@@ -1175,7 +1201,12 @@ export class RedisCache {
         recentChanges.splice(50);
       }
       
-      await this.redis.setex(CACHE_KEYS.RECENT_CHANGES, expireTime, JSON.stringify(recentChanges));
+      // Pipeline writes for ENTITIES, RECENT_CHANGES, LAST_UPDATED
+      const pipe1 = this.redis.pipeline();
+      pipe1.setex(CACHE_KEYS.ENTITIES, expireTime, JSON.stringify(entities));
+      pipe1.setex(CACHE_KEYS.RECENT_CHANGES, expireTime, JSON.stringify(recentChanges));
+      pipe1.setex(CACHE_KEYS.LAST_UPDATED, expireTime, JSON.stringify(new Date()));
+      await pipe1.exec();
       
       // Create standardized event envelope for filtering with race condition protection  
       const changeEvent: EntityChangeEvent = {
@@ -1275,9 +1306,8 @@ export class RedisCache {
       // Remove entity from array
       entities.splice(entityIndex, 1);
       
-      // Update entities in Redis
+      // Update entities in Redis (pipelined with RECENT_CHANGES & LAST_UPDATED)
       const expireTime = Math.floor(this.CACHE_DURATION_MS / 1000) + 300;
-      await this.redis.setex(CACHE_KEYS.ENTITIES, expireTime, JSON.stringify(entities));
       
       // Record the change
       const change: EntityChange = {
@@ -1300,7 +1330,11 @@ export class RedisCache {
         recentChanges.splice(50);
       }
       
-      await this.redis.setex(CACHE_KEYS.RECENT_CHANGES, expireTime, JSON.stringify(recentChanges));
+      const pipe2 = this.redis.pipeline();
+      pipe2.setex(CACHE_KEYS.ENTITIES, expireTime, JSON.stringify(entities));
+      pipe2.setex(CACHE_KEYS.RECENT_CHANGES, expireTime, JSON.stringify(recentChanges));
+      pipe2.setex(CACHE_KEYS.LAST_UPDATED, expireTime, JSON.stringify(new Date()));
+      await pipe2.exec();
       
       // Create standardized event envelope for filtering with race condition protection
       const changeEvent: EntityChangeEvent = {
@@ -1420,9 +1454,8 @@ export class RedisCache {
       
       entities[entityIndex] = updatedEntity;
       
-      // Update entities in Redis
+      // Update entities in Redis (pipelined with RECENT_CHANGES & LAST_UPDATED)
       const expireTime = Math.floor(this.CACHE_DURATION_MS / 1000) + 300;
-      await this.redis.setex(CACHE_KEYS.ENTITIES, expireTime, JSON.stringify(entities));
       
       // Record the change
       const change: EntityChange = {
@@ -1447,7 +1480,11 @@ export class RedisCache {
         recentChanges.splice(50);
       }
       
-      await this.redis.setex(CACHE_KEYS.RECENT_CHANGES, expireTime, JSON.stringify(recentChanges));
+      const pipe3 = this.redis.pipeline();
+      pipe3.setex(CACHE_KEYS.ENTITIES, expireTime, JSON.stringify(entities));
+      pipe3.setex(CACHE_KEYS.RECENT_CHANGES, expireTime, JSON.stringify(recentChanges));
+      pipe3.setex(CACHE_KEYS.LAST_UPDATED, expireTime, JSON.stringify(new Date()));
+      await pipe3.exec();
       
       // Create standardized event envelope for filtering with race condition protection  
       const changeEvent: EntityChangeEvent = {
@@ -1513,9 +1550,8 @@ export class RedisCache {
         lastRefreshed: new Date()
       };
       
-      // Update entities in Redis
+      // Update entities in Redis (pipelined with RECENT_CHANGES & LAST_UPDATED)
       const expireTime = Math.floor(this.CACHE_DURATION_MS / 1000) + 300;
-      await this.redis.setex(CACHE_KEYS.ENTITIES, expireTime, JSON.stringify(entities));
       
       // Record the change
       const newSlaRaw = (updates as any)?.currentSla;
@@ -1542,7 +1578,11 @@ export class RedisCache {
         recentChanges.splice(50);
       }
       
-      await this.redis.setex(CACHE_KEYS.RECENT_CHANGES, expireTime, JSON.stringify(recentChanges));
+      const pipe4 = this.redis.pipeline();
+      pipe4.setex(CACHE_KEYS.ENTITIES, expireTime, JSON.stringify(entities));
+      pipe4.setex(CACHE_KEYS.RECENT_CHANGES, expireTime, JSON.stringify(recentChanges));
+      pipe4.setex(CACHE_KEYS.LAST_UPDATED, expireTime, JSON.stringify(new Date()));
+      await pipe4.exec();
       
       // Broadcast change to all pods
       await this.redis.publish(CACHE_KEYS.CHANGES_CHANNEL, JSON.stringify(change));
