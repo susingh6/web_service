@@ -1133,10 +1133,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
           'dashboard_summary:*'
         ],
         mainCacheKeys: ['ENTITIES'], // This invalidates CACHE_KEYS.ENTITIES used by getAllEntities()
-        refreshAffectedData: true,
-        // Force invalidation of team-specific entity queries to prevent 304 responses
-        forceRefresh: true
+        refreshAffectedData: true
       });
+      
+      // Additional manual cache invalidation to prevent 304 responses
+      // Clear ETag cache for team-specific queries
+      res.removeHeader('ETag');
+      res.removeHeader('Last-Modified');
+      
+      // Force immediate cache refresh for this team's entities
+      if (entity.teamId) {
+        await redisCache.invalidateCache({
+          patterns: [`entities_team_${entity.teamId}:*`],
+          refreshAffectedData: true
+        });
+      }
       
       res.status(201).json(entity);
     } catch (error) {
