@@ -1123,12 +1123,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Create entity directly in Redis cache (persistent storage)
       const entity = await redisCache.createEntity(result.data);
       
-      // Entity-type-specific cache invalidation and rebuild (targeted approach)
-      await redisCache.invalidateAndRebuildEntityCache(
-        entity.teamId, 
-        entity.type as 'table' | 'dag',
-        true // Enable background rebuild
-      );
+      // Use the same cache invalidation pattern as teams (more reliable for fallback mode)
+      await redisCache.invalidateCache({
+        keys: ['all_entities', 'entities_summary'],
+        patterns: [
+          'entity_details:*',
+          'team_entities:*',
+          'entities_team_*',
+          'dashboard_summary:*'
+        ],
+        mainCacheKeys: ['ENTITIES'], // This invalidates CACHE_KEYS.ENTITIES used by getAllEntities()
+        refreshAffectedData: true
+      });
       
       res.status(201).json(entity);
     } catch (error) {
