@@ -29,6 +29,7 @@ export interface IStorage {
   getTeam(id: number): Promise<Team | undefined>;
   getTeamByName(name: string): Promise<Team | undefined>;
   createTeam(team: InsertTeam): Promise<Team>;
+  updateTeam(id: number, team: Partial<Team>): Promise<Team | undefined>;
   updateTeamMembers(teamName: string, memberData: any, oauthContext: any): Promise<Team | undefined>;
   
   // Tenant operations
@@ -289,7 +290,8 @@ export class MemStorage implements IStorage {
         team_members_ids: ['john.smith', 'sarah.johnson'],
         team_email: ['pgm-team@company.com'],
         team_slack: ['#pgm-team'],
-        team_pagerduty: ['pgm-escalation']
+        team_pagerduty: ['pgm-escalation'],
+        isActive: true
       },
       { 
         name: 'Core', 
@@ -298,7 +300,8 @@ export class MemStorage implements IStorage {
         team_members_ids: ['david.wilson', 'michael.brown'],
         team_email: ['core-team@company.com'],
         team_slack: ['#core-infrastructure'],
-        team_pagerduty: ['core-escalation']
+        team_pagerduty: ['core-escalation'],
+        isActive: true
       },
       { 
         name: 'Viewer Product', 
@@ -307,7 +310,8 @@ export class MemStorage implements IStorage {
         team_members_ids: ['emily.davis'],
         team_email: ['viewer-product@company.com'],
         team_slack: ['#viewer-product'],
-        team_pagerduty: ['viewer-escalation']
+        team_pagerduty: ['viewer-escalation'],
+        isActive: true
       },
       { 
         name: 'IOT', 
@@ -316,7 +320,8 @@ export class MemStorage implements IStorage {
         team_members_ids: ['alex.chen', 'maria.garcia'],
         team_email: ['iot-team@company.com'],
         team_slack: ['#iot-team'],
-        team_pagerduty: ['iot-escalation']
+        team_pagerduty: ['iot-escalation'],
+        isActive: true
       },
       { 
         name: 'CDM', 
@@ -325,7 +330,8 @@ export class MemStorage implements IStorage {
         team_members_ids: ['robert.taylor', 'lisa.anderson'],
         team_email: ['cdm-team@company.com'],
         team_slack: ['#cdm-team'],
-        team_pagerduty: ['cdm-escalation']
+        team_pagerduty: ['cdm-escalation'],
+        isActive: true
       },
       { 
         name: 'Ad Serving', 
@@ -334,7 +340,8 @@ export class MemStorage implements IStorage {
         team_members_ids: ['carlos.martinez'],
         team_email: ['ad-serving@company.com'],
         team_slack: ['#ad-serving'],
-        team_pagerduty: ['ad-serving-escalation']
+        team_pagerduty: ['ad-serving-escalation'],
+        isActive: true
       },
       { 
         name: 'Ad Data Activation', 
@@ -343,7 +350,8 @@ export class MemStorage implements IStorage {
         team_members_ids: ['ana.rodriguez'],
         team_email: ['ad-data@company.com'],
         team_slack: ['#ad-data-activation'],
-        team_pagerduty: ['ad-data-escalation']
+        team_pagerduty: ['ad-data-escalation'],
+        isActive: true
       }
     ];
 
@@ -879,10 +887,27 @@ export class MemStorage implements IStorage {
       team_email: insertTeam.team_email || [],
       team_slack: insertTeam.team_slack || [],
       team_pagerduty: insertTeam.team_pagerduty || [],
-      team_notify_preference_id: insertTeam.team_notify_preference_id || null
+      team_notify_preference_id: insertTeam.team_notify_preference_id || null,
+      isActive: insertTeam.isActive !== undefined ? insertTeam.isActive : true // Default to active
     };
     this.teams.set(id, team);
     return team;
+  }
+
+  async updateTeam(id: number, teamData: Partial<Team>): Promise<Team | undefined> {
+    await this.ensureInitialized();
+    const team = this.teams.get(id);
+    if (!team) return undefined;
+    
+    const updatedTeam: Team = {
+      ...team,
+      ...teamData,
+      id, // Ensure ID cannot be changed
+      updatedAt: new Date()
+    };
+    
+    this.teams.set(id, updatedTeam);
+    return updatedTeam;
   }
 
   async updateTeamMembers(teamName: string, memberData: any, oauthContext: any): Promise<Team | undefined> {

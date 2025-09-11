@@ -18,6 +18,7 @@ import {
   DialogActions,
   TextField,
   FormControl,
+  FormControlLabel,
   InputLabel,
   Select,
   MenuItem,
@@ -25,7 +26,8 @@ import {
   IconButton,
   Tooltip,
   TablePagination,
-  InputAdornment
+  InputAdornment,
+  Switch
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -54,6 +56,7 @@ const TeamFormDialog = ({ open, onClose, team, tenants, onSubmit }: TeamFormDial
     name: team?.name || '',
     description: team?.description || '',
     tenant_id: team?.tenant_id || '',
+    isActive: team?.isActive ?? true,
   });
 
   // Update form data when team prop changes
@@ -63,12 +66,14 @@ const TeamFormDialog = ({ open, onClose, team, tenants, onSubmit }: TeamFormDial
         name: team.name || '',
         description: team.description || '',
         tenant_id: team.tenant_id || '',
+        isActive: team.isActive ?? true,
       });
     } else {
       setFormData({
         name: '',
         description: '',
         tenant_id: '',
+        isActive: true,
       });
     }
   }, [team]);
@@ -78,11 +83,12 @@ const TeamFormDialog = ({ open, onClose, team, tenants, onSubmit }: TeamFormDial
       name: formData.name,
       description: formData.description,
       tenant_id: formData.tenant_id,
+      isActive: formData.isActive,
     };
     
     onSubmit(teamData);
     onClose();
-    setFormData({ name: '', description: '', tenant_id: '' });
+    setFormData({ name: '', description: '', tenant_id: '', isActive: true });
   };
 
   return (
@@ -122,6 +128,16 @@ const TeamFormDialog = ({ open, onClose, team, tenants, onSubmit }: TeamFormDial
             label="Description"
             value={formData.description}
             onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+          />
+          
+          <FormControlLabel
+            control={
+              <Switch
+                checked={formData.isActive}
+                onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+              />
+            }
+            label="Active Team"
           />
         </Box>
       </DialogContent>
@@ -324,8 +340,65 @@ const TeamsManagement = () => {
     mutationFn: createTeam,
   });
 
-  // Update team mutation with optimistic updates following FastAPI pattern
-  const updateTeam = async (teamId: number, teamData: any) => {
+  // Update team mutation for status toggle
+  const updateTeam = async (teamId: number, updateData: any) => {
+    try {
+      const result = await executeWithOptimism({
+        optimisticUpdate: {
+          queryKey: ['admin', 'teams'],
+          updater: (old: any[] | undefined) => {
+            if (!old) return old;
+            return old.map(team => team.id === teamId ? { ...team, ...updateData } : team);
+          },
+        },
+        mutationFn: async () => {
+          // Build headers with session ID for RBAC enforcement
+          const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+          
+          // Add X-Session-ID header for FastAPI RBAC
+          const sessionId = localStorage.getItem('fastapi_session_id');
+          if (sessionId) {
+            headers['X-Session-ID'] = sessionId;
+          }
+          
+          const response = await fetch(buildUrl(`/api/v1/teams/${teamId}`), {
+            method: 'PUT',
+            headers,
+            body: JSON.stringify(updateData),
+            credentials: 'include',
+          });
+          if (!response.ok) throw new Error('Failed to update team');
+          return response.json();
+        },
+        rollbackKeys: [['admin', 'teams']],
+      });
+
+      toast({
+        title: "Team Updated",
+        description: `Team status has been ${updateData.isActive ? 'activated' : 'deactivated'}.`,
+      });
+      
+      return result;
+    } catch (error: any) {
+      toast({
+        title: "Update Failed",
+        description: "Failed to update team status. Please try again.",
+        variant: "destructive",
+      });
+      throw error;
+    }
+  };
+
+  // Handle status toggle
+  const handleStatusToggle = (teamId: number, isActive: boolean) => {
+    updateTeamMutation.mutate({
+      teamId,
+      teamData: { isActive }
+    });
+  };
+
+  // Main updateTeam function for all updates (status toggle and edit)  
+  const updateTeamFunction = async (teamId: number, teamData: any) => {
     try {
       const result = await executeWithOptimism({
         optimisticUpdate: {
@@ -361,9 +434,12 @@ const TeamsManagement = () => {
         rollbackKeys: [['admin', 'teams']],
       });
 
+      const isStatusToggle = 'isActive' in teamData;
       toast({
         title: "Team Updated",
-        description: "Team has been successfully updated.",
+        description: isStatusToggle 
+          ? `Team status has been ${teamData.isActive ? 'activated' : 'deactivated'}.`
+          : "Team has been successfully updated.",
       });
       
       return result;
@@ -398,7 +474,7 @@ const TeamsManagement = () => {
   };
 
   const updateTeamMutation = useMutation({
-    mutationFn: ({ teamId, teamData }: { teamId: number; teamData: any }) => updateTeam(teamId, teamData),
+    mutationFn: ({ teamId, teamData }: { teamId: number; teamData: any }) => updateTeamFunction(teamId, teamData),
   });
 
   const handleCreateTeam = () => {
@@ -499,6 +575,7 @@ const TeamsManagement = () => {
                   <TableCell>Tenant</TableCell>
                   <TableCell>Description</TableCell>
                   <TableCell>Members</TableCell>
+                  <TableCell>Status</TableCell>
                   <TableCell>Created</TableCell>
                   <TableCell>Actions</TableCell>
                 </TableRow>
@@ -531,6 +608,16 @@ const TeamsManagement = () => {
                       <Typography variant="body2">
                         {team.team_members_ids?.length || 0} members
                       </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Switch
+                        checked={team.isActive ?? true}
+                        onChange={(e) => {
+                          handleStatusToggle(team.id, e.target.checked);
+                        }}
+                        size="small"
+                        data-testid={`switch-team-status-${team.id}`}
+                      />
                     </TableCell>
                     <TableCell>
                       <Typography variant="body2">

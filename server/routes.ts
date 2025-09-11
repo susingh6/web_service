@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { redisCache } from "./redis-cache";
-import { insertEntitySchema, insertTeamSchema, insertEntityHistorySchema, insertIssueSchema, insertUserSchema, insertNotificationTimelineSchema, adminUserSchema, Entity, InsertNotificationTimeline } from "@shared/schema";
+import { insertEntitySchema, insertTeamSchema, updateTeamSchema, insertEntityHistorySchema, insertIssueSchema, insertUserSchema, insertNotificationTimelineSchema, adminUserSchema, Entity, InsertNotificationTimeline } from "@shared/schema";
 import { z } from "zod";
 import { logAuthenticationEvent, structuredLogger } from "./middleware/structured-logging";
 
@@ -491,6 +491,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Team creation error:', error);
       res.status(500).json(createErrorResponse("Failed to create team", "creation_error"));
+    }
+  });
+
+  // FastAPI fallback route for updating teams
+  app.put("/api/v1/teams/:teamId", async (req, res) => {
+    try {
+      const teamId = parseInt(req.params.teamId);
+      if (isNaN(teamId)) {
+        return res.status(400).json(createErrorResponse("Invalid team ID", "validation_error"));
+      }
+
+      // Validate request body
+      const validationResult = updateTeamSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json(createValidationErrorResponse(validationResult.error));
+      }
+
+      const updateData = validationResult.data;
+
+      // Update team
+      const updatedTeam = await storage.updateTeam(teamId, updateData);
+      if (!updatedTeam) {
+        return res.status(404).json(createErrorResponse("Team not found", "not_found"));
+      }
+
+      // Invalidate all team-related caches
+      await redisCache.invalidateCache({
+        keys: ['all_teams', 'teams_summary'],
+        patterns: [
+          'team_details:*',
+          'team_entities:*',
+          'team_metrics:*',
+          'team_trends:*',
+          'dashboard_summary:*',
+          'entities:*'
+        ],
+        mainCacheKeys: ['TEAMS'], // This invalidates CACHE_KEYS.TEAMS used by getAllTeams()
+        refreshAffectedData: true
+      });
+
+      res.json(updatedTeam);
+    } catch (error) {
+      console.error('Team update error:', error);
+      res.status(500).json(createErrorResponse("Failed to update team", "update_error"));
     }
   });
 
