@@ -293,7 +293,7 @@ const TeamsManagement = () => {
         // Use generic invalidation since teams don't have specific scenarios yet
         invalidationScenario: undefined,
         rollbackKeys: [['admin', 'teams']],
-        additionalInvalidations: [['/api/teams']], // Also invalidate dashboard team dropdown cache
+
       });
 
       // Replace optimistic entry with real server response
@@ -303,6 +303,9 @@ const TeamsManagement = () => {
           return old.map(team => team.id === optimisticId ? result : team);
         });
       }
+
+      // Manually invalidate dashboard team dropdown cache (executeWithOptimism doesn't support additionalInvalidations)
+      queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
 
       toast({
         title: "Team Created",
@@ -374,6 +377,9 @@ const TeamsManagement = () => {
         rollbackKeys: [['admin', 'teams']],
       });
 
+      // Manually invalidate dashboard team dropdown cache
+      queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
+
       toast({
         title: "Team Updated",
         description: `Team status has been ${updateData.isActive ? 'activated' : 'deactivated'}.`,
@@ -433,8 +439,11 @@ const TeamsManagement = () => {
         // Use generic invalidation since teams don't have specific scenarios yet
         invalidationScenario: undefined,
         rollbackKeys: [['admin', 'teams']],
-        additionalInvalidations: [['/api/teams']], // Also invalidate dashboard team dropdown cache
+
       });
+
+      // Manually invalidate dashboard team dropdown cache
+      queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
 
       const isStatusToggle = 'isActive' in teamData;
       toast({
