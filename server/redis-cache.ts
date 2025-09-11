@@ -937,7 +937,15 @@ export class RedisCache {
     
     try {
       const data = await this.redis.get(CACHE_KEYS.ENTITIES);
-      return data ? JSON.parse(data) : [];
+      const entities: Entity[] = data ? JSON.parse(data) : [];
+      // Defensive filter: remove any entities that were deleted in storage but lingered in cache
+      try {
+        const storageEntities = await storage.getEntities();
+        const storageIds = new Set(storageEntities.map(e => e.id));
+        return entities.filter(e => storageIds.has(e.id));
+      } catch (_err) {
+        return entities;
+      }
     } catch (error) {
       console.error('Error getting entities from Redis:', error);
       return this.fallbackData ? this.fallbackData.entities : [];
@@ -1242,7 +1250,14 @@ export class RedisCache {
       };
       
       this.broadcastToClients('entity-updated', change);
-      
+
+      // Mirror deletion into in-memory storage as well to keep fallback refresh consistent
+      try {
+        await storage.deleteEntity(entityToDelete.id);
+      } catch (mirrorErr) {
+        console.warn('Storage mirror delete (fallback) failed (non-fatal):', mirrorErr);
+      }
+
       return true;
     }
     
@@ -1302,7 +1317,14 @@ export class RedisCache {
 
       // Broadcast change to all pods
       await this.redis.publish(CACHE_KEYS.CHANGES_CHANNEL, JSON.stringify(changeEvent));
-      
+
+      // Mirror deletion to in-memory storage so fallback refresh doesn't resurrect it
+      try {
+        await storage.deleteEntity(entity.id);
+      } catch (mirrorErr) {
+        console.warn('Storage mirror delete failed (non-fatal):', mirrorErr);
+      }
+
       return true;
     } catch (error) {
       console.error('Error deleting entity in Redis:', error);
@@ -1363,7 +1385,14 @@ export class RedisCache {
       };
       
       this.broadcastToClients('entity-updated', changeEvent);
-      
+
+      // Mirror update into in-memory storage so fallback refresh remains consistent
+      try {
+        await storage.updateEntity(entity.id, updates as any);
+      } catch (mirrorErr) {
+        console.warn('Storage mirror update failed (non-fatal):', mirrorErr);
+      }
+
       return updatedEntity;
     }
     

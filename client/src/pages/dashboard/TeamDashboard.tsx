@@ -14,6 +14,7 @@ import DateRangePicker from '@/components/dashboard/DateRangePicker';
 import ComplianceTrendChart from '@/components/dashboard/ComplianceTrendChart';
 import EntityPerformanceChart from '@/components/dashboard/EntityPerformanceChart';
 import { apiClient } from '@/config/api';
+import { entitiesApi } from '@/features/sla/api';
 import { apiRequest } from '@/lib/queryClient';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -68,10 +69,14 @@ const TeamDashboard = ({
 
   // Keep local state in sync with parent-provided dateRange
   useEffect(() => {
-    if (dateRange) {
-      setTeamDateRange({ ...dateRange });
+    if (dateRange && dateRange.startDate && dateRange.endDate) {
+      setTeamDateRange({
+        startDate: dateRange.startDate,
+        endDate: dateRange.endDate,
+        label: dateRange.label || teamDateRange.label,
+      });
     }
-  }, [+dateRange?.startDate, +dateRange?.endDate, dateRange?.label]);
+  }, [dateRange?.startDate?.getTime?.(), dateRange?.endDate?.getTime?.(), dateRange?.label]);
 
   // Get current team info by name
   const team = teams.find((t: Team) => t.name === teamName);

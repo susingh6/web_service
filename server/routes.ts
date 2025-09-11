@@ -101,20 +101,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // Note: req.path doesn't include '/api' when middleware is mounted on '/api'
     if (req.path.startsWith('/v1/')) {
       if (isDevelopment) {
-        structuredLogger.info('EXPRESS_FASTAPI_FALLBACK_DEV', {
-          method: req.method,
-          environment,
-          timestamp: new Date().toISOString(),
-          message: 'Allowing FastAPI fallback endpoint in development mode'
+        structuredLogger.info('EXPRESS_FASTAPI_FALLBACK_DEV', undefined, req.requestId, {
+          session_id: req.sessionContext?.session_id || 'anonymous',
+          status_code: 200,
+          logger: 'app.express.server'
         });
         return next();
       } else {
         // In production: Block all FastAPI fallback routes to prevent RBAC bypass
-        structuredLogger.warn('BLOCKED_FASTAPI_FALLBACK_PRODUCTION', {
-          method: req.method,
-          environment,
-          timestamp: new Date().toISOString(),
-          message: 'SECURITY: Blocked FastAPI fallback route in production to prevent RBAC bypass'
+        structuredLogger.warn('BLOCKED_FASTAPI_FALLBACK_PRODUCTION', undefined, req.requestId, {
+          session_id: req.sessionContext?.session_id || 'anonymous',
+          status_code: 503,
+          logger: 'app.express.server'
         });
         return res.status(503).json({
           error: 'FASTAPI_FALLBACK_DISABLED_PRODUCTION',
@@ -154,38 +152,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     // Check core system paths first (always allowed)
     if (coreSystemPaths.includes(req.path)) {
-      structuredLogger.info('EXPRESS_CORE_ENDPOINT', {
-        path: req.path,
-        method: req.method,
-        environment,
-        timestamp: new Date().toISOString(),
-        message: 'Using Express core system endpoint'
-      });
+      structuredLogger.info('EXPRESS_CORE_ENDPOINT', req.sessionContext, req.requestId, { logger: 'app.express.server' });
       return next();
     }
     
     // In development mode: Allow auth fallbacks and development endpoints
     if (isDevelopment) {
       if (authFallbackPaths.includes(req.path) || developmentPaths.some(path => req.path.startsWith(path))) {
-        structuredLogger.info('EXPRESS_DEVELOPMENT_ENDPOINT', {
-          path: req.path,
-          method: req.method,
-          environment,
-          timestamp: new Date().toISOString(),
-          message: 'Using Express endpoint in development mode'
-        });
+        structuredLogger.info('EXPRESS_DEVELOPMENT_ENDPOINT', req.sessionContext, req.requestId, { logger: 'app.express.server' });
         return next();
       }
     } else {
       // In production: Only allow auth fallbacks for emergency access
       if (authFallbackPaths.includes(req.path)) {
-        structuredLogger.info('EXPRESS_AUTH_FALLBACK', {
-          path: req.path,
-          method: req.method,
-          environment,
-          timestamp: new Date().toISOString(),
-          message: 'Using Express auth fallback in production (FastAPI unavailable)'
-        });
+        structuredLogger.info('EXPRESS_AUTH_FALLBACK', req.sessionContext, req.requestId, { logger: 'app.express.server' });
         return next();
       }
     }
@@ -195,14 +175,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ? 'Legacy Express API call blocked in development - use FastAPI /api/v1/* instead'
       : 'Legacy Express API call blocked in production - use FastAPI /api/v1/* for security';
       
-    structuredLogger.warn('BLOCKED_LEGACY_EXPRESS_CALL', {
-      path: req.path,
-      method: req.method,
-      environment,
-      headers: req.headers,
-      timestamp: new Date().toISOString(),
-      message: blockReason
-    });
+    structuredLogger.warn('BLOCKED_LEGACY_EXPRESS_CALL', req.sessionContext, req.requestId, { logger: 'app.express.server' });
     
     return res.status(410).json({
       error: 'LEGACY_ENDPOINT_DISABLED',
@@ -382,7 +355,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Filter out inactive tenants for dashboard tenant filter dropdown
-      const activeTenants = tenants.filter(tenant => tenant.isActive !== false);
+      const activeTenants = tenants.filter((tenant: any) => tenant.isActive !== false);
 
       res.json(activeTenants);
     } catch (error) {
@@ -423,7 +396,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Clear cache after creation
       const cacheKey = 'all_tenants';
-      await redisCache.invalidateCache([cacheKey]);
+      await redisCache.invalidateCache({ keys: [cacheKey] });
 
       res.status(201).json(newTenant);
     } catch (error) {
@@ -456,7 +429,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Clear cache after update
       const cacheKey = 'all_tenants';
-      await redisCache.invalidateCache([cacheKey]);
+      await redisCache.invalidateCache({ keys: [cacheKey] });
 
       res.json(updatedTenant);
     } catch (error) {

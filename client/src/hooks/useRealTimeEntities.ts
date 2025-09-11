@@ -1,6 +1,7 @@
 import { useWebSocket } from './useWebSocket';
 import { useAuth } from './use-auth';
 import { useQueryClient } from '@tanstack/react-query';
+import { cacheKeys, invalidateEntityCaches } from '@/lib/cacheKeys';
 import { Entity } from '@shared/schema';
 
 interface UseRealTimeEntitiesOptions {
@@ -52,21 +53,12 @@ export const useRealTimeEntities = (options: UseRealTimeEntitiesOptions) => {
     
     onEntityUpdated: (data) => {
       // Invalidate React Query cache for affected entities
-      if (data?.data?.entityId && options.tenantName) {
-        // Invalidate specific entity cache
-        queryClient.invalidateQueries({ queryKey: ['entities', options.tenantName, data.data.entityId] });
-        
-        // Invalidate team entities cache if team matches
-        if (data.teamName === options.teamName && options.teamId) {
-          queryClient.invalidateQueries({ queryKey: ['entities', options.tenantName, options.teamId] });
-          // Also invalidate dashboard summary for this team
-          queryClient.invalidateQueries({ queryKey: ['dashboardSummary', options.tenantName, options.teamId] });
-        }
-      }
-      
-      // Also invalidate tenant-wide entities cache
       if (options.tenantName) {
-        queryClient.invalidateQueries({ queryKey: ['entities', options.tenantName] });
+        invalidateEntityCaches(queryClient, {
+          tenant: options.tenantName,
+          teamId: options.teamId,
+          entityId: data?.data?.entityId,
+        });
       }
       
       // Call custom handler

@@ -30,6 +30,7 @@ import { fetchWithCacheGeneric, getFromCacheGeneric } from '@/lib/cacheUtils';
 import { useAppDispatch } from '@/lib/store';
 import { updateEntity, fetchEntities } from '@/features/sla/slices/entitiesSlice';
 import { queryClient, apiRequest } from '@/lib/queryClient';
+import { cacheKeys, invalidateEntityCaches } from '@/lib/cacheKeys';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 import { Entity } from '@shared/schema';
@@ -148,7 +149,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
   
   // Fetch entity details for pre-population
   const { data: entityDetails, isLoading: isLoadingEntityDetails } = useQuery({
-    queryKey: ['entity-details', entity?.id],
+    queryKey: ['entity-details', entity?.id, entity?.is_active],
     queryFn: async () => {
       if (!entity?.id) return null;
       
@@ -195,7 +196,9 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
       }
     },
     enabled: !!entity?.id && open,
-    staleTime: 1000 * 60 * 5, // Cache for 5 minutes
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: false,
   });
   
   const tableForm = useForm({
@@ -358,18 +361,17 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
       
       console.log('✅ ENTITY UPDATE SUCCESS:', result);
       
-      // Comprehensive cache invalidation - all data sources
-      queryClient.invalidateQueries({ queryKey: ['/api/entities'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/entities', entity.id] });
-      queryClient.invalidateQueries({ queryKey: ['/api/entities', { teamId: entity.teamId }] });
-      queryClient.invalidateQueries({ queryKey: ['/api/dashboard/summary'] });
+      invalidateEntityCaches(queryClient, {
+        tenant: entity.tenant_name || undefined,
+        teamId: entity.teamId,
+        entityId: entity.id,
+      });
       
-      // Force refresh of Redux state - use team context if available for proper filtering
+      // Force refresh Redux state first (so UI reflects change immediately)
       if (entity.teamId) {
         dispatch(fetchEntities({ teamId: entity.teamId }));
-      } else {
-        dispatch(fetchEntities({ tenant: entity.tenant_name || 'Data Engineering' }));
       }
+      dispatch(fetchEntities({ tenant: entity.tenant_name || 'Data Engineering' }));
       
       toast({
         title: 'Success',
