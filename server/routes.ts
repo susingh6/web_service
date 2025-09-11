@@ -952,6 +952,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Entities endpoints - using cache with pre-defined date filtering
   app.get("/api/entities", async (req, res) => {
     try {
+      // Clear HTTP cache headers to prevent 304 responses when data changes
+      res.removeHeader('ETag');
+      res.removeHeader('Last-Modified');
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      
       let entities = await redisCache.getAllEntities();
       
       // Filter by tenant if tenant parameter is provided
