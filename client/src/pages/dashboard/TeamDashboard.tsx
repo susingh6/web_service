@@ -160,8 +160,12 @@ const TeamDashboard = ({
       queryClient.invalidateQueries({ queryKey: ['entities', tenantName, team?.id] });
       // Also refresh dashboard summary
       queryClient.invalidateQueries({ queryKey: ['dashboardSummary', tenantName, team?.id] });
-      // Also refresh Redux store
-      dispatch(fetchEntities({ tenant: tenantName }));
+      // Also refresh Redux store with team context to get all entities
+      if (team?.id) {
+        dispatch(fetchEntities({ teamId: team.id }));
+      } else {
+        dispatch(fetchEntities({ tenant: tenantName }));
+      }
     },
     onTeamMembersUpdated: (data) => {
       // Refresh team members when real-time update received

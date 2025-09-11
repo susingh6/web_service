@@ -364,8 +364,12 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
       queryClient.invalidateQueries({ queryKey: ['/api/entities', { teamId: entity.teamId }] });
       queryClient.invalidateQueries({ queryKey: ['/api/dashboard/summary'] });
       
-      // Force refresh of Redux state by dispatching fetchEntities 
-      dispatch(fetchEntities({ tenant: entity.tenant_name || 'Data Engineering' }));
+      // Force refresh of Redux state - use team context if available for proper filtering
+      if (entity.teamId) {
+        dispatch(fetchEntities({ teamId: entity.teamId }));
+      } else {
+        dispatch(fetchEntities({ tenant: entity.tenant_name || 'Data Engineering' }));
+      }
       
       toast({
         title: 'Success',
