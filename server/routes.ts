@@ -566,11 +566,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log(`GET /api/v1/entities - Parameters: type=${type} - status: 200`);
       } else if (tenant) {
         // Get entities by tenant (filtered - entity owners only)
-        entities = await redisCache.getFilteredEntitiesByTenant(tenant as string);
+        entities = await storage.getEntitiesByTenant(tenant as string);
         console.log(`GET /api/v1/entities - Parameters: tenant=${tenant} - status: 200`);
       } else {
         // Get all entities (filtered - entity owners only)
-        entities = await redisCache.getFilteredEntitiesByTenant();
+        entities = await storage.getEntitiesByTenant();
         console.log(`GET /api/v1/entities - status: 200`);
       }
       
