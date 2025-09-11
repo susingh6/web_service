@@ -462,6 +462,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // FastAPI fallback route for creating new teams
+  app.post("/api/v1/teams", async (req, res) => {
+    try {
+      // Validate request body
+      const validationResult = insertTeamSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json(createValidationErrorResponse(validationResult.error));
+      }
+
+      // Create team
+      const newTeam = await storage.createTeam(validationResult.data);
+
+      // Invalidate all team-related caches using correct main cache keys
+      await redisCache.invalidateCache({
+        keys: ['all_teams', 'teams_summary'],
+        patterns: [
+          'team_details:*',
+          'team_entities:*',
+          'team_metrics:*',
+          'team_trends:*',
+          'dashboard_summary:*',
+          'entities:*'
+        ]
+      });
+
+      res.status(201).json(newTeam);
+    } catch (error) {
+      console.error('Team creation error:', error);
+      res.status(500).json(createErrorResponse("Failed to create team", "creation_error"));
+    }
+  });
+
   // Debug endpoint to check team data - using cache
   app.get("/api/debug/teams", async (req, res) => {
     try {
