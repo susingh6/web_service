@@ -189,9 +189,9 @@ const Summary = () => {
 
   // Filter entities based on tab and tenant - only show entity owners
   const filterEntitiesByTenant = (entities: Entity[]) => {
-    // Filter by tenant_name - show both entity owners and non-owners
+    // Filter by tenant_name and only show entity owners
     return entities.filter(entity => 
-      entity.tenant_name === selectedTenant?.name
+      entity.tenant_name === selectedTenant?.name && entity.is_entity_owner === true
     );
   };
 

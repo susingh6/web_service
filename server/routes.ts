@@ -1133,7 +1133,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           'dashboard_summary:*'
         ],
         mainCacheKeys: ['ENTITIES'], // This invalidates CACHE_KEYS.ENTITIES used by getAllEntities()
-        refreshAffectedData: true
+        refreshAffectedData: true,
+        // Force invalidation of team-specific entity queries to prevent 304 responses
+        forceRefresh: true
       });
       
       res.status(201).json(entity);
