@@ -1311,8 +1311,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Invalid entity ID" });
       }
       
+      // DEBUG: Log all entities in cache before deletion
+      const allEntities = await redisCache.getAllEntities();
+      console.log(`DELETE DEBUG: All entities in cache: [${allEntities.map(e => e.id).join(', ')}]`);
+      console.log(`DELETE DEBUG: Looking for entity ID: ${id}`);
+      
       // Get entity info before deletion for cache invalidation
       const entityToDelete = await redisCache.getEntity(id);
+      console.log(`DELETE DEBUG: Entity found:`, entityToDelete ? 'YES' : 'NO');
+      
       if (!entityToDelete) {
         return res.status(404).json({ message: "Entity not found" });
       }
