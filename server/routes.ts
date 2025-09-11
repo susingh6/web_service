@@ -545,12 +545,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // FastAPI fallback route for updating entities
   app.put("/api/v1/entities/:entityId", async (req, res) => {
-    console.log(`[DEBUG] PUT /api/v1/entities/${req.params.entityId} - Request received`);
     try {
       const entityId = parseInt(req.params.entityId);
-      console.log(`[DEBUG] Parsed entityId: ${entityId}`);
       if (isNaN(entityId)) {
-        console.log(`[DEBUG] Invalid entityId, returning 400`);
         return res.status(400).json(createErrorResponse("Invalid entity ID", "validation_error"));
       }
       
@@ -607,9 +604,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const updatedEntity = await redisCache.updateEntityById(entityId, updateData);
-      console.log(`[DEBUG] Updated entity result:`, updatedEntity ? 'SUCCESS' : 'NOT_FOUND');
       if (!updatedEntity) {
-        console.log(`[DEBUG] Entity ${entityId} not found, returning 404`);
         return res.status(404).json(createErrorResponse("Entity not found", "not_found"));
       }
       
@@ -620,11 +615,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         true // Enable background rebuild
       );
 
-      console.log(`[DEBUG] Returning updated entity:`, { id: updatedEntity.id, name: updatedEntity.name });
       res.json(updatedEntity);
     } catch (error) {
-      console.error('[DEBUG] Entity update error:', error);
-      console.error('[DEBUG] Error stack:', error.stack);
+      console.error('Entity update error:', error);
       res.status(500).json(createErrorResponse("Failed to update entity", "update_error"));
     }
   });
