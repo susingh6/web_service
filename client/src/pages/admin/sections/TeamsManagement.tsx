@@ -26,7 +26,8 @@ import {
   IconButton,
   Tooltip,
   TablePagination,
-  InputAdornment
+  InputAdornment,
+  Switch
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -133,7 +134,7 @@ const TeamFormDialog = ({ open, onClose, team, tenants, onSubmit }: TeamFormDial
             control={
               <Switch
                 checked={formData.isActive}
-                onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, isActive: e.target.checked })}
               />
             }
             label="Active Team"
@@ -292,6 +293,7 @@ const TeamsManagement = () => {
         // Use generic invalidation since teams don't have specific scenarios yet
         invalidationScenario: undefined,
         rollbackKeys: [['admin', 'teams']],
+        additionalInvalidations: [['/api/teams']], // Also invalidate dashboard team dropdown cache
       });
 
       // Replace optimistic entry with real server response
@@ -431,6 +433,7 @@ const TeamsManagement = () => {
         // Use generic invalidation since teams don't have specific scenarios yet
         invalidationScenario: undefined,
         rollbackKeys: [['admin', 'teams']],
+        additionalInvalidations: [['/api/teams']], // Also invalidate dashboard team dropdown cache
       });
 
       const isStatusToggle = 'isActive' in teamData;
