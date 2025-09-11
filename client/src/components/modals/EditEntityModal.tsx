@@ -330,8 +330,8 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
         }
       }
       
-      // Get user email from authentication context
-      const userEmail = user?.email || (user as any)?.mail || (user as any)?.preferredUsername || '';
+      // Get user email from authentication context with proper type handling
+      const userEmail = (user as any)?.email || (user as any)?.mail || (user as any)?.preferredUsername || '';
       if (!userEmail) {
         setValidationError('User email not found. Please log in again.');
         return;
@@ -347,12 +347,16 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
         ...data,
       };
       
-      await dispatch(
+      console.log('🚀 ENTITY UPDATE START:', { entityId: entity.id, entityData });
+      
+      const result = await dispatch(
         updateEntity({
           id: entity.id,
           updates: entityData,
         })
       ).unwrap();
+      
+      console.log('✅ ENTITY UPDATE SUCCESS:', result);
       
       // Comprehensive cache invalidation - all data sources
       queryClient.invalidateQueries({ queryKey: ['/api/entities'] });
@@ -371,6 +375,10 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
       
       onClose();
     } catch (error) {
+      console.error('❌ ENTITY UPDATE ERROR:', error);
+      console.error('❌ ERROR TYPE:', typeof error);
+      console.error('❌ ERROR DETAILS:', JSON.stringify(error, null, 2));
+      
       toast({
         title: 'Error',
         description: `Failed to update: ${error}`,
