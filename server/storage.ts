@@ -508,7 +508,7 @@ export class MemStorage implements IStorage {
         currentSla: null,
         status: 'Pending',
         refreshFrequency: 'Daily',
-        lastRefreshed: null,
+        lastRefreshed: new Date('2024-12-01T00:00:00Z'),
         owner: 'Alex Chen',
         ownerEmail: 'alex.chen@company.com',
         schema_name: 'abc',

@@ -203,6 +203,12 @@ const Summary = () => {
       });
       scheduleNormalizedFlush();
 
+      // Keep Redux-backed views fresh (legacy behavior preserved)
+      dispatch(fetchEntities({}));
+      if (selectedTenant) {
+        dispatch(fetchDashboardSummary({ tenantName: selectedTenant.name }));
+      }
+
       const messages: Record<'created' | 'updated' | 'deleted', string> = {
         created: `${data.entityName} has been created successfully`,
         updated: `${data.entityName} has been updated successfully`,
@@ -221,6 +227,11 @@ const Summary = () => {
         normalizedTenantQueueRef.current.add(selectedTenant.name);
         scheduleNormalizedFlush();
       }
+      // Also refresh Redux-backed summary/entities
+      if (selectedTenant) {
+        dispatch(fetchDashboardSummary({ tenantName: selectedTenant.name }));
+      }
+      dispatch(fetchEntities({}));
       toast({
         title: "Data Refreshed",
         description: "Dashboard data has been updated with latest information",
@@ -273,6 +284,29 @@ const Summary = () => {
   const filteredEntities = filterEntitiesByTenant(entities);
   const tables = filteredEntities.filter((entity) => entity.type === 'table');
   const dags = filteredEntities.filter((entity) => entity.type === 'dag');
+
+  // Determine if server has any data for the selected range on Summary
+  const hasRangeData = !!(
+    complianceTrends &&
+    Array.isArray((complianceTrends as any).trend) &&
+    (complianceTrends as any).trend.length > 0
+  );
+
+  // Treat an entity as recent if updated/created in last 6 hours
+  const isEntityRecent = (entity: Entity): boolean => {
+    const ts = (entity.lastRefreshed as any) || (entity.updatedAt as any) || null;
+    if (!ts) return false;
+    const updatedAt = ts instanceof Date ? ts : new Date(ts);
+    return updatedAt.getTime() >= Date.now() - 6 * 60 * 60 * 1000;
+  };
+
+  // For ranges without cached metrics, only show recent, active owner entities
+  const visibleTables = hasRangeData 
+    ? tables 
+    : tables.filter((e) => (e as any).is_active === true && isEntityRecent(e));
+  const visibleDags = hasRangeData 
+    ? dags 
+    : dags.filter((e) => (e as any).is_active === true && isEntityRecent(e));
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
@@ -537,38 +571,38 @@ const Summary = () => {
                 {[
                   { 
                     title: "Overall SLA Compliance", 
-                    value: metrics?.overallCompliance || 0, 
+                    value: hasRangeData ? (metrics?.overallCompliance || 0) : 0, 
                     suffix: "%", 
-                    progress: metrics?.overallCompliance || 0,
+                    progress: hasRangeData ? (metrics?.overallCompliance || 0) : undefined,
                     loading: metricsLoading && !lastFetchFailed,
-                    showDataUnavailable: lastFetchFailed && !metrics,
+                    showDataUnavailable: !metricsLoading && !hasRangeData,
                     infoTooltip: "Average SLA compliance calculated across all tables and DAGs monitored across all teams"
                   },
                   { 
                     title: "Tables SLA Compliance", 
-                    value: metrics?.tablesCompliance || 0, 
+                    value: hasRangeData ? (metrics?.tablesCompliance || 0) : 0, 
                     suffix: "%", 
-                    progress: metrics?.tablesCompliance || 0,
+                    progress: hasRangeData ? (metrics?.tablesCompliance || 0) : undefined,
                     loading: metricsLoading && !lastFetchFailed,
-                    showDataUnavailable: lastFetchFailed && !metrics,
+                    showDataUnavailable: !metricsLoading && !hasRangeData,
                     infoTooltip: "Average SLA compliance percentage calculated across all table entities"
                   },
                   { 
                     title: "DAGs SLA Compliance", 
-                    value: metrics?.dagsCompliance || 0, 
+                    value: hasRangeData ? (metrics?.dagsCompliance || 0) : 0, 
                     suffix: "%", 
-                    progress: metrics?.dagsCompliance || 0,
+                    progress: hasRangeData ? (metrics?.dagsCompliance || 0) : undefined,
                     loading: metricsLoading && !lastFetchFailed,
-                    showDataUnavailable: lastFetchFailed && !metrics,
+                    showDataUnavailable: !metricsLoading && !hasRangeData,
                     infoTooltip: "Average SLA compliance percentage calculated across all DAG entities"
                   },
                   { 
                     title: "Entities Monitored", 
-                    value: metrics?.entitiesCount || 0, 
+                    value: hasRangeData ? (metrics?.entitiesCount || 0) : 0, 
                     suffix: "",
                     loading: metricsLoading && !lastFetchFailed,
-                    showDataUnavailable: lastFetchFailed && !metrics,
-                    subtitle: metrics ? `${tables.length} Tables • ${dags.length} DAGs` : ""
+                    showDataUnavailable: !metricsLoading && !hasRangeData,
+                    subtitle: hasRangeData && metrics ? `${tables.length} Tables • ${dags.length} DAGs` : ""
                   }
                 ].map((card, idx) => (
                   <Box key={card.title} flex="1 1 250px" minWidth="250px">
@@ -585,7 +619,7 @@ const Summary = () => {
                     filters={['All', 'Tables', 'DAGs']}
                     onFilterChange={setChartFilter}
                     loading={metricsLoading && !lastFetchFailed}
-                    chart={<ComplianceTrendChart filter={chartFilter.toLowerCase() as 'all' | 'tables' | 'dags'} data={complianceTrends?.trend || []} loading={metricsLoading} />}
+                    chart={<ComplianceTrendChart filter={chartFilter.toLowerCase() as 'all' | 'tables' | 'dags'} data={hasRangeData ? (complianceTrends?.trend || []) : []} loading={metricsLoading} />}
                   />
                 </Box>
 
@@ -593,7 +627,7 @@ const Summary = () => {
                   <ChartCard
                     title="Team Performance Comparison"
                     loading={metricsLoading && !lastFetchFailed}
-                    chart={<TeamComparisonChart entities={entities} teams={teams} selectedTenant={selectedTenant?.name || ''} loading={metricsLoading} hasMetrics={metrics !== null} />}
+                    chart={<TeamComparisonChart entities={hasRangeData ? entities : []} teams={teams} selectedTenant={selectedTenant?.name || ''} loading={metricsLoading} hasMetrics={hasRangeData} />}
                   />
                 </Box>
               </Box>
@@ -621,7 +655,7 @@ const Summary = () => {
               <Box role="tabpanel" hidden={tabValue !== 0}>
                 {tabValue === 0 && (
                   <EntityTable
-                    entities={tables}
+                    entities={visibleTables}
                     type="table"
                     teams={teams}
                     onEditEntity={handleEditEntity}
@@ -630,7 +664,7 @@ const Summary = () => {
                     onViewDetails={handleViewDetails}
                     onSetNotificationTimeline={handleNotificationTimeline}
                     showActions={false}
-                    hasMetrics={metrics !== null}
+                    hasMetrics={hasRangeData}
                     trendLabel={`${summaryDateRange.label} Trend`}
                   />
                 )}
@@ -639,7 +673,7 @@ const Summary = () => {
               <Box role="tabpanel" hidden={tabValue !== 1}>
                 {tabValue === 1 && (
                   <EntityTable
-                    entities={dags}
+                    entities={visibleDags}
                     type="dag"
                     teams={teams}
                     onEditEntity={handleEditEntity}
@@ -649,7 +683,7 @@ const Summary = () => {
                     onViewTasks={handleViewTasks}
                     onSetNotificationTimeline={handleNotificationTimeline}
                     showActions={false}
-                    hasMetrics={metrics !== null}
+                    hasMetrics={hasRangeData}
                     trendLabel={`${summaryDateRange.label} Trend`}
                   />
                 )}

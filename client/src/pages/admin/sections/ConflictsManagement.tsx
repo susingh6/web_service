@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo, useDeferredValue } from 'react';
 import {
   Box,
   Typography,
@@ -25,7 +25,8 @@ import {
   Paper,
   Grid,
   IconButton,
-  Tooltip
+  Tooltip,
+  InputAdornment
 } from '@mui/material';
 import {
   Visibility as ViewIcon,
@@ -34,6 +35,7 @@ import {
   Code as CodeIcon
 } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Search as SearchIcon, Clear as ClearIcon } from '@mui/icons-material';
 import { useToast } from '@/hooks/use-toast';
 import { buildUrl, endpoints } from '@/config';
 import { apiRequest } from '@/lib/queryClient';
@@ -219,6 +221,8 @@ const ConflictDetailsDialog = ({ open, onClose, conflict, onResolve, isResolving
 const ConflictsManagement = () => {
   const [selectedConflict, setSelectedConflict] = useState<ConflictNotification | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const deferredSearchQuery = useDeferredValue(searchQuery);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -305,9 +309,9 @@ const ConflictsManagement = () => {
           resolutionNotes: null,
           resolvedBy: null
         }
-      ] as ConflictNotification[];
+      ];
       
-      return mockConflicts;
+      return mockConflicts as unknown as ConflictNotification[];
     },
   });
 
@@ -402,19 +406,60 @@ const ConflictsManagement = () => {
     return '🟢';
   };
 
+  // Filter conflicts using tokenized AND search across several fields
+  const filteredConflicts = useMemo(() => {
+    if (!conflicts || conflicts.length === 0) return [] as ConflictNotification[];
+    const q = deferredSearchQuery.trim().toLowerCase();
+    if (!q) return conflicts as ConflictNotification[];
+    const tokens = q.split(' ').filter(Boolean);
+    return (conflicts as any[]).filter((c) => {
+      const fields = [
+        c.notificationId,
+        c.entityType,
+        (c as any).entityName || '',
+        (c.conflictingTeams || []).join(' '),
+        (c as any).conflictDetails?.existingOwner || '',
+      ].join(' ').toLowerCase();
+      return tokens.every(tok => fields.includes(tok));
+    });
+  }, [conflicts, deferredSearchQuery]);
+
   return (
     <Box sx={{ p: 3 }}>
       <Typography variant="h4" gutterBottom>
         Ownership Conflicts
       </Typography>
-      <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-        Resolve entity ownership conflicts between teams
-      </Typography>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Typography variant="body1" color="text.secondary">
+          Resolve entity ownership conflicts between teams
+        </Typography>
+        <TextField
+          size="small"
+          placeholder="Search conflicts..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          sx={{ minWidth: 300 }}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon />
+              </InputAdornment>
+            ),
+            endAdornment: searchQuery && (
+              <InputAdornment position="end">
+                <IconButton size="small" onClick={() => setSearchQuery('')} edge="end">
+                  <ClearIcon />
+                </IconButton>
+              </InputAdornment>
+            ),
+          }}
+        />
+      </Box>
 
       <Card elevation={2}>
         <CardContent>
           <Typography variant="h6" gutterBottom>
-            Pending Conflicts ({conflicts.filter(c => c.status === 'pending').length})
+            Pending Conflicts ({filteredConflicts.filter(c => c.status === 'pending').length})
           </Typography>
           
           <TableContainer component={Paper} elevation={0}>
@@ -432,7 +477,7 @@ const ConflictsManagement = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {conflicts.map((conflict) => {
+                {filteredConflicts.map((conflict) => {
                   const daysOld = conflict.createdAt ? Math.floor((new Date().getTime() - new Date(conflict.createdAt).getTime()) / (1000 * 60 * 60 * 24)) : 0;
                   
                   return (
@@ -460,7 +505,7 @@ const ConflictsManagement = () => {
                       </TableCell>
                       <TableCell>
                         <Box sx={{ display: 'flex', gap: 0.5 }}>
-                          {(conflict.conflictingTeams || []).map((team) => (
+                          {(conflict.conflictingTeams || []).map((team: string) => (
                             <Chip key={team} label={team} size="small" />
                           ))}
                         </Box>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useDeferredValue } from 'react';
 import {
   Box,
   Typography,
@@ -16,13 +16,14 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  TextField,
   Paper,
   IconButton,
   Tooltip,
   Switch,
   FormControlLabel
 } from '@mui/material';
+import InputAdornment from '@mui/material/InputAdornment';
+import TextField from '@mui/material/TextField';
 import {
   Add as AddIcon,
   Edit as EditIcon,
@@ -34,6 +35,7 @@ import { invalidateAdminCaches } from '@/lib/cacheKeys';
 import { useToast } from '@/hooks/use-toast';
 import { buildUrl, endpoints } from '@/config';
 import { tenantsApi } from '@/features/sla/api';
+import { Search as SearchIcon, Clear as ClearIcon } from '@mui/icons-material';
 // Removed custom optimistic wrapper in favor of native React Query mutations
 
 interface Tenant {
@@ -136,8 +138,10 @@ const TenantFormDialog = ({ open, onClose, tenant, onSubmit }: TenantFormDialogP
 const TenantsManagement = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const deferredSearchQuery = useDeferredValue(searchQuery);
 
   // Fetch ALL tenants for admin (not just active ones)
   const { data: tenants = [], isLoading } = useQuery({
@@ -149,6 +153,23 @@ const TenantsManagement = () => {
       return await tenantsApi.getAll(false); // active_only=false for admin
     },
   });
+
+  // Search filter (case-insensitive, tokenized AND match)
+  const filteredTenants = useMemo(() => {
+    if (!tenants || tenants.length === 0) return [] as Tenant[];
+    const q = deferredSearchQuery.trim().toLowerCase();
+    if (!q) return tenants as Tenant[];
+    const tokens = q.split(' ').filter(Boolean);
+    return (tenants as Tenant[]).filter((t) => {
+      const blob = [
+        t.name,
+        t.description || '',
+        String(t.teamsCount),
+        t.isActive ? 'active' : 'inactive',
+      ].join(' ').toLowerCase();
+      return tokens.every(tok => blob.includes(tok));
+    });
+  }, [tenants, deferredSearchQuery]);
 
   // Create tenant with React Query onMutate/onError/onSettled
   const createTenantMutation = useMutation({
@@ -254,9 +275,32 @@ const TenantsManagement = () => {
 
       <Card elevation={2}>
         <CardContent>
-          <Typography variant="h6" gutterBottom>
-            All Tenants ({tenants.length})
-          </Typography>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Typography variant="h6">
+              All Tenants ({filteredTenants.length})
+            </Typography>
+            <TextField
+              size="small"
+              placeholder="Search tenants..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              sx={{ minWidth: 300 }}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon />
+                  </InputAdornment>
+                ),
+                endAdornment: searchQuery && (
+                  <InputAdornment position="end">
+                    <IconButton size="small" onClick={() => setSearchQuery('')} edge="end">
+                      <ClearIcon />
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
+            />
+          </Box>
           
           <TableContainer component={Paper} elevation={0}>
             <Table>
@@ -271,7 +315,7 @@ const TenantsManagement = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {tenants.map((tenant: Tenant) => (
+                {filteredTenants.map((tenant: Tenant) => (
                   <TableRow key={tenant.id}>
                     <TableCell>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>

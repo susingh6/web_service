@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Box, Typography, Button, Card, CardContent, CircularProgress, useTheme } from '@mui/material';
-import { useAuth } from '@/lib/authProvider';
+import { useAuth } from '@/hooks/use-auth';
 import { useLocation } from 'wouter';
 
 const Login = () => {
   const theme = useTheme();
-  const { login, isAuthenticated, isLoading, error } = useAuth();
+  const { loginWithAzure, isAuthenticated, isLoading, error } = useAuth();
   const [, setLocation] = useLocation();
   const [localLoading, setLocalLoading] = useState(false);
 
@@ -19,7 +19,7 @@ const Login = () => {
   const handleLogin = async () => {
     try {
       setLocalLoading(true);
-      await login();
+      await loginWithAzure();
     } catch (err) {
       console.error('Login failed:', err);
     } finally {
@@ -75,7 +75,7 @@ const Login = () => {
 
           {error && (
             <Typography color="error" align="center" sx={{ mb: 2 }}>
-              {error}
+              {typeof error === 'string' ? error : (error as Error).message}
             </Typography>
           )}
 

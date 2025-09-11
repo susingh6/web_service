@@ -101,6 +101,7 @@ interface EntityTableProps {
   isTeamDashboard?: boolean; // Controls whether to show Entity Owner instead of Team
   hasMetrics?: boolean; // Controls whether to show data or empty state based on date range
   trendLabel?: string; // Dynamic label for trend column based on selected date range
+  newEntityIds?: Set<number>; // Optional explicit list of session-new IDs to show NEW badge
 }
 
 const EntityTable = ({
@@ -117,6 +118,7 @@ const EntityTable = ({
   isTeamDashboard = false, // Default to summary dashboard
   hasMetrics = true, // Default to true for backward compatibility
   trendLabel = '30-Day Trend', // Default label
+  newEntityIds,
 }: EntityTableProps) => {
   
   const dispatch = useAppDispatch();
@@ -184,6 +186,12 @@ const EntityTable = ({
       );
     }
     
+    // If metrics are unavailable for the selected range on team dashboard,
+    // show only recently created/updated entities (new entries should always show).
+    if (isTeamDashboard && !hasMetrics) {
+      result = result.filter(isEntityRecent);
+    }
+
     // Apply sorting
     result = result.sort((a, b) => {
       // For team dashboard, group by entity ownership status first
@@ -337,16 +345,8 @@ const EntityTable = ({
     };
   };
 
-  // Show empty state when dashboard metrics are not available (API returned 404)
-  if (!hasMetrics) {
-    return (
-      <Box sx={{ p: 3, textAlign: 'center' }}>
-        <Typography variant="body2" color="text.secondary">
-          No data available for selected date range
-        </Typography>
-      </Box>
-    );
-  }
+  // Note: Even when metrics are unavailable for the selected range, we still display
+  // the entities list so users can always see newly added items.
 
   return (
     <Box>
@@ -546,7 +546,7 @@ const EntityTable = ({
                             fontSize: '0.75rem',
                           }}
                         />
-                        {isEntityRecent(entity) && (
+                        { (newEntityIds ? newEntityIds.has(entity.id) : isEntityRecent(entity)) && (
                           <Chip
                             label="NEW"
                             size="small"
@@ -569,25 +569,29 @@ const EntityTable = ({
                               },
                             }}
                           />
-                        )}
+                        ) }
                       </Box>
                     </TableCell>
                     
                     <TableCell align="right" sx={{ width: '120px' }}>
                       <Typography variant="body2" fontWeight={500}>
-                        {entity.currentSla?.toFixed(1)}%
+                        {hasMetrics && typeof entity.currentSla === 'number' ? `${entity.currentSla.toFixed(1)}%` : '—'}
                       </Typography>
                     </TableCell>
                     
                     <TableCell align="right" sx={{ width: '140px' }}>
-                      <Box display="flex" alignItems="center" justifyContent="flex-end">
-                        <Box component="span" color={`${trendData.color}.main`} display="flex" alignItems="center" mr={0.5}>
-                          {trendData.icon}
+                      {hasMetrics ? (
+                        <Box display="flex" alignItems="center" justifyContent="flex-end">
+                          <Box component="span" color={`${trendData.color}.main`} display="flex" alignItems="center" mr={0.5}>
+                            {trendData.icon}
+                          </Box>
+                          <Typography variant="body2" color={`${trendData.color}.main`} fontWeight={500}>
+                            {trendData.value > 0 ? '+' : ''}{trendData.value.toFixed(1)}%
+                          </Typography>
                         </Box>
-                        <Typography variant="body2" color={`${trendData.color}.main`} fontWeight={500}>
-                          {trendData.value > 0 ? '+' : ''}{trendData.value.toFixed(1)}%
-                        </Typography>
-                      </Box>
+                      ) : (
+                        <Typography variant="body2" color="text.disabled">—</Typography>
+                      )}
                     </TableCell>
                     
                     <TableCell sx={{ width: '150px' }}>

@@ -24,8 +24,13 @@ import {
   Edit as EditIcon,
   Security as SecurityIcon,
   Check as CheckIcon,
-  Close as CloseIcon
+  Close as CloseIcon,
+  Search as SearchIcon,
+  Clear as ClearIcon
 } from '@mui/icons-material';
+import TextField from '@mui/material/TextField';
+import InputAdornment from '@mui/material/InputAdornment';
+import { useDeferredValue, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { buildUrl, endpoints } from '@/config';
 
@@ -39,6 +44,8 @@ interface Role {
 }
 
 const RolesManagement = () => {
+  const [searchQuery, setSearchQuery] = useState('');
+  const deferredSearchQuery = useDeferredValue(searchQuery);
   // Fetch roles
   const { data: roles = [], isLoading } = useQuery<Role[]>({
     queryKey: ['admin', 'roles'],
@@ -89,6 +96,23 @@ const RolesManagement = () => {
     },
   });
 
+  const filteredRoles = useMemo(() => {
+    if (!roles || roles.length === 0) return [] as Role[];
+    const q = deferredSearchQuery.trim().toLowerCase();
+    if (!q) return roles as Role[];
+    const tokens = q.split(' ').filter(Boolean);
+    return (roles as Role[]).filter((r) => {
+      const blob = [
+        r.name,
+        r.description,
+        r.permissions.join(' '),
+        r.isSystemRole ? 'system' : 'custom',
+        String(r.userCount)
+      ].join(' ').toLowerCase();
+      return tokens.every(tok => blob.includes(tok));
+    });
+  }, [roles, deferredSearchQuery]);
+
   const getPermissionLabel = (permission: string) => {
     const labels: Record<string, string> = {
       'manage_users': 'Manage Users',
@@ -134,9 +158,32 @@ const RolesManagement = () => {
 
       <Card elevation={2}>
         <CardContent>
-          <Typography variant="h6" gutterBottom>
-            System Roles ({roles.length})
-          </Typography>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Typography variant="h6">
+              System Roles ({filteredRoles.length})
+            </Typography>
+            <TextField
+              size="small"
+              placeholder="Search roles..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              sx={{ minWidth: 300 }}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon />
+                  </InputAdornment>
+                ),
+                endAdornment: searchQuery && (
+                  <InputAdornment position="end">
+                    <IconButton size="small" onClick={() => setSearchQuery('')} edge="end">
+                      <ClearIcon />
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
+            />
+          </Box>
           
           <TableContainer component={Paper} elevation={0}>
             <Table>
@@ -151,7 +198,7 @@ const RolesManagement = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {roles.map((role) => (
+                {filteredRoles.map((role) => (
                   <TableRow key={role.id}>
                     <TableCell>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
