@@ -7,9 +7,9 @@ import {
   Box, 
   Typography, 
   Divider,
-  Grid,
   CircularProgress
 } from '@mui/material';
+// Note: Using Box-based layout instead of Grid to avoid type mismatch across MUI versions
 import { X } from 'lucide-react';
 import { Task, TaskPriority } from '@/features/sla/types';
 import { Entity } from '@shared/schema';
@@ -38,8 +38,8 @@ const TaskManagementModal: React.FC<TaskManagementModalProps> = ({
   // Split tasks into priority zones when data loads
   useEffect(() => {
     if (tasks) {
-      setHighPriorityTasks(tasks.filter(task => task.priority === 'high'));
-      setNormalPriorityTasks(tasks.filter(task => task.priority === 'normal'));
+      setHighPriorityTasks(tasks.filter((task: Task) => task.priority === 'high'));
+      setNormalPriorityTasks(tasks.filter((task: Task) => task.priority === 'normal'));
     }
   }, [tasks]);
   
@@ -122,24 +122,30 @@ const TaskManagementModal: React.FC<TaskManagementModalProps> = ({
               </Typography>
             </Box>
             
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={6}>
+            <Box 
+              sx={{ 
+                display: 'grid', 
+                gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, 
+                gap: 3 
+              }}
+            >
+              <Box>
                 <PriorityZone 
                   title="AI Monitored Tasks"
                   priority="high"
                   tasks={highPriorityTasks}
                   onTaskDropped={(taskId) => handleTaskDropped(taskId, 'high')}
                 />
-              </Grid>
-              <Grid item xs={12} md={6}>
+              </Box>
+              <Box>
                 <PriorityZone 
                   title="Regular Tasks"
                   priority="normal"
                   tasks={normalPriorityTasks}
                   onTaskDropped={(taskId) => handleTaskDropped(taskId, 'normal')}
                 />
-              </Grid>
-            </Grid>
+              </Box>
+            </Box>
           </Box>
         )}
       </DialogContent>

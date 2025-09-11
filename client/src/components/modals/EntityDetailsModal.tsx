@@ -50,6 +50,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 import { buildUrl, endpoints } from '@/config';
 import { useQuery } from '@tanstack/react-query';
+import { cacheKeys, invalidateEntityCaches } from '@/lib/cacheKeys';
 
 interface EntityDetailsModalProps {
   open: boolean;
@@ -308,7 +309,7 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
   
   // Fetch owner and SLA settings (combined API call)
   const { data: ownerSlaSettings, isLoading: ownerSlaLoading } = useQuery({
-    queryKey: ['ownerSlaSettings', entity?.type, teamName, entity?.name],
+    queryKey: cacheKeys.entityDetails(entity?.id ?? 'new', `ownerSlaSettings-${entity?.type}-${teamName}-${entity?.name}`),
     queryFn: async () => {
       if (!entity || !teamName) return null;
       try {
@@ -340,7 +341,7 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
 
   // Fetch SLA status history for last 30 days
   const { data: slaStatusData, isLoading: slaStatusLoading } = useQuery({
-    queryKey: ['slaStatusHistory', entity?.type, teamName, entity?.name],
+    queryKey: cacheKeys.entityDetails(entity?.id ?? 'new', `slaStatusHistory-${entity?.type}-${teamName}-${entity?.name}`),
     queryFn: async () => {
       if (!entity || !teamName) return [];
       try {
@@ -357,7 +358,7 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
 
   // Fetch recent settings changes
   const { data: recentChanges, isLoading: recentChangesLoading } = useQuery({
-    queryKey: ['recentSettingsChanges', entity?.type, teamName, entity?.name],
+    queryKey: cacheKeys.entityDetails(entity?.id ?? 'new', `recentSettingsChanges-${entity?.type}-${teamName}-${entity?.name}`),
     queryFn: async () => {
       if (!entity || !teamName) return [];
       try {
@@ -420,8 +421,12 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
         variant: 'default',
       });
       
-      // Refresh data
-      queryClient.invalidateQueries({ queryKey: ['/api/entities'] });
+      // Refresh data via normalized invalidation
+      await invalidateEntityCaches(queryClient, {
+        tenant: entity.tenant_name || undefined,
+        teamId: entity.teamId,
+        entityId: entity.id,
+      });
       
       setOpenDeleteDialog(false);
       onClose();

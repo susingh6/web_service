@@ -10,6 +10,7 @@ export const cacheKeys = {
   teamMembers: (tenant: string, teamId?: number | null) => ['teamMembers', tenant, teamId ?? null] as const,
   adminTeams: () => ['/api/teams'] as const,
   adminTenants: () => ['/api/tenants'] as const,
+  activeTenants: () => ['/api/tenants', 'active'] as const,
 };
 
 // Invalidation helpers
@@ -25,6 +26,8 @@ export function invalidateEntityCaches(
     queryClient.invalidateQueries({ queryKey: cacheKeys.dashboardSummary(tenant, teamId ?? null, startDate, endDate) });
   }
   if (entityId !== undefined) {
+    // Invalidate specific entity-details and all versioned variants
+    queryClient.invalidateQueries({ queryKey: ['entity-details', entityId as any] });
     queryClient.invalidateQueries({ queryKey: cacheKeys.entityDetails(entityId) });
   }
 
@@ -46,6 +49,7 @@ export function invalidateTenantCaches(queryClient: QueryClient, tenant: string)
 export function invalidateAdminCaches(queryClient: QueryClient) {
   queryClient.invalidateQueries({ queryKey: cacheKeys.adminTeams() });
   queryClient.invalidateQueries({ queryKey: cacheKeys.adminTenants() });
+  queryClient.invalidateQueries({ queryKey: cacheKeys.activeTenants() });
 }
 
 

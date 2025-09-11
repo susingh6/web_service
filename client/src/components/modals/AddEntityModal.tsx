@@ -49,6 +49,9 @@ interface AddEntityModalProps {
   open: boolean;
   onClose: () => void;
   teams: { id: number; name: string }[];
+  initialTenantName?: string;
+  initialTeamName?: string;
+  onSubmitted?: (type: EntityType) => void;
 }
 
 // Use centralized schemas from config
@@ -56,9 +59,10 @@ const getSchemaForType = (entityType: EntityType) => {
   return entityType === 'table' ? tableSchemaBuilder() : dagSchemaBuilder();
 };
 
-const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
+const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamName, onSubmitted }: AddEntityModalProps) => {
   const [entityType, setEntityType] = useState<EntityType>('table');
   const [isEntityOwner, setIsEntityOwner] = useState(false);
+  const isLockedContext = Boolean(initialTeamName && initialTenantName);
   
   // State for dynamic options - initialize from cache for instant load
   const [tenantOptions, setTenantOptions] = useState<string[]>(() => getFromCacheGeneric<string[]>('tenants', ['Ad Engineering', 'Data Engineering']));
@@ -93,8 +97,14 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
     if (open) {
       // Just load the latest values from cache when modal opens
       // No API calls - we rely on the app-level 6-hour refresh cycle
-      setTenantOptions(getFromCacheGeneric<string[]>('tenants', ['Ad Engineering', 'Data Engineering']));
-      setTeamOptions(getFromCacheGeneric<string[]>('teams', ['PGM', 'Core', 'Viewer Product', 'IOT', 'CDM']));
+      if (isLockedContext) {
+        // Restrict selectors to current page context (team tab)
+        setTenantOptions(initialTenantName ? [initialTenantName] : []);
+        setTeamOptions(initialTeamName ? [initialTeamName] : []);
+      } else {
+        setTenantOptions(getFromCacheGeneric<string[]>('tenants', ['Ad Engineering', 'Data Engineering']));
+        setTeamOptions(getFromCacheGeneric<string[]>('teams', ['PGM', 'Core', 'Viewer Product', 'IOT', 'CDM']));
+      }
       
       // Only load DAG options if viewing the DAG tab
       if (entityType === 'dag') {
@@ -103,7 +113,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
       
       // Modal opened - using cached values without additional API calls
     }
-  }, [open, entityType]);
+  }, [open, entityType, isLockedContext, initialTenantName, initialTeamName]);
   
   // Functions to fetch options with loading indicators
   const fetchTenantOptions = async () => {
@@ -170,6 +180,20 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
     });
   }, [entityType, reset]);
 
+  // Prefill tenant/team based on current page context when modal opens
+  useEffect(() => {
+    if (open) {
+      const tenantPrefill = initialTenantName || configDefaultValues.common.tenant_name;
+      const teamPrefill = initialTeamName || configDefaultValues.common.team_name;
+      reset((prev: any) => ({
+        ...prev,
+        tenant_name: tenantPrefill,
+        team_name: teamPrefill,
+      }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initialTenantName, initialTeamName]);
+
   const handleChangeEntityType = (_event: React.SyntheticEvent, newValue: EntityType) => {
     if (newValue !== null) {
       setEntityType(newValue);
@@ -216,7 +240,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
       }
       
       // Get user email from authentication context
-      const userEmail = user?.email || (user as any)?.mail || (user as any)?.preferredUsername || '';
+      const userEmail = (user as any)?.email || (user as any)?.mail || (user as any)?.preferredUsername || '';
       if (!userEmail) {
         setValidationError('User email not found. Please log in again.');
         return;
@@ -255,6 +279,9 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
       setTenantOptions(updateCacheWithNewValue('tenants', data.tenant_name, tenantOptions));
       setTeamOptions(updateCacheWithNewValue('teams', data.team_name, teamOptions));
       
+      // Notify parent to switch sub-tab to the created entity type
+      if (onSubmitted) onSubmitted(entityType);
+
       // Close the modal after successful submission
       onClose();
       reset();
@@ -329,6 +356,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 control={control}
                 render={({ field: { onChange, value, onBlur, ref } }) => (
                   <Autocomplete
+                    disabled={isLockedContext}
                     value={value}
                     onChange={(_, newValue) => {
                       onChange(newValue);
@@ -339,7 +367,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                         // This improves performance significantly
                       }
                     }}
-                    freeSolo
+                    freeSolo={!isLockedContext}
                     options={tenantOptions}
                     loading={loadingTenants}
                     renderInput={(params) => (
@@ -372,6 +400,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 control={control}
                 render={({ field: { onChange, value, onBlur, ref } }) => (
                   <Autocomplete
+                    disabled={isLockedContext}
                     value={value}
                     onChange={(_, newValue) => {
                       onChange(newValue);
@@ -382,7 +411,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                         // This improves performance significantly
                       }
                     }}
-                    freeSolo
+                    freeSolo={!isLockedContext}
                     options={teamOptions}
                     loading={loadingTeams}
                     renderInput={(params) => (
@@ -646,6 +675,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 control={control}
                 render={({ field: { onChange, value, onBlur, ref } }) => (
                   <Autocomplete
+                    disabled={isLockedContext}
                     value={value}
                     onChange={(_, newValue) => {
                       onChange(newValue);
@@ -656,7 +686,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                         // This improves performance significantly
                       }
                     }}
-                    freeSolo
+                    freeSolo={!isLockedContext}
                     options={tenantOptions}
                     loading={loadingTenants}
                     renderInput={(params) => (
@@ -689,6 +719,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                 control={control}
                 render={({ field: { onChange, value, onBlur, ref } }) => (
                   <Autocomplete
+                    disabled={isLockedContext}
                     value={value}
                     onChange={(_, newValue) => {
                       onChange(newValue);
@@ -699,7 +730,7 @@ const AddEntityModal = ({ open, onClose, teams }: AddEntityModalProps) => {
                         // This improves performance significantly
                       }
                     }}
-                    freeSolo
+                    freeSolo={!isLockedContext}
                     options={teamOptions}
                     loading={loadingTeams}
                     renderInput={(params) => (

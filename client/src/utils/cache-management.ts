@@ -1,4 +1,5 @@
-import { useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { cacheKeys, invalidateEntityCaches } from '@/lib/cacheKeys';
 
 // Utility to detect optimistic vs real IDs
 const isOptimisticId = (id: number): boolean => {
@@ -597,232 +598,129 @@ export function useTeamMemberMutation() {
 }
 
 export function useEntityMutation() {
-  const { executeWithOptimism, cacheManager } = useOptimisticMutation();
+  const queryClient = useQueryClient();
 
-  const createEntity = async (entityData: any) => {
-    const entityType = entityData.type as 'table' | 'dag';
-    const scenario = entityType === 'table' ? 'TABLE_ENTITY_CREATED' : 'DAG_ENTITY_CREATED';
-    
-    // Generate optimistic ID for tracking
-    const optimisticId = Date.now();
-    const optimisticEntity = { ...entityData, id: optimisticId };
-    
-    // Use TeamDashboard's React Query key pattern for cache invalidation
-    const teamQueryKey = ['entities', entityData.tenant_name, entityData.teamId];
-    
-    const result = await executeWithOptimism({
-      optimisticUpdate: {
-        queryKey: teamQueryKey,
-        updater: (old: any[] | undefined) => old ? [...old, optimisticEntity] : [optimisticEntity],
-      },
-      mutationFn: async () => {
-        // Build headers with session ID for RBAC enforcement
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-        
-        // CRITICAL: Add X-Session-ID header for FastAPI RBAC
-        const sessionId = localStorage.getItem('fastapi_session_id');
-        if (sessionId) {
-          headers['X-Session-ID'] = sessionId;
-        }
-        
-        const response = await fetch('/api/entities', {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(entityData),
-          credentials: 'include',
-        });
-        if (!response.ok) throw new Error('Failed to create entity');
-        return response.json();
-      },
-      invalidationScenario: {
-        scenario,
-        params: [entityData.teamId],
-        rebuildOptions: { teamId: entityData.teamId, entityType },
-      },
-      rollbackKeys: [teamQueryKey],
-    });
-
-    // After successful creation, replace optimistic entry with real server response
-    if (result) {
-      cacheManager.setOptimisticData(
-        teamQueryKey,
-        (old: any[] | undefined) => {
-          if (!old) return [result];
-          // Replace optimistic entity with real server response
-          return old.map(entity => entity.id === optimisticId ? result : entity);
-        }
-      );
-      
-      // Process any queued operations for this optimistic entity
-      const queuedOps = pendingOperationsQueue.get(optimisticId);
-      if (queuedOps && queuedOps.length > 0) {
-        // Apply queued operations to the real entity
-        queuedOps.forEach(async (op) => {
-          try {
-            if (result && typeof result === 'object' && 'id' in result) {
-              if (op.type === 'update') {
-                // Apply the queued update to the real entity
-                await updateEntity(result.id as number, op.entityData);
-              } else if (op.type === 'delete') {
-                // Apply the queued delete to the real entity
-                await deleteEntity(result.id as number, op.teamId, op.entityType);
-              }
-            }
-          } catch (error) {
-            console.warn(`Failed to apply queued ${op.type} operation:`, error);
-          }
-        });
-        
-        // Clean up the queue
-        pendingOperationsQueue.delete(optimisticId);
-      }
-    }
-
-    return result;
-  };
-
-  const updateEntity = async (entityId: number, entityData: any) => {
-    const entityType = entityData.type as 'table' | 'dag';
-    const scenario = entityType === 'table' ? 'TABLE_ENTITY_UPDATED' : 'DAG_ENTITY_UPDATED';
-    
-    // Use TeamDashboard's React Query key pattern for cache invalidation
-    const teamQueryKey = ['entities', entityData.tenant_name, entityData.teamId];
-    
-    // Handle optimistic entities differently
-    if (isOptimisticId(entityId)) {
-      // Queue the operation for when real ID arrives
-      const existingQueue = pendingOperationsQueue.get(entityId) || [];
-      existingQueue.push({
-        type: 'update',
-        entityData,
-        teamId: entityData.teamId,
-        entityType,
-        timestamp: Date.now()
+  // CREATE
+  const createMutation = useMutation({
+    mutationFn: async (entityData: any) => {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      const sessionId = localStorage.getItem('fastapi_session_id');
+      if (sessionId) headers['X-Session-ID'] = sessionId;
+      const response = await fetch('/api/entities', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(entityData),
+        credentials: 'include',
       });
-      pendingOperationsQueue.set(entityId, existingQueue);
-      
-      // Apply optimistic update to cache immediately
-      cacheManager.setOptimisticData(
-        teamQueryKey,
-        (old: any[] | undefined) => {
-          if (!old) return [];
-          return old.map(entity => 
-            entity.id === entityId ? { ...entity, ...entityData } : entity
-          );
-        }
-      );
-      
-      // Return optimistic entity
-      return { ...entityData, id: entityId };
-    }
-    
-    return executeWithOptimism({
-      optimisticUpdate: {
-        queryKey: teamQueryKey,
-        updater: (old: any[] | undefined) => {
-          if (!old) return [];
-          return old.map(entity => 
-            entity.id === entityId ? { ...entity, ...entityData } : entity
-          );
-        },
-      },
-      mutationFn: async () => {
-        // Build headers with session ID for RBAC enforcement
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-        
-        // CRITICAL: Add X-Session-ID header for FastAPI RBAC
-        const sessionId = localStorage.getItem('fastapi_session_id');
-        if (sessionId) {
-          headers['X-Session-ID'] = sessionId;
-        }
-        
-        console.log('🔧 CACHE UPDATE START:', { entityId, entityData });
-        
-        const response = await fetch(`/api/entities/${entityId}`, {
-          method: 'PUT',
-          headers,
-          body: JSON.stringify(entityData),
-          credentials: 'include',
+      if (!response.ok) throw new Error('Failed to create entity');
+      return response.json();
+    },
+    onMutate: async (entityData: any) => {
+      const tenant = entityData.tenant_name;
+      const teamId = entityData.teamId;
+      const key = cacheKeys.entitiesByTenantAndTeam(tenant, teamId);
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<any[]>(key);
+      const optimisticId = Date.now();
+      const optimisticEntity = { ...entityData, id: optimisticId };
+      queryClient.setQueryData<any[]>(key, (old) => old ? [...old, optimisticEntity] : [optimisticEntity]);
+      return { previous, key, optimisticId };
+    },
+    onError: (_err, _vars, ctx: any) => {
+      if (ctx?.previous) queryClient.setQueryData(ctx.key, ctx.previous);
+    },
+    onSuccess: (result, vars, ctx: any) => {
+      if (ctx?.key && ctx?.optimisticId) {
+        queryClient.setQueryData<any[]>(ctx.key, (old) => {
+          if (!old) return [result];
+          return old.map(e => e.id === ctx.optimisticId ? result : e);
         });
-        
-        console.log('🔧 CACHE UPDATE RESPONSE:', { status: response.status, ok: response.ok });
-        
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error('🔧 CACHE UPDATE FAILED:', { status: response.status, errorText });
-          throw new Error('Failed to update entity');
-        }
-        
-        const result = await response.json();
-        console.log('🔧 CACHE UPDATE SUCCESS:', result);
-        return result;
-      },
-      invalidationScenario: {
-        scenario,
-        params: [entityId, entityData.teamId],
-        rebuildOptions: { teamId: entityData.teamId, entityType },
-      },
-      rollbackKeys: [teamQueryKey],
-    });
-  };
+      }
+    },
+    onSettled: async (result, _err, vars) => {
+      await invalidateEntityCaches(queryClient, {
+        tenant: vars?.tenant_name,
+        teamId: vars?.teamId,
+        entityId: result?.id,
+      });
+    },
+  });
 
-  const deleteEntity = async (entityId: number, teamId: number, entityType: 'table' | 'dag', tenantName?: string) => {
-    const scenario = entityType === 'table' ? 'TABLE_ENTITY_DELETED' : 'DAG_ENTITY_DELETED';
-    
-    // Use TeamDashboard's React Query key pattern for cache invalidation
-    // Default to 'Data Engineering' if no tenantName provided
-    const effectiveTenantName = tenantName || 'Data Engineering';
-    const teamQueryKey = ['entities', effectiveTenantName, teamId];
-    
-    // Handle optimistic entities differently  
-    if (isOptimisticId(entityId)) {
-      // For optimistic entities, just remove from cache immediately
-      // No API call needed since entity doesn't exist on server yet
-      cacheManager.setOptimisticData(
-        teamQueryKey,
-        (old: any[] | undefined) => 
-          old ? old.filter(entity => entity.id !== entityId) : []
-      );
-      
-      // Clean up any pending operations for this entity
-      pendingOperationsQueue.delete(entityId);
-      
-      // Return success immediately
+  // UPDATE
+  const updateMutation = useMutation({
+    mutationFn: async ({ entityId, entityData }: { entityId: number; entityData: any }) => {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      const sessionId = localStorage.getItem('fastapi_session_id');
+      if (sessionId) headers['X-Session-ID'] = sessionId;
+      const response = await fetch(`/api/entities/${entityId}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(entityData),
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to update entity');
+      return response.json();
+    },
+    onMutate: async ({ entityId, entityData }) => {
+      const key = cacheKeys.entitiesByTenantAndTeam(entityData.tenant_name, entityData.teamId);
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<any[]>(key);
+      queryClient.setQueryData<any[]>(key, (old) => {
+        if (!old) return [] as any[];
+        return old.map(e => e.id === entityId ? { ...e, ...entityData } : e);
+      });
+      return { previous, key };
+    },
+    onError: (_err, _vars, ctx: any) => {
+      if (ctx?.previous) queryClient.setQueryData(ctx.key, ctx.previous);
+    },
+    onSettled: async (_res, _err, vars) => {
+      await invalidateEntityCaches(queryClient, {
+        tenant: vars?.entityData?.tenant_name,
+        teamId: vars?.entityData?.teamId,
+        entityId: vars?.entityId,
+      });
+    },
+  });
+
+  // DELETE
+  const deleteMutation = useMutation({
+    mutationFn: async ({ entityId }: { entityId: number }) => {
+      const headers: Record<string, string> = {};
+      const sessionId = localStorage.getItem('fastapi_session_id');
+      if (sessionId) headers['X-Session-ID'] = sessionId;
+      const response = await fetch(`/api/entities/${entityId}`, {
+        method: 'DELETE',
+        headers,
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to delete entity');
       return true;
-    }
-    
-    return executeWithOptimism({
-      optimisticUpdate: {
-        queryKey: teamQueryKey,
-        updater: (old: any[] | undefined) => 
-          old ? old.filter(entity => entity.id !== entityId) : [],
-      },
-      mutationFn: async () => {
-        // Build headers with session ID for RBAC enforcement
-        const headers: Record<string, string> = {};
-        
-        // CRITICAL: Add X-Session-ID header for FastAPI RBAC
-        const sessionId = localStorage.getItem('fastapi_session_id');
-        if (sessionId) {
-          headers['X-Session-ID'] = sessionId;
-        }
-        
-        const response = await fetch(`/api/entities/${entityId}`, {
-          method: 'DELETE',
-          headers,
-          credentials: 'include',
-        });
-        if (!response.ok) throw new Error('Failed to delete entity');
-        return response.ok;
-      },
-      invalidationScenario: {
-        scenario,
-        params: [teamId],
-        rebuildOptions: { teamId, entityType },
-      },
-      rollbackKeys: [teamQueryKey],
-    });
-  };
+    },
+    onMutate: async ({ entityId, tenant, teamId }: { entityId: number; tenant?: string; teamId: number }) => {
+      const effectiveTenant = tenant || 'Data Engineering';
+      const key = cacheKeys.entitiesByTenantAndTeam(effectiveTenant, teamId);
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<any[]>(key);
+      queryClient.setQueryData<any[]>(key, (old) => old ? old.filter(e => e.id !== entityId) : []);
+      return { previous, key, tenant: effectiveTenant, teamId };
+    },
+    onError: (_err, _vars, ctx: any) => {
+      if (ctx?.previous) queryClient.setQueryData(ctx.key, ctx.previous);
+    },
+    onSettled: async (_res, _err, vars: any, ctx: any) => {
+      await invalidateEntityCaches(queryClient, {
+        tenant: ctx?.tenant,
+        teamId: ctx?.teamId,
+        entityId: vars?.entityId,
+      });
+    },
+  });
+
+  const createEntity = async (entityData: any) => createMutation.mutateAsync(entityData);
+  const updateEntity = async (entityId: number, entityData: any) => updateMutation.mutateAsync({ entityId, entityData });
+  const deleteEntity = async (entityId: number, teamId: number, _entityType: 'table' | 'dag', tenantName?: string) =>
+    deleteMutation.mutateAsync({ entityId, teamId, tenant: tenantName });
 
   return { createEntity, updateEntity, deleteEntity };
 }

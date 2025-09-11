@@ -112,9 +112,12 @@ export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       queryFn: getQueryFn({ on401: "throw" }),
-      refetchInterval: 1000 * 60 * 5, // Auto-refresh every 5 minutes
+      // Background refresh every 10 minutes
+      refetchInterval: 1000 * 60 * 10,
+      // Don’t refetch on focus to avoid flicker; keep background refresh
       refetchOnWindowFocus: false,
-      staleTime: 1000 * 60 * 5, // 5 minutes instead of Infinity
+      // Keep data warm for 30 minutes by default (SWR behavior)
+      staleTime: 1000 * 60 * 30,
       retry: false,
     },
     mutations: {

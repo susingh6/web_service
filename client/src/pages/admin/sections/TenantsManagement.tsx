@@ -30,10 +30,11 @@ import {
   Groups as TeamsIcon
 } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { invalidateAdminCaches } from '@/lib/cacheKeys';
 import { useToast } from '@/hooks/use-toast';
 import { buildUrl, endpoints } from '@/config';
 import { tenantsApi } from '@/features/sla/api';
-import { useOptimisticMutation } from '@/utils/cache-management';
+// Removed custom optimistic wrapper in favor of native React Query mutations
 
 interface Tenant {
   id: number;
@@ -137,7 +138,6 @@ const TenantsManagement = () => {
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { executeWithOptimism, cacheManager } = useOptimisticMutation();
 
   // Fetch ALL tenants for admin (not just active ones)
   const { data: tenants = [], isLoading } = useQuery({
@@ -150,141 +150,68 @@ const TenantsManagement = () => {
     },
   });
 
-  // Create tenant mutation with optimistic updates following FastAPI pattern
-  const createTenant = async (tenantData: any) => {
-    // Generate optimistic ID for tracking
-    const optimisticId = Date.now();
-    const optimisticTenant = { 
-      ...tenantData, 
-      id: optimisticId,
-      createdAt: new Date().toISOString(),
-      teamsCount: 0,
-      isActive: tenantData.isActive ?? true
-    };
-    
-    try {
-      const result = await executeWithOptimism({
-        optimisticUpdate: {
-          queryKey: ['admin', 'tenants'],
-          updater: (old: any[] | undefined) => old ? [...old, optimisticTenant] : [optimisticTenant],
-        },
-        mutationFn: async () => {
-          // Use environment-aware tenant API for creating tenants
-          return await tenantsApi.create(tenantData);
-        },
-        // Use generic invalidation since tenants don't have specific scenarios yet
-        invalidationScenario: undefined,
-        rollbackKeys: [['admin', 'tenants']],
-      });
-
-      // Replace optimistic entry with real server response
-      if (result) {
-        cacheManager.setOptimisticData(['admin', 'tenants'], (old: any[] | undefined) => {
+  // Create tenant with React Query onMutate/onError/onSettled
+  const createTenantMutation = useMutation({
+    mutationFn: async (tenantData: any) => {
+      return await tenantsApi.create(tenantData);
+    },
+    onMutate: async (tenantData: any) => {
+      await queryClient.cancelQueries({ queryKey: ['admin', 'tenants'] });
+      const previous = queryClient.getQueryData<any[]>(['admin', 'tenants']);
+      const optimisticId = Date.now();
+      const optimisticTenant = {
+        ...tenantData,
+        id: optimisticId,
+        createdAt: new Date().toISOString(),
+        teamsCount: 0,
+        isActive: tenantData.isActive ?? true,
+      };
+      queryClient.setQueryData<any[]>(['admin', 'tenants'], (old) => old ? [...old, optimisticTenant] : [optimisticTenant]);
+      return { previous, optimisticId };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.previous) {
+        queryClient.setQueryData(['admin', 'tenants'], ctx.previous);
+      }
+      toast({ title: 'Creation Failed', description: 'Failed to create tenant. Please try again.', variant: 'destructive' });
+    },
+    onSuccess: (result, _vars, ctx) => {
+      if (result && ctx?.optimisticId) {
+        queryClient.setQueryData<any[]>(['admin', 'tenants'], (old) => {
           if (!old) return [result];
-          return old.map(tenant => tenant.id === optimisticId ? result : tenant);
+          return old.map(t => t.id === ctx.optimisticId ? result : t);
         });
       }
-
-      toast({
-        title: "Tenant Created",
-        description: "New tenant has been successfully created.",
-      });
-      
-      return result;
-    } catch (error: any) {
-      let errorMessage = "Failed to create tenant. Please try again.";
-      let errorTitle = "Creation Failed";
-
-      if (error?.message) {
-        errorMessage = error.message;
-      } else if (error?.response?.data?.message) {
-        errorMessage = error.response.data.message;
-      } else if (error?.response?.data?.error) {
-        errorMessage = error.response.data.error;
-      } else if (error?.status === 409) {
-        errorMessage = "Tenant name already exists. Please choose a different name.";
-        errorTitle = "Name Already Exists";
-      } else if (error?.status === 400) {
-        errorMessage = "Invalid tenant data provided. Please check your input.";
-        errorTitle = "Invalid Data";
-      }
-
-      toast({
-        title: errorTitle,
-        description: errorMessage,
-        variant: "destructive",
-      });
-      throw error;
-    }
-  };
-
-  const createTenantMutation = useMutation({
-    mutationFn: createTenant,
+      toast({ title: 'Tenant Created', description: 'New tenant has been successfully created.' });
+    },
+    onSettled: async () => {
+      await invalidateAdminCaches(queryClient);
+    },
   });
 
-  // Update tenant mutation with optimistic updates following FastAPI pattern
-  const updateTenant = async (tenantId: number, tenantData: any) => {
-    try {
-      const result = await executeWithOptimism({
-        optimisticUpdate: {
-          queryKey: ['admin', 'tenants'],
-          updater: (old: any[] | undefined) => {
-            if (!old) return [];
-            return old.map(tenant => 
-              tenant.id === tenantId 
-                ? { ...tenant, ...tenantData }
-                : tenant
-            );
-          },
-        },
-        mutationFn: async () => {
-          // Use environment-aware tenant API for updating tenants
-          return await tenantsApi.update(tenantId, tenantData);
-        },
-        // Use generic invalidation since tenants don't have specific scenarios yet
-        invalidationScenario: undefined,
-        rollbackKeys: [['admin', 'tenants']],
-      });
-
-      toast({
-        title: "Tenant Updated",
-        description: "Tenant has been successfully updated.",
-      });
-      
-      return result;
-    } catch (error: any) {
-      let errorMessage = "Failed to update tenant. Please try again.";
-      let errorTitle = "Update Failed";
-
-      if (error?.message) {
-        errorMessage = error.message;
-      } else if (error?.response?.data?.message) {
-        errorMessage = error.response.data.message;
-      } else if (error?.response?.data?.error) {
-        errorMessage = error.response.data.error;
-      } else if (error?.status === 404) {
-        errorMessage = "Tenant not found. It may have been deleted by another user.";
-        errorTitle = "Tenant Not Found";
-      } else if (error?.status === 409) {
-        errorMessage = "Tenant name already exists. Please choose a different name.";
-        errorTitle = "Name Already Exists";
-      } else if (error?.status === 400) {
-        errorMessage = "Invalid tenant data provided. Please check your input.";
-        errorTitle = "Invalid Data";
-      }
-
-      toast({
-        title: errorTitle,
-        description: errorMessage,
-        variant: "destructive",
-      });
-      throw error;
-    }
-  };
-
   const updateTenantMutation = useMutation({
-    mutationFn: ({ tenantId, tenantData }: { tenantId: number; tenantData: any }) => 
-      updateTenant(tenantId, tenantData),
+    mutationFn: async ({ tenantId, tenantData }: { tenantId: number; tenantData: any }) => {
+      return await tenantsApi.update(tenantId, tenantData);
+    },
+    onMutate: async ({ tenantId, tenantData }) => {
+      await queryClient.cancelQueries({ queryKey: ['admin', 'tenants'] });
+      const previous = queryClient.getQueryData<any[]>(['admin', 'tenants']);
+      queryClient.setQueryData<any[]>(['admin', 'tenants'], (old) => {
+        if (!old) return [] as any[];
+        return old.map(tenant => tenant.id === tenantId ? { ...tenant, ...tenantData } : tenant);
+      });
+      return { previous };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.previous) queryClient.setQueryData(['admin', 'tenants'], ctx.previous);
+      toast({ title: 'Update Failed', description: 'Failed to update tenant. Please try again.', variant: 'destructive' });
+    },
+    onSuccess: () => {
+      toast({ title: 'Tenant Updated', description: 'Tenant has been successfully updated.' });
+    },
+    onSettled: async () => {
+      await invalidateAdminCaches(queryClient);
+    },
   });
 
   const handleCreateTenant = () => {

@@ -38,10 +38,12 @@ import {
   Clear as ClearIcon
 } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { invalidateAdminCaches } from '@/lib/cacheKeys';
 import { useToast } from '@/hooks/use-toast';
 import { buildUrl, endpoints } from '@/config';
+import { tenantsApi } from '@/features/sla/api';
 import { Team } from '@shared/schema';
-import { useOptimisticMutation, CACHE_PATTERNS, INVALIDATION_SCENARIOS } from '@/utils/cache-management';
+// Removed custom optimistic wrapper in favor of native React Query mutations
 
 interface TeamFormDialogProps {
   open: boolean;
@@ -163,7 +165,6 @@ const TeamsManagement = () => {
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { executeWithOptimism, cacheManager } = useOptimisticMutation();
   
   // Debounce search query for better performance
   const deferredSearchQuery = useDeferredValue(searchQuery);
@@ -198,13 +199,13 @@ const TeamsManagement = () => {
     },
   });
 
-  // Fetch tenants for team creation
+  // Fetch ACTIVE tenants for team creation (do not show inactive tenants)
   const { data: tenants = [] } = useQuery({
-    queryKey: ['admin', 'tenants'],
+    queryKey: ['/api/tenants', 'active'],
     queryFn: async () => {
-      const response = await fetch(buildUrl(endpoints.admin.tenants.getAll));
-      return response.json();
+      return await tenantsApi.getAll(true); // active_only=true
     },
+    staleTime: 6 * 60 * 60 * 1000,
   });
 
   // Create efficient tenant name lookup map (O(1) vs O(n) Array.find)
@@ -260,140 +261,60 @@ const TeamsManagement = () => {
   }, [deferredSearchQuery]);
 
   // Create team mutation with optimistic updates following FastAPI pattern
-  const createTeam = async (teamData: any) => {
-    // Generate optimistic ID for tracking
-    const optimisticId = Date.now();
-    const optimisticTeam = { ...teamData, id: optimisticId };
-    
-    try {
-      const result = await executeWithOptimism({
-        optimisticUpdate: {
-          queryKey: ['admin', 'teams'],
-          updater: (old: any[] | undefined) => old ? [...old, optimisticTeam] : [optimisticTeam],
-        },
-        mutationFn: async () => {
-          // Build headers with session ID for RBAC enforcement
-          const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-          
-          // CRITICAL: Add X-Session-ID header for FastAPI RBAC
-          const sessionId = localStorage.getItem('fastapi_session_id');
-          if (sessionId) {
-            headers['X-Session-ID'] = sessionId;
-          }
-          
-          const response = await fetch(buildUrl(endpoints.admin.teams.create), {
-            method: 'POST',
-            headers,
-            body: JSON.stringify(teamData),
-            credentials: 'include',
-          });
-          if (!response.ok) throw new Error('Failed to create team');
-          return response.json();
-        },
-        // Use generic invalidation since teams don't have specific scenarios yet
-        invalidationScenario: undefined,
-        rollbackKeys: [['admin', 'teams']],
-
+  const createTeamMutation = useMutation({
+    mutationFn: async (teamData: any) => {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      const sessionId = localStorage.getItem('fastapi_session_id');
+      if (sessionId) headers['X-Session-ID'] = sessionId;
+      const response = await fetch(buildUrl(endpoints.admin.teams.create), {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(teamData),
+        credentials: 'include',
       });
-
-      // Replace optimistic entry with real server response
-      if (result) {
-        cacheManager.setOptimisticData(['admin', 'teams'], (old: any[] | undefined) => {
+      if (!response.ok) throw new Error('Failed to create team');
+      return response.json();
+    },
+    onMutate: async (teamData: any) => {
+      await queryClient.cancelQueries({ queryKey: ['admin', 'teams'] });
+      const previous = queryClient.getQueryData<any[]>(['admin', 'teams']);
+      const optimisticId = Date.now();
+      const optimisticTeam = { ...teamData, id: optimisticId };
+      queryClient.setQueryData<any[]>(['admin', 'teams'], (old) => old ? [...old, optimisticTeam] : [optimisticTeam]);
+      return { previous, optimisticId };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.previous) queryClient.setQueryData(['admin', 'teams'], ctx.previous);
+      toast({ title: 'Creation Failed', description: 'Failed to create team. Please try again.', variant: 'destructive' });
+    },
+    onSuccess: (result, _vars, ctx) => {
+      if (result && ctx?.optimisticId) {
+        queryClient.setQueryData<any[]>(['admin', 'teams'], (old) => {
           if (!old) return [result];
-          return old.map(team => team.id === optimisticId ? result : team);
+          return old.map(t => t.id === ctx.optimisticId ? result : t);
         });
       }
-
-      // Manually invalidate dashboard team dropdown cache (executeWithOptimism doesn't support additionalInvalidations)
-      queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
-
-      toast({
-        title: "Team Created",
-        description: "New team has been successfully created.",
-      });
-      
-      return result;
-    } catch (error: any) {
-      let errorMessage = "Failed to create team. Please try again.";
-      let errorTitle = "Creation Failed";
-
-      if (error?.message) {
-        errorMessage = error.message;
-      } else if (error?.response?.data?.message) {
-        errorMessage = error.response.data.message;
-      } else if (error?.response?.data?.error) {
-        errorMessage = error.response.data.error;
-      } else if (error?.status === 409) {
-        errorMessage = "Team name already exists. Please choose a different name.";
-        errorTitle = "Team Name Taken";
-      } else if (error?.status === 400) {
-        errorMessage = "Invalid team data provided. Please check your input.";
-        errorTitle = "Invalid Data";
-      }
-
-      toast({
-        title: errorTitle,
-        description: errorMessage,
-        variant: "destructive",
-      });
-      throw error;
-    }
-  };
-
-  const createTeamMutation = useMutation({
-    mutationFn: createTeam,
+      toast({ title: 'Team Created', description: 'New team has been successfully created.' });
+    },
+    onSettled: async () => {
+      await invalidateAdminCaches(queryClient);
+      await queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
+    },
   });
 
   // Update team mutation for status toggle
   const updateTeam = async (teamId: number, updateData: any) => {
-    try {
-      const result = await executeWithOptimism({
-        optimisticUpdate: {
-          queryKey: ['admin', 'teams'],
-          updater: (old: any[] | undefined) => {
-            if (!old) return old;
-            return old.map(team => team.id === teamId ? { ...team, ...updateData } : team);
-          },
-        },
-        mutationFn: async () => {
-          // Build headers with session ID for RBAC enforcement
-          const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-          
-          // Add X-Session-ID header for FastAPI RBAC
-          const sessionId = localStorage.getItem('fastapi_session_id');
-          if (sessionId) {
-            headers['X-Session-ID'] = sessionId;
-          }
-          
-          const response = await fetch(buildUrl(`/api/v1/teams/${teamId}`), {
-            method: 'PUT',
-            headers,
-            body: JSON.stringify(updateData),
-            credentials: 'include',
-          });
-          if (!response.ok) throw new Error('Failed to update team');
-          return response.json();
-        },
-        rollbackKeys: [['admin', 'teams']],
-      });
-
-      // Manually invalidate dashboard team dropdown cache
-      queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
-
-      toast({
-        title: "Team Updated",
-        description: `Team status has been ${updateData.isActive ? 'activated' : 'deactivated'}.`,
-      });
-      
-      return result;
-    } catch (error: any) {
-      toast({
-        title: "Update Failed",
-        description: "Failed to update team status. Please try again.",
-        variant: "destructive",
-      });
-      throw error;
-    }
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const sessionId = localStorage.getItem('fastapi_session_id');
+    if (sessionId) headers['X-Session-ID'] = sessionId;
+    const response = await fetch(buildUrl(`/api/v1/teams/${teamId}`), {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify(updateData),
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to update team');
+    return response.json();
   };
 
   // Handle status toggle
@@ -404,88 +325,30 @@ const TeamsManagement = () => {
     });
   };
 
-  // Main updateTeam function for all updates (status toggle and edit)  
-  const updateTeamFunction = async (teamId: number, teamData: any) => {
-    try {
-      const result = await executeWithOptimism({
-        optimisticUpdate: {
-          queryKey: ['admin', 'teams'],
-          updater: (old: any[] | undefined) => {
-            if (!old) return [];
-            return old.map(team => 
-              team.id === teamId ? { ...team, ...teamData } : team
-            );
-          },
-        },
-        mutationFn: async () => {
-          // Build headers with session ID for RBAC enforcement
-          const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-          
-          // CRITICAL: Add X-Session-ID header for FastAPI RBAC
-          const sessionId = localStorage.getItem('fastapi_session_id');
-          if (sessionId) {
-            headers['X-Session-ID'] = sessionId;
-          }
-          
-          const response = await fetch(buildUrl(endpoints.admin.teams.update, teamId), {
-            method: 'PUT',
-            headers,
-            body: JSON.stringify(teamData),
-            credentials: 'include',
-          });
-          if (!response.ok) throw new Error('Failed to update team');
-          return response.json();
-        },
-        // Use generic invalidation since teams don't have specific scenarios yet
-        invalidationScenario: undefined,
-        rollbackKeys: [['admin', 'teams']],
-
-      });
-
-      // Manually invalidate dashboard team dropdown cache
-      queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
-
-      const isStatusToggle = 'isActive' in teamData;
-      toast({
-        title: "Team Updated",
-        description: isStatusToggle 
-          ? `Team status has been ${teamData.isActive ? 'activated' : 'deactivated'}.`
-          : "Team has been successfully updated.",
-      });
-      
-      return result;
-    } catch (error: any) {
-      let errorMessage = "Failed to update team. Please try again.";
-      let errorTitle = "Update Failed";
-
-      if (error?.message) {
-        errorMessage = error.message;
-      } else if (error?.response?.data?.message) {
-        errorMessage = error.response.data.message;
-      } else if (error?.response?.data?.error) {
-        errorMessage = error.response.data.error;
-      } else if (error?.status === 409) {
-        errorMessage = "Team name already exists. Please choose a different name.";
-        errorTitle = "Team Name Taken";
-      } else if (error?.status === 400) {
-        errorMessage = "Invalid team data provided. Please check your input.";
-        errorTitle = "Invalid Data";
-      } else if (error?.status === 404) {
-        errorMessage = "Team not found. The team may have been deleted.";
-        errorTitle = "Team Not Found";
-      }
-
-      toast({
-        title: errorTitle,
-        description: errorMessage,
-        variant: "destructive",
-      });
-      throw error;
-    }
-  };
+  // remove legacy updateTeamFunction (use updateTeamMutation instead)
 
   const updateTeamMutation = useMutation({
-    mutationFn: ({ teamId, teamData }: { teamId: number; teamData: any }) => updateTeamFunction(teamId, teamData),
+    mutationFn: async ({ teamId, teamData }: { teamId: number; teamData: any }) => updateTeam(teamId, teamData),
+    onMutate: async ({ teamId, teamData }) => {
+      await queryClient.cancelQueries({ queryKey: ['admin', 'teams'] });
+      const previous = queryClient.getQueryData<any[]>(['admin', 'teams']);
+      queryClient.setQueryData<any[]>(['admin', 'teams'], (old) => {
+        if (!old) return [] as any[];
+        return old.map(team => team.id === teamId ? { ...team, ...teamData } : team);
+      });
+      return { previous };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.previous) queryClient.setQueryData(['admin', 'teams'], ctx.previous);
+      toast({ title: 'Update Failed', description: 'Failed to update team status. Please try again.', variant: 'destructive' });
+    },
+    onSuccess: (_res, { teamData }) => {
+      toast({ title: 'Team Updated', description: `Team status has been ${teamData.isActive ? 'activated' : 'deactivated'}.` });
+    },
+    onSettled: async () => {
+      await invalidateAdminCaches(queryClient);
+      await queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
+    },
   });
 
   const handleCreateTeam = () => {

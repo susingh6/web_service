@@ -3,6 +3,7 @@ import { useAuth } from './use-auth';
 import { useQueryClient } from '@tanstack/react-query';
 import { cacheKeys, invalidateEntityCaches } from '@/lib/cacheKeys';
 import { Entity } from '@shared/schema';
+import { useEffect, useRef } from 'react';
 
 interface UseRealTimeEntitiesOptions {
   tenantName?: string;
@@ -22,6 +23,58 @@ interface UseRealTimeEntitiesOptions {
 export const useRealTimeEntities = (options: UseRealTimeEntitiesOptions) => {
   const { sessionId, user, isAuthenticated } = useAuth();
   const queryClient = useQueryClient();
+
+  // Coalesced invalidation buffers
+  const pendingEntityInvalidationsRef = useRef<Array<{ tenant?: string; teamId?: number; entityId?: number | string; startDate?: string; endDate?: string }>>([]);
+  const pendingQueryKeysRef = useRef<((string | object)[])[]>([]);
+  const pendingGlobalInvalidateRef = useRef(false);
+  const flushTimerRef = useRef<any>(null);
+
+  const scheduleFlush = () => {
+    if (flushTimerRef.current) return;
+    flushTimerRef.current = setTimeout(async () => {
+      const entityParams = pendingEntityInvalidationsRef.current;
+      const queryKeys = pendingQueryKeysRef.current;
+      const doGlobal = pendingGlobalInvalidateRef.current;
+
+      // Reset buffers before running invalidations to catch new events during work
+      pendingEntityInvalidationsRef.current = [];
+      pendingQueryKeysRef.current = [];
+      pendingGlobalInvalidateRef.current = false;
+      flushTimerRef.current = null;
+
+      try {
+        // Prefer targeted invalidations first
+        if (entityParams.length > 0) {
+          // Deduplicate param objects by JSON signature
+          const seen = new Set<string>();
+          for (const p of entityParams) {
+            const sig = JSON.stringify(p);
+            if (seen.has(sig)) continue;
+            seen.add(sig);
+            await invalidateEntityCaches(queryClient, p);
+          }
+        }
+
+        if (queryKeys.length > 0) {
+          // Deduplicate keys by JSON signature
+          const seenKeys = new Set<string>();
+          for (const key of queryKeys) {
+            const sig = JSON.stringify(key);
+            if (seenKeys.has(sig)) continue;
+            seenKeys.add(sig);
+            await queryClient.invalidateQueries({ queryKey: key });
+          }
+        }
+
+        if (doGlobal) {
+          await queryClient.invalidateQueries();
+        }
+      } catch (_err) {
+        // Swallow errors; next events or user interactions will recover
+      }
+    }, 250);
+  };
 
   // Derive userId with proper type guards for union type
   const getUserId = (): string => {
@@ -52,13 +105,14 @@ export const useRealTimeEntities = (options: UseRealTimeEntitiesOptions) => {
     teamName: options.teamName,
     
     onEntityUpdated: (data) => {
-      // Invalidate React Query cache for affected entities
+      // Queue targeted invalidations (coalesced)
       if (options.tenantName) {
-        invalidateEntityCaches(queryClient, {
+        pendingEntityInvalidationsRef.current.push({
           tenant: options.tenantName,
           teamId: options.teamId,
           entityId: data?.data?.entityId,
         });
+        scheduleFlush();
       }
       
       // Call custom handler
@@ -66,10 +120,10 @@ export const useRealTimeEntities = (options: UseRealTimeEntitiesOptions) => {
     },
 
     onTeamMembersUpdated: (data) => {
-      // Invalidate React Query cache for team member updates
+      // Queue team members cache invalidation (coalesced)
       if (data?.teamName === options.teamName && options.tenantName && options.teamId) {
-        // Invalidate team members cache using normalized key
-        queryClient.invalidateQueries({ queryKey: ['teamMembers', options.tenantName, options.teamId] });
+        pendingQueryKeysRef.current.push([...cacheKeys.teamMembers(options.tenantName, options.teamId)] as (string | object)[]);
+        scheduleFlush();
       }
       
       // Call custom handler
@@ -77,8 +131,9 @@ export const useRealTimeEntities = (options: UseRealTimeEntitiesOptions) => {
     },
 
     onCacheUpdated: (data) => {
-      // Invalidate all cache on general cache updates
-      queryClient.invalidateQueries();
+      // Debounced global invalidation to avoid refetch storms
+      pendingGlobalInvalidateRef.current = true;
+      scheduleFlush();
     },
 
     onConnect: () => {
@@ -89,6 +144,19 @@ export const useRealTimeEntities = (options: UseRealTimeEntitiesOptions) => {
       console.log('WebSocket disconnected - real-time updates paused');
     }
   });
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (flushTimerRef.current) {
+        clearTimeout(flushTimerRef.current);
+        flushTimerRef.current = null;
+      }
+      pendingEntityInvalidationsRef.current = [];
+      pendingQueryKeysRef.current = [];
+      pendingGlobalInvalidateRef.current = false;
+    };
+  }, []);
 
   // Manual subscription management (for when user navigates)
   const subscribeToPage = (tenantName: string, teamName: string) => {

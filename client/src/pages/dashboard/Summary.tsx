@@ -24,6 +24,7 @@ import TeamDashboard from '@/pages/dashboard/TeamDashboard';
 import { useToast } from '@/hooks/use-toast';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 import { useQuery } from '@tanstack/react-query';
+import { cacheKeys } from '@/lib/cacheKeys';
 import type { Tenant } from '@/lib/tenantCache';
 import { tenantsApi } from '@/features/sla/api';
 import { useWebSocket } from '@/hooks/useWebSocket';
@@ -67,11 +68,8 @@ const Summary = () => {
   // Use environment-aware tenant API with active_only filter for dashboard
   const { data: tenants = [], isLoading: tenantsLoading } = useQuery<Tenant[]>({
     queryKey: ['/api/tenants', 'active'],
-    queryFn: async () => {
-      // Only fetch active tenants for dashboard filtering
-      return await tenantsApi.getAll(true); // active_only=true
-    },
-    staleTime: 6 * 60 * 60 * 1000, // 6 hours to match cache TTL
+    queryFn: async () => tenantsApi.getAll(true),
+    staleTime: 6 * 60 * 60 * 1000,
   });
 
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
@@ -88,12 +86,10 @@ const Summary = () => {
   // WebSocket connection for real-time updates
   const { isConnected } = useWebSocket({
     onEntityUpdated: (data) => {
-      // Entity updated via WebSocket - use centralized cache invalidation
       const operation: 'created' | 'updated' | 'deleted' = data.type || 'updated';
       const entityType = data.entityType as 'table' | 'dag';
       const teamId = data.teamId;
 
-      // Use centralized cache patterns for consistent invalidation
       const invalidationKeys: (string | object)[][] = [
         [...CACHE_PATTERNS.ENTITIES.LIST],
         ...(teamId ? [CACHE_PATTERNS.ENTITIES.BY_TEAM(teamId)] : []),
@@ -102,14 +98,11 @@ const Summary = () => {
         ...(selectedTenant ? [CACHE_PATTERNS.DASHBOARD.SUMMARY(selectedTenant.name)] : [])
       ];
 
-      // Invalidate using cache manager for consistency
       cacheManager.invalidateCache(invalidationKeys);
 
-      // CRITICAL: Force Redux store refresh - this ensures UI updates immediately
       dispatch(fetchEntities({}));
       if (selectedTenant) dispatch(fetchDashboardSummary({ tenantName: selectedTenant.name }));
 
-      // For team-specific pages, also refresh team entities
       if (openTeamTabs.length > 0) {
         openTeamTabs.forEach(teamId => {
           const teamIdNum = parseInt(teamId);
@@ -119,7 +112,6 @@ const Summary = () => {
         });
       }
 
-      // Show appropriate toast notification based on operation type
       const messages: Record<'created' | 'updated' | 'deleted', string> = {
         created: `${data.entityName} has been created successfully`,
         updated: `${data.entityName} has been updated successfully`,
@@ -133,27 +125,19 @@ const Summary = () => {
       });
     },
     onCacheUpdated: (data) => {
-      // Cache updated via WebSocket
-      // Refresh all dashboard data
       if (selectedTenant) dispatch(fetchDashboardSummary({ tenantName: selectedTenant.name }));
       dispatch(fetchEntities({}));
-      // Only refresh teams if we already have team tabs open
       if (openTeamTabs.length > 0) {
         dispatch(fetchTeams());
       }
-
       toast({
         title: "Data Refreshed",
         description: "Dashboard data has been updated with latest information",
         variant: "default",
       });
     },
-    onConnect: () => {
-      // WebSocket connected - real-time updates enabled
-    },
-    onDisconnect: () => {
-      // WebSocket disconnected - real-time updates disabled
-    }
+    onConnect: () => {},
+    onDisconnect: () => {}
   });
 
   // Initialize selected tenant when tenants data loads
@@ -259,6 +243,22 @@ const Summary = () => {
 
   const handleDynamicTabChange = (tabName: string) => {
     setActiveTab(tabName);
+    // Prefetch team dashboard data when switching tabs for snappier UX
+    if (tabName !== 'summary') {
+      const team = teams.find(t => t.name === tabName);
+      if (team && selectedTenant) {
+        // Prefetch entities list for team
+        queryClient.prefetchQuery({
+          queryKey: cacheKeys.entitiesByTenantAndTeam(selectedTenant.name, team.id),
+          queryFn: async () => {
+            const res = await fetch(`/api/entities?teamId=${team.id}`);
+            if (!res.ok) throw new Error('Failed to prefetch team entities');
+            return res.json();
+          },
+          staleTime: 1000 * 60 * 30,
+        });
+      }
+    }
   };
 
   const handleAddEntity = () => {
@@ -314,7 +314,8 @@ const Summary = () => {
       await deleteEntity(
         selectedEntity.id, 
         selectedEntity.teamId, 
-        selectedEntity.type as 'table' | 'dag'
+        selectedEntity.type as 'table' | 'dag',
+        selectedTenant?.name
       );
 
       toast({
@@ -593,6 +594,14 @@ const Summary = () => {
         open={openAddModal}
         onClose={() => setOpenAddModal(false)}
         teams={teams}
+        initialTenantName={selectedTenant?.name}
+        initialTeamName={activeTab !== 'summary' ? activeTab : undefined}
+        onSubmitted={(type) => {
+          // Only team dashboards handle adds; switch their internal sub-tab
+          if (activeTab !== 'summary') {
+            window.dispatchEvent(new CustomEvent('switch-team-subtab', { detail: { teamName: activeTab, type } }));
+          }
+        }}
       />
 
       <BulkUploadModal
@@ -612,6 +621,8 @@ const Summary = () => {
         onClose={() => setOpenEditModal(false)}
         entity={selectedEntity}
         teams={teams}
+        initialTenantName={selectedTenant?.name}
+        initialTeamName={activeTab !== 'summary' ? activeTab : undefined}
       />
 
       <ConfirmDialog

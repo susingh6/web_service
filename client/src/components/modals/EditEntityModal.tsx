@@ -45,6 +45,8 @@ interface EditEntityModalProps {
   onClose: () => void;
   entity: Entity | null;
   teams: { id: number; name: string }[];
+  initialTenantName?: string;
+  initialTeamName?: string;
 }
 
 // Common schema fields shared between both forms
@@ -119,7 +121,7 @@ const dagSchema = baseSchema.shape({
     }),
 });
 
-const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps) => {
+const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, initialTeamName }: EditEntityModalProps) => {
   const dispatch = useAppDispatch();
   const { toast } = useToast();
   const { user } = useAuth();
@@ -132,6 +134,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
   const [tenantOptions, setTenantOptions] = useState<string[]>(() => getFromCacheGeneric<string[]>('tenants', ['Ad Engineering', 'Data Engineering']));
   const [teamOptions, setTeamOptions] = useState<string[]>(() => getFromCacheGeneric<string[]>('teams', ['PGM', 'Core', 'Viewer Product', 'IOT', 'CDM']));
   const [dagOptions, setDagOptions] = useState<string[]>(() => getFromCacheGeneric<string[]>('dags', ['agg_daily', 'agg_hourly', 'PGM_Freeview_Play_Agg_Daily', 'CHN_agg', 'CHN_billing']));
+  const isLockedContext = Boolean(initialTeamName && initialTenantName);
   
   // Loading states
   const [loadingTenants, setLoadingTenants] = useState(false);
@@ -149,7 +152,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
   
   // Fetch entity details for pre-population
   const { data: entityDetails, isLoading: isLoadingEntityDetails } = useQuery({
-    queryKey: ['entity-details', entity?.id, entity?.is_active],
+    queryKey: cacheKeys.entityDetails(entity?.id ?? 'new', entity?.is_active),
     queryFn: async () => {
       if (!entity?.id) return null;
       
@@ -298,8 +301,13 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
       reset(formData);
       
       // Load cache data when modal opens
-      setTenantOptions(getFromCacheGeneric<string[]>('tenants', ['Ad Engineering', 'Data Engineering']));
-      setTeamOptions(getFromCacheGeneric<string[]>('teams', ['PGM', 'Core', 'Viewer Product', 'IOT', 'CDM']));
+      if (isLockedContext) {
+        setTenantOptions(initialTenantName ? [initialTenantName] : []);
+        setTeamOptions(initialTeamName ? [initialTeamName] : []);
+      } else {
+        setTenantOptions(getFromCacheGeneric<string[]>('tenants', ['Ad Engineering', 'Data Engineering']));
+        setTeamOptions(getFromCacheGeneric<string[]>('teams', ['PGM', 'Core', 'Viewer Product', 'IOT', 'CDM']));
+      }
       if (entityType === 'dag') {
         setDagOptions(getFromCacheGeneric<string[]>('dags', ['agg_daily', 'agg_hourly', 'PGM_Freeview_Play_Agg_Daily', 'CHN_agg', 'CHN_billing']));
       }
@@ -307,7 +315,7 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
       // Reset form when modal is closed
       reset();
     }
-  }, [entityDetails, reset, open, entityType, isLoadingEntityDetails]);
+  }, [entityDetails, reset, open, entityType, isLoadingEntityDetails, isLockedContext, initialTenantName, initialTeamName]);
   
   const onSubmit = async (data: any) => {
     if (!entity) return;
@@ -361,11 +369,13 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
       
       console.log('✅ ENTITY UPDATE SUCCESS:', result);
       
-      invalidateEntityCaches(queryClient, {
+      await invalidateEntityCaches(queryClient, {
         tenant: entity.tenant_name || undefined,
         teamId: entity.teamId,
         entityId: entity.id,
       });
+      // Also invalidate entity-details keys to refresh any open detail views
+      queryClient.invalidateQueries({ queryKey: ['entity-details', entity.id] });
       
       // Force refresh Redux state first (so UI reflects change immediately)
       if (entity.teamId) {
@@ -462,11 +472,12 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
                 control={control}
                 render={({ field: { onChange, value, onBlur, ref } }) => (
                   <Autocomplete
+                    disabled={isLockedContext}
                     value={value}
                     onChange={(_, newValue) => {
                       onChange(newValue);
                     }}
-                    freeSolo
+                    freeSolo={!isLockedContext}
                     options={tenantOptions}
                     loading={loadingTenants}
                     renderInput={(params) => (
@@ -499,11 +510,12 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
                 control={control}
                 render={({ field: { onChange, value, onBlur, ref } }) => (
                   <Autocomplete
+                    disabled={isLockedContext}
                     value={value}
                     onChange={(_, newValue) => {
                       onChange(newValue);
                     }}
-                    freeSolo
+                    freeSolo={!isLockedContext}
                     options={teamOptions}
                     loading={loadingTeams}
                     renderInput={(params) => (
@@ -610,11 +622,12 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
                 control={control}
                 render={({ field: { onChange, value, onBlur, ref } }) => (
                   <Autocomplete
+                    disabled={isLockedContext}
                     value={value}
                     onChange={(_, newValue) => {
                       onChange(newValue);
                     }}
-                    freeSolo
+                    freeSolo={!isLockedContext}
                     options={tenantOptions}
                     loading={loadingTenants}
                     renderInput={(params) => (
@@ -647,11 +660,12 @@ const EditEntityModal = ({ open, onClose, entity, teams }: EditEntityModalProps)
                 control={control}
                 render={({ field: { onChange, value, onBlur, ref } }) => (
                   <Autocomplete
+                    disabled={isLockedContext}
                     value={value}
                     onChange={(_, newValue) => {
                       onChange(newValue);
                     }}
-                    freeSolo
+                    freeSolo={!isLockedContext}
                     options={teamOptions}
                     loading={loadingTeams}
                     renderInput={(params) => (

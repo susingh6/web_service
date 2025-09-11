@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { startOfDay, endOfDay, subDays, format } from 'date-fns';
 import { useQuery } from '@tanstack/react-query';
+import { cacheKeys } from '@/lib/cacheKeys';
 import { Box, Typography, Tabs, Tab, Card, CardContent, Chip, Paper, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, FormControl, InputLabel, Select, MenuItem, IconButton } from '@mui/material';
 import { Add as AddIcon, Upload as UploadIcon, Person as PersonIcon, Edit as EditIcon, Delete as DeleteIcon, PersonAdd as PersonAddIcon } from '@mui/icons-material';
 import { useAppDispatch, useAppSelector } from '@/lib/store';
@@ -92,7 +93,7 @@ const TeamDashboard = ({
 
   // React Query to fetch team members - automatically updates when cache changes
   const { data: teamMembers = [], isLoading: teamMembersLoading } = useQuery({
-    queryKey: ['teamMembers', tenantName, team?.id],
+    queryKey: cacheKeys.teamMembers(tenantName, team?.id),
     queryFn: async () => {
       if (!teamName) return [];
       const response = await apiClient.teams.getMembers(teamName);
@@ -111,7 +112,7 @@ const TeamDashboard = ({
   // Fetch data when team is found
   // Use React Query for team entities so cache invalidation works
   const { data: teamEntitiesFromQuery = [], isLoading: isLoadingTeamEntities } = useQuery({
-    queryKey: ['entities', tenantName, team?.id],
+    queryKey: cacheKeys.entitiesByTenantAndTeam(tenantName, team?.id),
     queryFn: async () => {
       if (!team?.id) return [];
       return await entitiesApi.getByTeam(team.id);
@@ -129,7 +130,12 @@ const TeamDashboard = ({
 
   // Fetch tenant-level summary for this team's selected date range (scoped to component)
   const { data: teamSummaryData, isLoading: teamSummaryLoading, isError: teamSummaryError } = useQuery({
-    queryKey: ['dashboardSummary', tenantName, team?.id, format(teamDateRange.startDate, 'yyyy-MM-dd'), format(teamDateRange.endDate, 'yyyy-MM-dd')],
+    queryKey: cacheKeys.dashboardSummary(
+      tenantName,
+      team?.id,
+      format(teamDateRange.startDate, 'yyyy-MM-dd'),
+      format(teamDateRange.endDate, 'yyyy-MM-dd')
+    ),
     queryFn: async () => {
       if (!tenantName || !team?.id) return null;
       const params = new URLSearchParams({
@@ -138,7 +144,8 @@ const TeamDashboard = ({
         startDate: format(teamDateRange.startDate, 'yyyy-MM-dd'),
         endDate: format(teamDateRange.endDate, 'yyyy-MM-dd'),
       });
-      const response = await apiRequest('GET', `/api/dashboard/summary?${params.toString()}`);
+      const generalUrl = `/api/dashboard/summary?${params.toString()}`;
+      const response = await apiRequest('GET', generalUrl);
       return response.json();
     },
     enabled: !!tenantName && !!team?.id,
@@ -161,9 +168,9 @@ const TeamDashboard = ({
     teamId: team?.id,
     onEntityUpdated: (data) => {
       // Refresh team entities when real-time update received
-      queryClient.invalidateQueries({ queryKey: ['entities', tenantName, team?.id] });
+      queryClient.invalidateQueries({ queryKey: cacheKeys.entitiesByTenantAndTeam(tenantName, team?.id) });
       // Also refresh dashboard summary
-      queryClient.invalidateQueries({ queryKey: ['dashboardSummary', tenantName, team?.id] });
+      queryClient.invalidateQueries({ queryKey: cacheKeys.dashboardSummary(tenantName, team?.id) });
       // Also refresh Redux store with team context to get all entities
       if (team?.id) {
         dispatch(fetchEntities({ teamId: team.id }));
@@ -268,6 +275,19 @@ const TeamDashboard = ({
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
   };
+
+  // Listen for parent request to switch sub-tab after add/update
+  useEffect(() => {
+    const handler = (e: any) => {
+      const detail = e?.detail;
+      if (!detail) return;
+      if (detail.teamName !== teamName) return;
+      const type = detail.type as 'table' | 'dag';
+      setTabValue(type === 'dag' ? 1 : 0);
+    };
+    window.addEventListener('switch-team-subtab', handler);
+    return () => window.removeEventListener('switch-team-subtab', handler);
+  }, [teamName]);
 
   // Show loading state when team is not found or still loading
   if (!team || (teams.length === 0 && isLoading)) {

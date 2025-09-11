@@ -374,6 +374,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await redisCache.set(cacheKey, tenants, 6 * 60 * 60); // 6 hour cache
       }
 
+      // Support active_only filter for clients expecting only active tenants
+      const activeOnly = String(req.query.active_only || req.query.activeOnly || '').toLowerCase() === 'true';
+      if (activeOnly) {
+        const activeTenants = tenants.filter((tenant: any) => tenant.isActive !== false);
+        return res.json(activeTenants);
+      }
+
       res.json(tenants);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch tenants from FastAPI fallback" });
@@ -1228,8 +1235,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Invalid entity data", errors: result.error.format() });
       }
       
+      // Normalize payload with team/tenant metadata to avoid cross-team leakage
+      const payload = { ...result.data } as any;
+
+      try {
+        // If teamId is missing but team_name provided, resolve teamId
+        if (!payload.teamId && payload.team_name) {
+          const teamByName = await storage.getTeamByName(payload.team_name);
+          if (teamByName) {
+            payload.teamId = teamByName.id;
+            payload.team_name = teamByName.name;
+            // Resolve tenant name from team
+            const tenants = await storage.getTenants();
+            const tenant = tenants.find(t => t.id === teamByName.tenant_id);
+            if (tenant) payload.tenant_name = payload.tenant_name || tenant.name;
+          }
+        }
+
+        // If teamId exists, ensure team_name and tenant_name are set from canonical source
+        if (payload.teamId) {
+          const team = await storage.getTeam(payload.teamId);
+          if (team) {
+            payload.team_name = payload.team_name || team.name;
+            const tenants = await storage.getTenants();
+            const tenant = tenants.find(t => t.id === team.tenant_id);
+            if (tenant) payload.tenant_name = payload.tenant_name || tenant.name;
+          }
+        }
+      } catch (_err) {
+        // Non-fatal: if storage lookup fails we proceed with provided values
+      }
+
       // Create entity directly in Redis cache (persistent storage)
-      const entity = await redisCache.createEntity(result.data);
+      const entity = await redisCache.createEntity(payload);
       
       // Use the same cache invalidation pattern as teams (more reliable for fallback mode)
       await redisCache.invalidateCache({
@@ -1737,6 +1775,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(trends);
     } catch (error) {
       console.error("Error fetching 30-day trends:", error);
+      res.status(500).json({ message: "Failed to fetch 30-day trends" });
+    }
+  });
+
+  // Alias route to support /api/v1 path used by clients
+  app.get("/api/v1/entities/trends/30-day", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const entities = await storage.getEntities();
+
+      const trends = entities.map(entity => {
+        const seed = entity.id * 7919;
+        const rand = () => {
+          const x = Math.sin(seed) * 10000;
+          return (x - Math.floor(x)) * 4 - 2;
+        };
+
+        const trendValue = rand();
+
+        return {
+          entityId: entity.id,
+          trend: Number(trendValue.toFixed(1)),
+          icon: trendValue > 0.5 ? 'up' : trendValue < -0.5 ? 'down' : 'flat',
+          color: trendValue > 0.5 ? 'success' : trendValue < -0.5 ? 'error' : 'warning',
+          lastUpdated: new Date().toISOString()
+        };
+      });
+
+      res.json(trends);
+    } catch (error) {
+      console.error("Error fetching 30-day trends (v1):", error);
       res.status(500).json({ message: "Failed to fetch 30-day trends" });
     }
   });
