@@ -641,7 +641,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         updateData.dag_dependency = (updateData.dag_dependency as string).split(',').map((s: string) => s.trim()).filter(Boolean);
       }
 
-      const updatedEntity = await redisCache.updateEntityById(entityId, updateData);
+      const updatedEntity = await storage.updateEntity(entityId, updateData);
       if (!updatedEntity) {
         return res.status(404).json(createErrorResponse("Entity not found", "not_found"));
       }
