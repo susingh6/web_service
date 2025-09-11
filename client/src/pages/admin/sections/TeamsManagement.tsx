@@ -26,8 +26,7 @@ import {
   IconButton,
   Tooltip,
   TablePagination,
-  InputAdornment,
-  Switch
+  InputAdornment
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -610,13 +609,12 @@ const TeamsManagement = () => {
                       </Typography>
                     </TableCell>
                     <TableCell>
-                      <Switch
-                        checked={team.isActive ?? true}
-                        onChange={(e) => {
-                          handleStatusToggle(team.id, e.target.checked);
-                        }}
-                        size="small"
-                        data-testid={`switch-team-status-${team.id}`}
+                      <Chip 
+                        label={team.isActive ?? true ? 'Active' : 'Inactive'} 
+                        size="small" 
+                        color={team.isActive ?? true ? 'success' : 'default'}
+                        variant={team.isActive ?? true ? 'filled' : 'outlined'}
+                        data-testid={`chip-team-status-${team.id}`}
                       />
                     </TableCell>
                     <TableCell>
