@@ -607,9 +607,12 @@ export function useEntityMutation() {
     const optimisticId = Date.now();
     const optimisticEntity = { ...entityData, id: optimisticId };
     
+    // Use TeamDashboard's React Query key pattern for cache invalidation
+    const teamQueryKey = ['entities', entityData.tenant_name, entityData.teamId];
+    
     const result = await executeWithOptimism({
       optimisticUpdate: {
-        queryKey: CACHE_PATTERNS.ENTITIES.BY_TEAM(entityData.teamId),
+        queryKey: teamQueryKey,
         updater: (old: any[] | undefined) => old ? [...old, optimisticEntity] : [optimisticEntity],
       },
       mutationFn: async () => {
@@ -636,13 +639,13 @@ export function useEntityMutation() {
         params: [entityData.teamId],
         rebuildOptions: { teamId: entityData.teamId, entityType },
       },
-      rollbackKeys: [CACHE_PATTERNS.ENTITIES.BY_TEAM(entityData.teamId)],
+      rollbackKeys: [teamQueryKey],
     });
 
     // After successful creation, replace optimistic entry with real server response
     if (result) {
       cacheManager.setOptimisticData(
-        CACHE_PATTERNS.ENTITIES.BY_TEAM(entityData.teamId),
+        teamQueryKey,
         (old: any[] | undefined) => {
           if (!old) return [result];
           // Replace optimistic entity with real server response
