@@ -60,7 +60,7 @@ const CACHE_KEYS = {
 export class RedisCache {
   private redis: Redis | null = null;
   private subscriber: Redis | null = null;
-  private refreshInterval: NodeJS.Timer | null = null;
+  private refreshInterval: ReturnType<typeof setInterval> | null = null;
   private readonly CACHE_DURATION_MS = config.cache.refreshIntervalHours * 60 * 60 * 1000;
   private readonly LOCK_TIMEOUT = 300000; // 5 minutes lock timeout
   private wss: WebSocketServer | null = null;
@@ -76,6 +76,7 @@ export class RedisCache {
   }
 
   private setupEventHandlers(): void {
+    if (!this.redis || !this.subscriber) return;
     this.redis.on('connect', () => {
       // Redis main client connected
     });
@@ -95,6 +96,7 @@ export class RedisCache {
   }
 
   private setupSubscriptions(): void {
+    if (!this.subscriber) return;
     // Subscribe to cache refresh notifications
     this.subscriber.subscribe(CACHE_KEYS.REFRESH_CHANNEL);
     this.subscriber.subscribe(CACHE_KEYS.CHANGES_CHANNEL);
@@ -114,7 +116,7 @@ export class RedisCache {
   private async initialize(): Promise<void> {
     try {
       await this.tryRedisConnection();
-    } catch (error) {
+    } catch (error: any) {
       console.warn('Redis connection failed, falling back to in-memory cache:', error.message);
       this.initializeFallback();
     }
@@ -125,27 +127,9 @@ export class RedisCache {
     
     try {
       // Test Redis connection with timeout
-      this.redis = new Redis(redisUrl, {
-        retryDelayOnFailover: 100,
-        maxRetriesPerRequest: 1,
-        lazyConnect: true,
-        keepAlive: 30000,
-        family: 4,
-        keyPrefix: '',
-        db: 0,
-        connectTimeout: 5000
-      });
+      this.redis = new Redis(redisUrl);
 
-      this.subscriber = new Redis(redisUrl, {
-        retryDelayOnFailover: 100,
-        maxRetriesPerRequest: 1,
-        lazyConnect: true,
-        keepAlive: 30000,
-        family: 4,
-        keyPrefix: '',
-        db: 0,
-        connectTimeout: 5000
-      });
+      this.subscriber = new Redis(redisUrl);
 
       this.setupEventHandlers();
       
@@ -174,7 +158,7 @@ export class RedisCache {
       this.isInitialized = true;
       // Redis cache system initialized successfully
       
-    } catch (error) {
+    } catch (error: any) {
       // Clean up failed connections
       if (this.redis) {
         this.redis.disconnect();
@@ -294,7 +278,7 @@ export class RedisCache {
 
   private async validateCache(): Promise<void> {
     try {
-      const lastUpdated = await this.redis.get(CACHE_KEYS.LAST_UPDATED);
+      const lastUpdated = this.redis ? await this.redis.get(CACHE_KEYS.LAST_UPDATED) : null;
       if (!lastUpdated) {
         // Cache validation failed: no last updated timestamp
         await this.refreshCacheWithWorker();
@@ -311,7 +295,7 @@ export class RedisCache {
       } else {
         // Cache validation passed: cache is fresh
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Cache validation error:', error);
       await this.refreshCacheWithWorker();
     }
@@ -319,7 +303,7 @@ export class RedisCache {
 
   private startAutoRefresh(): void {
     if (this.refreshInterval) {
-      clearInterval(this.refreshInterval);
+      clearInterval(this.refreshInterval as any);
     }
 
     this.refreshInterval = setInterval(async () => {
@@ -379,7 +363,7 @@ export class RedisCache {
       this.echoToOriginWithBackpressure(event, enhancedData, data.originUserId);
     }
     
-    this.wss.clients.forEach((client) => {
+    this.wss.clients.forEach((client: any) => {
       if (client.readyState === 1) { // WebSocket.OPEN
         const socketData = this.authenticatedSockets.get(client);
         
@@ -407,7 +391,7 @@ export class RedisCache {
       isEcho: true
     });
     
-    this.wss.clients.forEach((client) => {
+    this.wss.clients.forEach((client: any) => {
       if (client.readyState === 1) {
         const socketData = this.authenticatedSockets.get(client);
         
@@ -420,7 +404,7 @@ export class RedisCache {
   }
 
   // Backpressure-safe send with event coalescing
-  private sendWithBackpressureProtection(client: WebSocket, message: string, eventKey: string): void {
+  private sendWithBackpressureProtection(client: any, message: string, eventKey: string): void {
     const MAX_BUFFER_SIZE = 64 * 1024; // 64KB threshold
     const MAX_QUEUE_SIZE = 100;
     
@@ -431,7 +415,7 @@ export class RedisCache {
         (client as any)._eventQueue = new Map<string, string>();
       }
       
-      const eventQueue = (client as any)._eventQueue;
+      const eventQueue = (client as any)._eventQueue as Map<string, string>;
       
       // Coalesce events by key (keep only latest for each event type)
       eventQueue.set(eventKey, message);
@@ -439,7 +423,7 @@ export class RedisCache {
       // Limit queue size to prevent memory leaks
       if (eventQueue.size > MAX_QUEUE_SIZE) {
         // Remove oldest entries
-        const entries = Array.from(eventQueue.entries());
+        const entries = Array.from(eventQueue.entries()) as Array<[string, string]>;
         entries.slice(0, eventQueue.size - MAX_QUEUE_SIZE).forEach(([key]) => {
           eventQueue.delete(key);
         });
@@ -465,7 +449,7 @@ export class RedisCache {
   }
 
   // Schedule queue flush when buffer clears
-  private scheduleQueueFlush(client: WebSocket): void {
+  private scheduleQueueFlush(client: any): void {
     if ((client as any)._flushScheduled) return;
     
     (client as any)._flushScheduled = true;
@@ -478,7 +462,7 @@ export class RedisCache {
   }
 
   // Flush queued events when buffer clears
-  private flushEventQueue(client: WebSocket): void {
+  private flushEventQueue(client: any): void {
     const eventQueue = (client as any)._eventQueue;
     if (!eventQueue || eventQueue.size === 0) return;
     
@@ -492,7 +476,7 @@ export class RedisCache {
     }
     
     // Send all queued events
-    const events = Array.from(eventQueue.values());
+    const events = Array.from(eventQueue.values()) as string[];
     eventQueue.clear();
     
     events.forEach(message => {
@@ -600,14 +584,14 @@ export class RedisCache {
               await this.storeCacheDataAtomic(message.data);
               
               // Broadcast refresh notification
-              await this.redis.publish(CACHE_KEYS.REFRESH_CHANNEL, JSON.stringify({
+              if (this.redis) await this.redis.publish(CACHE_KEYS.REFRESH_CHANNEL, JSON.stringify({
                 type: 'cache_refreshed',
                 timestamp: new Date().toISOString(),
                 podId: process.env.POD_NAME || 'unknown'
               }));
 
-              // Broadcast to WebSocket clients
-              this.broadcastToClients('cache-updated', {
+              // Broadcast to WebSocket clients (simple payload)
+              this.broadcastCacheUpdate('cache-updated', {
                 lastUpdated: message.data.lastUpdated,
                 entitiesCount: message.data.entities.length
               });
@@ -997,7 +981,13 @@ export class RedisCache {
   async getTeamsByTenant(tenantName: string): Promise<Team[]> {
     try {
       const teams = await this.getAllTeams();
-      return teams.filter(team => team.tenant === tenantName);
+      return teams.filter(team => {
+        // Support both shapes: { tenant: string } or { tenant_id: number } with name lookup
+        if ((team as any).tenant) return (team as any).tenant === tenantName;
+        const tenantObj = (this.fallbackData ? this.fallbackData.tenants : [])
+          .find(t => t.id === (team as any).tenant_id);
+        return tenantObj ? tenantObj.name === tenantName : false;
+      });
     } catch (error) {
       console.error('Error filtering teams by tenant:', error);
       return [];
@@ -1237,19 +1227,30 @@ export class RedisCache {
       // Update fallback data
       this.fallbackData.entities = entities;
       
-      // Direct WebSocket broadcast in fallback mode
-      const change = {
-        entityId: entityToDelete.id,
-        entityName: entityToDelete.name,
-        entityType: entityToDelete.type,
-        teamName: entityToDelete.team_name || 'Unknown',
-        tenantName: entityToDelete.tenant_name || 'Unknown',
+      // Direct WebSocket broadcast in fallback mode (standard envelope)
+      const changeEvent: EntityChangeEvent = {
+        event: 'entity-updated',
         type: 'deleted',
-        entity: entityToDelete,
-        timestamp: new Date()
+        entityId: entityToDelete.id.toString(),
+        entityName: entityToDelete.name,
+        tenantName: entityToDelete.tenant_name || 'Unknown',
+        teamName: entityToDelete.team_name || 'Unknown',
+        ts: Date.now(),
+        version: Date.now(),
+        updatedAt: new Date().toISOString(),
+        data: {
+          entityId: entityToDelete.id,
+          entityName: entityToDelete.name,
+          entityType: entityToDelete.type,
+          teamName: entityToDelete.team_name || 'Unknown',
+          tenantName: entityToDelete.tenant_name || 'Unknown',
+          type: 'deleted',
+          entity: entityToDelete,
+          timestamp: new Date()
+        }
       };
       
-      this.broadcastToClients('entity-updated', change);
+      this.broadcastToClients('entity-updated', changeEvent);
 
       // Mirror deletion into in-memory storage as well to keep fallback refresh consistent
       try {
@@ -1347,11 +1348,11 @@ export class RedisCache {
       const entity = entities[entityIndex];
       
       // Apply updates
-      const updatedEntity = {
+      const updatedEntity: Entity = {
         ...entity,
         ...updates,
         updatedAt: new Date(),
-        lastRefreshed: updates.lastRefreshed || entity.lastRefreshed
+        lastRefreshed: (updates as any).lastRefreshed || entity.lastRefreshed
       };
       
       entities[entityIndex] = updatedEntity;
@@ -1379,7 +1380,7 @@ export class RedisCache {
           type: 'updated',
           entity: updatedEntity,
           previousSla: entity.currentSla,
-          newSla: updates.currentSla,
+          newSla: (updates as any)?.currentSla ?? undefined,
           timestamp: new Date()
         }
       };
@@ -1405,14 +1406,16 @@ export class RedisCache {
       }
       
       const entity = entities[entityIndex];
-      const previousSla = entity.currentSla;
+      const previousSla: number | undefined = (entity.currentSla ?? undefined) as any;
       
       // Apply updates
-      const updatedEntity = {
+      const updatedEntity: Entity = {
         ...entity,
         ...updates,
         updatedAt: new Date(),
-        lastRefreshed: updates.lastRefreshed || entity.lastRefreshed
+        lastRefreshed: typeof (updates as any).lastRefreshed === 'string'
+          ? new Date((updates as any).lastRefreshed)
+          : ((updates as any).lastRefreshed || entity.lastRefreshed)
       };
       
       entities[entityIndex] = updatedEntity;
@@ -1430,8 +1433,8 @@ export class RedisCache {
         tenantName: entity.tenant_name || 'Unknown',
         type: 'updated',
         entity: updatedEntity,
-        previousSla,
-        newSla: updates.currentSla,
+        previousSla: (previousSla ?? undefined) as any,
+        newSla: ((updates as any)?.currentSla ?? undefined) as any,
         timestamp: new Date()
       };
       
@@ -1501,13 +1504,13 @@ export class RedisCache {
       }
       
       const entity = entities[entityIndex];
-      const previousSla = entity.currentSla;
+      const previousSla = entity.currentSla != null ? entity.currentSla : undefined;
       
       // Apply updates
       entities[entityIndex] = {
         ...entity,
         ...updates,
-        lastRefreshed: new Date().toISOString()
+        lastRefreshed: new Date()
       };
       
       // Update entities in Redis
@@ -1515,6 +1518,8 @@ export class RedisCache {
       await this.redis.setex(CACHE_KEYS.ENTITIES, expireTime, JSON.stringify(entities));
       
       // Record the change
+      const newSlaRaw = (updates as any)?.currentSla;
+      const newSlaVal: number | undefined = typeof newSlaRaw === 'number' ? newSlaRaw : undefined;
       const change: EntityChange = {
         entityId: entity.id,
         entityName,
@@ -1523,8 +1528,8 @@ export class RedisCache {
         tenantName: entity.tenant_name || 'Unknown',
         type: 'updated',
         entity: entities[entityIndex],
-        previousSla,
-        newSla: updates.currentSla,
+        previousSla: previousSla,
+        newSla: newSlaVal,
         timestamp: new Date()
       };
       
@@ -1611,7 +1616,7 @@ export class RedisCache {
         redisConnection: this.redis.status,
         subscriberConnection: this.subscriber ? this.subscriber.status : 'not_connected'
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error getting cache status:', error);
       return {
         isInitialized: false,
@@ -1875,7 +1880,7 @@ export class RedisCache {
     ];
 
     // Only refresh summary cache if explicitly requested (not the default)
-    const mainCacheKeys = refreshSummaryCache 
+    const mainCacheKeys: (keyof typeof CACHE_KEYS)[] = refreshSummaryCache 
       ? ['ENTITIES', 'TEAMS', 'METRICS'] 
       : ['ENTITIES']; // Don't refresh metrics/summary by default
 

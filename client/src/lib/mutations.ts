@@ -14,7 +14,7 @@ interface CreateOptimisticMutationOptions<TVars, TData, TContext> {
   invalidate?: (queryClient: ReturnType<typeof useQueryClient>) => void | Promise<void>;
 }
 
-export function useOptimisticRQMutation<TVars = any, TData = any, TContext = { previousData?: any }>(
+export function useOptimisticRQMutation<TVars = any, TData = any, TContext = { previous?: any }>(
   options: CreateOptimisticMutationOptions<TVars, TData, TContext>
 ) {
   const queryClient = useQueryClient();
@@ -23,15 +23,16 @@ export function useOptimisticRQMutation<TVars = any, TData = any, TContext = { p
     mutationFn: options.mutationFn,
     onMutate: async (_vars) => {
       await queryClient.cancelQueries({ queryKey: options.queryKey });
-      const previousData = queryClient.getQueryData(options.queryKey);
+      const previous = queryClient.getQueryData(options.queryKey);
       if (options.applyOptimisticUpdate) {
         queryClient.setQueryData(options.queryKey, options.applyOptimisticUpdate as any);
       }
-      return { previousData } as TContext;
+      return { previous } as TContext;
     },
     onError: (_err, _vars, ctx) => {
-      if (ctx?.previousData !== undefined) {
-        queryClient.setQueryData(options.queryKey, options.rollback ? options.rollback(ctx.previousData) : ctx.previousData);
+      if (ctx && (ctx as any).previous !== undefined) {
+        const prev = (ctx as any).previous;
+        queryClient.setQueryData(options.queryKey, options.rollback ? options.rollback(prev) : prev);
       }
     },
     onSettled: async () => {

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { startOfDay, endOfDay, subDays, format } from 'date-fns';
 import { Box, Grid, Button, Typography, Tabs, Tab, Select, MenuItem, FormControl, InputLabel, IconButton } from '@mui/material';
 import { Add as AddIcon, Upload as UploadIcon, Close as CloseIcon } from '@mui/icons-material';
@@ -29,12 +29,43 @@ import type { Tenant } from '@/lib/tenantCache';
 import { tenantsApi } from '@/features/sla/api';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { useEntityMutation, CACHE_PATTERNS, useCacheManager } from '@/utils/cache-management';
+import { invalidateEntityCaches, invalidateTenantCaches } from '@/lib/cacheKeys';
 
 const Summary = () => {
   const dispatch = useAppDispatch();
   const { toast } = useToast();
   const { deleteEntity } = useEntityMutation();
   const cacheManager = useCacheManager();
+  // Normalized WS invalidation (additive, debounced) - does not change legacy behavior
+  const normalizedEntityQueueRef = useRef<Array<{ tenant?: string; teamId?: number; entityId?: number | string }>>([]);
+  const normalizedTenantQueueRef = useRef<Set<string>>(new Set());
+  const normalizedFlushTimerRef = useRef<any>(null);
+
+  const scheduleNormalizedFlush = () => {
+    if (normalizedFlushTimerRef.current) return;
+    normalizedFlushTimerRef.current = setTimeout(async () => {
+      const entityParams = normalizedEntityQueueRef.current;
+      const tenantNames = Array.from(normalizedTenantQueueRef.current);
+      normalizedEntityQueueRef.current = [];
+      normalizedTenantQueueRef.current.clear();
+      normalizedFlushTimerRef.current = null;
+      try {
+        // Deduplicate entity params by signature
+        const seen = new Set<string>();
+        for (const p of entityParams) {
+          const sig = JSON.stringify([p.tenant, p.teamId, p.entityId]);
+          if (seen.has(sig)) continue;
+          seen.add(sig);
+          await invalidateEntityCaches(queryClient, p);
+        }
+        for (const t of tenantNames) {
+          await invalidateTenantCaches(queryClient, t);
+        }
+      } catch (_e) {
+        // Swallow errors; normal path still runs via legacy handlers
+      }
+    }, 250);
+  };
 
   const { metrics, complianceTrends, isLoading: metricsLoading, lastFetchFailed } = useAppSelector((state) => state.dashboard);
   
@@ -178,6 +209,14 @@ const Summary = () => {
 
       cacheManager.invalidateCache(invalidationKeys);
 
+      // Also queue normalized invalidations (debounced, additive)
+      normalizedEntityQueueRef.current.push({
+        tenant: selectedTenant?.name,
+        teamId: data?.teamId,
+        entityId: data?.data?.entityId || data?.entityId,
+      });
+      scheduleNormalizedFlush();
+
       dispatch(fetchEntities({}));
       if (selectedTenant) dispatch(fetchDashboardSummary({ tenantName: selectedTenant.name }));
 
@@ -208,6 +247,12 @@ const Summary = () => {
       if (openTeamTabs.length > 0) {
         dispatch(fetchTeams());
       }
+      // Queue normalized tenant invalidation (additive)
+      if (selectedTenant?.name) {
+        normalizedTenantQueueRef.current.add(selectedTenant.name);
+        scheduleNormalizedFlush();
+      }
+
       toast({
         title: "Data Refreshed",
         description: "Dashboard data has been updated with latest information",
