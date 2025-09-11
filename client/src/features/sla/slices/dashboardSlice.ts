@@ -3,8 +3,8 @@ import { dashboardApi } from '../api';
 import { DashboardMetrics, ComplianceTrendData } from '@shared/cache-types';
 
 interface DateRange {
-  startDate: Date;
-  endDate: Date;
+  startDate: string;
+  endDate: string;
   label: string;
 }
 
@@ -26,8 +26,8 @@ interface DashboardState {
 }
 
 const defaultDateRange: DateRange = {
-  startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // 30 days ago
-  endDate: new Date(),
+  startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 days ago
+  endDate: new Date().toISOString().split('T')[0],
   label: 'Last 30 Days',
 };
 

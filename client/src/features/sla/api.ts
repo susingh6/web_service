@@ -1,6 +1,96 @@
 import { Entity } from '@shared/schema';
+import { endpoints, isDevelopment, isStaging, isProduction } from '@/config';
 import { apiRequest } from '@/lib/queryClient';
-import { endpoints } from '@/config';
+
+// Check if FastAPI is available (for development fallback only)
+async function checkFastAPIAvailable(): Promise<boolean> {
+  try {
+    // Try FastAPI health endpoint with short timeout
+    const response = await fetch('/api/v1/health', { 
+      method: 'GET',
+      signal: AbortSignal.timeout(1000) // 1 second timeout
+    });
+    return response.ok;
+  } catch (error) {
+    return false;
+  }
+}
+
+// Express fallback request function (development only)
+async function expressApiRequest(
+  method: string,
+  url: string,
+  data?: unknown | undefined,
+): Promise<Response> {
+  const headers: Record<string, string> = {};
+  
+  if (data) {
+    headers["Content-Type"] = "application/json";
+  }
+  
+  // Add session headers if available (for continuity with Express sessions)
+  const sessionId = localStorage.getItem('fastapi_session_id');
+  const userData = localStorage.getItem('fastapi_user');
+  
+  if (sessionId && userData) {
+    try {
+      const user = JSON.parse(userData);
+      headers["X-Session-ID"] = sessionId;
+      headers["X-User-ID"] = String(user.user_id || '');
+      headers["X-User-Email"] = user.email || '';
+      headers["X-Session-Type"] = user.type || 'client_credentials';
+      headers["X-User-Roles"] = Array.isArray(user.roles) ? user.roles.join(',') : (user.roles || '');
+      headers["X-User-Name"] = user.name || '';
+    } catch (error) {
+      console.warn('Failed to parse user data for headers:', error);
+      headers["X-Session-ID"] = sessionId;
+    }
+  }
+  
+  const response = await fetch(url, {
+    method,
+    headers,
+    body: data ? JSON.stringify(data) : undefined,
+    credentials: "include", // Important for Express session cookies
+  });
+
+  if (!response.ok) {
+    const text = (await response.text()) || response.statusText;
+    throw new Error(`${response.status}: ${text}`);
+  }
+  
+  return response;
+}
+
+// Environment-aware API request function
+async function environmentAwareApiRequest(
+  method: string,
+  url: string,
+  data?: unknown | undefined,
+): Promise<Response> {
+  // In production/staging: Always use FastAPI with proper RBAC
+  if (isProduction || isStaging) {
+    console.log(`[${isProduction ? 'PRODUCTION' : 'STAGING'}] Using FastAPI with RBAC enforcement`);
+    return await apiRequest(method, url, data);
+  }
+  
+  // In development: Try FastAPI first, fallback to Express if unavailable
+  if (isDevelopment) {
+    const isFastAPIAvailable = await checkFastAPIAvailable();
+    
+    if (isFastAPIAvailable) {
+      console.log('[DEVELOPMENT] Using FastAPI');
+      return await apiRequest(method, url, data);
+    } else {
+      console.log('[DEVELOPMENT] FastAPI unavailable, falling back to Express');
+      return await expressApiRequest(method, url, data);
+    }
+  }
+  
+  // Default fallback (should not reach here)
+  console.warn('Unknown environment, defaulting to FastAPI');
+  return await apiRequest(method, url, data);
+}
 
 export const teamsApi = {
   getAll: async (teamName?: string) => {
@@ -8,7 +98,7 @@ export const teamsApi = {
     if (teamName) {
       url += `?teamName=${encodeURIComponent(teamName)}`;
     }
-    const res = await apiRequest('GET', url);
+    const res = await environmentAwareApiRequest('GET', url);
     return await res.json();
   },
 };
@@ -19,53 +109,53 @@ export const entitiesApi = {
     if (tenant) {
       url += `?tenant=${encodeURIComponent(tenant)}`;
     }
-    const res = await apiRequest('GET', url);
+    const res = await environmentAwareApiRequest('GET', url);
     return await res.json();
   },
   getById: async (id: number) => {
-    const res = await apiRequest('GET', endpoints.entity.byId(id));
+    const res = await environmentAwareApiRequest('GET', endpoints.entity.byId(id));
     return await res.json();
   },
   getByTeam: async (teamId: number) => {
-    const res = await apiRequest('GET', endpoints.entity.byTeam(teamId));
+    const res = await environmentAwareApiRequest('GET', endpoints.entity.byTeam(teamId));
     return await res.json();
   },
   getByType: async (type: string) => {
-    const res = await apiRequest('GET', `${endpoints.entities}?type=${encodeURIComponent(type)}`);
+    const res = await environmentAwareApiRequest('GET', `${endpoints.entities}?type=${encodeURIComponent(type)}`);
     return await res.json();
   },
   create: async (entityData: any) => {
-    const res = await apiRequest('POST', endpoints.entities, entityData);
+    const res = await environmentAwareApiRequest('POST', endpoints.entities, entityData);
     return await res.json();
   },
   update: async (payload: { id: number; updates: any }) => {
-    const res = await apiRequest('PUT', endpoints.entity.byId(payload.id), payload.updates);
+    const res = await environmentAwareApiRequest('PUT', endpoints.entity.byId(payload.id), payload.updates);
     return await res.json();
   },
   delete: async (id: number) => {
-    const res = await apiRequest('DELETE', endpoints.entity.byId(id));
+    const res = await environmentAwareApiRequest('DELETE', endpoints.entity.byId(id));
     return res.ok;
   },
 };
 
 export const dagsApi = {
   getAll: async (): Promise<Entity[]> => {
-    const res = await apiRequest('GET', '/api/dags');
+    const res = await environmentAwareApiRequest('GET', '/api/dags');
     return await res.json();
   },
   getById: async (id: number): Promise<Entity> => {
-    const res = await apiRequest('GET', endpoints.entity.byId(id));
+    const res = await environmentAwareApiRequest('GET', endpoints.entity.byId(id));
     return await res.json();
   },
 };
 
 export const tablesApi = {
   getAll: async (): Promise<Entity[]> => {
-    const res = await apiRequest('GET', '/api/tables');
+    const res = await environmentAwareApiRequest('GET', '/api/tables');
     return await res.json();
   },
   getById: async (id: number): Promise<Entity> => {
-    const res = await apiRequest('GET', endpoints.entity.byId(id));
+    const res = await environmentAwareApiRequest('GET', endpoints.entity.byId(id));
     return await res.json();
   },
 };
@@ -89,11 +179,11 @@ export const dashboardApi = {
       url += `?${params.toString()}`;
     }
     
-    const res = await apiRequest('GET', url);
+    const res = await environmentAwareApiRequest('GET', url);
     return await res.json();
   },
   getTeamPerformance: async (teamId: number) => {
-    const res = await apiRequest('GET', endpoints.dashboard.teamPerformance(teamId));
+    const res = await environmentAwareApiRequest('GET', endpoints.dashboard.teamPerformance(teamId));
     return await res.json();
   },
   getComplianceTrend: async (startDate: string, endDate: string, filter?: string) => {
@@ -101,7 +191,7 @@ export const dashboardApi = {
     if (filter) {
       url += `&filter=${filter}`;
     }
-    const res = await apiRequest('GET', url);
+    const res = await environmentAwareApiRequest('GET', url);
     return await res.json();
   }
 };
