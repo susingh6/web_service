@@ -26,6 +26,23 @@ const rollbackRequestSchema = z.object({
 
 type RollbackRequest = z.infer<typeof rollbackRequestSchema>;
 
+// Tenant validation schemas (not defined in shared/schema.ts)
+const adminTenantSchema = z.object({
+  name: z.string().min(1, "Tenant name is required"),
+  description: z.string().optional()
+});
+
+const updateTenantSchema = z.object({
+  name: z.string().min(1, "Tenant name is required").optional(),
+  description: z.string().optional()
+}).refine(data => Object.keys(data).length > 0, {
+  message: "At least one field must be provided for update"
+});
+
+const updateUserSchema = adminUserSchema.partial().refine(data => Object.keys(data).length > 0, {
+  message: "At least one field must be provided for update"
+});
+
 // Helper function to create audit log entries for rollback operations
 function createRollbackAuditLog(event: string, req: Request, additionalData?: any) {
   return {
@@ -79,17 +96,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const isDevelopment = environment === 'development';
   
   app.use('/api', (req: Request, res: Response, next: NextFunction) => {
-    // Always allow FastAPI endpoints to pass through
+    // CRITICAL SECURITY FIX: Only allow FastAPI fallback endpoints in development mode
     // Note: req.path doesn't include '/api' when middleware is mounted on '/api'
     if (req.path.startsWith('/v1/')) {
-      structuredLogger.info('EXPRESS_FASTAPI_ENDPOINT', {
-        path: req.path,
-        method: req.method,
-        environment,
-        timestamp: new Date().toISOString(),
-        message: 'Allowing FastAPI endpoint through Express'
-      });
-      return next();
+      if (isDevelopment) {
+        structuredLogger.info('EXPRESS_FASTAPI_FALLBACK_DEV', {
+          method: req.method,
+          environment,
+          timestamp: new Date().toISOString(),
+          message: 'Allowing FastAPI fallback endpoint in development mode'
+        });
+        return next();
+      } else {
+        // In production: Block all FastAPI fallback routes to prevent RBAC bypass
+        structuredLogger.warn('BLOCKED_FASTAPI_FALLBACK_PRODUCTION', {
+          method: req.method,
+          environment,
+          timestamp: new Date().toISOString(),
+          message: 'SECURITY: Blocked FastAPI fallback route in production to prevent RBAC bypass'
+        });
+        return res.status(503).json({
+          error: 'FASTAPI_FALLBACK_DISABLED_PRODUCTION',
+          message: 'FastAPI fallback routes are disabled in production for security. Use actual FastAPI endpoints.',
+          environment,
+          timestamp: new Date().toISOString()
+        });
+      }
     }
     
     // Core system endpoints - always allowed
@@ -205,9 +237,105 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/v1/users", async (req, res) => {
     try {
       const users = await storage.getUsers();
-      res.json(users);
+      // Transform user data to match FastAPI format expected by admin pages
+      const transformedUsers = users.map(user => ({
+        user_id: user.id,
+        user_name: user.username,
+        user_email: user.email,
+        user_slack: user.displayName ? [user.displayName.toLowerCase().replaceAll(' ', '.')] : [],
+        user_pagerduty: user.email ? [user.email] : [],
+        is_active: user.is_active !== undefined ? user.is_active : true // Use actual status or default to active
+      }));
+      res.json(transformedUsers);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch users from FastAPI fallback" });
+    }
+  });
+
+  // FastAPI fallback route for creating new users
+  app.post("/api/v1/users", async (req, res) => {
+    try {
+      // Validate request body with admin user schema
+      const validationResult = adminUserSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json(createValidationErrorResponse(validationResult.error));
+      }
+
+      const { user_name, user_email, user_slack, user_pagerduty, is_active } = validationResult.data;
+
+      // Create user with internal schema
+      const newUser = await storage.createUser({
+        username: user_name,
+        password: "temp-password", // In real implementation, this would be generated or handled via Azure AD
+        email: user_email,
+        displayName: user_name,
+        user_slack: user_slack || [],
+        user_pagerduty: user_pagerduty || [],
+        is_active: is_active,
+        role: "user" // Default role
+      });
+
+      // Transform response to match admin panel format
+      const transformedUser = {
+        user_id: newUser.id,
+        user_name: newUser.username,
+        user_email: newUser.email,
+        user_slack: newUser.user_slack || [],
+        user_pagerduty: newUser.user_pagerduty || [],
+        is_active: newUser.is_active
+      };
+
+      res.status(201).json(transformedUser);
+    } catch (error) {
+      console.error('User creation error:', error);
+      res.status(500).json(createErrorResponse("Failed to create user", "creation_error"));
+    }
+  });
+
+  // FastAPI fallback route for updating users
+  app.put("/api/v1/users/:userId", async (req, res) => {
+    try {
+      const userId = parseInt(req.params.userId);
+      if (isNaN(userId)) {
+        return res.status(400).json(createErrorResponse("Invalid user ID", "validation_error"));
+      }
+
+      // Validate request body
+      const validationResult = updateUserSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json(createValidationErrorResponse(validationResult.error));
+      }
+
+      const updateData = validationResult.data;
+      
+      // Transform admin panel fields to internal schema fields
+      const internalUpdateData: any = {};
+      if (updateData.user_name) internalUpdateData.username = updateData.user_name;
+      if (updateData.user_email) internalUpdateData.email = updateData.user_email;
+      if (updateData.user_slack) internalUpdateData.user_slack = updateData.user_slack;
+      if (updateData.user_pagerduty) internalUpdateData.user_pagerduty = updateData.user_pagerduty;
+      if (updateData.is_active !== undefined) internalUpdateData.is_active = updateData.is_active;
+
+      // Update user
+      const updatedUser = await storage.updateUser(userId, internalUpdateData);
+      if (!updatedUser) {
+        return res.status(404).json(createErrorResponse("User not found", "not_found"));
+      }
+
+      // Transform response to match admin panel format
+      const transformedUser = {
+        user_id: updatedUser.id,
+        user_name: updatedUser.username,
+        user_email: updatedUser.email,
+        user_slack: updatedUser.user_slack || [],
+        user_pagerduty: updatedUser.user_pagerduty || [],
+        is_active: updatedUser.is_active
+      };
+
+      res.json(transformedUser);
+    } catch (error) {
+      console.error('User update error:', error);
+      res.status(500).json(createErrorResponse("Failed to update user", "update_error"));
     }
   });
 
@@ -252,6 +380,81 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(tenants);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch tenants" });
+    }
+  });
+
+  // FastAPI fallback route for admin tenants endpoint
+  app.get("/api/v1/tenants", async (req, res) => {
+    try {
+      const cacheKey = 'all_tenants';
+      let tenants = await redisCache.get(cacheKey);
+      
+      if (!tenants) {
+        tenants = await storage.getTenants();
+        await redisCache.set(cacheKey, tenants, 6 * 60 * 60); // 6 hour cache
+      }
+
+      res.json(tenants);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch tenants from FastAPI fallback" });
+    }
+  });
+
+  // FastAPI fallback route for creating new tenants
+  app.post("/api/v1/tenants", async (req, res) => {
+    try {
+      // Validate request body
+      const validationResult = adminTenantSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json(createValidationErrorResponse(validationResult.error));
+      }
+
+      const { name, description } = validationResult.data;
+
+      // Create tenant
+      const newTenant = await storage.createTenant({ name, description });
+
+      // Clear cache after creation
+      const cacheKey = 'all_tenants';
+      await redisCache.invalidateCache([cacheKey]);
+
+      res.status(201).json(newTenant);
+    } catch (error) {
+      console.error('Tenant creation error:', error);
+      res.status(500).json(createErrorResponse("Failed to create tenant", "creation_error"));
+    }
+  });
+
+  // FastAPI fallback route for updating tenants
+  app.put("/api/v1/tenants/:tenantId", async (req, res) => {
+    try {
+      const tenantId = parseInt(req.params.tenantId);
+      if (isNaN(tenantId)) {
+        return res.status(400).json(createErrorResponse("Invalid tenant ID", "validation_error"));
+      }
+
+      // Validate request body
+      const validationResult = updateTenantSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json(createValidationErrorResponse(validationResult.error));
+      }
+
+      const updateData = validationResult.data;
+
+      // Update tenant
+      const updatedTenant = await storage.updateTenant(tenantId, updateData);
+      if (!updatedTenant) {
+        return res.status(404).json(createErrorResponse("Tenant not found", "not_found"));
+      }
+
+      // Clear cache after update
+      const cacheKey = 'all_tenants';
+      await redisCache.invalidateCache([cacheKey]);
+
+      res.json(updatedTenant);
+    } catch (error) {
+      console.error('Tenant update error:', error);
+      res.status(500).json(createErrorResponse("Failed to update tenant", "update_error"));
     }
   });
 
