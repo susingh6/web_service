@@ -424,6 +424,15 @@ const Summary = () => {
     setOpenNotificationModal(true);
   };
 
+  // Helper function to find the tenant name for a team
+  const getTeamTenantName = (teamName: string): string | undefined => {
+    const team = teams.find(t => t.name === teamName);
+    if (!team || !team.tenant_id) return undefined;
+    
+    const tenant = tenants.find(t => t.id === team.tenant_id);
+    return tenant?.name;
+  };
+
   const handleViewTasks = (entity: Entity) => {
     setSelectedEntity(entity);
     setOpenTaskModal(true);
@@ -720,7 +729,7 @@ const Summary = () => {
             {activeTab === teamName && (
               <TeamDashboard
                 teamName={teamName}
-                tenantName={selectedTenant?.name || ''}
+                tenantName={getTeamTenantName(teamName) || selectedTenant?.name || ''}
                 dateRange={teamDateRanges[teamName]}
                 onDateRangeChange={(range) => setTeamDateRanges((prev) => ({ ...prev, [teamName]: range }))}
                 onEditEntity={handleEditEntity}
@@ -741,7 +750,7 @@ const Summary = () => {
         open={openAddModal}
         onClose={() => setOpenAddModal(false)}
         teams={teams}
-        initialTenantName={selectedTenant?.name}
+        initialTenantName={activeTab !== 'summary' ? getTeamTenantName(activeTab) : selectedTenant?.name}
         initialTeamName={activeTab !== 'summary' ? activeTab : undefined}
         onSubmitted={(type) => {
           // Only team dashboards handle adds; switch their internal sub-tab
