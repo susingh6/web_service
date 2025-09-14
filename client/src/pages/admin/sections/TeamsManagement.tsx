@@ -169,6 +169,16 @@ const TeamsManagement = () => {
   // Debounce search query for better performance
   const deferredSearchQuery = useDeferredValue(searchQuery);
 
+  // Listen for team data refresh events (e.g., when tenant status changes cascade to teams)
+  useEffect(() => {
+    const handleRefreshTeams = () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'teams'] });
+    };
+    
+    window.addEventListener('refresh-teams-data', handleRefreshTeams);
+    return () => window.removeEventListener('refresh-teams-data', handleRefreshTeams);
+  }, [queryClient]);
+
   // Fetch teams from admin endpoint with FastAPI headers
   const { data: teams = [], isLoading } = useQuery({
     queryKey: ['admin', 'teams'],

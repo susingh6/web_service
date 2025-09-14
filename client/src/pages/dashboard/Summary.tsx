@@ -273,6 +273,16 @@ const Summary = () => {
     }
   }, [dispatch, selectedTenant, summaryDateRange]);
 
+  // Listen for team data refresh events (e.g., when tenant status changes cascade to teams)
+  useEffect(() => {
+    const handleRefreshTeams = () => {
+      dispatch(fetchTeams());
+    };
+    
+    window.addEventListener('refresh-teams-data', handleRefreshTeams);
+    return () => window.removeEventListener('refresh-teams-data', handleRefreshTeams);
+  }, [dispatch]);
+
   // Filter entities based on tab and tenant - only show entity owners
   const filterEntitiesByTenant = (entities: Entity[]) => {
     // Filter by tenant_name and only show entity owners

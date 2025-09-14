@@ -1036,10 +1036,6 @@ export class MemStorage implements IStorage {
         updatedAt: new Date().toISOString()
       });
       
-      // Debug log for team count changes
-      if (oldCount !== teamCount) {
-        console.log(`[STORAGE] Tenant ${tenant.name} (ID: ${tenantId}) team count updated: ${oldCount} → ${teamCount}`);
-      }
     });
   }
   
@@ -1070,6 +1066,9 @@ export class MemStorage implements IStorage {
     const tenant = this.tenants.get(id);
     if (!tenant) return undefined;
     
+    const wasActive = tenant.isActive;
+    const willBeActive = tenantData.isActive !== undefined ? tenantData.isActive : wasActive;
+    
     const updatedTenant: Tenant = {
       ...tenant,
       ...tenantData,
@@ -1078,7 +1077,47 @@ export class MemStorage implements IStorage {
     };
     
     this.tenants.set(id, updatedTenant);
+    
+    // CASCADE LOGIC: If tenant becomes inactive, deactivate all its teams
+    if (wasActive && !willBeActive) {
+      await this.deactivateTeamsByTenant(id);
+      
+      // Get updated tenant to show new count and return the latest version
+      const updatedTenantAfterCascade = this.tenants.get(id);
+      return updatedTenantAfterCascade!; // Return tenant with updated team count
+    }
+    // NOTE: When tenant becomes active again, we do NOT reactivate teams
+    // Teams must be manually reactivated by admin
+    
     return updatedTenant;
+  }
+
+  /**
+   * Deactivate all teams belonging to a specific tenant
+   * Used when a tenant becomes inactive
+   */
+  private async deactivateTeamsByTenant(tenantId: number): Promise<void> {
+    const teamsToDeactivate: Team[] = [];
+    
+    // Find all teams belonging to this tenant
+    Array.from(this.teams.values()).forEach((team) => {
+      if (team.tenant_id === tenantId && team.isActive === true) {
+        teamsToDeactivate.push(team);
+      }
+    });
+    
+    // Deactivate each team
+    for (const team of teamsToDeactivate) {
+      const deactivatedTeam: Team = {
+        ...team,
+        isActive: false,
+        updatedAt: new Date()
+      };
+      this.teams.set(team.id, deactivatedTeam);
+    }
+    
+    // Update tenant team counts after deactivation
+    this.updateTenantTeamCounts();
   }
   
   // Entity operations

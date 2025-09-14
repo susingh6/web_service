@@ -327,11 +327,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { teamName, includeInactive } = req.query as { teamName?: string; includeInactive?: string };
       const teams = await redisCache.getAllTeams();
+      const tenants = await redisCache.getAllTenants();
 
       const shouldIncludeInactive = includeInactive === 'true';
+      
+      // Create a map of tenant ID to tenant for quick lookup
+      const tenantMap = new Map(tenants.map(tenant => [tenant.id, tenant]));
+      
+      // Filter teams based on both team active status and tenant active status
       const filteredByActive = shouldIncludeInactive
         ? teams
-        : teams.filter(team => team.isActive !== false);
+        : teams.filter(team => {
+            // Team must be active
+            if (team.isActive === false) return false;
+            
+            // Team's tenant must also be active (unless includeInactive is true)
+            const tenant = tenantMap.get(team.tenant_id);
+            if (!tenant || (tenant as any).isActive === false) return false;
+            
+            return true;
+          });
 
       if (teamName) {
         const filteredTeams = filteredByActive.filter(team => team.name === teamName);
@@ -340,6 +355,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       return res.json(filteredByActive);
     } catch (error) {
+      console.error('Error fetching teams:', error);
       res.status(500).json({ message: "Failed to fetch teams from cache" });
     }
   });
@@ -428,19 +444,69 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const updateData = validationResult.data;
 
-      // Update tenant
+      // Update tenant (may cascade to teams if tenant becomes inactive)
       const updatedTenant = await storage.updateTenant(tenantId, updateData);
       if (!updatedTenant) {
         return res.status(404).json(createErrorResponse("Tenant not found", "not_found"));
       }
 
-      // Invalidate tenants cache comprehensively
+      // Invalidate both tenant and team caches since tenant status changes can affect teams
       await redisCache.invalidateTenants();
+      await redisCache.invalidateCache({
+        keys: ['all_teams', 'teams_summary'],
+        patterns: [
+          'team_details:*',
+          'team_entities:*',
+          'team_metrics:*',
+          'team_trends:*',
+          'dashboard_summary:*'
+        ],
+        mainCacheKeys: ['TEAMS'],
+        refreshAffectedData: true
+      });
 
       res.json(updatedTenant);
     } catch (error) {
       console.error('Tenant update error:', error);
       res.status(500).json(createErrorResponse("Failed to update tenant", "update_error"));
+    }
+  });
+
+  // FastAPI fallback route for getting teams
+  app.get("/api/v1/teams", async (req, res) => {
+    try {
+      const { teamName, includeInactive } = req.query as { teamName?: string; includeInactive?: string };
+      const teams = await redisCache.getAllTeams();
+      const tenants = await redisCache.getAllTenants();
+
+      const shouldIncludeInactive = includeInactive === 'true';
+      
+      // Create a map of tenant ID to tenant for quick lookup
+      const tenantMap = new Map(tenants.map(tenant => [tenant.id, tenant]));
+      
+      // Filter teams based on both team active status and tenant active status
+      const filteredByActive = shouldIncludeInactive
+        ? teams
+        : teams.filter(team => {
+            // Team must be active
+            if (team.isActive === false) return false;
+            
+            // Team's tenant must also be active (unless includeInactive is true)
+            const tenant = tenantMap.get(team.tenant_id);
+            if (!tenant || (tenant as any).isActive === false) return false;
+            
+            return true;
+          });
+
+      if (teamName) {
+        const filteredTeams = filteredByActive.filter(team => team.name === teamName);
+        return res.json(filteredTeams);
+      }
+
+      return res.json(filteredByActive);
+    } catch (error) {
+      console.error('Error fetching teams (FastAPI fallback):', error);
+      res.status(500).json({ message: "Failed to fetch teams from FastAPI fallback" });
     }
   });
 

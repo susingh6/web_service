@@ -214,24 +214,28 @@ const TenantsManagement = () => {
     mutationFn: async ({ tenantId, tenantData }: { tenantId: number; tenantData: any }) => {
       return await tenantsApi.update(tenantId, tenantData);
     },
-    onMutate: async ({ tenantId, tenantData }) => {
-      await queryClient.cancelQueries({ queryKey: ['admin', 'tenants'] });
-      const previous = queryClient.getQueryData<any[]>(['admin', 'tenants']);
-      queryClient.setQueryData<any[]>(['admin', 'tenants'], (old) => {
-        if (!old) return [] as any[];
-        return old.map(tenant => tenant.id === tenantId ? { ...tenant, ...tenantData } : tenant);
-      });
-      return { previous };
-    },
-    onError: (_err, _vars, ctx) => {
-      if (ctx?.previous) queryClient.setQueryData(['admin', 'tenants'], ctx.previous);
+    onError: (_err, _vars, _ctx) => {
       toast({ title: 'Update Failed', description: 'Failed to update tenant. Please try again.', variant: 'destructive' });
     },
     onSuccess: () => {
       toast({ title: 'Tenant Updated', description: 'Tenant has been successfully updated.' });
     },
     onSettled: async () => {
+      // CRITICAL: Invalidate the exact query key used by this component first
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'tenants'] });
+      
+      // Then invalidate other tenant-related caches
+      await queryClient.invalidateQueries({ queryKey: ['/api/tenants'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/v1/tenants'] });
       await invalidateAdminCaches(queryClient);
+      
+      // Invalidate team caches since tenant status changes can cascade to teams
+      await queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/v1/teams'] });
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'teams'] });
+      
+      // Also refresh Redux teams data to reflect cascade changes
+      window.dispatchEvent(new CustomEvent('refresh-teams-data'));
     },
   });
 
