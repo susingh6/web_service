@@ -945,6 +945,8 @@ export class MemStorage implements IStorage {
       isActive: insertTeam.isActive !== undefined ? insertTeam.isActive : true // Default to active
     };
     this.teams.set(id, team);
+    // Recalculate tenant team counts when a new team is created
+    this.updateTenantTeamCounts();
     return team;
   }
 
@@ -961,6 +963,8 @@ export class MemStorage implements IStorage {
     };
     
     this.teams.set(id, updatedTeam);
+    // Recalculate tenant team counts when team status or tenant changes
+    this.updateTenantTeamCounts();
     return updatedTeam;
   }
 
@@ -1011,22 +1015,31 @@ export class MemStorage implements IStorage {
    * Update team counts for all tenants based on actual team assignments
    */
   private updateTenantTeamCounts(): void {
-    // Count teams per tenant
+    // Count only ACTIVE teams per tenant
     const teamCounts = new Map<number, number>();
 
     Array.from(this.teams.values()).forEach((team) => {
-      const tenantId = team.tenant_id;
-      teamCounts.set(tenantId, (teamCounts.get(tenantId) || 0) + 1);
+      if (team.isActive === true) {
+        const tenantId = team.tenant_id;
+        teamCounts.set(tenantId, (teamCounts.get(tenantId) || 0) + 1);
+      }
     });
 
     // Update each tenant's team count
     Array.from(this.tenants.entries()).forEach(([tenantId, tenant]) => {
       const teamCount = teamCounts.get(tenantId) || 0;
+      const oldCount = tenant.teamsCount || 0;
+      
       this.tenants.set(tenantId, {
         ...tenant,
         teamsCount: teamCount,
         updatedAt: new Date().toISOString()
       });
+      
+      // Debug log for team count changes
+      if (oldCount !== teamCount) {
+        console.log(`[STORAGE] Tenant ${tenant.name} (ID: ${tenantId}) team count updated: ${oldCount} → ${teamCount}`);
+      }
     });
   }
   

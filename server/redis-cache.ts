@@ -1968,6 +1968,38 @@ export class RedisCache {
     });
   }
 
+  // New: Invalidate tenants comprehensively (dev + prod compatible)
+  async invalidateTenants(): Promise<void> {
+    console.log('[CACHE] Invalidating tenants cache...');
+    
+    // If Redis is available, clear main TENANTS cache and bump timestamp
+    if (this.useRedis && this.redis) {
+      try {
+        await this.del(CACHE_KEYS.TENANTS);
+        await this.set(CACHE_KEYS.LAST_UPDATED, new Date(), Math.floor(this.CACHE_DURATION_MS / 1000) + 300);
+        console.log('[CACHE] Redis tenants cache cleared successfully');
+      } catch (err) {
+        console.log('[CACHE] Redis tenant invalidation failed, using fallback:', err);
+        // Fallback to generic invalidation
+        await this.invalidateCache({
+          keys: ['all_tenants'],
+          patterns: ['tenants_*'],
+          mainCacheKeys: ['TENANTS'],
+          refreshAffectedData: true
+        });
+      }
+      return;
+    }
+    // Fallback mode
+    console.log('[CACHE] Using fallback tenant cache invalidation');
+    await this.invalidateCache({
+      keys: ['all_tenants'],
+      patterns: ['tenants_*'],
+      mainCacheKeys: ['TENANTS'],
+      refreshAffectedData: true
+    });
+  }
+
   // Hybrid approach: Invalidate targeted cache + optional background rebuild
   async invalidateAndRebuildEntityCache(
     teamId: number,

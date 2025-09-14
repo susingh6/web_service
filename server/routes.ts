@@ -322,28 +322,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Teams endpoints - using cache
+  // Teams endpoints - using cache (includeInactive toggle for admin)
   app.get("/api/teams", async (req, res) => {
     try {
-      const { teamName } = req.query;
+      const { teamName, includeInactive } = req.query as { teamName?: string; includeInactive?: string };
       const teams = await redisCache.getAllTeams();
-      
-      // Filter out inactive teams for dashboard team dropdown (like tenants)
-      const activeTeams = teams.filter(team => team.isActive !== false);
-      
-      // If team name is provided, filter teams or log the specific team request
+
+      const shouldIncludeInactive = includeInactive === 'true';
+      const filteredByActive = shouldIncludeInactive
+        ? teams
+        : teams.filter(team => team.isActive !== false);
+
       if (teamName) {
-        const filteredTeams = activeTeams.filter(team => team.name === teamName);
-        res.json(filteredTeams);
-      } else {
-        res.json(activeTeams);
+        const filteredTeams = filteredByActive.filter(team => team.name === teamName);
+        return res.json(filteredTeams);
       }
+
+      return res.json(filteredByActive);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch teams from cache" });
     }
   });
 
-  // Tenants endpoints - using cache (same data source as admin)
+  // Tenants endpoints - use cache
   app.get("/api/tenants", async (req, res) => {
     try {
       const cacheKey = 'all_tenants';
@@ -354,16 +355,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await redisCache.set(cacheKey, tenants, 6 * 60 * 60); // 6 hour cache
       }
 
-      // Filter out inactive tenants for dashboard tenant filter dropdown
-      const activeTenants = tenants.filter((tenant: any) => tenant.isActive !== false);
-
-      res.json(activeTenants);
+      res.json(tenants);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch tenants" });
     }
   });
 
-  // FastAPI fallback route for admin tenants endpoint
+  // FastAPI fallback route for admin tenants endpoint - use cache with HTTP versioning
   app.get("/api/v1/tenants", async (req, res) => {
     try {
       const cacheKey = 'all_tenants';
@@ -374,12 +372,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await redisCache.set(cacheKey, tenants, 6 * 60 * 60); // 6 hour cache
       }
 
-      // Support active_only filter for clients expecting only active tenants
-      const activeOnly = String(req.query.active_only || req.query.activeOnly || '').toLowerCase() === 'true';
-      if (activeOnly) {
-        const activeTenants = tenants.filter((tenant: any) => tenant.isActive !== false);
-        return res.json(activeTenants);
-      }
+      // Add HTTP caching headers with versioning to avoid 304 on stale data
+      const lastUpdatedRaw = await (redisCache as any).get ? await (redisCache as any).get('sla:LAST_UPDATED') : null;
+      const lastUpdated = lastUpdatedRaw || new Date();
+      const version = Date.now();
+      res.set({
+        'ETag': `W/"tenants:${version}"`,
+        'Last-Modified': new Date(lastUpdated).toUTCString(),
+        'Cache-Control': 'no-cache'
+      });
 
       res.json(tenants);
     } catch (error) {
@@ -401,9 +402,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Create tenant
       const newTenant = await storage.createTenant({ name, description });
 
-      // Clear cache after creation
-      const cacheKey = 'all_tenants';
-      await redisCache.invalidateCache({ keys: [cacheKey] });
+      // Invalidate tenants cache comprehensively
+      await redisCache.invalidateTenants();
 
       res.status(201).json(newTenant);
     } catch (error) {
@@ -434,9 +434,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json(createErrorResponse("Tenant not found", "not_found"));
       }
 
-      // Clear cache after update
-      const cacheKey = 'all_tenants';
-      await redisCache.invalidateCache({ keys: [cacheKey] });
+      // Invalidate tenants cache comprehensively
+      await redisCache.invalidateTenants();
 
       res.json(updatedTenant);
     } catch (error) {
@@ -459,7 +458,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Invalidate all team-related caches using correct main cache keys
       await redisCache.invalidateCache({
-        keys: ['all_teams', 'teams_summary'],
+        keys: ['all_teams', 'teams_summary', 'all_tenants'],
         patterns: [
           'team_details:*',
           'team_entities:*',
@@ -468,9 +467,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           'dashboard_summary:*',
           'entities:*'
         ],
-        mainCacheKeys: ['TEAMS'], // This invalidates CACHE_KEYS.TEAMS used by getAllTeams()
+        // Refresh both TEAMS and TENANTS so tenant teamsCount reflects changes immediately
+        mainCacheKeys: ['TEAMS', 'TENANTS'],
         refreshAffectedData: true
       });
+
+      // Explicitly invalidate tenants cache to ensure team count updates
+      await redisCache.invalidateTenants();
 
       res.status(201).json(newTeam);
     } catch (error) {
@@ -503,7 +506,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Invalidate all team-related caches
       await redisCache.invalidateCache({
-        keys: ['all_teams', 'teams_summary'],
+        keys: ['all_teams', 'teams_summary', 'all_tenants'],
         patterns: [
           'team_details:*',
           'team_entities:*',
@@ -512,9 +515,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           'dashboard_summary:*',
           'entities:*'
         ],
-        mainCacheKeys: ['TEAMS'], // This invalidates CACHE_KEYS.TEAMS used by getAllTeams()
+        mainCacheKeys: ['TEAMS', 'TENANTS'],
         refreshAffectedData: true
       });
+
+      // Explicitly invalidate tenants cache to ensure team count updates
+      await redisCache.invalidateTenants();
 
       res.json(updatedTeam);
     } catch (error) {
@@ -980,6 +986,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // FastAPI-style alias: Get team members (development fallback)
+  app.get("/api/v1/get_team_members/:teamName", async (req, res) => {
+    try {
+      const { teamName } = req.params;
+      const cacheKey = `team_members_${teamName}`;
+      let members = await redisCache.get(cacheKey);
+
+      if (!members) {
+        members = await storage.getTeamMembers(teamName);
+        await redisCache.set(cacheKey, members, 6 * 60 * 60);
+      }
+
+      res.json(members);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch team members" });
+    }
+  });
+
   // Get all users endpoint with caching
   app.get("/api/get_user", async (req, res) => {
     try {
@@ -993,6 +1017,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await redisCache.set(cacheKey, users, 6 * 60 * 60);
       }
 
+      res.json(users);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch users" });
+    }
+  });
+
+  // FastAPI-style alias: Get all users (development fallback)
+  app.get("/api/v1/get_user", async (req, res) => {
+    try {
+      const cacheKey = 'all_users';
+      let users = await redisCache.get(cacheKey);
+      if (!users) {
+        users = await storage.getUsers();
+        await redisCache.set(cacheKey, users, 6 * 60 * 60);
+      }
       res.json(users);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch users" });

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   Paper,
@@ -130,7 +130,7 @@ const EntityTable = ({
   const [filterStatus, setFilterStatus] = useState<'all' | EntityStatus>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredEntities, setFilteredEntities] = useState<Entity[]>([]);
-  const [trendData, setTrendData] = useState<Map<number, any>>(new Map());
+  const [trendData, setTrendData] = useState<Map<number, { value: number; icon: JSX.Element; color: string }>>(new Map());
   const [agentWorkspaceOpen, setAgentWorkspaceOpen] = useState(false);
   const [selectedDagEntity, setSelectedDagEntity] = useState<Entity | null>(null);
 
@@ -166,7 +166,13 @@ const EntityTable = ({
     };
 
     loadTrendData();
-  }, [entities]);
+  }, [entities.length]);
+
+  // Memoize table head cells to avoid creating a new array on every render
+  const headCells = useMemo(
+    () => getHeadCells(showActions, type, isTeamDashboard, trendLabel),
+    [showActions, type, isTeamDashboard, trendLabel]
+  );
 
   // Apply filters and sorting to entities
   useEffect(() => {
@@ -430,7 +436,7 @@ const EntityTable = ({
                 />
               </TableCell>
               
-              {getHeadCells(showActions, type, isTeamDashboard, trendLabel).map((headCell) => (
+              {headCells.map((headCell) => (
                 <TableCell
                   key={headCell.id}
                   align={headCell.numeric ? 'right' : headCell.id === 'actions' ? 'center' : 'left'}
@@ -477,7 +483,7 @@ const EntityTable = ({
                 const groupHeaderRow = shouldShowGroupHeader ? (
                   <TableRow key={`group-header-${entity.is_entity_owner ? 'owners' : 'non-owners'}`}>
                     <TableCell 
-                      colSpan={getHeadCells(showActions, type, isTeamDashboard, trendLabel).length + 1}
+                      colSpan={headCells.length + 1}
                       sx={{ 
                         backgroundColor: 'action.hover',
                         borderTop: '2px solid',

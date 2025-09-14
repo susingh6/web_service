@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { startOfDay, endOfDay, subDays, format } from 'date-fns';
 import { useQuery } from '@tanstack/react-query';
-import { cacheKeys } from '@/lib/cacheKeys';
+import { cacheKeys, invalidateAdminCaches } from '@/lib/cacheKeys';
 import { Box, Typography, Tabs, Tab, Card, CardContent, Chip, Paper, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, FormControl, InputLabel, Select, MenuItem, IconButton } from '@mui/material';
 import { Add as AddIcon, Upload as UploadIcon, Person as PersonIcon, Edit as EditIcon, Delete as DeleteIcon, PersonAdd as PersonAddIcon } from '@mui/icons-material';
 import { useAppDispatch, useAppSelector } from '@/lib/store';
@@ -224,6 +224,15 @@ const TeamDashboard = ({
         description: 'Team member added successfully',
       });
 
+      // Ensure React Query cache is invalidated and refetched immediately (team members)
+      await queryClient.invalidateQueries({ queryKey: cacheKeys.teamMembers(tenantName, team?.id) });
+      await queryClient.refetchQueries({ queryKey: cacheKeys.teamMembers(tenantName, team?.id) });
+
+      // Also invalidate admin portals so the Members count updates live
+      await invalidateAdminCaches(queryClient);
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'teams'] });
+      await queryClient.refetchQueries({ queryKey: ['admin', 'teams'] });
+
       setAddMemberDialogOpen(false);
       setSelectedUserId('');
     } catch (error) {
@@ -245,6 +254,15 @@ const TeamDashboard = ({
         title: 'Success',
         description: 'Team member removed successfully',
       });
+
+      // Ensure React Query cache is invalidated and refetched immediately (team members)
+      await queryClient.invalidateQueries({ queryKey: cacheKeys.teamMembers(tenantName, team?.id) });
+      await queryClient.refetchQueries({ queryKey: cacheKeys.teamMembers(tenantName, team?.id) });
+
+      // Also invalidate admin portals so the Members count updates live
+      await invalidateAdminCaches(queryClient);
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'teams'] });
+      await queryClient.refetchQueries({ queryKey: ['admin', 'teams'] });
 
       setRemoveMemberDialogOpen(false);
       setSelectedMemberId('');

@@ -187,7 +187,7 @@ const TeamsManagement = () => {
         headers['X-Session-ID'] = sessionId;
       }
       
-      const response = await fetch(buildUrl(endpoints.teams), {
+      const response = await fetch(buildUrl(endpoints.teams) + '?includeInactive=true', {
         cache: 'no-store',
         headers,
         credentials: 'include'
@@ -299,6 +299,11 @@ const TeamsManagement = () => {
     onSettled: async () => {
       await invalidateAdminCaches(queryClient);
       await queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
+      // Invalidate all tenant-related caches to reflect team count changes
+      await queryClient.invalidateQueries({ queryKey: ['/api/v1/tenants'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/tenants'] });
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'tenants'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/tenants', 'active'] });
     },
   });
 
@@ -348,6 +353,11 @@ const TeamsManagement = () => {
     onSettled: async () => {
       await invalidateAdminCaches(queryClient);
       await queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
+      // Invalidate all tenant-related caches to reflect team count changes
+      await queryClient.invalidateQueries({ queryKey: ['/api/v1/tenants'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/tenants'] });
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'tenants'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/tenants', 'active'] });
     },
   });
 
