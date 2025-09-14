@@ -11,7 +11,7 @@ import {
   ResponsiveContainer,
   TooltipProps 
 } from 'recharts';
-import { format, parseISO, differenceInDays, startOfMonth, isSameMonth } from 'date-fns';
+import { format, parseISO, differenceInDays, startOfMonth, isSameMonth, addMonths } from 'date-fns';
 
 // Generate compliance data from real entities
 const generateDataFromEntities = (entities: any[]) => {
@@ -65,68 +65,56 @@ const shouldUseMonthlyAggregation = (data: any[]): boolean => {
   return daysDifference > 40;
 };
 
-// Helper function to aggregate daily data to monthly averages
+// Helper function to aggregate daily data to monthly snapshots (last available day per month)
+// Also ensures months with no data appear on the X-axis with null Y values, keeping the chart continuous.
 const aggregateToMonthly = (dailyData: any[]): any[] => {
   if (!dailyData || dailyData.length === 0) return [];
-  
-  const monthlyMap = new Map<string, {
-    overall: number[];
-    tables: number[];
-    dags: number[];
-    count: number;
-    monthKey: string;
-    firstDate: Date;
-  }>();
-  
-  // Group data by month
-  dailyData.forEach(item => {
-    const date = parseISO(item.date);
-    const monthStart = startOfMonth(date);
-    const monthKey = format(monthStart, 'yyyy-MM');
-    
-    if (!monthlyMap.has(monthKey)) {
-      monthlyMap.set(monthKey, {
-        overall: [],
-        tables: [],
-        dags: [],
-        count: 0,
-        monthKey,
-        firstDate: monthStart
+
+  // Sort by date ascending to make "last in month" selection easy
+  const sorted = [...dailyData].sort((a, b) => a.date.localeCompare(b.date));
+
+  // Build a map of monthKey -> last item in that month
+  const monthToLastItem = new Map<string, any>();
+  for (const item of sorted) {
+    const d = parseISO(item.date);
+    const monthKey = format(startOfMonth(d), 'yyyy-MM');
+    const prev = monthToLastItem.get(monthKey);
+    if (!prev || item.date > prev.date) {
+      monthToLastItem.set(monthKey, item);
+    }
+  }
+
+  // Build a contiguous month list from first to last month
+  const firstDate = startOfMonth(parseISO(sorted[0].date));
+  const lastDate = startOfMonth(parseISO(sorted[sorted.length - 1].date));
+
+  const out: any[] = [];
+  for (let m = firstDate; m <= lastDate; m = addMonths(m, 1)) {
+    const key = format(m, 'yyyy-MM');
+    const lastInMonth = monthToLastItem.get(key);
+    if (lastInMonth) {
+      out.push({
+        date: format(m, 'yyyy-MM-dd'),
+        dateFormatted: format(m, 'MMM yyyy'),
+        overall: lastInMonth.overall ?? null,
+        tables: lastInMonth.tables ?? null,
+        dags: lastInMonth.dags ?? null,
+        isMonthly: true,
+      });
+    } else {
+      // month without data: show X-axis label with null Y values
+      out.push({
+        date: format(m, 'yyyy-MM-dd'),
+        dateFormatted: format(m, 'MMM yyyy'),
+        overall: null,
+        tables: null,
+        dags: null,
+        isMonthly: true,
       });
     }
-    
-    const monthData = monthlyMap.get(monthKey)!;
-    monthData.overall.push(item.overall || 0);
-    monthData.tables.push(item.tables || 0);
-    monthData.dags.push(item.dags || 0);
-    monthData.count++;
-  });
-  
-  // Calculate monthly averages
-  const monthlyData = Array.from(monthlyMap.values())
-    .sort((a, b) => a.firstDate.getTime() - b.firstDate.getTime())
-    .map(monthInfo => {
-      const avgOverall = monthInfo.overall.length > 0 
-        ? monthInfo.overall.reduce((sum, val) => sum + val, 0) / monthInfo.overall.length 
-        : 0;
-      const avgTables = monthInfo.tables.length > 0 
-        ? monthInfo.tables.reduce((sum, val) => sum + val, 0) / monthInfo.tables.length 
-        : 0;
-      const avgDags = monthInfo.dags.length > 0 
-        ? monthInfo.dags.reduce((sum, val) => sum + val, 0) / monthInfo.dags.length 
-        : 0;
-      
-      return {
-        date: format(monthInfo.firstDate, 'yyyy-MM-dd'),
-        dateFormatted: format(monthInfo.firstDate, 'MMM yyyy'),
-        overall: parseFloat(avgOverall.toFixed(1)),
-        tables: parseFloat(avgTables.toFixed(1)),
-        dags: parseFloat(avgDags.toFixed(1)),
-        isMonthly: true
-      };
-    });
-  
-  return monthlyData;
+  }
+
+  return out;
 };
 
 // Demo data - only used as fallback when no entities are available
@@ -289,6 +277,7 @@ const ComplianceTrendChart = ({
             strokeWidth={2}
             dot={{ r: 2 }}
             activeDot={{ r: 4 }}
+            connectNulls
             name="Overall"
           />
           <Line 
@@ -298,6 +287,7 @@ const ComplianceTrendChart = ({
             strokeWidth={2}
             dot={{ r: 2 }}
             activeDot={{ r: 4 }}
+            connectNulls
             name="Tables"
           />
           <Line 
@@ -307,6 +297,7 @@ const ComplianceTrendChart = ({
             strokeWidth={2}
             dot={{ r: 2 }}
             activeDot={{ r: 4 }}
+            connectNulls
             name="DAGs"
           />
         </>
@@ -320,6 +311,7 @@ const ComplianceTrendChart = ({
           strokeWidth={2}
           dot={{ r: 2 }}
           activeDot={{ r: 4 }}
+          connectNulls
           name="Tables"
         />
       );
@@ -332,6 +324,7 @@ const ComplianceTrendChart = ({
           strokeWidth={2}
           dot={{ r: 2 }}
           activeDot={{ r: 4 }}
+          connectNulls
           name="DAGs"
         />
       );

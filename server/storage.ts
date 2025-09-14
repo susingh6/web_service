@@ -12,6 +12,11 @@ export interface Tenant {
   id: number;
   name: string;
   description?: string;
+  // Additional metadata used in admin UI
+  isActive: boolean;
+  teamsCount: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 // Define the storage interface
@@ -287,76 +292,76 @@ export class MemStorage implements IStorage {
         name: 'PGM', 
         description: 'Partner Growth & Management',
         tenant_id: 1,
-        team_members_ids: ['john.smith', 'sarah.johnson'],
-        team_email: ['pgm-team@company.com'],
-        team_slack: ['#pgm-team'],
-        team_pagerduty: ['pgm-escalation'],
+        team_members_ids: ['john.smith', 'sarah.johnson'] as string[],
+        team_email: ['pgm-team@company.com'] as string[],
+        team_slack: ['#pgm-team'] as string[],
+        team_pagerduty: ['pgm-escalation'] as string[],
         isActive: true
       },
       { 
         name: 'Core', 
         description: 'Core Infrastructure Team',
         tenant_id: 1,
-        team_members_ids: ['david.wilson', 'michael.brown'],
-        team_email: ['core-team@company.com'],
-        team_slack: ['#core-infrastructure'],
-        team_pagerduty: ['core-escalation'],
+        team_members_ids: ['david.wilson', 'michael.brown'] as string[],
+        team_email: ['core-team@company.com'] as string[],
+        team_slack: ['#core-infrastructure'] as string[],
+        team_pagerduty: ['core-escalation'] as string[],
         isActive: true
       },
       { 
         name: 'Viewer Product', 
         description: 'Viewer Product Team',
         tenant_id: 1,  // Move to Data Engineering
-        team_members_ids: ['emily.davis'],
-        team_email: ['viewer-product@company.com'],
-        team_slack: ['#viewer-product'],
-        team_pagerduty: ['viewer-escalation'],
+        team_members_ids: ['emily.davis'] as string[],
+        team_email: ['viewer-product@company.com'] as string[],
+        team_slack: ['#viewer-product'] as string[],
+        team_pagerduty: ['viewer-escalation'] as string[],
         isActive: true
       },
       { 
         name: 'IOT', 
         description: 'Internet of Things Team',
         tenant_id: 1,
-        team_members_ids: ['alex.chen', 'maria.garcia'],
-        team_email: ['iot-team@company.com'],
-        team_slack: ['#iot-team'],
-        team_pagerduty: ['iot-escalation'],
+        team_members_ids: ['alex.chen', 'maria.garcia'] as string[],
+        team_email: ['iot-team@company.com'] as string[],
+        team_slack: ['#iot-team'] as string[],
+        team_pagerduty: ['iot-escalation'] as string[],
         isActive: true
       },
       { 
         name: 'CDM', 
         description: 'Content Delivery & Management Team',
         tenant_id: 1,
-        team_members_ids: ['robert.taylor', 'lisa.anderson'],
-        team_email: ['cdm-team@company.com'],
-        team_slack: ['#cdm-team'],
-        team_pagerduty: ['cdm-escalation'],
+        team_members_ids: ['robert.taylor', 'lisa.anderson'] as string[],
+        team_email: ['cdm-team@company.com'] as string[],
+        team_slack: ['#cdm-team'] as string[],
+        team_pagerduty: ['cdm-escalation'] as string[],
         isActive: true
       },
       { 
         name: 'Ad Serving', 
         description: 'Advertisement Serving Team',
         tenant_id: 2,
-        team_members_ids: ['carlos.martinez'],
-        team_email: ['ad-serving@company.com'],
-        team_slack: ['#ad-serving'],
-        team_pagerduty: ['ad-serving-escalation'],
+        team_members_ids: ['carlos.martinez'] as string[],
+        team_email: ['ad-serving@company.com'] as string[],
+        team_slack: ['#ad-serving'] as string[],
+        team_pagerduty: ['ad-serving-escalation'] as string[],
         isActive: true
       },
       { 
         name: 'Ad Data Activation', 
         description: 'Ad Data Activation Team',
         tenant_id: 2,
-        team_members_ids: ['ana.rodriguez'],
-        team_email: ['ad-data@company.com'],
-        team_slack: ['#ad-data-activation'],
-        team_pagerduty: ['ad-data-escalation'],
+        team_members_ids: ['ana.rodriguez'] as string[],
+        team_email: ['ad-data@company.com'] as string[],
+        team_slack: ['#ad-data-activation'] as string[],
+        team_pagerduty: ['ad-data-escalation'] as string[],
         isActive: true
       }
     ];
 
     teamData.forEach(teamInfo => {
-      this.createTeam(teamInfo);
+      this.createTeam(teamInfo as unknown as InsertTeam);
     });
 
     // Calculate and update team counts for tenants after teams are created
@@ -430,7 +435,7 @@ export class MemStorage implements IStorage {
    * Add table entities with API-compatible statuses
    */
   private addTableEntities(): void {
-    const tableEntities = [
+    const tableEntities: Partial<Entity>[] = [
       {
         name: 'brightscript_sla_pgm',
         type: 'table',
@@ -605,7 +610,7 @@ export class MemStorage implements IStorage {
     ];
 
     // Add some Ad Engineering entities for testing tenant filtering
-    const adEngineeringEntities = [
+    const adEngineeringEntities: Partial<Entity>[] = [
       {
         name: 'ad_performance_daily',
         type: 'table',
@@ -679,31 +684,44 @@ export class MemStorage implements IStorage {
       const fullEntity: Entity = {
         id,
         ...entity,
-        nextRefresh: entity.lastRefreshed ? new Date(entity.lastRefreshed.getTime() + 24 * 60 * 60 * 1000) : new Date(),
+        // required fields from Partial
+        name: entity.name as string,
+        type: entity.type as string,
+        teamId: entity.teamId as number,
+        slaTarget: entity.slaTarget as number,
+        status: entity.status as string,
+        refreshFrequency: entity.refreshFrequency as string,
+        description: entity.description ?? null,
+        currentSla: entity.currentSla ?? null,
+        lastRefreshed: (entity.lastRefreshed ?? null) as Date | null,
+        nextRefresh: entity.lastRefreshed ? new Date(entity.lastRefreshed.getTime() + 24 * 60 * 60 * 1000) : null,
         createdAt: new Date(),
         updatedAt: new Date(),
         // Set null for fields not provided in entity data, but preserve existing values
-        tenant_name: entity.tenant_name || 'Data Engineering', // Use entity's tenant or default to Data Engineering
-        team_name: entity.team_name || null,
-        schema_name: entity.schema_name || null,
-        table_name: entity.table_name || null,
-        table_description: entity.table_description || null,
-        table_schedule: entity.table_schedule || null,
-        table_dependency: entity.table_dependency || null,
+        tenant_name: (entity.tenant_name ?? 'Data Engineering') as string,
+        team_name: entity.team_name ?? null,
+        schema_name: entity.schema_name ?? null,
+        table_name: entity.table_name ?? null,
+        table_description: entity.table_description ?? null,
+        table_schedule: entity.table_schedule ?? null,
+        table_dependency: Array.isArray(entity.table_dependency) ? entity.table_dependency : null,
         dag_name: null, // Tables don't have DAG fields
         dag_description: null,
         dag_schedule: null,
         dag_dependency: null,
-        expected_runtime_minutes: entity.expected_runtime_minutes || null,
-        donemarker_location: entity.donemarker_location || null,
-        donemarker_lookback: entity.donemarker_lookback || null,
-        owner_email: entity.owner_email || null,
-        user_email: entity.user_email || null,
+        server_name: entity.server_name ?? null,
+        expected_runtime_minutes: entity.expected_runtime_minutes ?? null,
+        donemarker_location: entity.donemarker_location ?? null,
+        donemarker_lookback: entity.donemarker_lookback ?? null,
+        owner: (entity as Partial<Entity>).owner ?? null,
+        owner_email: (entity as Partial<Entity>).owner_email ?? (entity as Partial<Entity>).ownerEmail ?? null,
+        ownerEmail: (entity as Partial<Entity>).ownerEmail ?? null,
+        user_email: (entity as any).user_email ?? null,
         is_active: entity.is_active !== undefined ? entity.is_active : true,
         is_entity_owner: entity.is_entity_owner !== undefined ? entity.is_entity_owner : false,
-        lastRun: entity.lastRefreshed,
-        lastStatus: entity.status,
-        notification_preferences: entity.notification_preferences || []
+        lastRun: entity.lastRefreshed ?? null,
+        lastStatus: entity.status ?? null,
+        notification_preferences: (entity.notification_preferences ?? []) as string[]
       };
       this.entities.set(id, fullEntity);
     });
@@ -714,44 +732,57 @@ export class MemStorage implements IStorage {
       const fullEntity: Entity = {
         id,
         ...entity,
-        nextRefresh: entity.lastRefreshed ? new Date(entity.lastRefreshed.getTime() + 24 * 60 * 60 * 1000) : new Date(),
+        name: entity.name as string,
+        type: entity.type as string,
+        teamId: entity.teamId as number,
+        slaTarget: entity.slaTarget as number,
+        status: entity.status as string,
+        refreshFrequency: entity.refreshFrequency as string,
+        description: entity.description ?? null,
+        currentSla: entity.currentSla ?? null,
+        lastRefreshed: (entity.lastRefreshed ?? null) as Date | null,
+        nextRefresh: entity.lastRefreshed ? new Date(entity.lastRefreshed.getTime() + 24 * 60 * 60 * 1000) : null,
         createdAt: new Date(),
         updatedAt: new Date(),
         // Set type-specific fields
         ...(entity.type === 'table' ? {
-          table_name: entity.table_name || entity.name,
+          table_name: entity.table_name || (entity.name as string),
           table_description: entity.description || 'Table for ad analytics processing',
           table_schedule: '0 3 * * *', // 3 AM daily
-          table_dependency: 'ad_raw_data,user_segments',
+          table_dependency: ['ad_raw_data', 'user_segments'],
           dag_name: null,
           dag_description: null,
           dag_schedule: null,
           dag_dependency: null,
         } : {
-          dag_name: entity.dag_name || entity.name,
+          dag_name: entity.dag_name || (entity.name as string),
           dag_description: entity.description || 'DAG for ad optimization processing',
           dag_schedule: '0 3 * * *', // 3 AM daily
-          dag_dependency: 'ad_raw_data,campaign_data',
+          dag_dependency: ['ad_raw_data', 'campaign_data'],
           table_name: null,
           table_description: null,
           table_schedule: null,
           table_dependency: null,
         }),
         // Common fields
-        team_name: entity.team_name || null,
-        schema_name: entity.schema_name || null,
-        expected_runtime_minutes: entity.expected_runtime_minutes || (entity.type === 'table' ? 25 : 40),
-        donemarker_location: entity.donemarker_location || (entity.type === 'table' 
+        owner: (entity as Partial<Entity>).owner ?? null,
+        team_name: entity.team_name ?? null,
+        tenant_name: (entity.tenant_name ?? 'Ad Engineering') as string | null,
+        schema_name: entity.schema_name ?? null,
+        expected_runtime_minutes: entity.expected_runtime_minutes ?? (entity.type === 'table' ? 25 : 40),
+        donemarker_location: entity.donemarker_location ?? (entity.type === 'table' 
           ? 's3://ad-analytics-tables/done_markers/' 
           : 's3://ad-analytics-dags/campaign_optimization/'),
-        donemarker_lookback: entity.donemarker_lookback || 2,
-        owner_email: entity.ownerEmail || null,
-        user_email: entity.ownerEmail || null,
+        donemarker_lookback: entity.donemarker_lookback ?? 2,
+        owner_email: (entity as Partial<Entity>).owner_email ?? (entity as Partial<Entity>).ownerEmail ?? null,
+        ownerEmail: (entity as Partial<Entity>).ownerEmail ?? null,
+        user_email: (entity as Partial<Entity>).user_email ?? (entity as Partial<Entity>).ownerEmail ?? null,
         is_active: entity.is_active !== undefined ? entity.is_active : true,
         is_entity_owner: entity.is_entity_owner !== undefined ? entity.is_entity_owner : false,
-        lastRun: entity.lastRefreshed,
-        lastStatus: entity.status,
-        notification_preferences: entity.notification_preferences || []
+        lastRun: entity.lastRefreshed ?? null,
+        lastStatus: entity.status ?? null,
+        notification_preferences: (entity.notification_preferences ?? []) as string[],
+        server_name: entity.server_name ?? (entity.type === 'dag' ? 'airflow-main' : null)
       };
       this.entities.set(id, fullEntity);
     });
@@ -772,8 +803,19 @@ export class MemStorage implements IStorage {
     // Check if user already exists - if so, update instead of creating new
     const existingUser = await this.getUserByUsername(insertUser.username);
     if (existingUser) {
-      // Update the existing user
-      const updatedUser: User = { ...existingUser, ...insertUser };
+      // Update the existing user with normalized optional fields
+      const updatedUser: User = {
+        ...existingUser,
+        ...insertUser,
+        email: insertUser.email ?? existingUser.email ?? null,
+        displayName: insertUser.displayName ?? existingUser.displayName ?? null,
+        team: insertUser.team ?? existingUser.team ?? null,
+        role: insertUser.role ?? existingUser.role ?? null,
+        azureObjectId: insertUser.azureObjectId ?? existingUser.azureObjectId ?? null,
+        is_active: insertUser.is_active ?? existingUser.is_active ?? true,
+        user_slack: insertUser.user_slack ? [...insertUser.user_slack] : (existingUser.user_slack ?? null),
+        user_pagerduty: insertUser.user_pagerduty ? [...insertUser.user_pagerduty] : (existingUser.user_pagerduty ?? null),
+      };
       this.users.set(existingUser.id, updatedUser);
       return updatedUser;
     }
@@ -783,10 +825,15 @@ export class MemStorage implements IStorage {
     const user: User = { 
       ...insertUser, 
       id,
-      // Set null values for optional fields
-      email: insertUser.email || null,
-      displayName: insertUser.displayName || null,
-      team: insertUser.team || null
+      // Ensure optional fields have defaults and correct types
+      email: insertUser.email ?? null,
+      displayName: insertUser.displayName ?? null,
+      team: insertUser.team ?? null,
+      role: insertUser.role ?? null,
+      azureObjectId: insertUser.azureObjectId ?? null,
+      is_active: insertUser.is_active ?? true,
+      user_slack: (insertUser.user_slack ? [...insertUser.user_slack] : null),
+      user_pagerduty: (insertUser.user_pagerduty ? [...insertUser.user_pagerduty] : null)
     };
     this.users.set(id, user);
     return user;
@@ -800,7 +847,14 @@ export class MemStorage implements IStorage {
     }
     
     // Update the user with new data
-    const updatedUser: User = { ...existingUser, ...partialUser };
+    const updatedUser: User = { 
+      ...existingUser, 
+      ...partialUser,
+      // normalize possibly undefined optionals
+      is_active: partialUser.is_active ?? existingUser.is_active ?? true,
+      user_slack: partialUser.user_slack ? [...partialUser.user_slack] : existingUser.user_slack ?? null,
+      user_pagerduty: partialUser.user_pagerduty ? [...partialUser.user_pagerduty] : existingUser.user_pagerduty ?? null,
+    };
     this.users.set(id, updatedUser);
     return updatedUser;
   }
@@ -883,11 +937,11 @@ export class MemStorage implements IStorage {
       createdAt: now,
       updatedAt: now,
       description: insertTeam.description || null,
-      team_members_ids: insertTeam.team_members_ids || [],
-      team_email: insertTeam.team_email || [],
-      team_slack: insertTeam.team_slack || [],
-      team_pagerduty: insertTeam.team_pagerduty || [],
-      team_notify_preference_id: insertTeam.team_notify_preference_id || null,
+      team_members_ids: insertTeam.team_members_ids ? [...insertTeam.team_members_ids] : null,
+      team_email: insertTeam.team_email ? [...insertTeam.team_email] : null,
+      team_slack: insertTeam.team_slack ? [...insertTeam.team_slack] : null,
+      team_pagerduty: insertTeam.team_pagerduty ? [...insertTeam.team_pagerduty] : null,
+      team_notify_preference_id: (insertTeam as any).team_notify_preference_id ?? null,
       isActive: insertTeam.isActive !== undefined ? insertTeam.isActive : true // Default to active
     };
     this.teams.set(id, team);
@@ -959,21 +1013,21 @@ export class MemStorage implements IStorage {
   private updateTenantTeamCounts(): void {
     // Count teams per tenant
     const teamCounts = new Map<number, number>();
-    
-    for (const team of this.teams.values()) {
+
+    Array.from(this.teams.values()).forEach((team) => {
       const tenantId = team.tenant_id;
       teamCounts.set(tenantId, (teamCounts.get(tenantId) || 0) + 1);
-    }
-    
+    });
+
     // Update each tenant's team count
-    for (const [tenantId, tenant] of this.tenants.entries()) {
+    Array.from(this.tenants.entries()).forEach(([tenantId, tenant]) => {
       const teamCount = teamCounts.get(tenantId) || 0;
       this.tenants.set(tenantId, {
         ...tenant,
         teamsCount: teamCount,
         updatedAt: new Date().toISOString()
       });
-    }
+    });
   }
   
   // Tenant operations
@@ -1069,7 +1123,32 @@ export class MemStorage implements IStorage {
       // Ensure required fields have valid values
       description: insertEntity.description || null,
       currentSla: insertEntity.currentSla || null,
-      lastRefreshed: insertEntity.lastRefreshed || null
+      lastRefreshed: insertEntity.lastRefreshed || null,
+      nextRefresh: insertEntity.nextRefresh ?? null,
+      is_active: insertEntity.is_active ?? true,
+      owner: insertEntity.owner ?? null,
+      ownerEmail: insertEntity.ownerEmail ?? null,
+      owner_email: insertEntity.owner_email ?? insertEntity.ownerEmail ?? null,
+      user_email: insertEntity.user_email ?? null,
+      tenant_name: insertEntity.tenant_name ?? null,
+      team_name: insertEntity.team_name ?? null,
+      schema_name: insertEntity.schema_name ?? null,
+      table_name: insertEntity.table_name ?? null,
+      table_description: insertEntity.table_description ?? null,
+      table_schedule: insertEntity.table_schedule ?? null,
+      table_dependency: insertEntity.table_dependency ? [...insertEntity.table_dependency] : null,
+      dag_name: insertEntity.dag_name ?? null,
+      dag_description: insertEntity.dag_description ?? null,
+      dag_schedule: insertEntity.dag_schedule ?? null,
+      dag_dependency: insertEntity.dag_dependency ? [...insertEntity.dag_dependency] : null,
+      server_name: insertEntity.server_name ?? null,
+      expected_runtime_minutes: insertEntity.expected_runtime_minutes ?? null,
+      notification_preferences: insertEntity.notification_preferences ? [...insertEntity.notification_preferences] : [],
+      donemarker_location: insertEntity.donemarker_location ?? null,
+      donemarker_lookback: insertEntity.donemarker_lookback ?? null,
+      is_entity_owner: insertEntity.is_entity_owner ?? false,
+      lastRun: insertEntity.lastRun ?? insertEntity.lastRefreshed ?? null,
+      lastStatus: insertEntity.lastStatus ?? null,
     };
     this.entities.set(id, entity);
     return entity;
@@ -1079,10 +1158,15 @@ export class MemStorage implements IStorage {
     const entity = this.entities.get(id);
     if (!entity) return undefined;
     
-    const updatedEntity = { 
+    const updatedEntity: Entity = { 
       ...entity, 
       ...updates, 
-      updatedAt: new Date() 
+      updatedAt: new Date(),
+      nextRefresh: (updates.nextRefresh ?? entity.nextRefresh ?? null) as Date | null,
+      is_active: (updates.is_active ?? entity.is_active ?? true) as boolean,
+      owner: (updates.owner ?? entity.owner ?? null) as string | null,
+      ownerEmail: (updates.ownerEmail ?? entity.ownerEmail ?? null) as string | null,
+      owner_email: (updates.owner_email ?? entity.owner_email ?? null) as string | null,
     };
     this.entities.set(id, updatedEntity);
     return updatedEntity;
@@ -1139,17 +1223,19 @@ export class MemStorage implements IStorage {
   }
   
   async resolveIssue(id: number): Promise<Issue | undefined> {
-    for (const [entityId, issues] of this.entityIssues.entries()) {
-      const issueIndex = issues.findIndex(issue => issue.id === id);
+    for (const entry of Array.from(this.entityIssues.entries())) {
+      const entityId = entry[0];
+      const entityIssues = entry[1];
+      const issueIndex = entityIssues.findIndex((issue) => issue.id === id);
       if (issueIndex !== -1) {
-        const issue = issues[issueIndex];
-        const resolvedIssue = {
+        const issue = entityIssues[issueIndex];
+        const resolvedIssue: Issue = {
           ...issue,
           resolved: true,
-          resolvedAt: new Date()
-        };
-        issues[issueIndex] = resolvedIssue;
-        this.entityIssues.set(entityId, issues);
+          resolvedAt: new Date(),
+        } as Issue;
+        entityIssues[issueIndex] = resolvedIssue;
+        this.entityIssues.set(entityId, entityIssues);
         return resolvedIssue;
       }
     }
@@ -1166,7 +1252,12 @@ export class MemStorage implements IStorage {
     const id = `timeline_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const timeline: NotificationTimeline = {
       id,
-      ...insertTimeline,
+      name: insertTimeline.name,
+      description: insertTimeline.description ?? null,
+      entityId: insertTimeline.entityId,
+      triggers: [...insertTimeline.triggers],
+      channels: [...insertTimeline.channels],
+      isActive: insertTimeline.isActive ?? true,
       createdAt: new Date(),
       updatedAt: new Date(),
     };

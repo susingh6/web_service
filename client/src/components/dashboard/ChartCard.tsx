@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Card, CardContent, Typography, Box, ToggleButton, ToggleButtonGroup, IconButton, Tooltip } from '@mui/material';
-import { FileDownload, Print } from '@mui/icons-material';
+import { FileDownload, Print, Info } from '@mui/icons-material';
 
 interface ChartCardProps {
   title: string;
@@ -10,6 +10,7 @@ interface ChartCardProps {
   actions?: boolean;
   loading?: boolean;
   height?: number | string;
+  infoTooltip?: string;
 }
 
 const ChartCard = ({
@@ -20,6 +21,7 @@ const ChartCard = ({
   actions = false,
   loading = false,
   height = 300,
+  infoTooltip,
 }: ChartCardProps) => {
   const [filter, setFilter] = useState<string>(filters && filters.length > 0 ? filters[0] : 'All');
 
@@ -36,10 +38,19 @@ const ChartCard = ({
     <Card elevation={0} sx={{ height: '100%' }}>
       <CardContent>
         <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-          <Typography variant="h6" fontWeight={500} fontFamily="Inter, sans-serif">
-            {title}
-          </Typography>
-          
+          <Box display="flex" alignItems="center" gap={0.5}>
+            <Typography variant="h6" fontWeight={500} fontFamily="Inter, sans-serif">
+              {title}
+            </Typography>
+            {infoTooltip && (
+              <Tooltip title={infoTooltip} arrow placement="top">
+                <IconButton size="small" sx={{ p: 0.5 }}>
+                  <Info fontSize="small" color="primary" />
+                </IconButton>
+              </Tooltip>
+            )}
+          </Box>
+
           <Box display="flex" alignItems="center">
             {filters && filters.length > 0 && (
               <ToggleButtonGroup

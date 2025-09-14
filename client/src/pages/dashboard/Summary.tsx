@@ -568,34 +568,44 @@ const Summary = () => {
             <Box sx={{ p: 3 }}>
               {/* Metrics Cards */}
               <Box display="flex" flexWrap="wrap" gap={3} mb={4}>
-                {[
+                {(() => {
+                  const summaryRangeText = (summaryDateRange?.label === 'Custom Range' && summaryDateRange.startDate && summaryDateRange.endDate)
+                    ? `${format(summaryDateRange.startDate, 'MMM d, yyyy')} - ${format(summaryDateRange.endDate, 'MMM d, yyyy')}`
+                    : summaryDateRange.label;
+                  return [
                   { 
-                    title: "Overall SLA Compliance", 
+                    title: `Overall SLA Compliance (${summaryRangeText})`, 
                     value: hasRangeData ? (metrics?.overallCompliance || 0) : 0, 
                     suffix: "%", 
                     progress: hasRangeData ? (metrics?.overallCompliance || 0) : undefined,
                     loading: metricsLoading && !lastFetchFailed,
                     showDataUnavailable: !metricsLoading && !hasRangeData,
-                    infoTooltip: "Average SLA compliance calculated across all tables and DAGs monitored across all teams"
+                    infoTooltip: `Average SLA compliance across all tables and DAGs for the selected date range.`
                   },
                   { 
-                    title: "Tables SLA Compliance", 
+                    title: `Tables SLA Compliance (${summaryRangeText})`, 
                     value: hasRangeData ? (metrics?.tablesCompliance || 0) : 0, 
                     suffix: "%", 
                     progress: hasRangeData ? (metrics?.tablesCompliance || 0) : undefined,
                     loading: metricsLoading && !lastFetchFailed,
                     showDataUnavailable: !metricsLoading && !hasRangeData,
-                    infoTooltip: "Average SLA compliance percentage calculated across all table entities"
+                    infoTooltip: `Average SLA compliance across all table entities for the selected date range.`
                   },
                   { 
-                    title: "DAGs SLA Compliance", 
+                    title: `DAGs SLA Compliance (${summaryRangeText})`, 
                     value: hasRangeData ? (metrics?.dagsCompliance || 0) : 0, 
                     suffix: "%", 
                     progress: hasRangeData ? (metrics?.dagsCompliance || 0) : undefined,
                     loading: metricsLoading && !lastFetchFailed,
                     showDataUnavailable: !metricsLoading && !hasRangeData,
-                    infoTooltip: "Average SLA compliance percentage calculated across all DAG entities"
-                  },
+                    infoTooltip: `Average SLA compliance across all DAG entities for the selected date range.`
+                  }].map((card) => (
+                    <Box key={card.title} flex="1 1 250px" minWidth="250px">
+                      <MetricCard {...card} />
+                    </Box>
+                  ));
+                })()}
+                {[
                   { 
                     title: "Entities Monitored", 
                     value: hasRangeData ? (metrics?.entitiesCount || 0) : 0, 
@@ -615,7 +625,8 @@ const Summary = () => {
               <Box display="flex" flexWrap="wrap" gap={3} mb={4}>
                 <Box flex="1 1 500px" minWidth="500px">
                   <ChartCard
-                    title="Compliance Trend"
+                    title="Compliance Trend Snapshot"
+                    infoTooltip={`Each data point shows cumulative SLA compliance up to that date: (Passed + Pending) ÷ all historical runs.`}
                     filters={['All', 'Tables', 'DAGs']}
                     onFilterChange={setChartFilter}
                     loading={metricsLoading && !lastFetchFailed}
@@ -625,7 +636,8 @@ const Summary = () => {
 
                 <Box flex="1 1 500px" minWidth="500px">
                   <ChartCard
-                    title="Team Performance Comparison"
+                    title={`Team Performance Comparison (${(summaryDateRange?.label === 'Custom Range' && summaryDateRange.startDate && summaryDateRange.endDate) ? `${format(summaryDateRange.startDate, 'MMM d, yyyy')} - ${format(summaryDateRange.endDate, 'MMM d, yyyy')}` : summaryDateRange.label})`}
+                    infoTooltip={`Compares team performance for the selected date range.`}
                     loading={metricsLoading && !lastFetchFailed}
                     chart={<TeamComparisonChart entities={hasRangeData ? entities : []} teams={teams} selectedTenant={selectedTenant?.name || ''} loading={metricsLoading} hasMetrics={hasRangeData} />}
                   />
@@ -665,7 +677,7 @@ const Summary = () => {
                     onSetNotificationTimeline={handleNotificationTimeline}
                     showActions={false}
                     hasMetrics={hasRangeData}
-                    trendLabel={`${summaryDateRange.label} Trend`}
+                    trendLabel={`${(summaryDateRange?.label === 'Custom Range' && summaryDateRange.startDate && summaryDateRange.endDate) ? `${format(summaryDateRange.startDate, 'MMM d, yyyy')} - ${format(summaryDateRange.endDate, 'MMM d, yyyy')}` : summaryDateRange.label} Trend`}
                   />
                 )}
               </Box>
@@ -684,7 +696,7 @@ const Summary = () => {
                     onSetNotificationTimeline={handleNotificationTimeline}
                     showActions={false}
                     hasMetrics={hasRangeData}
-                    trendLabel={`${summaryDateRange.label} Trend`}
+                    trendLabel={`${(summaryDateRange?.label === 'Custom Range' && summaryDateRange.startDate && summaryDateRange.endDate) ? `${format(summaryDateRange.startDate, 'MMM d, yyyy')} - ${format(summaryDateRange.endDate, 'MMM d, yyyy')}` : summaryDateRange.label} Trend`}
                   />
                 )}
               </Box>

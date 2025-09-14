@@ -10,7 +10,7 @@ import {
   ResponsiveContainer,
   TooltipProps,
 } from 'recharts';
-import { format, subDays, parseISO, differenceInDays, startOfMonth } from 'date-fns';
+import { format, subDays, parseISO, differenceInDays, startOfMonth, addMonths } from 'date-fns';
 import { Entity } from '@shared/schema';
 
 // Helper function to determine if date range exceeds 40 days
@@ -27,61 +27,43 @@ const shouldUseMonthlyAggregation = (data: any[]): boolean => {
   return daysDifference > 40;
 };
 
-// Helper function to aggregate daily entity data to monthly averages
-const aggregateToMonthlyEntities = (dailyData: any[]): any[] => {
+// Helper: aggregate to monthly averages per entity with continuity (months with no data -> null values)
+const aggregateToMonthlyEntities = (dailyData: any[], entitiesMeta: { id: number; name: string }[]): any[] => {
   if (!dailyData || dailyData.length === 0) return [];
-  
-  const monthlyMap = new Map<string, {
-    values: number[];
-    entityName: string;
-    entityId: number;
-    count: number;
-    monthKey: string;
-    firstDate: Date;
-  }>();
-  
-  // Group data by month and entity
-  dailyData.forEach(item => {
-    const date = parseISO(item.date);
-    const monthStart = startOfMonth(date);
-    const monthKey = format(monthStart, 'yyyy-MM');
-    const mapKey = `${monthKey}-${item.id}`;
-    
-    if (!monthlyMap.has(mapKey)) {
-      monthlyMap.set(mapKey, {
-        values: [],
-        entityName: item.name,
-        entityId: item.id,
-        count: 0,
-        monthKey,
-        firstDate: monthStart
+
+  const sorted = [...dailyData].sort((a, b) => a.date.localeCompare(b.date));
+  const firstMonth = startOfMonth(parseISO(sorted[0].date));
+  const lastMonth = startOfMonth(parseISO(sorted[sorted.length - 1].date));
+
+  // month -> entityId -> values[]
+  const monthEntityValues = new Map<string, Map<number, number[]>>();
+  for (const item of sorted) {
+    const mKey = format(startOfMonth(parseISO(item.date)), 'yyyy-MM');
+    if (!monthEntityValues.has(mKey)) monthEntityValues.set(mKey, new Map());
+    const perEntity = monthEntityValues.get(mKey)!;
+    if (!perEntity.has(item.id)) perEntity.set(item.id, []);
+    perEntity.get(item.id)!.push(item.value || 0);
+  }
+
+  const out: any[] = [];
+  for (let m = firstMonth; m <= lastMonth; m = addMonths(m, 1)) {
+    const mKey = format(m, 'yyyy-MM');
+    const perEntity = monthEntityValues.get(mKey) || new Map<number, number[]>();
+    for (const meta of entitiesMeta) {
+      const vals = perEntity.get(meta.id) || [];
+      const avg = vals.length > 0 ? vals.reduce((s, v) => s + v, 0) / vals.length : null;
+      out.push({
+        date: format(m, 'yyyy-MM-dd'),
+        dateFormatted: format(m, 'MMM yyyy'),
+        value: avg !== null ? parseFloat(avg.toFixed(1)) : null,
+        name: meta.name,
+        id: meta.id,
+        isMonthly: true,
       });
     }
-    
-    const monthData = monthlyMap.get(mapKey)!;
-    monthData.values.push(item.value || 0);
-    monthData.count++;
-  });
-  
-  // Calculate monthly averages
-  const monthlyData = Array.from(monthlyMap.values())
-    .sort((a, b) => a.firstDate.getTime() - b.firstDate.getTime() || a.entityName.localeCompare(b.entityName))
-    .map(monthInfo => {
-      const avgValue = monthInfo.values.length > 0 
-        ? monthInfo.values.reduce((sum, val) => sum + val, 0) / monthInfo.values.length 
-        : 0;
-      
-      return {
-        date: format(monthInfo.firstDate, 'yyyy-MM-dd'),
-        dateFormatted: format(monthInfo.firstDate, 'MMM yyyy'),
-        value: parseFloat(avgValue.toFixed(1)),
-        name: monthInfo.entityName,
-        id: monthInfo.entityId,
-        isMonthly: true
-      };
-    });
-  
-  return monthlyData;
+  }
+
+  return out;
 };
 
 // Generate demo data for entity performance
@@ -175,7 +157,7 @@ const EntityPerformanceChart = ({ entities, days = 30, filter = 'all', dateRange
   // Aggregate to monthly if date range > 40 days
   let processedData = allData;
   if (useMonthlyAggregation) {
-    processedData = aggregateToMonthlyEntities(allData);
+    processedData = aggregateToMonthlyEntities(allData, filteredEntities.map(e => ({ id: e.id, name: e.name })));
   }
   
   // Group data by date
@@ -292,6 +274,7 @@ const EntityPerformanceChart = ({ entities, days = 30, filter = 'all', dateRange
                 strokeWidth={2}
                 dot={{ r: 2 }}
                 activeDot={{ r: 4 }}
+                connectNulls
                 name={entity.name}
               />
             ))}
