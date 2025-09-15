@@ -595,6 +595,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Express fallback route for updating teams (for frontend fallback mechanism)
+  app.put("/api/teams/:teamId", async (req, res) => {
+    try {
+      const teamId = parseInt(req.params.teamId);
+      if (isNaN(teamId)) {
+        return res.status(400).json(createErrorResponse("Invalid team ID", "validation_error"));
+      }
+
+      // Validate request body
+      const validationResult = updateTeamSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json(createValidationErrorResponse(validationResult.error));
+      }
+
+      const updateData = validationResult.data;
+
+      // Update team
+      const updatedTeam = await storage.updateTeam(teamId, updateData);
+      if (!updatedTeam) {
+        return res.status(404).json(createErrorResponse("Team not found", "not_found"));
+      }
+
+      // Invalidate all team-related caches
+      await redisCache.invalidateCache({
+        keys: ['all_teams', 'teams_summary', 'all_tenants'],
+        patterns: [
+          'team_details:*',
+          'team_entities:*',
+          'team_metrics:*',
+          'team_trends:*',
+          'dashboard_summary:*',
+          'entities:*'
+        ],
+        mainCacheKeys: ['TEAMS', 'TENANTS'],
+        refreshAffectedData: true
+      });
+
+      // Explicitly invalidate tenants cache to ensure team count updates
+      await redisCache.invalidateTenants();
+
+      res.json(updatedTeam);
+    } catch (error) {
+      console.error('Team update error:', error);
+      res.status(500).json(createErrorResponse("Failed to update team", "update_error"));
+    }
+  });
+
   // FastAPI fallback route for getting entities (with teamId support)
   // 
   // ⚠️  FASTAPI SERVICE REQUIREMENT ⚠️
