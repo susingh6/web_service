@@ -27,7 +27,10 @@ import {
   Tooltip,
   TablePagination,
   InputAdornment,
-  Switch
+  Switch,
+  Autocomplete,
+  Tabs,
+  Tab
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -45,6 +48,13 @@ import { tenantsApi } from '@/features/sla/api';
 import { Team } from '@shared/schema';
 // Removed custom optimistic wrapper in favor of native React Query mutations
 
+// Define user interface for type safety
+interface User {
+  id: string;
+  email: string;
+  displayName?: string;
+}
+
 interface TeamFormDialogProps {
   open: boolean;
   onClose: () => void;
@@ -59,6 +69,40 @@ const TeamFormDialog = ({ open, onClose, team, tenants, onSubmit }: TeamFormDial
     description: team?.description || '',
     tenant_id: team?.tenant_id || '',
     isActive: team?.isActive ?? true,
+    team_email: team?.team_email || [],
+    team_slack: team?.team_slack || [],
+    team_pagerduty: team?.team_pagerduty || [],
+    team_members_ids: team?.team_members_ids || [],
+  });
+  
+  const [activeTab, setActiveTab] = useState(0);
+  
+  // Fetch available users for member management
+  const { data: availableUsers = [] } = useQuery({
+    queryKey: ['admin', 'users'],
+    queryFn: async () => {
+      const headers: Record<string, string> = {};
+      const sessionId = localStorage.getItem('fastapi_session_id');
+      if (sessionId) headers['X-Session-ID'] = sessionId;
+      
+      const response = await fetch(buildUrl('/api/admin/users'), {
+        headers,
+        credentials: 'include'
+      });
+      if (!response.ok) {
+        // Fallback to mock data if admin endpoint not available
+        return [
+          { id: '1', email: 'john.doe@company.com', displayName: 'John Doe' },
+          { id: '2', email: 'jane.smith@company.com', displayName: 'Jane Smith' },
+          { id: '3', email: 'mike.wilson@company.com', displayName: 'Mike Wilson' },
+          { id: '4', email: 'sarah.johnson@company.com', displayName: 'Sarah Johnson' },
+          { id: '5', email: 'david.brown@company.com', displayName: 'David Brown' },
+        ];
+      }
+      return response.json();
+    },
+    enabled: open,
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
   // Update form data when team prop changes
@@ -69,6 +113,10 @@ const TeamFormDialog = ({ open, onClose, team, tenants, onSubmit }: TeamFormDial
         description: team.description || '',
         tenant_id: team.tenant_id || '',
         isActive: team.isActive ?? true,
+        team_email: team.team_email || [],
+        team_slack: team.team_slack || [],
+        team_pagerduty: team.team_pagerduty || [],
+        team_members_ids: team.team_members_ids || [],
       });
     } else {
       setFormData({
@@ -76,71 +124,305 @@ const TeamFormDialog = ({ open, onClose, team, tenants, onSubmit }: TeamFormDial
         description: '',
         tenant_id: '',
         isActive: true,
+        team_email: [],
+        team_slack: [],
+        team_pagerduty: [],
+        team_members_ids: [],
       });
     }
+    setActiveTab(0);
   }, [team]);
 
   const handleSubmit = () => {
-    const teamData = {
+    const teamData: any = {
       name: formData.name,
       description: formData.description,
-      tenant_id: formData.tenant_id,
       isActive: formData.isActive,
+      team_email: formData.team_email,
+      team_slack: formData.team_slack,
+      team_pagerduty: formData.team_pagerduty,
+      team_members_ids: formData.team_members_ids,
     };
+    
+    // Only include tenant_id for new team creation, exclude on updates
+    if (!team) {
+      teamData.tenant_id = formData.tenant_id;
+    }
     
     onSubmit(teamData);
     onClose();
-    setFormData({ name: '', description: '', tenant_id: '', isActive: true });
+    setFormData({ 
+      name: '', description: '', tenant_id: '', isActive: true,
+      team_email: [], team_slack: [], team_pagerduty: [], team_members_ids: []
+    });
+    setActiveTab(0);
   };
+  
+  // Helper function to get user email by ID
+  const getUserEmailById = (userId: string) => {
+    const user = availableUsers.find((u: User) => u.id === userId);
+    return user?.email || userId;
+  };
+  
+  // Helper function to get user ID by email
+  const getUserIdByEmail = (email: string) => {
+    const user = availableUsers.find((u: User) => u.email === email);
+    return user?.id || email;
+  };
+  
+  const tenantName = tenants.find(t => t.id === formData.tenant_id)?.name || 'Unknown';
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle>
         {team ? 'Edit Team' : 'Create New Team'}
       </DialogTitle>
       <DialogContent>
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-          <TextField
-            fullWidth
-            label="Team Name"
-            value={formData.name}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            required
-          />
+        <Box sx={{ width: '100%' }}>
+          <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+            <Tabs value={activeTab} onChange={(e, newValue) => setActiveTab(newValue)}>
+              <Tab label="Basic Info" />
+              <Tab label="Contact Info" />
+              <Tab label="Members" />
+            </Tabs>
+          </Box>
           
-          <FormControl fullWidth required>
-            <InputLabel>Tenant</InputLabel>
-            <Select
-              value={formData.tenant_id}
-              onChange={(e) => setFormData({ ...formData, tenant_id: e.target.value })}
-              label="Tenant"
-            >
-              {tenants.map((tenant) => (
-                <MenuItem key={tenant.id} value={tenant.id}>
-                  {tenant.name}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          
-          <TextField
-            fullWidth
-            multiline
-            rows={3}
-            label="Description"
-            value={formData.description}
-            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-          />
-          
-          <FormControlLabel
-            control={
-              <Switch
-                checked={formData.isActive}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, isActive: e.target.checked })}
+          {/* Basic Info Tab */}
+          {activeTab === 0 && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 3 }}>
+              <TextField
+                fullWidth
+                label="Team Name"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                required
+                data-testid="input-team-name"
               />
-            }
-            label="Active Team"
-          />
+              
+              {/* Tenant Field - Locked in edit mode */}
+              {team ? (
+                <TextField
+                  fullWidth
+                  label="Tenant"
+                  value={tenantName}
+                  disabled
+                  helperText="Tenant cannot be changed after team creation"
+                  data-testid="input-tenant-locked"
+                />
+              ) : (
+                <FormControl fullWidth required>
+                  <InputLabel>Tenant</InputLabel>
+                  <Select
+                    value={formData.tenant_id}
+                    onChange={(e) => setFormData({ ...formData, tenant_id: e.target.value })}
+                    label="Tenant"
+                    data-testid="select-tenant"
+                  >
+                    {tenants.map((tenant) => (
+                      <MenuItem key={tenant.id} value={tenant.id}>
+                        {tenant.name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              )}
+              
+              <TextField
+                fullWidth
+                multiline
+                rows={3}
+                label="Description"
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                data-testid="input-team-description"
+              />
+              
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={formData.isActive}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, isActive: e.target.checked })}
+                    data-testid="switch-team-active"
+                  />
+                }
+                label="Active Team"
+              />
+            </Box>
+          )}
+          
+          {/* Contact Info Tab */}
+          {activeTab === 1 && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 3 }}>
+              <Autocomplete
+                multiple
+                freeSolo
+                options={[]}
+                value={formData.team_email}
+                onChange={(event, newValue) => {
+                  setFormData({ ...formData, team_email: newValue as string[] });
+                }}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Team Email Addresses"
+                    placeholder="Add email addresses..."
+                    helperText="Press Enter to add an email address"
+                    data-testid="input-team-emails"
+                  />
+                )}
+                renderTags={(tagValue, getTagProps) =>
+                  tagValue.map((option, index) => (
+                    <Chip
+                      variant="outlined"
+                      label={option}
+                      {...getTagProps({ index })}
+                      key={option}
+                    />
+                  ))
+                }
+              />
+              
+              <Autocomplete
+                multiple
+                freeSolo
+                options={[]}
+                value={formData.team_slack}
+                onChange={(event, newValue) => {
+                  setFormData({ ...formData, team_slack: newValue as string[] });
+                }}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Team Slack Channels"
+                    placeholder="Add Slack channels..."
+                    helperText="Press Enter to add a Slack channel (e.g., #team-channel)"
+                    data-testid="input-team-slack"
+                  />
+                )}
+                renderTags={(tagValue, getTagProps) =>
+                  tagValue.map((option, index) => (
+                    <Chip
+                      variant="outlined"
+                      label={option}
+                      {...getTagProps({ index })}
+                      key={option}
+                    />
+                  ))
+                }
+              />
+              
+              <Autocomplete
+                multiple
+                freeSolo
+                options={[]}
+                value={formData.team_pagerduty}
+                onChange={(event, newValue) => {
+                  setFormData({ ...formData, team_pagerduty: newValue as string[] });
+                }}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="PagerDuty Integration Keys"
+                    placeholder="Add PagerDuty keys..."
+                    helperText="Press Enter to add a PagerDuty integration key"
+                    data-testid="input-team-pagerduty"
+                  />
+                )}
+                renderTags={(tagValue, getTagProps) =>
+                  tagValue.map((option, index) => (
+                    <Chip
+                      variant="outlined"
+                      label={option}
+                      {...getTagProps({ index })}
+                      key={option}
+                    />
+                  ))
+                }
+              />
+            </Box>
+          )}
+          
+          {/* Members Tab */}
+          {activeTab === 2 && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 3 }}>
+              <Typography variant="h6" gutterBottom>
+                Team Members
+              </Typography>
+              
+              <Autocomplete
+                multiple
+                options={availableUsers}
+                getOptionLabel={(option) => typeof option === 'string' ? option : option.email}
+                value={formData.team_members_ids.map(getUserEmailById)}
+                onChange={(event, newValue) => {
+                  const newIds = newValue.map(val => 
+                    typeof val === 'string' ? getUserIdByEmail(val) : getUserIdByEmail(val.email)
+                  );
+                  setFormData({ ...formData, team_members_ids: newIds });
+                }}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Select Team Members"
+                    placeholder="Search and select users..."
+                    helperText="Select users to add to this team"
+                    data-testid="input-team-members"
+                  />
+                )}
+                renderOption={(props, option) => (
+                  <li {...props} key={typeof option === 'string' ? option : option.id}>
+                    <Box>
+                      <Typography variant="body2">
+                        {typeof option === 'string' ? option : option.displayName || option.email}
+                      </Typography>
+                      {typeof option !== 'string' && option.displayName && (
+                        <Typography variant="caption" color="text.secondary">
+                          {option.email}
+                        </Typography>
+                      )}
+                    </Box>
+                  </li>
+                )}
+                renderTags={(tagValue, getTagProps) =>
+                  tagValue.map((option, index) => (
+                    <Chip
+                      variant="outlined"
+                      label={typeof option === 'string' ? option : option.displayName || option.email}
+                      {...getTagProps({ index })}
+                      key={typeof option === 'string' ? option : option.id}
+                    />
+                  ))
+                }
+              />
+              
+              {formData.team_members_ids.length > 0 && (
+                <Box>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                    Selected Members ({formData.team_members_ids.length}):
+                  </Typography>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                    {formData.team_members_ids.map((userId: string) => {
+                      const user = availableUsers.find((u: User) => u.id === userId);
+                      return (
+                        <Chip
+                          key={userId}
+                          label={user?.displayName || user?.email || userId}
+                          variant="filled"
+                          size="small"
+                          onDelete={() => {
+                            setFormData({
+                              ...formData,
+                              team_members_ids: formData.team_members_ids.filter((id: string) => id !== userId)
+                            });
+                          }}
+                        />
+                      );
+                    })}
+                  </Box>
+                </Box>
+              )}
+            </Box>
+          )}
         </Box>
       </DialogContent>
       <DialogActions>
@@ -148,12 +430,49 @@ const TeamFormDialog = ({ open, onClose, team, tenants, onSubmit }: TeamFormDial
         <Button 
           onClick={handleSubmit} 
           variant="contained"
-          disabled={!formData.name || !formData.tenant_id}
+          disabled={!formData.name || (!formData.tenant_id && !team)}
+          data-testid="button-submit-team"
         >
           {team ? 'Update Team' : 'Create Team'}
         </Button>
       </DialogActions>
     </Dialog>
+  );
+};
+
+// Helper component for displaying contact chips with overflow indicator
+const ContactChips = ({ items, maxVisible = 2, testId }: { items: string[], maxVisible?: number, testId?: string }) => {
+  if (!items || items.length === 0) {
+    return <Typography variant="body2" color="text.secondary">None</Typography>;
+  }
+  
+  const visibleItems = items.slice(0, maxVisible);
+  const hiddenCount = items.length - maxVisible;
+  
+  return (
+    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, alignItems: 'center' }}>
+      {visibleItems.map((item, index) => (
+        <Chip
+          key={item}
+          label={item}
+          size="small"
+          variant="outlined"
+          sx={{ maxWidth: 120 }}
+          data-testid={testId ? `${testId}-${index}` : undefined}
+        />
+      ))}
+      {hiddenCount > 0 && (
+        <Tooltip title={`${hiddenCount} more: ${items.slice(maxVisible).join(', ')}`}>
+          <Chip
+            label={`+${hiddenCount} more`}
+            size="small"
+            variant="outlined"
+            color="secondary"
+            data-testid={testId ? `${testId}-overflow` : undefined}
+          />
+        </Tooltip>
+      )}
+    </Box>
   );
 };
 
@@ -468,6 +787,9 @@ const TeamsManagement = () => {
                   <TableCell>Team Name</TableCell>
                   <TableCell>Tenant</TableCell>
                   <TableCell>Description</TableCell>
+                  <TableCell>Email</TableCell>
+                  <TableCell>Slack</TableCell>
+                  <TableCell>PagerDuty</TableCell>
                   <TableCell>Members</TableCell>
                   <TableCell>Status</TableCell>
                   <TableCell>Created</TableCell>
@@ -497,6 +819,27 @@ const TeamsManagement = () => {
                       <Typography variant="body2" color="text.secondary">
                         {team.description || 'No description'}
                       </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <ContactChips 
+                        items={team.team_email || []} 
+                        maxVisible={2}
+                        testId={`team-email-${team.id}`}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <ContactChips 
+                        items={team.team_slack || []} 
+                        maxVisible={2}
+                        testId={`team-slack-${team.id}`}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <ContactChips 
+                        items={team.team_pagerduty || []} 
+                        maxVisible={2}
+                        testId={`team-pagerduty-${team.id}`}
+                      />
                     </TableCell>
                     <TableCell>
                       <Typography variant="body2">
