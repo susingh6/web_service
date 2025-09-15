@@ -522,9 +522,9 @@ const TeamDashboard = ({
             { 
               title: "Entities Monitored", 
               value: (() => {
-                // Always compute from visible entities filtered by team and date range
+                // Always compute from team entities (no date filtering for entity count)
                 const visibleTeamEntities = teamEntities.filter((entity: Entity) => 
-                  entity.is_active && isWithinTeamRange(entity)
+                  entity.is_active // Only filter by active status
                 );
                 return visibleTeamEntities.length;
               })(),
@@ -534,10 +534,12 @@ const TeamDashboard = ({
               showDataUnavailable: false, // Never show unavailable - always show actual count
               subtitle: (() => {
                 const visibleTables = teamEntities.filter((entity: Entity) => 
-                  entity.type === 'table' && entity.is_active && isWithinTeamRange(entity)
+                  entity.type === 'table' && entity.is_active
+                  // No date filtering - show all monitored entities
                 );
                 const visibleDags = teamEntities.filter((entity: Entity) => 
-                  entity.type === 'dag' && entity.is_active && isWithinTeamRange(entity)
+                  entity.type === 'dag' && entity.is_active
+                  // No date filtering - show all monitored entities
                 );
                 return `${visibleTables.length} Tables • ${visibleDags.length} DAGs`;
               })()

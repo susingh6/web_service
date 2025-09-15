@@ -631,13 +631,12 @@ const Summary = () => {
                   { 
                     title: "Entities Monitored", 
                     value: (() => {
-                      // Always compute from visible entities filtered by date range
+                      // Always compute from entities that exist (no date filtering for entity count)
                       const visibleEntities = entities.filter((entity: Entity) => {
-                        // Filter by active status and selected tenant
+                        // Filter by active status and selected tenant only
                         if (!entity.is_active) return false;
                         if (selectedTenant && entity.tenant_name !== selectedTenant.name) return false;
-                        // Filter by date range
-                        return isWithinDateRange(entity, summaryDateRange.startDate, summaryDateRange.endDate);
+                        return true; // Don't filter by date - show all monitored entities
                       });
                       return visibleEntities.length;
                     })(), 
@@ -648,14 +647,14 @@ const Summary = () => {
                       const visibleTables = entities.filter((entity: Entity) => 
                         entity.type === 'table' && 
                         entity.is_active &&
-                        (!selectedTenant || entity.tenant_name === selectedTenant.name) &&
-                        isWithinDateRange(entity, summaryDateRange.startDate, summaryDateRange.endDate)
+                        (!selectedTenant || entity.tenant_name === selectedTenant.name)
+                        // No date filtering - show all monitored entities
                       );
                       const visibleDags = entities.filter((entity: Entity) => 
                         entity.type === 'dag' && 
                         entity.is_active &&
-                        (!selectedTenant || entity.tenant_name === selectedTenant.name) &&
-                        isWithinDateRange(entity, summaryDateRange.startDate, summaryDateRange.endDate)
+                        (!selectedTenant || entity.tenant_name === selectedTenant.name)
+                        // No date filtering - show all monitored entities
                       );
                       return `${visibleTables.length} Tables • ${visibleDags.length} DAGs`;
                     })()
