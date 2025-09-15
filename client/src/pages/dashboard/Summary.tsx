@@ -317,9 +317,28 @@ const Summary = () => {
     (complianceTrends as any).trend.length > 0
   );
   
-  // Show owner-active entities for the selected tenant regardless of trend readiness
-  const visibleTables = tables;
-  const visibleDags = dags;
+  // Apply same filtering logic as count - Summary only shows active entity owners
+  const visibleTables = (() => {
+    let filteredTables = tables.filter(entity => entity.is_entity_owner); // Summary only shows entity owners
+    
+    // Apply recent filter if metrics unavailable (same as EntityTable logic)
+    if (!hasRangeData) {
+      filteredTables = filteredTables.filter(isEntityRecent);
+    }
+    
+    return filteredTables;
+  })();
+  
+  const visibleDags = (() => {
+    let filteredDags = dags.filter(entity => entity.is_entity_owner); // Summary only shows entity owners
+    
+    // Apply recent filter if metrics unavailable (same as EntityTable logic)
+    if (!hasRangeData) {
+      filteredDags = filteredDags.filter(isEntityRecent);
+    }
+    
+    return filteredDags;
+  })();
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
