@@ -296,6 +296,30 @@ const Summary = () => {
     return () => window.removeEventListener('refresh-teams-data', handleRefreshTeams);
   }, [dispatch]);
 
+  // Listen for dashboard data updates (e.g., after entity creation/updates)
+  useEffect(() => {
+    const handleDashboardDataUpdate = () => {
+      if (selectedTenant) {
+        // Format dates for API call to match existing pattern
+        const startDate = summaryDateRange.startDate ? format(summaryDateRange.startDate, 'yyyy-MM-dd') : undefined;
+        const endDate = summaryDateRange.endDate ? format(summaryDateRange.endDate, 'yyyy-MM-dd') : undefined;
+        
+        // Refresh dashboard summary with current date range
+        dispatch(fetchDashboardSummary({ 
+          tenantName: selectedTenant.name,
+          startDate,
+          endDate
+        }));
+        
+        // Also refresh entities to keep entity count in sync
+        dispatch(fetchEntities({}));
+      }
+    };
+    
+    window.addEventListener('dashboard-data-updated', handleDashboardDataUpdate);
+    return () => window.removeEventListener('dashboard-data-updated', handleDashboardDataUpdate);
+  }, [dispatch, selectedTenant, summaryDateRange]);
+
   // Filter entities based on tab and tenant - only show active entity owners
   const filterEntitiesByTenant = (entities: Entity[]) => {
     // Filter by tenant_name and only show active entity owners

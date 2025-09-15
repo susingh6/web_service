@@ -38,6 +38,11 @@ export function invalidateEntityCaches(
   queryClient.invalidateQueries({ queryKey: ['/api/dashboard/summary'] });
   // Broadly invalidate all dashboardSummary queries (tenant/team/date variants)
   queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
+  
+  // Emit custom event for Redux-based components (like Summary dashboard) to refresh
+  window.dispatchEvent(new CustomEvent('dashboard-data-updated', { 
+    detail: { tenant, teamId, entityId, source: 'entity-mutation' } 
+  }));
 }
 
 export function invalidateTenantCaches(queryClient: QueryClient, tenant: string) {
