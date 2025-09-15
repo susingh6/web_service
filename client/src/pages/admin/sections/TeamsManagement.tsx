@@ -43,6 +43,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { invalidateAdminCaches } from '@/lib/cacheKeys';
 import { useToast } from '@/hooks/use-toast';
+import { useWebSocket } from '@/hooks/useWebSocket';
 import { buildUrl, endpoints } from '@/config';
 import { tenantsApi } from '@/features/sla/api';
 import { Team } from '@shared/schema';
@@ -488,6 +489,40 @@ const TeamsManagement = () => {
   // Debounce search query for better performance
   const deferredSearchQuery = useDeferredValue(searchQuery);
 
+  // WebSocket integration for real-time team member updates
+  const sessionId = localStorage.getItem('fastapi_session_id');
+  const { sendMessage } = useWebSocket({
+    sessionId: sessionId || undefined,
+    onTeamMembersUpdated: async (data) => {
+      console.log('📡 Received team member update via WebSocket:', data);
+      // Invalidate teams cache to refresh the table when team members change
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'teams'] });
+      
+      // Also invalidate related caches
+      await invalidateAdminCaches(queryClient);
+      await queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
+      
+      // Show toast notification for the update
+      if (data.type === 'member-added') {
+        toast({ 
+          title: 'Team Member Added', 
+          description: `${data.memberName || 'Member'} has been added to team ${data.teamName}` 
+        });
+      } else if (data.type === 'member-removed') {
+        toast({ 
+          title: 'Team Member Removed', 
+          description: `${data.memberName || 'Member'} has been removed from team ${data.teamName}` 
+        });
+      }
+    },
+    onConnect: () => {
+      console.log('📡 WebSocket connected in TeamsManagement');
+    },
+    onDisconnect: () => {
+      console.log('📡 WebSocket disconnected in TeamsManagement');
+    }
+  });
+
   // Listen for team data refresh events (e.g., when tenant status changes cascade to teams)
   useEffect(() => {
     const handleRefreshTeams = () => {
@@ -636,19 +671,71 @@ const TeamsManagement = () => {
     },
   });
 
-  // Update team mutation for status toggle
+  // Enhanced update team function with detailed error handling and fallback endpoints
   const updateTeam = async (teamId: number, updateData: any) => {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     const sessionId = localStorage.getItem('fastapi_session_id');
     if (sessionId) headers['X-Session-ID'] = sessionId;
-    const response = await fetch(buildUrl(`/api/v1/teams/${teamId}`), {
+    
+    console.log('🚀 Updating team:', { teamId, updateData, headers: { ...headers, 'X-Session-ID': sessionId ? '[REDACTED]' : 'none' } });
+    
+    // Try FastAPI endpoint first
+    let response = await fetch(buildUrl(`/api/v1/teams/${teamId}`), {
       method: 'PUT',
       headers,
       body: JSON.stringify(updateData),
       credentials: 'include',
     });
-    if (!response.ok) throw new Error('Failed to update team');
-    return response.json();
+    
+    console.log('📡 FastAPI response status:', response.status, response.statusText);
+    
+    // If FastAPI fails, try Express endpoint as fallback
+    if (!response.ok && response.status !== 404) {
+      console.log('⚠️ FastAPI failed, trying Express endpoint fallback...');
+      response = await fetch(buildUrl(`/api/teams/${teamId}`), {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(updateData),
+        credentials: 'include',
+      });
+      console.log('📡 Express fallback response status:', response.status, response.statusText);
+    }
+    
+    // Enhanced error handling with detailed response parsing
+    if (!response.ok) {
+      let errorDetails: any;
+      try {
+        const errorText = await response.text();
+        console.error('❌ Full error response text:', errorText);
+        
+        // Try to parse as JSON, fallback to plain text
+        try {
+          errorDetails = JSON.parse(errorText);
+          console.error('❌ Parsed error details:', errorDetails);
+        } catch {
+          errorDetails = { message: errorText || `HTTP ${response.status}: ${response.statusText}` };
+        }
+      } catch (parseError) {
+        console.error('❌ Failed to parse error response:', parseError);
+        errorDetails = { message: `HTTP ${response.status}: ${response.statusText}` };
+      }
+      
+      // Create detailed error object
+      const detailedError = new Error(
+        errorDetails.message || 
+        errorDetails.detail || 
+        `Failed to update team: HTTP ${response.status}`
+      );
+      (detailedError as any).status = response.status;
+      (detailedError as any).details = errorDetails;
+      (detailedError as any).endpoint = response.url;
+      
+      throw detailedError;
+    }
+    
+    const result = await response.json();
+    console.log('✅ Team update successful:', result);
+    return result;
   };
 
   // Handle status toggle
@@ -666,27 +753,183 @@ const TeamsManagement = () => {
     onMutate: async ({ teamId, teamData }) => {
       await queryClient.cancelQueries({ queryKey: ['admin', 'teams'] });
       const previous = queryClient.getQueryData<any[]>(['admin', 'teams']);
+      
+      // Find the original team data for comparison later
+      const originalTeam = previous?.find(team => team.id === teamId);
+      
       queryClient.setQueryData<any[]>(['admin', 'teams'], (old) => {
         if (!old) return [] as any[];
         return old.map(team => team.id === teamId ? { ...team, ...teamData } : team);
       });
-      return { previous };
+      return { previous, originalTeam };
     },
-    onError: (_err, _vars, ctx) => {
+    onError: (error: any, { teamData }, ctx) => {
       if (ctx?.previous) queryClient.setQueryData(['admin', 'teams'], ctx.previous);
-      toast({ title: 'Update Failed', description: 'Failed to update team status. Please try again.', variant: 'destructive' });
+      
+      console.error('🔥 Team update mutation error:', {
+        message: error.message,
+        status: error.status,
+        details: error.details,
+        endpoint: error.endpoint,
+        teamData,
+        fullError: error
+      });
+      
+      // Create specific error message based on error details
+      let errorMessage = 'Failed to update team. Please try again.';
+      let errorTitle = 'Update Failed';
+      
+      if (error.status === 400) {
+        errorTitle = 'Invalid Team Data';
+        errorMessage = error.details?.message || error.message || 'The team data provided is invalid. Please check all fields and try again.';
+      } else if (error.status === 404) {
+        errorTitle = 'Team Not Found';
+        errorMessage = 'The team you are trying to update no longer exists.';
+      } else if (error.status === 403) {
+        errorTitle = 'Access Denied';
+        errorMessage = 'You do not have permission to update this team.';
+      } else if (error.status === 500) {
+        errorTitle = 'Server Error';
+        errorMessage = 'A server error occurred while updating the team. Please try again later.';
+      } else if (error.message && error.message !== 'Failed to update team') {
+        errorMessage = error.message;
+      }
+      
+      toast({ 
+        title: errorTitle, 
+        description: errorMessage, 
+        variant: 'destructive' 
+      });
     },
-    onSuccess: (_res, { teamData }) => {
-      toast({ title: 'Team Updated', description: `Team status has been ${teamData.isActive ? 'activated' : 'deactivated'}.` });
+    onSuccess: (_res, { teamId, teamData }, ctx) => {
+      // WebSocket broadcasting for team member changes
+      if (teamData.hasOwnProperty('team_members_ids') && ctx?.originalTeam) {
+        const originalMembers = ctx.originalTeam.team_members_ids || [];
+        const newMembers = teamData.team_members_ids || [];
+        const teamName = ctx.originalTeam.name;
+        const tenantName = tenantNameMap.get(ctx.originalTeam.tenant_id) || 'Unknown';
+        
+        // Detect member additions
+        const addedMembers = newMembers.filter((memberId: string) => !originalMembers.includes(memberId));
+        // Detect member removals  
+        const removedMembers = originalMembers.filter((memberId: string) => !newMembers.includes(memberId));
+        
+        console.log('📡 Team member changes detected:', {
+          teamName,
+          tenantName,
+          addedMembers,
+          removedMembers,
+          originalMembers,
+          newMembers
+        });
+        
+        // Broadcast member additions
+        addedMembers.forEach((memberId: string) => {
+          const teamMemberEvent = {
+            type: 'team-change',
+            event: 'team-members-updated',
+            data: {
+              type: 'member-added',
+              teamName,
+              tenantName,
+              memberId,
+              memberName: memberId, // Use memberId as fallback since availableUsers is not in scope
+              teamId,
+              version: Date.now(),
+              ts: Date.now(),
+              updatedAt: new Date().toISOString(),
+              originUserId: sessionId || 'admin'
+            }
+          };
+          
+          console.log('📡 Broadcasting member addition:', teamMemberEvent);
+          sendMessage(teamMemberEvent);
+        });
+        
+        // Broadcast member removals
+        removedMembers.forEach((memberId: string) => {
+          const teamMemberEvent = {
+            type: 'team-change',
+            event: 'team-members-updated',
+            data: {
+              type: 'member-removed',
+              teamName,
+              tenantName,
+              memberId,
+              memberName: memberId, // Use memberId as fallback since availableUsers is not in scope
+              teamId,
+              version: Date.now(),
+              ts: Date.now(),
+              updatedAt: new Date().toISOString(),
+              originUserId: sessionId || 'admin'
+            }
+          };
+          
+          console.log('📡 Broadcasting member removal:', teamMemberEvent);
+          sendMessage(teamMemberEvent);
+        });
+      }
+      
+      // Create specific success message based on what was updated
+      const updatedFields = [];
+      if (teamData.hasOwnProperty('isActive')) {
+        updatedFields.push(`status ${teamData.isActive ? 'activated' : 'deactivated'}`);
+      }
+      if (teamData.hasOwnProperty('name')) {
+        updatedFields.push('name updated');
+      }
+      if (teamData.hasOwnProperty('description')) {
+        updatedFields.push('description updated');
+      }
+      if (teamData.hasOwnProperty('team_email')) {
+        updatedFields.push('email contacts updated');
+      }
+      if (teamData.hasOwnProperty('team_slack')) {
+        updatedFields.push('Slack channels updated');
+      }
+      if (teamData.hasOwnProperty('team_pagerduty')) {
+        updatedFields.push('PagerDuty integration updated');
+      }
+      if (teamData.hasOwnProperty('team_members_ids')) {
+        updatedFields.push('team members updated');
+      }
+      
+      const successMessage = updatedFields.length > 0 
+        ? `Team ${updatedFields.join(', ')}.`
+        : 'Team has been successfully updated.';
+      
+      toast({ 
+        title: 'Team Updated', 
+        description: successMessage 
+      });
     },
     onSettled: async () => {
+      // Comprehensive cache invalidation
       await invalidateAdminCaches(queryClient);
+      
+      // Core team data caches
       await queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
-      // Invalidate all tenant-related caches to reflect team count changes
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'teams'] });
+      
+      // Team dashboard and summary data
+      await queryClient.invalidateQueries({ queryKey: ['/api/dashboard/summary'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/v1/dashboard/summary'] });
+      
+      // Team member specific data
+      await queryClient.invalidateQueries({ queryKey: ['/api/v1/get_team_members'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/team_members'] });
+      
+      // Tenant-related caches (team count changes)
       await queryClient.invalidateQueries({ queryKey: ['/api/v1/tenants'] });
       await queryClient.invalidateQueries({ queryKey: ['/api/tenants'] });
       await queryClient.invalidateQueries({ queryKey: ['admin', 'tenants'] });
       await queryClient.invalidateQueries({ queryKey: ['/api/tenants', 'active'] });
+      
+      // Team-specific performance and analytics data
+      await queryClient.invalidateQueries({ queryKey: ['/api/v1/team_performance'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/analytics/teams'] });
+      
+      console.log('🔄 Comprehensive cache invalidation completed for team update');
     },
   });
 
@@ -703,13 +946,29 @@ const TeamsManagement = () => {
   const handleSubmitTeam = async (teamData: any) => {
     try {
       if (selectedTeam) {
+        console.log('📝 Submitting team update:', { teamId: selectedTeam.id, teamData });
         await updateTeamMutation.mutateAsync({ teamId: selectedTeam.id, teamData });
       } else {
+        console.log('📝 Submitting team creation:', { teamData });
         await createTeamMutation.mutateAsync(teamData);
       }
-    } catch (error) {
-      // Error handling is done in the mutation functions
-      console.error('Team submission error:', error);
+    } catch (error: any) {
+      // Enhanced error logging with full error details
+      console.error('🔥 Team submission error details:', {
+        message: error?.message,
+        status: error?.status,
+        details: error?.details,
+        endpoint: error?.endpoint,
+        stack: error?.stack,
+        fullError: error,
+        teamData,
+        operation: selectedTeam ? 'update' : 'create'
+      });
+      
+      // Additional error details for debugging
+      if (error?.details) {
+        console.error('📋 Error response details:', JSON.stringify(error.details, null, 2));
+      }
     }
   };
 
