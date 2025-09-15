@@ -243,14 +243,14 @@ export const INVALIDATION_SCENARIOS = {
     ...CACHE_PATTERNS.ENTITIES.BY_TEAM(teamId),
     ...CACHE_PATTERNS.ENTITIES.BY_TYPE('table'),
     ...CACHE_PATTERNS.ENTITIES.BY_TEAM_AND_TYPE(teamId, 'table'),
-    // DON'T invalidate summary cache - let it refresh on schedule
+    ...CACHE_PATTERNS.DASHBOARD.SUMMARY(), // Invalidate summary cache for immediate count update
   ],
   
   DAG_ENTITY_CREATED: (teamId: number) => [
     ...CACHE_PATTERNS.ENTITIES.BY_TEAM(teamId),
     ...CACHE_PATTERNS.ENTITIES.BY_TYPE('dag'),
     ...CACHE_PATTERNS.ENTITIES.BY_TEAM_AND_TYPE(teamId, 'dag'),
-    // DON'T invalidate summary cache - let it refresh on schedule
+    ...CACHE_PATTERNS.DASHBOARD.SUMMARY(), // Invalidate summary cache for immediate count update
   ],
   
   TABLE_ENTITY_UPDATED: (entityId: number, teamId: number) => [
@@ -259,7 +259,7 @@ export const INVALIDATION_SCENARIOS = {
     ...CACHE_PATTERNS.ENTITIES.BY_TEAM_AND_TYPE(teamId, 'table'),
     ...CACHE_PATTERNS.ENTITIES.DETAILS(entityId),
     ...CACHE_PATTERNS.ENTITIES.HISTORY(entityId),
-    // DON'T invalidate summary cache - let it refresh on schedule
+    ...CACHE_PATTERNS.DASHBOARD.SUMMARY(), // Invalidate summary cache for immediate count update
   ],
   
   DAG_ENTITY_UPDATED: (entityId: number, teamId: number) => [
@@ -268,21 +268,21 @@ export const INVALIDATION_SCENARIOS = {
     ...CACHE_PATTERNS.ENTITIES.BY_TEAM_AND_TYPE(teamId, 'dag'),
     ...CACHE_PATTERNS.ENTITIES.DETAILS(entityId),
     ...CACHE_PATTERNS.ENTITIES.HISTORY(entityId),
-    // DON'T invalidate summary cache - let it refresh on schedule
+    ...CACHE_PATTERNS.DASHBOARD.SUMMARY(), // Invalidate summary cache for immediate count update
   ],
   
   TABLE_ENTITY_DELETED: (teamId: number) => [
     ...CACHE_PATTERNS.ENTITIES.BY_TEAM(teamId),
     ...CACHE_PATTERNS.ENTITIES.BY_TYPE('table'),
     ...CACHE_PATTERNS.ENTITIES.BY_TEAM_AND_TYPE(teamId, 'table'),
-    // DON'T invalidate summary cache - let it refresh on schedule
+    ...CACHE_PATTERNS.DASHBOARD.SUMMARY(), // Invalidate summary cache for immediate count update
   ],
   
   DAG_ENTITY_DELETED: (teamId: number) => [
     ...CACHE_PATTERNS.ENTITIES.BY_TEAM(teamId),
     ...CACHE_PATTERNS.ENTITIES.BY_TYPE('dag'),
     ...CACHE_PATTERNS.ENTITIES.BY_TEAM_AND_TYPE(teamId, 'dag'),
-    // DON'T invalidate summary cache - let it refresh on schedule
+    ...CACHE_PATTERNS.DASHBOARD.SUMMARY(), // Invalidate summary cache for immediate count update
   ],
   
   // Legacy scenarios (kept for backward compatibility)
