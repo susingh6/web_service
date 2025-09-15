@@ -522,26 +522,53 @@ const TeamDashboard = ({
             { 
               title: "Entities Monitored", 
               value: (() => {
-                // Always compute from team entities (no date filtering for entity count)
-                const visibleTeamEntities = teamEntities.filter((entity: Entity) => 
-                  entity.is_active // Only filter by active status
-                );
-                return visibleTeamEntities.length;
+                // Count entities exactly like EntityTable displays them
+                let filteredForDisplay = teamEntities.filter((entity: Entity) => entity.is_active);
+                
+                // Apply same filtering logic as EntityTable:
+                // If metrics unavailable for selected range, show only recent entities
+                if (!canDisplayTrends) {
+                  const isEntityRecent = (entity: Entity): boolean => {
+                    if (!entity.lastRefreshed && !entity.updatedAt) return false;
+                    const updateTime = entity.lastRefreshed || entity.updatedAt;
+                    if (!updateTime) return false;
+                    const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000);
+                    const entityUpdateTime = new Date(updateTime);
+                    return entityUpdateTime >= sixHoursAgo;
+                  };
+                  filteredForDisplay = filteredForDisplay.filter(isEntityRecent);
+                }
+                
+                return filteredForDisplay.length;
               })(),
               trend: 0, 
               suffix: "",
               loading: teamSummaryLoading,
               showDataUnavailable: false, // Never show unavailable - always show actual count
               subtitle: (() => {
-                const visibleTables = teamEntities.filter((entity: Entity) => 
+                // Calculate breakdown using same filtering as count above
+                let tablesForDisplay = teamEntities.filter((entity: Entity) => 
                   entity.type === 'table' && entity.is_active
-                  // No date filtering - show all monitored entities
                 );
-                const visibleDags = teamEntities.filter((entity: Entity) => 
+                let dagsForDisplay = teamEntities.filter((entity: Entity) => 
                   entity.type === 'dag' && entity.is_active
-                  // No date filtering - show all monitored entities
                 );
-                return `${visibleTables.length} Tables • ${visibleDags.length} DAGs`;
+                
+                // Apply recent filter if metrics unavailable (same as EntityTable logic)
+                if (!canDisplayTrends) {
+                  const isEntityRecent = (entity: Entity): boolean => {
+                    if (!entity.lastRefreshed && !entity.updatedAt) return false;
+                    const updateTime = entity.lastRefreshed || entity.updatedAt;
+                    if (!updateTime) return false;
+                    const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000);
+                    const entityUpdateTime = new Date(updateTime);
+                    return entityUpdateTime >= sixHoursAgo;
+                  };
+                  tablesForDisplay = tablesForDisplay.filter(isEntityRecent);
+                  dagsForDisplay = dagsForDisplay.filter(isEntityRecent);
+                }
+                
+                return `${tablesForDisplay.length} Tables • ${dagsForDisplay.length} DAGs`;
               })()
             }
           ].map((card, idx) => (

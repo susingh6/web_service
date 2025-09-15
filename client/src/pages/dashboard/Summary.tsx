@@ -68,17 +68,17 @@ const Summary = () => {
 
   const { metrics, complianceTrends, isLoading: metricsLoading, lastFetchFailed } = useAppSelector((state) => state.dashboard);
   
-  // Helper to filter entities by date range for accurate count
-  const getEntityTimestamp = (entity: Entity): Date | null => {
-    const ts = (entity.lastRefreshed as any) || (entity.updatedAt as any) || (entity.createdAt as any) || null;
-    if (!ts) return null;
-    return ts instanceof Date ? ts : new Date(ts);
-  };
-  
-  const isWithinDateRange = (entity: Entity, startDate: Date, endDate: Date): boolean => {
-    const ts = getEntityTimestamp(entity);
-    if (!ts) return false;
-    return ts >= startDate && ts <= endDate;
+  // Helper to check if entity was recently updated (matches EntityTable logic)
+  const isEntityRecent = (entity: Entity): boolean => {
+    if (!entity.lastRefreshed && !entity.updatedAt) return false;
+    
+    const updateTime = entity.lastRefreshed || entity.updatedAt;
+    if (!updateTime) return false;
+    
+    const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000);
+    const entityUpdateTime = new Date(updateTime);
+    
+    return entityUpdateTime >= sixHoursAgo;
   };
   
   // DEBUG: Log Redux store data
@@ -631,31 +631,45 @@ const Summary = () => {
                   { 
                     title: "Entities Monitored", 
                     value: (() => {
-                      // Always compute from entities that exist (no date filtering for entity count)
-                      const visibleEntities = entities.filter((entity: Entity) => {
-                        // Filter by active status and selected tenant only
+                      // Count entities exactly like EntityTable displays them
+                      let filteredForDisplay = entities.filter((entity: Entity) => {
+                        // Filter by active status and selected tenant
                         if (!entity.is_active) return false;
                         if (selectedTenant && entity.tenant_name !== selectedTenant.name) return false;
-                        return true; // Don't filter by date - show all monitored entities
+                        return true;
                       });
-                      return visibleEntities.length;
+                      
+                      // Apply same filtering logic as EntityTable:
+                      // If metrics unavailable for selected range, show only recent entities
+                      if (!hasRangeData) {
+                        filteredForDisplay = filteredForDisplay.filter(isEntityRecent);
+                      }
+                      
+                      return filteredForDisplay.length;
                     })(), 
                     suffix: "",
                     loading: metricsLoading && !lastFetchFailed,
                     showDataUnavailable: false, // Never show unavailable - always show actual count
                     subtitle: (() => {
-                      const visibleTables = entities.filter((entity: Entity) => 
+                      // Calculate breakdown using same filtering as count above
+                      let tablesForDisplay = entities.filter((entity: Entity) => 
                         entity.type === 'table' && 
                         entity.is_active &&
                         (!selectedTenant || entity.tenant_name === selectedTenant.name)
-                        // No date filtering - show all monitored entities
                       );
-                      const visibleDags = entities.filter((entity: Entity) => 
+                      let dagsForDisplay = entities.filter((entity: Entity) => 
                         entity.type === 'dag' && 
                         entity.is_active &&
                         (!selectedTenant || entity.tenant_name === selectedTenant.name)
-                        // No date filtering - show all monitored entities
                       );
+                      
+                      // Apply recent filter if metrics unavailable (same as EntityTable logic)
+                      if (!hasRangeData) {
+                        tablesForDisplay = tablesForDisplay.filter(isEntityRecent);
+                        dagsForDisplay = dagsForDisplay.filter(isEntityRecent);
+                      }
+                      
+                      return `${tablesForDisplay.length} Tables • ${dagsForDisplay.length} DAGs`;
                       return `${visibleTables.length} Tables • ${visibleDags.length} DAGs`;
                     })()
                   }
