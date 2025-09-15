@@ -48,11 +48,11 @@ import { tenantsApi } from '@/features/sla/api';
 import { Team } from '@shared/schema';
 // Removed custom optimistic wrapper in favor of native React Query mutations
 
-// Define user interface for type safety
+// Define user interface for type safety - matches actual API response
 interface User {
-  id: string;
-  email: string;
-  displayName?: string;
+  user_id: string;
+  user_email: string;
+  user_name?: string;
 }
 
 interface TeamFormDialogProps {
@@ -90,13 +90,13 @@ const TeamFormDialog = ({ open, onClose, team, tenants, onSubmit }: TeamFormDial
         credentials: 'include'
       });
       if (!response.ok) {
-        // Fallback to mock data if admin endpoint not available
+        // Fallback to mock data if admin endpoint not available - matches API structure
         return [
-          { id: '1', email: 'john.doe@company.com', displayName: 'John Doe' },
-          { id: '2', email: 'jane.smith@company.com', displayName: 'Jane Smith' },
-          { id: '3', email: 'mike.wilson@company.com', displayName: 'Mike Wilson' },
-          { id: '4', email: 'sarah.johnson@company.com', displayName: 'Sarah Johnson' },
-          { id: '5', email: 'david.brown@company.com', displayName: 'David Brown' },
+          { user_id: '1', user_email: 'john.doe@company.com', user_name: 'John Doe' },
+          { user_id: '2', user_email: 'jane.smith@company.com', user_name: 'Jane Smith' },
+          { user_id: '3', user_email: 'mike.wilson@company.com', user_name: 'Mike Wilson' },
+          { user_id: '4', user_email: 'sarah.johnson@company.com', user_name: 'Sarah Johnson' },
+          { user_id: '5', user_email: 'david.brown@company.com', user_name: 'David Brown' },
         ];
       }
       return response.json();
@@ -160,14 +160,14 @@ const TeamFormDialog = ({ open, onClose, team, tenants, onSubmit }: TeamFormDial
   
   // Helper function to get user email by ID
   const getUserEmailById = (userId: string) => {
-    const user = availableUsers.find((u: User) => u.id === userId);
-    return user?.email || userId;
+    const user = availableUsers.find((u: User) => u.user_id === userId);
+    return user?.user_email || userId;
   };
   
   // Helper function to get user ID by email
   const getUserIdByEmail = (email: string) => {
-    const user = availableUsers.find((u: User) => u.email === email);
-    return user?.id || email;
+    const user = availableUsers.find((u: User) => u.user_email === email);
+    return user?.user_id || email;
   };
   
   const tenantName = tenants.find(t => t.id === formData.tenant_id)?.name || 'Unknown';
@@ -352,11 +352,11 @@ const TeamFormDialog = ({ open, onClose, team, tenants, onSubmit }: TeamFormDial
               <Autocomplete
                 multiple
                 options={availableUsers}
-                getOptionLabel={(option) => typeof option === 'string' ? option : option.email}
+                getOptionLabel={(option) => typeof option === 'string' ? option : option.user_email}
                 value={formData.team_members_ids.map(getUserEmailById)}
                 onChange={(event, newValue) => {
                   const newIds = newValue.map(val => 
-                    typeof val === 'string' ? getUserIdByEmail(val) : getUserIdByEmail(val.email)
+                    typeof val === 'string' ? getUserIdByEmail(val) : getUserIdByEmail(val.user_email)
                   );
                   setFormData({ ...formData, team_members_ids: newIds });
                 }}
@@ -370,14 +370,14 @@ const TeamFormDialog = ({ open, onClose, team, tenants, onSubmit }: TeamFormDial
                   />
                 )}
                 renderOption={(props, option) => (
-                  <li {...props} key={typeof option === 'string' ? option : option.id}>
+                  <li {...props} key={typeof option === 'string' ? option : option.user_id}>
                     <Box>
                       <Typography variant="body2">
-                        {typeof option === 'string' ? option : option.displayName || option.email}
+                        {typeof option === 'string' ? option : option.user_name || option.user_email}
                       </Typography>
-                      {typeof option !== 'string' && option.displayName && (
+                      {typeof option !== 'string' && option.user_name && (
                         <Typography variant="caption" color="text.secondary">
-                          {option.email}
+                          {option.user_email}
                         </Typography>
                       )}
                     </Box>
@@ -387,9 +387,9 @@ const TeamFormDialog = ({ open, onClose, team, tenants, onSubmit }: TeamFormDial
                   tagValue.map((option, index) => (
                     <Chip
                       variant="outlined"
-                      label={typeof option === 'string' ? option : option.displayName || option.email}
+                      label={typeof option === 'string' ? option : option.user_name || option.user_email}
                       {...getTagProps({ index })}
-                      key={typeof option === 'string' ? option : option.id}
+                      key={typeof option === 'string' ? option : option.user_id}
                     />
                   ))
                 }
@@ -402,11 +402,11 @@ const TeamFormDialog = ({ open, onClose, team, tenants, onSubmit }: TeamFormDial
                   </Typography>
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
                     {formData.team_members_ids.map((userId: string) => {
-                      const user = availableUsers.find((u: User) => u.id === userId);
+                      const user = availableUsers.find((u: User) => u.user_id === userId);
                       return (
                         <Chip
                           key={userId}
-                          label={user?.displayName || user?.email || userId}
+                          label={user?.user_name || user?.user_email || userId}
                           variant="filled"
                           size="small"
                           onDelete={() => {
