@@ -1383,7 +1383,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           'entities_team_*',
           'dashboard_summary:*'
         ],
-        mainCacheKeys: ['ENTITIES'], // This invalidates CACHE_KEYS.ENTITIES used by getAllEntities()
+        // Refresh both ENTITIES and METRICS so "Entities Monitored" updates across ranges
+        mainCacheKeys: ['ENTITIES', 'METRICS'],
         refreshAffectedData: true
       });
       

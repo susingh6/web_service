@@ -295,28 +295,16 @@ const Summary = () => {
   const tables = filteredEntities.filter((entity) => entity.type === 'table');
   const dags = filteredEntities.filter((entity) => entity.type === 'dag');
 
-  // Determine if server has any data for the selected range on Summary
+  // Preserve hasRangeData for components that rely on it (e.g., controlling empty states)
   const hasRangeData = !!(
     complianceTrends &&
     Array.isArray((complianceTrends as any).trend) &&
     (complianceTrends as any).trend.length > 0
   );
-
-  // Treat an entity as recent if updated/created in last 6 hours
-  const isEntityRecent = (entity: Entity): boolean => {
-    const ts = (entity.lastRefreshed as any) || (entity.updatedAt as any) || null;
-    if (!ts) return false;
-    const updatedAt = ts instanceof Date ? ts : new Date(ts);
-    return updatedAt.getTime() >= Date.now() - 6 * 60 * 60 * 1000;
-  };
-
-  // For ranges without cached metrics, only show recent, active owner entities
-  const visibleTables = hasRangeData 
-    ? tables 
-    : tables.filter((e) => (e as any).is_active === true && isEntityRecent(e));
-  const visibleDags = hasRangeData 
-    ? dags 
-    : dags.filter((e) => (e as any).is_active === true && isEntityRecent(e));
+  
+  // Show owner-active entities for the selected tenant regardless of trend readiness
+  const visibleTables = tables;
+  const visibleDags = dags;
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);

@@ -68,6 +68,20 @@ const TeamDashboard = ({
     label: dateRange?.label || 'Last 30 Days',
   });
 
+  // Helpers to compute activity within the selected date range
+  const getEntityTimestamp = (e: any): Date | null => {
+    const ts = (e.lastRefreshed as any) || (e.updatedAt as any) || (e.createdAt as any) || null;
+    if (!ts) return null;
+    return ts instanceof Date ? ts : new Date(ts);
+  };
+  const isWithinTeamRange = (e: any): boolean => {
+    const ts = getEntityTimestamp(e);
+    if (!ts) return false;
+    if (teamDateRange?.startDate && ts < teamDateRange.startDate) return false;
+    if (teamDateRange?.endDate && ts > teamDateRange.endDate) return false;
+    return true;
+  };
+
   // Keep local state in sync with parent-provided dateRange
   useEffect(() => {
     if (dateRange && dateRange.startDate && dateRange.endDate) {
@@ -504,7 +518,7 @@ const TeamDashboard = ({
             },
             { 
               title: "Entities Monitored", 
-              value: hasRangeData ? (teamMetrics?.entitiesCount || 0) : 0, 
+              value: hasRangeData ? (teamMetrics?.entitiesCount || 0) : 0,
               trend: 0, 
               suffix: "",
               loading: teamSummaryLoading,

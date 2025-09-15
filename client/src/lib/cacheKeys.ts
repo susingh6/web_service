@@ -36,6 +36,8 @@ export function invalidateEntityCaches(
   if (entityId !== undefined) queryClient.invalidateQueries({ queryKey: ['/api/entities', entityId] });
   if (teamId !== undefined && teamId !== null) queryClient.invalidateQueries({ queryKey: ['/api/entities', { teamId }] });
   queryClient.invalidateQueries({ queryKey: ['/api/dashboard/summary'] });
+  // Broadly invalidate all dashboardSummary queries (tenant/team/date variants)
+  queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
 }
 
 export function invalidateTenantCaches(queryClient: QueryClient, tenant: string) {

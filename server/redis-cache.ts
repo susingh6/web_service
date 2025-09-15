@@ -948,14 +948,25 @@ export class RedisCache {
     
     try {
       const data = await this.redis.get(CACHE_KEYS.ENTITIES);
-      const entities: Entity[] = data ? JSON.parse(data) : [];
-      // Defensive filter: remove any entities that were deleted in storage but lingered in cache
+      const cachedEntities: Entity[] = data ? JSON.parse(data) : [];
+
+      // Always compare against storage to ensure new entities are reflected
       try {
         const storageEntities = await storage.getEntities();
         const storageIds = new Set(storageEntities.map(e => e.id));
-        return entities.filter(e => storageIds.has(e.id));
+
+        // If cache is empty or behind storage (fewer items), refresh cache from storage
+        if (!data || cachedEntities.length < storageEntities.length) {
+          const expireTime = Math.floor(this.CACHE_DURATION_MS / 1000);
+          await this.set(CACHE_KEYS.ENTITIES, storageEntities, expireTime);
+          return storageEntities;
+        }
+
+        // Otherwise, return cached entities filtered by existing storage IDs (drop deleted)
+        return cachedEntities.filter(e => storageIds.has(e.id));
       } catch (_err) {
-        return entities;
+        // If storage compare fails, return whatever is in cache
+        return cachedEntities;
       }
     } catch (error) {
       console.error('Error getting entities from Redis:', error);
