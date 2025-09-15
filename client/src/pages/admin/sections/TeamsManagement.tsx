@@ -159,16 +159,16 @@ const TeamFormDialog = ({ open, onClose, team, tenants, onSubmit }: TeamFormDial
     setActiveTab(0);
   };
   
-  // Helper function to get user email by ID
-  const getUserEmailById = (userId: string) => {
-    const user = availableUsers.find((u: User) => u.user_id === userId);
-    return user?.user_email || userId;
+  // Helper function to get user email by user name
+  const getUserEmailByName = (userName: string) => {
+    const user = availableUsers.find((u: User) => u.user_name === userName);
+    return user?.user_email || userName;
   };
   
-  // Helper function to get user ID by email
-  const getUserIdByEmail = (email: string) => {
+  // Helper function to get user name by email
+  const getUserNameByEmail = (email: string) => {
     const user = availableUsers.find((u: User) => u.user_email === email);
-    return user?.user_id || email;
+    return user?.user_name || email;
   };
   
   const tenantName = tenants.find(t => t.id === formData.tenant_id)?.name || 'Unknown';
@@ -354,12 +354,12 @@ const TeamFormDialog = ({ open, onClose, team, tenants, onSubmit }: TeamFormDial
                 multiple
                 options={availableUsers}
                 getOptionLabel={(option) => typeof option === 'string' ? option : option.user_email}
-                value={formData.team_members_ids.map(getUserEmailById)}
+                value={formData.team_members_ids.map(getUserEmailByName)}
                 onChange={(event, newValue) => {
-                  const newIds = newValue.map(val => 
-                    typeof val === 'string' ? getUserIdByEmail(val) : getUserIdByEmail(val.user_email)
+                  const newNames = newValue.map(val => 
+                    typeof val === 'string' ? getUserNameByEmail(val) : getUserNameByEmail(val.user_email)
                   );
-                  setFormData({ ...formData, team_members_ids: newIds });
+                  setFormData({ ...formData, team_members_ids: newNames });
                 }}
                 renderInput={(params) => (
                   <TextField
@@ -402,18 +402,18 @@ const TeamFormDialog = ({ open, onClose, team, tenants, onSubmit }: TeamFormDial
                     Selected Members ({formData.team_members_ids.length}):
                   </Typography>
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                    {formData.team_members_ids.map((userId: string) => {
-                      const user = availableUsers.find((u: User) => u.user_id === userId);
+                    {formData.team_members_ids.map((userName: string) => {
+                      const user = availableUsers.find((u: User) => u.user_name === userName);
                       return (
                         <Chip
-                          key={userId}
-                          label={user?.user_name || user?.user_email || userId}
+                          key={userName}
+                          label={user?.user_name || user?.user_email || userName}
                           variant="filled"
                           size="small"
                           onDelete={() => {
                             setFormData({
                               ...formData,
-                              team_members_ids: formData.team_members_ids.filter((id: string) => id !== userId)
+                              team_members_ids: formData.team_members_ids.filter((name: string) => name !== userName)
                             });
                           }}
                         />
