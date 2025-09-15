@@ -142,6 +142,10 @@ const TeamDashboard = ({
     }
   }, [teamEntitiesFromQuery]);
 
+  // Filter entities for this team from local state (for backward compatibility)
+  // For team dashboard: exclude inactive entities (is_active: false) to match server logic
+  const activeTeamEntities = teamEntities.filter((entity) => entity.is_active !== false);
+
   // Fetch tenant-level summary for this team's selected date range (scoped to component)
   const { data: teamSummaryData, isLoading: teamSummaryLoading, isError: teamSummaryError } = useQuery({
     queryKey: cacheKeys.dashboardSummary(
@@ -173,7 +177,7 @@ const TeamDashboard = ({
     Array.isArray(teamSummaryData.complianceTrends.trend) &&
     teamSummaryData.complianceTrends.trend.length > 0
   );
-  const canDisplayTrends = hasRangeData && teamEntities.length > 0;
+  const canDisplayTrends = hasRangeData && activeTeamEntities.length > 0;
 
   // Set up real-time updates for this team page
   const { isRealTimeEnabled } = useRealTimeEntities({
@@ -289,14 +293,13 @@ const TeamDashboard = ({
     }
   };
 
-  // Filter entities for this team from local state (for backward compatibility)
-  const tables = teamEntities.filter((entity) => entity.type === 'table');
-  const dags = teamEntities.filter((entity) => entity.type === 'dag');
+  const tables = activeTeamEntities.filter((entity) => entity.type === 'table');
+  const dags = activeTeamEntities.filter((entity) => entity.type === 'dag');
 
   // Use server-computed, date-filtered metrics from /api/dashboard/summary (preferred)
   // Fall back to client-side calculation only if server data is unavailable
-  const teamMetrics = teamSummaryData?.metrics || (teamEntities.length > 0 
-    ? calculateMetrics(teamEntities, tables, dags)
+  const teamMetrics = teamSummaryData?.metrics || (activeTeamEntities.length > 0 
+    ? calculateMetrics(activeTeamEntities, tables, dags)
     : null);
 
   // Extract individual metrics for display
@@ -357,7 +360,7 @@ const TeamDashboard = ({
               </Typography>
               <Box display="flex" alignItems="center" mt={2} gap={1} flexWrap="wrap">
                 <Chip 
-                  label={`${teamMetrics?.entitiesCount || teamEntities.length} Entities`} 
+                  label={`${teamMetrics?.entitiesCount || activeTeamEntities.length} Entities`} 
                   size="small" 
                   sx={{ bgcolor: 'primary.light', color: 'white' }} 
                 />
@@ -542,7 +545,7 @@ const TeamDashboard = ({
               filters={['All', 'Tables', 'DAGs']}
               onFilterChange={setChartFilter}
               loading={teamSummaryLoading}
-              chart={<ComplianceTrendChart filter={chartFilter.toLowerCase() as 'all' | 'tables' | 'dags'} data={canDisplayTrends ? (teamSummaryData?.complianceTrends?.trend || []) : []} entities={canDisplayTrends ? teamEntities : []} loading={teamSummaryLoading} />}
+              chart={<ComplianceTrendChart filter={chartFilter.toLowerCase() as 'all' | 'tables' | 'dags'} data={canDisplayTrends ? (teamSummaryData?.complianceTrends?.trend || []) : []} entities={canDisplayTrends ? activeTeamEntities : []} loading={teamSummaryLoading} />}
             />
           </Box>
 
@@ -553,7 +556,7 @@ const TeamDashboard = ({
               onFilterChange={setEntitiesChartFilter}
               infoTooltip={`Shows the top 5 entities by SLA performance for the selected date range.`}
               loading={teamSummaryLoading}
-              chart={<EntityPerformanceChart entities={hasRangeData ? teamEntities : []} filter={entitiesChartFilter.toLowerCase() as 'all' | 'tables' | 'dags'} dateRange={teamDateRange} />}
+              chart={<EntityPerformanceChart entities={hasRangeData ? activeTeamEntities : []} filter={entitiesChartFilter.toLowerCase() as 'all' | 'tables' | 'dags'} dateRange={teamDateRange} />}
             />
           </Box>
         </Box>

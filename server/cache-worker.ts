@@ -526,6 +526,7 @@ function extractMetricsAndTrends(
           }
         } else {
           // Team-specific data for individual teams (team_id > 0 - used in team dashboards)
+          // Note: FastAPI should already exclude inactive entities for team metrics
           const teamName = record.team_name || `Team ${teamId}`;
           
           if (!teamMetrics[tenantName]) {

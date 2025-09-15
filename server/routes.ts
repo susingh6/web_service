@@ -596,6 +596,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // FastAPI fallback route for getting entities (with teamId support)
+  // 
+  // ⚠️  FASTAPI SERVICE REQUIREMENT ⚠️
+  // The external FastAPI service MUST implement this exact endpoint with identical filtering logic:
+  // 
+  // GET /api/v1/entities?teamId={teamId}
+  // - Should filter out inactive entities: WHERE is_active != false
+  // - Should return all active entities for the team (both entity owners and non-owners)
+  // - This is used by Team Dashboard for entity counts and tables
+  //
+  // GET /api/v1/entities?tenant={tenant} (Summary Dashboard)
+  // - Should filter by: WHERE tenant_name = {tenant} AND is_entity_owner = true AND is_active != false
+  // - This is used by Summary Dashboard for entity counts
+  //
   app.get("/api/v1/entities", async (req, res) => {
     try {
       console.log("EXPRESS_FASTAPI_FALLBACK_DEV", req.sessionID);
@@ -605,12 +618,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let entities: Entity[];
       
       if (teamId) {
-        // Get all entities for specific team (unfiltered - show both active and inactive)
+        // Get all entities for specific team but exclude inactive entities
+        // IMPORTANT: FastAPI service should implement the same filtering logic
         const teamIdNum = parseInt(teamId as string);
         if (isNaN(teamIdNum)) {
           return res.status(400).json(createErrorResponse("Invalid team ID", "validation_error"));
         }
-        entities = await storage.getEntitiesByTeam(teamIdNum); // Uses unfiltered storage
+        const allTeamEntities = await storage.getEntitiesByTeam(teamIdNum);
+        entities = allTeamEntities.filter(entity => entity.is_active !== false); // Filter out inactive entities for team dashboard
         console.log(`GET /api/v1/entities - Parameters: teamId=${teamId} - status: 200`);
       } else if (type) {
         // Get entities by type
@@ -822,6 +837,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }
 
   // Dashboard endpoints using cache with smart routing
+  //
+  // ⚠️  FASTAPI SERVICE REQUIREMENT ⚠️
+  // The external FastAPI service MUST implement this exact endpoint:
+  // 
+  // GET /api/dashboard/summary?tenant={tenant}&team={team}&startDate={date}&endDate={date}
+  // 
+  // Team Dashboard (team parameter provided):
+  // - Should calculate metrics from ALL active entities: WHERE is_active != false
+  // - Entity counts should include both entity owners and non-owners
+  // 
+  // Summary Dashboard (no team parameter):
+  // - Should calculate metrics from entity owners only: WHERE is_entity_owner = true AND is_active != false
+  // - Entity counts should include only active entity owners
+  //
   app.get("/api/dashboard/summary", async (req, res) => {
     try {
       const tenantName = req.query.tenant as string;
@@ -1164,11 +1193,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       let entities;
       
-      // Team dashboard requests: bypass entity owner filtering to show all entities
+      // Team dashboard requests: get all entities but exclude inactive ones
       if (req.query.teamId) {
         // For team-specific requests, get ALL entities directly from storage 
-        // (not filtered cache) to show both entity owners and non-owners
-        entities = await storage.getEntities();
+        // but exclude inactive entities (is_active: false)
+        const allEntities = await storage.getEntities();
+        entities = allEntities.filter(entity => entity.is_active !== false);
       } else {
         // Summary dashboard requests: use filtered cache (entity owners only)
         entities = await redisCache.getAllEntities();
@@ -1593,6 +1623,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         entityToDelete.teamId, 
         entityToDelete.type as 'table' | 'dag',
         true // Enable background rebuild
+      );
+      
+      // CRITICAL: Also invalidate team metrics cache to update entity counts immediately
+      // This ensures the "Entities Monitored" count updates in real-time
+      await redisCache.invalidateTeamMetricsCache(
+        entityToDelete.tenant_name || 'Data Engineering',
+        entityToDelete.team_name || 'Unknown'
       );
       
       res.status(204).end();

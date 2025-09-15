@@ -748,18 +748,24 @@ export class RedisCache {
       // Generate team-specific data for each team in the tenant
       const tenantTeams = teams.filter(t => t.tenant_id === tenant.id);
       for (const team of tenantTeams) {
-        const teamEntities = tenantEntities.filter(e => e.teamId === team.id);
-        if (teamEntities.length > 0) {
-          const teamTables = teamEntities.filter(e => e.type === 'table');
-          const teamDags = teamEntities.filter(e => e.type === 'dag');
+        // For team dashboard: get ALL active entities (not just entity owners)
+        const allTeamEntities = entities.filter(e => 
+          e.tenant_name === tenant.name && 
+          e.teamId === team.id && 
+          e.is_active !== false
+        );
+        
+        if (allTeamEntities.length > 0) {
+          const teamTables = allTeamEntities.filter(e => e.type === 'table');
+          const teamDags = allTeamEntities.filter(e => e.type === 'dag');
           
           // Initialize tenant containers if not exists
           if (!teamMetrics[tenant.name]) teamMetrics[tenant.name] = {};
           if (!teamTrends[tenant.name]) teamTrends[tenant.name] = {};
           
           // Calculate team-specific metrics and trends
-          teamMetrics[tenant.name][team.name] = this.calculateMetrics(teamEntities, teamTables, teamDags);
-          teamTrends[tenant.name][team.name] = this.generateComplianceTrendForRange(teamEntities, teamTables, teamDags, 30);
+          teamMetrics[tenant.name][team.name] = this.calculateMetrics(allTeamEntities, teamTables, teamDags);
+          teamTrends[tenant.name][team.name] = this.generateComplianceTrendForRange(allTeamEntities, teamTables, teamDags, 30);
         }
       }
       
@@ -907,9 +913,11 @@ export class RedisCache {
       if (!allEntities || allEntities.length === 0) return null;
       
       // Filter entities by tenant and team for the date range
+      // For team dashboard: exclude inactive entities (is_active: false)
       const teamEntities = allEntities.filter(entity => 
         entity.tenant_name === tenantName && 
         entity.team_name === teamName &&
+        entity.is_active !== false && // Exclude inactive entities for team dashboard
         entity.lastRefreshed &&
         entity.lastRefreshed >= startDate &&
         entity.lastRefreshed <= endDate
@@ -1967,6 +1975,46 @@ export class RedisCache {
     } catch (error) {
       console.warn(`Background cache rebuild failed for team ${teamId}, type ${entityType}:`, error);
       // Fail silently - next request will rebuild via lazy loading
+    }
+  }
+
+  async invalidateTeamMetricsCache(tenantName: string, teamName: string): Promise<void> {
+    try {
+      if (!this.useRedis || !this.redis) {
+        // For fallback mode, trigger a full cache refresh
+        this.fallbackData = await this.getCacheRefreshData();
+        console.log(`Team metrics cache invalidated for ${tenantName}/${teamName} (fallback mode)`);
+        return;
+      }
+
+      // Invalidate all team metrics cache keys for this team
+      const ranges = ['TODAY_METRICS', 'YESTERDAY_METRICS', 'LAST_7_DAYS_METRICS', 'LAST_30_DAYS_METRICS', 'THIS_MONTH_METRICS'];
+      const teamKey = `${tenantName}:${teamName}`;
+      
+      for (const range of ranges) {
+        const cacheKey = `${range}:TEAMS`;
+        try {
+          await this.redis.hdel(cacheKey, teamKey);
+        } catch (error) {
+          console.warn(`Failed to invalidate team metrics cache ${cacheKey}:${teamKey}:`, error);
+        }
+      }
+      
+      // Also invalidate team trends cache
+      const trendRanges = ['TODAY_TRENDS', 'YESTERDAY_TRENDS', 'LAST_7_DAYS_TRENDS', 'LAST_30_DAYS_TRENDS', 'THIS_MONTH_TRENDS'];
+      for (const range of trendRanges) {
+        const cacheKey = `${range}:TEAMS`;
+        try {
+          await this.redis.hdel(cacheKey, teamKey);
+        } catch (error) {
+          console.warn(`Failed to invalidate team trends cache ${cacheKey}:${teamKey}:`, error);
+        }
+      }
+      
+      console.log(`Team metrics cache invalidated for ${tenantName}/${teamName}`);
+    } catch (error) {
+      console.error(`Failed to invalidate team metrics cache for ${tenantName}/${teamName}:`, error);
+      // Non-fatal error - cache will refresh on next scheduled cycle
     }
   }
 
