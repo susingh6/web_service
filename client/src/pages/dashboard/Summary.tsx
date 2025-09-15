@@ -631,10 +631,12 @@ const Summary = () => {
                   { 
                     title: "Entities Monitored", 
                     value: (() => {
-                      // Count entities exactly like EntityTable displays them
+                      // Count entities exactly like Summary EntityTable displays them
+                      // Summary only shows active entity owners
                       let filteredForDisplay = entities.filter((entity: Entity) => {
-                        // Filter by active status and selected tenant
+                        // Filter by active status, entity ownership, and selected tenant
                         if (!entity.is_active) return false;
+                        if (!entity.is_entity_owner) return false; // Summary only shows entity owners
                         if (selectedTenant && entity.tenant_name !== selectedTenant.name) return false;
                         return true;
                       });
@@ -652,14 +654,17 @@ const Summary = () => {
                     showDataUnavailable: false, // Never show unavailable - always show actual count
                     subtitle: (() => {
                       // Calculate breakdown using same filtering as count above
+                      // Summary only shows active entity owners
                       let tablesForDisplay = entities.filter((entity: Entity) => 
                         entity.type === 'table' && 
                         entity.is_active &&
+                        entity.is_entity_owner && // Summary only shows entity owners
                         (!selectedTenant || entity.tenant_name === selectedTenant.name)
                       );
                       let dagsForDisplay = entities.filter((entity: Entity) => 
                         entity.type === 'dag' && 
                         entity.is_active &&
+                        entity.is_entity_owner && // Summary only shows entity owners
                         (!selectedTenant || entity.tenant_name === selectedTenant.name)
                       );
                       
