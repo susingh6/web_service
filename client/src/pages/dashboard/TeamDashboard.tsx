@@ -521,12 +521,26 @@ const TeamDashboard = ({
             },
             { 
               title: "Entities Monitored", 
-              value: hasRangeData ? (teamMetrics?.entitiesCount || 0) : 0,
+              value: (() => {
+                // Always compute from visible entities filtered by team and date range
+                const visibleTeamEntities = teamEntities.filter((entity: Entity) => 
+                  entity.is_active && isWithinTeamRange(entity)
+                );
+                return visibleTeamEntities.length;
+              })(),
               trend: 0, 
               suffix: "",
               loading: teamSummaryLoading,
-              showDataUnavailable: !teamSummaryLoading && !hasRangeData,
-              subtitle: teamMetrics ? `${teamMetrics.tablesCount} Tables • ${teamMetrics.dagsCount} DAGs` : ""
+              showDataUnavailable: false, // Never show unavailable - always show actual count
+              subtitle: (() => {
+                const visibleTables = teamEntities.filter((entity: Entity) => 
+                  entity.type === 'table' && entity.is_active && isWithinTeamRange(entity)
+                );
+                const visibleDags = teamEntities.filter((entity: Entity) => 
+                  entity.type === 'dag' && entity.is_active && isWithinTeamRange(entity)
+                );
+                return `${visibleTables.length} Tables • ${visibleDags.length} DAGs`;
+              })()
             }
           ].map((card, idx) => (
             <Box key={card.title} flex="1 1 250px" minWidth="250px">

@@ -68,6 +68,19 @@ const Summary = () => {
 
   const { metrics, complianceTrends, isLoading: metricsLoading, lastFetchFailed } = useAppSelector((state) => state.dashboard);
   
+  // Helper to filter entities by date range for accurate count
+  const getEntityTimestamp = (entity: Entity): Date | null => {
+    const ts = (entity.lastRefreshed as any) || (entity.updatedAt as any) || (entity.createdAt as any) || null;
+    if (!ts) return null;
+    return ts instanceof Date ? ts : new Date(ts);
+  };
+  
+  const isWithinDateRange = (entity: Entity, startDate: Date, endDate: Date): boolean => {
+    const ts = getEntityTimestamp(entity);
+    if (!ts) return false;
+    return ts >= startDate && ts <= endDate;
+  };
+  
   // DEBUG: Log Redux store data
   console.log('[DEBUG] Dashboard Redux State:', {
     metrics,
@@ -617,11 +630,35 @@ const Summary = () => {
                 {[
                   { 
                     title: "Entities Monitored", 
-                    value: hasRangeData ? (metrics?.entitiesCount || 0) : 0, 
+                    value: (() => {
+                      // Always compute from visible entities filtered by date range
+                      const visibleEntities = entities.filter((entity: Entity) => {
+                        // Filter by active status and selected tenant
+                        if (!entity.is_active) return false;
+                        if (selectedTenant && entity.tenant_name !== selectedTenant.name) return false;
+                        // Filter by date range
+                        return isWithinDateRange(entity, summaryDateRange.startDate, summaryDateRange.endDate);
+                      });
+                      return visibleEntities.length;
+                    })(), 
                     suffix: "",
                     loading: metricsLoading && !lastFetchFailed,
-                    showDataUnavailable: !metricsLoading && !hasRangeData,
-                    subtitle: hasRangeData && metrics ? `${tables.length} Tables • ${dags.length} DAGs` : ""
+                    showDataUnavailable: false, // Never show unavailable - always show actual count
+                    subtitle: (() => {
+                      const visibleTables = entities.filter((entity: Entity) => 
+                        entity.type === 'table' && 
+                        entity.is_active &&
+                        (!selectedTenant || entity.tenant_name === selectedTenant.name) &&
+                        isWithinDateRange(entity, summaryDateRange.startDate, summaryDateRange.endDate)
+                      );
+                      const visibleDags = entities.filter((entity: Entity) => 
+                        entity.type === 'dag' && 
+                        entity.is_active &&
+                        (!selectedTenant || entity.tenant_name === selectedTenant.name) &&
+                        isWithinDateRange(entity, summaryDateRange.startDate, summaryDateRange.endDate)
+                      );
+                      return `${visibleTables.length} Tables • ${visibleDags.length} DAGs`;
+                    })()
                   }
                 ].map((card, idx) => (
                   <Box key={card.title} flex="1 1 250px" minWidth="250px">
