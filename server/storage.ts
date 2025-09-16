@@ -968,6 +968,16 @@ export class MemStorage implements IStorage {
     return updatedTeam;
   }
 
+  async updateEntitiesTeamName(teamId: number, newTeamName: string): Promise<void> {
+    await this.ensureInitialized();
+    // Update team_name on all entities belonging to this team
+    this.entities.forEach((entity, entityId) => {
+      if (entity.teamId === teamId) {
+        this.entities.set(entityId, { ...entity, team_name: newTeamName });
+      }
+    });
+  }
+
   async updateTeamMembers(teamName: string, memberData: any, oauthContext: any): Promise<Team | undefined> {
     const team = await this.getTeamByName(teamName);
     if (!team) return undefined;

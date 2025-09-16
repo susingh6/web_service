@@ -565,9 +565,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updateData = validationResult.data;
 
       // Update team
+      const beforeTeam = await storage.getTeam(teamId);
       const updatedTeam = await storage.updateTeam(teamId, updateData);
       if (!updatedTeam) {
         return res.status(404).json(createErrorResponse("Team not found", "not_found"));
+      }
+
+      // If team name changed, propagate to entities so fallback metrics (and Redis keys) match new name
+      if (updateData.name && beforeTeam && updateData.name !== beforeTeam.name) {
+        await storage.updateEntitiesTeamName(teamId, updateData.name);
+        // Invalidate team metrics/trends caches for both old and new names to avoid stale misses
+        await redisCache.invalidateTeamMetricsCache(beforeTeam.tenant_id ? String(beforeTeam.tenant_id) : 'UnknownTenant', beforeTeam.name);
+        await redisCache.invalidateTeamMetricsCache(beforeTeam.tenant_id ? String(beforeTeam.tenant_id) : 'UnknownTenant', updateData.name);
       }
 
       // Invalidate all team-related caches
@@ -612,9 +621,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updateData = validationResult.data;
 
       // Update team
+      const beforeTeam2 = await storage.getTeam(teamId);
       const updatedTeam = await storage.updateTeam(teamId, updateData);
       if (!updatedTeam) {
         return res.status(404).json(createErrorResponse("Team not found", "not_found"));
+      }
+
+      // If team name changed, propagate to entities so fallback metrics (and Redis keys) match new name
+      if (updateData.name && beforeTeam2 && updateData.name !== beforeTeam2.name) {
+        await storage.updateEntitiesTeamName(teamId, updateData.name);
+        await redisCache.invalidateTeamMetricsCache(beforeTeam2.tenant_id ? String(beforeTeam2.tenant_id) : 'UnknownTenant', beforeTeam2.name);
+        await redisCache.invalidateTeamMetricsCache(beforeTeam2.tenant_id ? String(beforeTeam2.tenant_id) : 'UnknownTenant', updateData.name);
       }
 
       // Invalidate all team-related caches
@@ -2789,6 +2806,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ changes });
     } catch (error) {
       console.error('Settings changes error:', error);
+      res.status(500).json({ message: 'Failed to fetch settings changes' });
+    }
+  });
+
+  // --- FastAPI-style aliases for the above endpoints (client expects /api/v1 prefix) ---
+  app.get('/api/v1/teams/:teamName/:entityType/:entityName/owner_sla_settings', async (req: Request, res: Response) => {
+    try {
+      // Reuse same logic by delegating to the non-v1 route
+      const { teamName, entityType, entityName } = req.params;
+      req.url = `/api/teams/${teamName}/${entityType}/${entityName}/owner_sla_settings`;
+      // Manually invoke the handler by performing an internal redirect
+      res.redirect(307, req.url);
+    } catch (error) {
+      console.error('Owner SLA settings v1 alias error:', error);
+      res.status(500).json({ message: 'Failed to fetch owner and SLA settings' });
+    }
+  });
+
+  app.get('/api/v1/teams/:teamName/:entityType/:entityName/sla_status_30days', async (req: Request, res: Response) => {
+    try {
+      const { teamName, entityType, entityName } = req.params;
+      req.url = `/api/teams/${teamName}/${entityType}/${entityName}/sla_status_30days`;
+      res.redirect(307, req.url);
+    } catch (error) {
+      console.error('SLA status 30 days v1 alias error:', error);
+      res.status(500).json({ message: 'Failed to fetch SLA status data' });
+    }
+  });
+
+  app.get('/api/v1/teams/:teamName/:entityType/:entityName/settings_changes', async (req: Request, res: Response) => {
+    try {
+      const { teamName, entityType, entityName } = req.params;
+      req.url = `/api/teams/${teamName}/${entityType}/${entityName}/settings_changes`;
+      res.redirect(307, req.url);
+    } catch (error) {
+      console.error('Settings changes v1 alias error:', error);
       res.status(500).json({ message: 'Failed to fetch settings changes' });
     }
   });
