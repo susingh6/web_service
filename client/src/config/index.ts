@@ -52,6 +52,7 @@ interface ApiConfig {
       ownerAndSlaSettings: (entityType: string, teamName: string, entityName: string) => string;
       slaStatusHistory: (entityType: string, teamName: string, entityName: string) => string;
       recentSettingsChanges: (entityType: string, teamName: string, entityName: string) => string;
+      updateOwner: (entityId: number) => string;
     };
     tasks: {
       byDag: (dagId: number) => string;

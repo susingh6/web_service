@@ -24,6 +24,7 @@ import {
   TableHead,
   TableRow,
   TextField,
+  Autocomplete,
 } from '@mui/material';
 import {
   Close as CloseIcon,
@@ -102,6 +103,9 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
   const [isEditingOwner, setIsEditingOwner] = useState(false);
   const [ownerEmailInput, setOwnerEmailInput] = useState('');
   const [isUpdatingOwner, setIsUpdatingOwner] = useState(false);
+  const [availableUsers, setAvailableUsers] = useState<any[]>([]);
+  const [selectedOwnerEmails, setSelectedOwnerEmails] = useState<string[]>([]);
+  const [localOwnerEmails, setLocalOwnerEmails] = useState<string[] | null>(null);
   
   // State for rollback functionality
   const [rollbackConfirmOpen, setRollbackConfirmOpen] = useState(false);
@@ -146,15 +150,19 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
     
     setIsUpdatingOwner(true);
     try {
+      const ownersArray = selectedOwnerEmails.length > 0
+        ? selectedOwnerEmails
+        : ownerEmailInput.split(',').map(e => e.trim()).filter(e => e.length > 0);
+
       const payload = {
         user_email: userEmail,
         team_name: teamName,
         tenant_name: entity.tenant_name || 'Data Engineering',
-        owner_email: ownerEmailInput,
-      };
+        owners: ownersArray,
+      } as any;
       
-      // Make PATCH request to update owner
-      const response = await apiRequest('PATCH', buildUrl(`/api/entities/${entity.id}/owner`), payload);
+      // Make PATCH request to update owner (centralized endpoint)
+      const response = await apiRequest('PATCH', buildUrl(endpoints.entity.updateOwner, entity.id), payload);
       
       if (response.ok) {
         toast({
@@ -163,12 +171,25 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
           variant: 'default',
         });
         
-        // Refresh the owner data
-        queryClient.invalidateQueries({ queryKey: ['ownerSlaSettings', entity?.type, teamName, entity?.name] });
+        // Optimistically reflect owner change for this modal's cache key
+        const detailsKey = cacheKeys.entityDetails(entity.id, `ownerSlaSettings-${entity.type}-${teamName}-${entity.name}`);
+        const normalized = ownersArray.join(',');
+        queryClient.setQueryData(detailsKey as any, (old: any) => ({
+          ...(old || {}),
+          owner: normalized,
+          ownerEmail: normalized,
+          owner_email: normalized,
+        }));
+        // Immediate local visibility (even if refetch races)
+        setLocalOwnerEmails(ownersArray);
+        // Invalidate and refetch the exact key to ensure consistency
+        await queryClient.invalidateQueries({ queryKey: detailsKey as any });
+        await queryClient.refetchQueries({ queryKey: detailsKey as any });
         
         // Reset edit state
         setIsEditingOwner(false);
         setOwnerEmailInput('');
+        setSelectedOwnerEmails([]);
       } else {
         throw new Error('Failed to update owner');
       }
@@ -185,7 +206,7 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
   };
   
   // Handle starting edit mode
-  const startEditingOwner = () => {
+  const startEditingOwner = async () => {
     // Try multiple possible field names for owner email
     const currentOwnerEmail = ownerSlaSettings?.ownerEmail || 
                              ownerSlaSettings?.owner_email || 
@@ -194,6 +215,27 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
     console.log('Owner SLA Settings:', ownerSlaSettings);
     console.log('Setting owner email input to:', currentOwnerEmail);
     setOwnerEmailInput(currentOwnerEmail);
+    const initial = (currentOwnerEmail || '')
+      .split(',')
+      .map((e: string) => e.trim())
+      .filter((e: string) => e.length > 0);
+    setSelectedOwnerEmails(initial);
+    try {
+      const headers: Record<string, string> = {};
+      const sessionId = localStorage.getItem('fastapi_session_id');
+      if (sessionId) headers['X-Session-ID'] = sessionId;
+      const res = await fetch('/api/admin/users', { headers, credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        setAvailableUsers(Array.isArray(data) ? data : []);
+      } else {
+        const fallback = await fetch('/api/v1/get_user', { headers, credentials: 'include' });
+        const data = await fallback.json();
+        setAvailableUsers(Array.isArray(data) ? data : []);
+      }
+    } catch (_err) {
+      setAvailableUsers([]);
+    }
     setIsEditingOwner(true);
   };
   
@@ -316,23 +358,64 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
         const response = await apiRequest('GET', endpoints.entity.ownerAndSlaSettings(entity.type, teamName, entity.name));
         return response.json();
       } catch (error) {
-        console.warn('Owner/SLA settings API not available, using fallback data');
-        // Fallback to mock data structure
-        return {
-          owner: entity.owner || 'Unknown Owner',
-          ownerEmail: 'owner@company.com',
-          userEmail: 'user@company.com',
-          entityName: entity.name,
-          team: teamName,
-          description: entity.description || `${entity.type} entity for data processing`,
-          schedule: entity.dag_schedule || entity.table_schedule || '0 2 * * *',
-          expectedRuntime: entity.expected_runtime_minutes || 45,
-          donemarkerLocation: entity.donemarker_location || `s3://analytics-${entity.type}s/${entity.name}/`,
-          donemarkerLookback: entity.donemarker_lookback || 2,
-          dependency: entity.dag_dependency || entity.table_dependency || 'upstream_dependencies',
-          isActive: entity.is_active !== undefined ? entity.is_active : true,
-          ...(entity.type === 'dag' && { serverName: 'airflow-prod-01' }),
-        };
+        console.warn('Owner/SLA settings API not available, using fallback data sourced from Admin Users');
+        // Fallback: build from Admin Users dataset for consistency
+        try {
+          const headers: Record<string, string> = {};
+          const sessionId = localStorage.getItem('fastapi_session_id');
+          if (sessionId) headers['X-Session-ID'] = sessionId;
+          const res = await fetch('/api/admin/users', { headers, credentials: 'include' });
+          const users = res.ok ? await res.json() : [];
+          const ownerUser = Array.isArray(users) && users.length > 0 ? users[0] : null;
+          const secondaryUser = Array.isArray(users) && users.length > 1 ? users[1] : ownerUser;
+
+          // Derive friendly owner name from admin user entry
+          const ownerName = ownerUser?.user_name || ownerUser?.displayName || entity.owner || 'Unknown Owner';
+          const ownerEmail = ownerUser?.user_email || ownerUser?.email || entity.ownerEmail || entity.owner_email || 'owner@company.com';
+          // Prefer logged-in user's email for userEmail if available
+          let fallbackUserEmail = ownerEmail;
+          try {
+            const userData = localStorage.getItem('fastapi_user');
+            if (userData) {
+              const parsed = JSON.parse(userData);
+              fallbackUserEmail = parsed?.email || fallbackUserEmail;
+            }
+          } catch {}
+          const userEmail = fallbackUserEmail || secondaryUser?.user_email || 'user@company.com';
+
+          return {
+            owner: ownerName,
+            ownerEmail,
+            userEmail,
+            entityName: entity.name,
+            team: teamName,
+            description: entity.description || `${entity.type} entity for data processing`,
+            schedule: entity.dag_schedule || entity.table_schedule || '0 2 * * *',
+            expectedRuntime: entity.expected_runtime_minutes || 45,
+            donemarkerLocation: entity.donemarker_location || `s3://analytics-${entity.type}s/${entity.name}/`,
+            donemarkerLookback: entity.donemarker_lookback || 2,
+            dependency: entity.dag_dependency || entity.table_dependency || 'upstream_dependencies',
+            isActive: entity.is_active !== undefined ? entity.is_active : true,
+            ...(entity.type === 'dag' && { serverName: 'airflow-prod-01' }),
+          };
+        } catch {
+          // Final fallback (should be rare)
+          return {
+            owner: entity.owner || 'Unknown Owner',
+            ownerEmail: entity.ownerEmail || entity.owner_email || 'owner@company.com',
+            userEmail: 'user@company.com',
+            entityName: entity.name,
+            team: teamName,
+            description: entity.description || `${entity.type} entity for data processing`,
+            schedule: entity.dag_schedule || entity.table_schedule || '0 2 * * *',
+            expectedRuntime: entity.expected_runtime_minutes || 45,
+            donemarkerLocation: entity.donemarker_location || `s3://analytics-${entity.type}s/${entity.name}/`,
+            donemarkerLookback: entity.donemarker_lookback || 2,
+            dependency: entity.dag_dependency || entity.table_dependency || 'upstream_dependencies',
+            isActive: entity.is_active !== undefined ? entity.is_active : true,
+            ...(entity.type === 'dag' && { serverName: 'airflow-prod-01' }),
+          };
+        }
       }
     },
     enabled: open && !!entity && !!teamName,
@@ -450,6 +533,17 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
     return names[0].substring(0, 2).toUpperCase();
   };
   
+  // Helpers to normalize owner emails (supports comma-separated)
+  const normalizeOwnerEmails = (settings: any): string[] => {
+    if (localOwnerEmails) return localOwnerEmails;
+    const raw = settings?.ownerEmail || settings?.owner_email || entity.ownerEmail || entity.owner_email || '';
+    if (!raw) return [];
+    return String(raw)
+      .split(',')
+      .map((e: string) => e.trim())
+      .filter((e: string) => e.length > 0);
+  };
+  
   return (
     <>
       <Dialog
@@ -563,22 +657,30 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
                   </Box>
                 ) : isEditingOwner ? (
                   <Box sx={{ mt: 1 }}>
-                    <TextField
-                      fullWidth
-                      size="small"
-                      value={ownerEmailInput}
-                      onChange={(e) => setOwnerEmailInput(e.target.value)}
-                      placeholder="Enter comma-separated emails"
-                      disabled={isUpdatingOwner}
-                      helperText="Enter owner emails separated by commas"
-                      sx={{ mb: 1 }}
+                    <Autocomplete
+                      multiple
+                      options={availableUsers.map((u: any) => u.user_email || u.email).filter((e: string) => !!e)}
+                      filterSelectedOptions
+                      value={selectedOwnerEmails}
+                      onChange={(_e, newValue) => setSelectedOwnerEmails(newValue as string[])}
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          fullWidth
+                          size="small"
+                          placeholder="Select owner emails or type to add"
+                          disabled={isUpdatingOwner}
+                          helperText="Choose from users in the system"
+                          sx={{ mb: 1 }}
+                        />
+                      )}
                     />
                     <Box display="flex" gap={1}>
                       <Button
                         size="small"
                         variant="contained"
                         onClick={updateOwner}
-                        disabled={isUpdatingOwner || !ownerEmailInput.trim()}
+                        disabled={isUpdatingOwner || (selectedOwnerEmails.length === 0 && !ownerEmailInput.trim())}
                         startIcon={isUpdatingOwner ? <CircularProgress size={14} /> : <SaveIcon />}
                         sx={{ minWidth: 'auto', px: 1 }}
                       >
@@ -597,16 +699,18 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
                     </Box>
                   </Box>
                 ) : (
-                  <Box display="flex" alignItems="center" mt={1}>
-                    <Avatar sx={{ width: 24, height: 24, mr: 1, fontSize: '0.75rem' }}>
-                      {ownerSlaSettings?.owner ? 
-                        ownerSlaSettings.owner.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2) :
-                        getUserInitials()
+                  <Box display="flex" alignItems="center" mt={1} gap={0.5} flexWrap="wrap">
+                    {(() => {
+                      const emails = normalizeOwnerEmails(ownerSlaSettings);
+                      if (emails.length === 0) {
+                        return (
+                          <Typography variant="body2">{ownerSlaSettings?.owner || entity.owner || 'Unassigned'}</Typography>
+                        );
                       }
-                    </Avatar>
-                    <Typography variant="body2">
-                      {ownerSlaSettings?.owner || entity.owner || 'Unassigned'}
-                    </Typography>
+                      return emails.map((email: string) => (
+                        <Chip key={email} size="small" label={email} variant="outlined" />
+                      ));
+                    })()}
                   </Box>
                 )}
               </Paper>
@@ -671,8 +775,17 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
                       <TableCell>{ownerSlaSettings.owner || 'N/A'}</TableCell>
                     </TableRow>
                     <TableRow>
-                      <TableCell sx={{ fontWeight: 600 }}>Owner Email</TableCell>
-                      <TableCell>{ownerSlaSettings.ownerEmail || 'N/A'}</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Owner Emails</TableCell>
+                      <TableCell>
+                        <Box display="flex" gap={0.5} flexWrap="wrap">
+                          {(() => {
+                            const emails = normalizeOwnerEmails(ownerSlaSettings);
+                            return emails.length > 0 ? emails.map((email: string) => (
+                              <Chip key={email} size="small" label={email} variant="outlined" />
+                            )) : 'N/A';
+                          })()}
+                        </Box>
+                      </TableCell>
                     </TableRow>
                     <TableRow>
                       <TableCell sx={{ fontWeight: 600 }}>User Email</TableCell>
