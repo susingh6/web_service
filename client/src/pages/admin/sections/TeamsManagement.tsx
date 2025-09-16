@@ -352,8 +352,14 @@ const TeamFormDialog = ({ open, onClose, team, tenants, onSubmit }: TeamFormDial
               
               <Autocomplete
                 multiple
-                options={availableUsers}
+                options={availableUsers.filter((u: User) => !formData.team_members_ids.includes(u.user_name || u.user_email))}
                 getOptionLabel={(option) => typeof option === 'string' ? option : option.user_email}
+                isOptionEqualToValue={(option, value) =>
+                  typeof value === 'string'
+                    ? (option.user_email === value || option.user_name === value)
+                    : option.user_id === value.user_id
+                }
+                filterSelectedOptions
                 value={formData.team_members_ids.map(getUserEmailByName)}
                 onChange={(event, newValue) => {
                   const newNames = newValue.map(val => 
@@ -801,7 +807,7 @@ const TeamsManagement = () => {
         variant: 'destructive' 
       });
     },
-    onSuccess: (_res, { teamId, teamData }, ctx) => {
+    onSuccess: async (_res, { teamId, teamData }, ctx) => {
       // WebSocket broadcasting for team member changes
       if (teamData.hasOwnProperty('team_members_ids') && ctx?.originalTeam) {
         const originalMembers = ctx.originalTeam.team_members_ids || [];
@@ -868,6 +874,16 @@ const TeamsManagement = () => {
           console.log('📡 Broadcasting member removal:', teamMemberEvent);
           sendMessage(teamMemberEvent);
         });
+
+        // CRITICAL: Immediately invalidate and refetch Team Dashboard teamMembers cache
+        // so counts and chips update without a manual refresh or waiting for WS
+        try {
+          // Invalidate Team Dashboard members cache keyed by tenant and team id
+          await queryClient.invalidateQueries({ queryKey: ['teamMembers', tenantName, teamId] });
+          await queryClient.refetchQueries({ queryKey: ['teamMembers', tenantName, teamId] });
+        } catch (_err) {
+          // Swallow errors; real-time WS or next navigation will recover
+        }
       }
       
       // Create specific success message based on what was updated
