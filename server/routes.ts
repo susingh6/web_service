@@ -450,7 +450,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json(createErrorResponse("Tenant not found", "not_found"));
       }
 
-      // Invalidate both tenant and team caches since tenant status changes can affect teams
+      // If tenant name changed, propagate to entities so fallback metrics filter by new name
+      const beforeTenants = await redisCache.getAllTenants();
+      const beforeTenant = beforeTenants.find((t: any) => t.id === tenantId);
+      if (updateData.name && beforeTenant && updateData.name !== beforeTenant.name) {
+        await storage.updateEntitiesTenantName(tenantId, updateData.name);
+      }
+
+      // Invalidate both tenant and team caches since tenant status/name changes can affect teams
       await redisCache.invalidateTenants();
       await redisCache.invalidateCache({
         keys: ['all_teams', 'teams_summary'],
@@ -461,7 +468,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           'team_trends:*',
           'dashboard_summary:*'
         ],
-        mainCacheKeys: ['TEAMS'],
+        // Rebuild TEAMS and METRICS so summaries for the new tenant name are immediately available
+        mainCacheKeys: ['TEAMS', 'METRICS'],
         refreshAffectedData: true
       });
 

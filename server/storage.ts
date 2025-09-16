@@ -978,6 +978,22 @@ export class MemStorage implements IStorage {
     });
   }
 
+  async updateEntitiesTenantName(tenantId: number, newTenantName: string): Promise<void> {
+    await this.ensureInitialized();
+    // Update tenant_name on all entities whose team belongs to this tenant
+    const affectedTeamIds = Array.from(this.teams.values())
+      .filter(team => team.tenant_id === tenantId)
+      .map(team => team.id);
+
+    if (affectedTeamIds.length === 0) return;
+
+    this.entities.forEach((entity, entityId) => {
+      if (affectedTeamIds.includes(entity.teamId as number)) {
+        this.entities.set(entityId, { ...entity, tenant_name: newTenantName });
+      }
+    });
+  }
+
   async updateTeamMembers(teamName: string, memberData: any, oauthContext: any): Promise<Team | undefined> {
     const team = await this.getTeamByName(teamName);
     if (!team) return undefined;

@@ -31,7 +31,7 @@ import {
   Groups as TeamsIcon
 } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { invalidateAdminCaches } from '@/lib/cacheKeys';
+import { cacheKeys, invalidateAdminCaches } from '@/lib/cacheKeys';
 import { useToast } from '@/hooks/use-toast';
 import { buildUrl, endpoints } from '@/config';
 import { tenantsApi } from '@/features/sla/api';
@@ -217,8 +217,23 @@ const TenantsManagement = () => {
     onError: (_err, _vars, _ctx) => {
       toast({ title: 'Update Failed', description: 'Failed to update tenant. Please try again.', variant: 'destructive' });
     },
-    onSuccess: () => {
+    onSuccess: async (_res, { tenantId, tenantData }, _ctx) => {
       toast({ title: 'Tenant Updated', description: 'Tenant has been successfully updated.' });
+
+      // If tenant name changed, proactively refresh dashboards and filters
+      if (tenantData?.name) {
+        try {
+          // Invalidate tenant lists used by Summary filters
+          await queryClient.invalidateQueries({ queryKey: ['/api/tenants'] });
+          await queryClient.invalidateQueries({ queryKey: ['/api/v1/tenants'] });
+          // Broadly invalidate dashboard summaries to avoid stale tenant-keyed cache
+          await queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
+          // Emit global event so Summary/Team dashboards can refetch immediately
+          window.dispatchEvent(new CustomEvent('admin-tenants-updated', {
+            detail: { tenantId, newName: tenantData.name }
+          }));
+        } catch {}
+      }
     },
     onSettled: async () => {
       // CRITICAL: Invalidate the exact query key used by this component first

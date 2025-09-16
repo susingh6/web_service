@@ -255,13 +255,35 @@ const Summary = () => {
     onDisconnect: () => {}
   });
 
-  // Initialize selected tenant when tenants data loads
+  // Reconcile selected tenant whenever tenants list changes (handles rename and defaults)
   useEffect(() => {
-    if (tenants.length > 0 && !selectedTenant) {
-      // Set default tenant to Data Engineering or first available
-      const defaultTenant = tenants.find(t => t.name === 'Data Engineering') || tenants[0];
-      setSelectedTenant(defaultTenant);
+    if (!tenants || tenants.length === 0) return;
+
+    if (!selectedTenant) {
+      // No selection yet → choose first available (remove hardcoded defaults)
+      setSelectedTenant(tenants[0]);
+      return;
     }
+
+    // Try match by id first (stable across renames)
+    const matchById = tenants.find((t: any) => t.id === (selectedTenant as any).id);
+    if (matchById) {
+      // If the name changed, update selection to keep Select value in sync
+      if (matchById.name !== selectedTenant.name) {
+        setSelectedTenant(matchById);
+      }
+      return;
+    }
+
+    // Fallback: match by name if id not found
+    const matchByName = tenants.find((t: any) => t.name === selectedTenant.name);
+    if (matchByName) {
+      setSelectedTenant(matchByName);
+      return;
+    }
+
+    // As a last resort, select first tenant to avoid blank filter
+    setSelectedTenant(tenants[0]);
   }, [tenants, selectedTenant]);
 
   // Fetch dashboard data when tenant or date range changes
@@ -317,8 +339,42 @@ const Summary = () => {
     };
     
     window.addEventListener('dashboard-data-updated', handleDashboardDataUpdate);
-    return () => window.removeEventListener('dashboard-data-updated', handleDashboardDataUpdate);
+    // When tenant is renamed in Admin, immediately normalize selection and refetch
+    const pendingRenameRef: any = { current: null };
+    const handleAdminTenantsUpdated = (e: any) => {
+      const detail = e?.detail || {};
+      pendingRenameRef.current = detail;
+      // If the currently selected tenant matches the renamed ID, update the label immediately
+      if (selectedTenant && detail?.tenantId === selectedTenant.id && detail?.newName) {
+        setSelectedTenant({ ...(selectedTenant as any), name: detail.newName } as any);
+      }
+      // Invalidate tenant lists and summaries
+      queryClient.invalidateQueries({ queryKey: ['/api/tenants'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/v1/tenants'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
+      handleDashboardDataUpdate();
+    };
+    window.addEventListener('admin-tenants-updated', handleAdminTenantsUpdated);
+    return () => {
+      window.removeEventListener('dashboard-data-updated', handleDashboardDataUpdate);
+      window.removeEventListener('admin-tenants-updated', handleAdminTenantsUpdated);
+    };
   }, [dispatch, selectedTenant, summaryDateRange]);
+
+  // Finalize selection when refreshed tenants arrive after rename
+  useEffect(() => {
+    const listener = (e: any) => {
+      const detail = e?.detail || {};
+      if (detail?.tenantId || detail?.newName) {
+        const match = tenants.find((t: any) => t.id === detail.tenantId) || tenants.find((t: any) => t.name === detail.newName);
+        if (match) {
+          setSelectedTenant(match);
+        }
+      }
+    };
+    window.addEventListener('admin-tenants-updated', listener);
+    return () => window.removeEventListener('admin-tenants-updated', listener);
+  }, [tenants]);
 
   // Filter entities based on tab and tenant - only show active entity owners
   const filterEntitiesByTenant = (entities: Entity[]) => {
