@@ -123,6 +123,19 @@ const TeamDashboard = ({
     }
   }, [teams, dispatch]);
 
+  // Listen for admin panel team updates (rename/member changes) and refresh members immediately
+  useEffect(() => {
+    const handler = (e: any) => {
+      const detail = e?.detail || {};
+      if (!team?.id) return;
+      // Always refresh team members for current team when admin updates fire
+      queryClient.invalidateQueries({ queryKey: cacheKeys.teamMembers(tenantName, team?.id) });
+      queryClient.refetchQueries({ queryKey: cacheKeys.teamMembers(tenantName, team?.id) });
+    };
+    window.addEventListener('admin-teams-updated', handler);
+    return () => window.removeEventListener('admin-teams-updated', handler);
+  }, [tenantName, team?.id, queryClient]);
+
   // Fetch data when team is found
   // Use React Query for team entities so cache invalidation works
   const { data: teamEntitiesFromQuery = [], isLoading: isLoadingTeamEntities } = useQuery({

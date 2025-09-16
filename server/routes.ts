@@ -574,6 +574,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // If team name changed, propagate to entities so fallback metrics (and Redis keys) match new name
       if (updateData.name && beforeTeam && updateData.name !== beforeTeam.name) {
         await storage.updateEntitiesTeamName(teamId, updateData.name);
+        // Invalidate team members/details caches for both old and new names
+        await redisCache.invalidateTeamData(beforeTeam.name);
+        await redisCache.invalidateTeamData(updateData.name);
         // Invalidate team metrics/trends caches for both old and new names to avoid stale misses
         await redisCache.invalidateTeamMetricsCache(beforeTeam.tenant_id ? String(beforeTeam.tenant_id) : 'UnknownTenant', beforeTeam.name);
         await redisCache.invalidateTeamMetricsCache(beforeTeam.tenant_id ? String(beforeTeam.tenant_id) : 'UnknownTenant', updateData.name);
@@ -630,6 +633,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // If team name changed, propagate to entities so fallback metrics (and Redis keys) match new name
       if (updateData.name && beforeTeam2 && updateData.name !== beforeTeam2.name) {
         await storage.updateEntitiesTeamName(teamId, updateData.name);
+        await redisCache.invalidateTeamData(beforeTeam2.name);
+        await redisCache.invalidateTeamData(updateData.name);
         await redisCache.invalidateTeamMetricsCache(beforeTeam2.tenant_id ? String(beforeTeam2.tenant_id) : 'UnknownTenant', beforeTeam2.name);
         await redisCache.invalidateTeamMetricsCache(beforeTeam2.tenant_id ? String(beforeTeam2.tenant_id) : 'UnknownTenant', updateData.name);
       }

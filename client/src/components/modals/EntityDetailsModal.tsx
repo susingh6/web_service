@@ -400,21 +400,21 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
           };
         } catch {
           // Final fallback (should be rare)
-          return {
-            owner: entity.owner || 'Unknown Owner',
+        return {
+          owner: entity.owner || 'Unknown Owner',
             ownerEmail: entity.ownerEmail || entity.owner_email || 'owner@company.com',
-            userEmail: 'user@company.com',
-            entityName: entity.name,
-            team: teamName,
-            description: entity.description || `${entity.type} entity for data processing`,
-            schedule: entity.dag_schedule || entity.table_schedule || '0 2 * * *',
-            expectedRuntime: entity.expected_runtime_minutes || 45,
-            donemarkerLocation: entity.donemarker_location || `s3://analytics-${entity.type}s/${entity.name}/`,
-            donemarkerLookback: entity.donemarker_lookback || 2,
-            dependency: entity.dag_dependency || entity.table_dependency || 'upstream_dependencies',
-            isActive: entity.is_active !== undefined ? entity.is_active : true,
-            ...(entity.type === 'dag' && { serverName: 'airflow-prod-01' }),
-          };
+          userEmail: 'user@company.com',
+          entityName: entity.name,
+          team: teamName,
+          description: entity.description || `${entity.type} entity for data processing`,
+          schedule: entity.dag_schedule || entity.table_schedule || '0 2 * * *',
+          expectedRuntime: entity.expected_runtime_minutes || 45,
+          donemarkerLocation: entity.donemarker_location || `s3://analytics-${entity.type}s/${entity.name}/`,
+          donemarkerLookback: entity.donemarker_lookback || 2,
+          dependency: entity.dag_dependency || entity.table_dependency || 'upstream_dependencies',
+          isActive: entity.is_active !== undefined ? entity.is_active : true,
+          ...(entity.type === 'dag' && { serverName: 'airflow-prod-01' }),
+        };
         }
       }
     },
@@ -664,14 +664,14 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
                       value={selectedOwnerEmails}
                       onChange={(_e, newValue) => setSelectedOwnerEmails(newValue as string[])}
                       renderInput={(params) => (
-                        <TextField
+                    <TextField
                           {...params}
-                          fullWidth
-                          size="small"
+                      fullWidth
+                      size="small"
                           placeholder="Select owner emails or type to add"
-                          disabled={isUpdatingOwner}
+                      disabled={isUpdatingOwner}
                           helperText="Choose from users in the system"
-                          sx={{ mb: 1 }}
+                      sx={{ mb: 1 }}
                         />
                       )}
                     />

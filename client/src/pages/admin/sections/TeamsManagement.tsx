@@ -41,7 +41,7 @@ import {
   Clear as ClearIcon
 } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { invalidateAdminCaches } from '@/lib/cacheKeys';
+import { cacheKeys, invalidateAdminCaches } from '@/lib/cacheKeys';
 import { useToast } from '@/hooks/use-toast';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { buildUrl, endpoints } from '@/config';
@@ -918,6 +918,43 @@ const TeamsManagement = () => {
         title: 'Team Updated', 
         description: successMessage 
       });
+
+      // If team name changed, proactively invalidate TeamDashboard teamMembers cache
+      if (ctx?.originalTeam && teamData?.name && teamData.name !== ctx.originalTeam.name) {
+        const tenantName = tenantNameMap.get(ctx.originalTeam.tenant_id) || 'Unknown';
+        try {
+          const key = cacheKeys.teamMembers(tenantName as string, teamId as number);
+          await queryClient.invalidateQueries({ queryKey: key });
+          await queryClient.refetchQueries({ queryKey: key });
+        } catch {}
+
+        // Also emit a global event so any mounted dashboards can refresh Redux teams/list
+        try {
+          window.dispatchEvent(new CustomEvent('admin-teams-updated', {
+            detail: { teamId, oldName: ctx.originalTeam.name, newName: teamData.name, tenantName }
+          }));
+        } catch {}
+
+        // Broadcast over WebSocket to match member updates flow
+        try {
+          const wsEvent = {
+            type: 'team-change',
+            event: 'team-members-updated',
+            data: {
+              type: 'team-renamed',
+              teamId,
+              tenantName,
+              oldName: ctx.originalTeam.name,
+              newName: teamData.name,
+              version: Date.now(),
+              ts: Date.now(),
+              updatedAt: new Date().toISOString(),
+              originUserId: sessionId || 'admin'
+            }
+          };
+          sendMessage(wsEvent);
+        } catch {}
+      }
     },
     onSettled: async () => {
       // Comprehensive cache invalidation
