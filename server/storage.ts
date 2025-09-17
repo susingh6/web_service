@@ -458,6 +458,7 @@ export class MemStorage implements IStorage {
         name: 'brightscript_sla_pgm',
         type: 'table',
         teamId: 1, // PGM
+        team_name: 'PGM',
         description: 'Brightscript SLA monitoring for PGM team',
         slaTarget: 95.0,
         currentSla: 98.5,
@@ -475,6 +476,7 @@ export class MemStorage implements IStorage {
         name: 'brightscript_sla_core',
         type: 'table', 
         teamId: 2, // Core
+        team_name: 'Core',
         description: 'Brightscript SLA monitoring for Core team',
         slaTarget: 92.0,
         currentSla: 96.2,
@@ -492,6 +494,7 @@ export class MemStorage implements IStorage {
         name: 'accounts_channel_ux_vp',
         type: 'table',
         teamId: 3, // Viewer Product
+        team_name: 'Viewer Product',
         description: 'Accounts channel UX monitoring for Viewer Product team',
         slaTarget: 90.0,
         currentSla: 88.7,
@@ -509,6 +512,7 @@ export class MemStorage implements IStorage {
         name: 'channel_analytics_iot',
         type: 'table',
         teamId: 4, // IOT
+        team_name: 'IOT',
         description: 'Channel analytics for IOT devices',
         slaTarget: 93.0,
         currentSla: 94.1,
@@ -526,6 +530,7 @@ export class MemStorage implements IStorage {
         name: 'subscription_metrics_cdm',
         type: 'table',
         teamId: 5, // CDM
+        team_name: 'CDM',
         description: 'Subscription metrics for CDM team',
         slaTarget: 97.0,
         currentSla: null,
@@ -544,6 +549,7 @@ export class MemStorage implements IStorage {
         name: 'user_engagement_metrics_core',
         type: 'table',
         teamId: 2, // Core
+        team_name: 'Core',
         description: 'User engagement analytics for Core team',
         slaTarget: 95.0,
         currentSla: 97.2,
@@ -561,6 +567,7 @@ export class MemStorage implements IStorage {
         name: 'device_telemetry_iot',
         type: 'table',
         teamId: 4, // IOT
+        team_name: 'IOT',
         description: 'Device telemetry data for IOT team',
         slaTarget: 92.0,
         currentSla: 95.8,
@@ -578,6 +585,7 @@ export class MemStorage implements IStorage {
         name: 'revenue_analytics_cdm',
         type: 'table',
         teamId: 5, // CDM
+        team_name: 'CDM',
         description: 'Revenue analytics for CDM team',
         slaTarget: 98.0,
         currentSla: 99.1,
@@ -595,6 +603,7 @@ export class MemStorage implements IStorage {
         name: 'content_performance_vp',
         type: 'table',
         teamId: 3, // Viewer Product
+        team_name: 'Viewer Product',
         description: 'Content performance metrics for Viewer Product team',
         slaTarget: 93.0,
         currentSla: 91.5,
@@ -612,6 +621,7 @@ export class MemStorage implements IStorage {
         name: 'channel_optimization_pgm',
         type: 'table',
         teamId: 1, // PGM
+        team_name: 'PGM',
         description: 'Channel optimization data for PGM team',
         slaTarget: 94.0,
         currentSla: 96.7,
@@ -633,6 +643,7 @@ export class MemStorage implements IStorage {
         name: 'ad_performance_daily',
         type: 'table',
         teamId: 6, // Ad Serving team
+        team_name: 'Ad Serving',
         description: 'Daily ad performance metrics and analytics',
         slaTarget: 95.0,
         currentSla: 92.3,
@@ -650,6 +661,7 @@ export class MemStorage implements IStorage {
         name: 'campaign_optimization_dag',
         type: 'dag',
         teamId: 7, // Ad Data Activation team
+        team_name: 'Ad Data Activation',
         description: 'Daily campaign optimization and bidding adjustments',
         slaTarget: 88.0,
         currentSla: 89.5,
@@ -666,6 +678,7 @@ export class MemStorage implements IStorage {
         name: 'bid_optimization_table',
         type: 'table',
         teamId: 6, // Ad Serving team
+        team_name: 'Ad Serving',
         description: 'Real-time bid optimization analytics',
         slaTarget: 90.0,
         currentSla: 93.7,
@@ -683,6 +696,7 @@ export class MemStorage implements IStorage {
         name: 'audience_segmentation_dag',
         type: 'dag',
         teamId: 7, // Ad Data Activation team
+        team_name: 'Ad Data Activation',
         description: 'Audience segmentation and targeting pipeline',
         slaTarget: 92.0,
         currentSla: 94.2,

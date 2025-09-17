@@ -1625,11 +1625,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Enhanced entity details with comprehensive field structure
+      
       const entityDetails = {
         ...entity,
         // Common fields with sensible defaults based on entity type
         tenant_name: entity.tenant_name || (entity.type === 'table' ? 'Data Engineering' : 'Analytics'),
-        team_name: entity.team_name || 'PGM',
+        team_name: entity.team_name,
         notification_preferences: entity.notification_preferences || ['email', 'slack'],
         owner_email: entity.owner_email || 'john.smith@example.com',
         user_email: entity.user_email || 'john.smith@example.com',
