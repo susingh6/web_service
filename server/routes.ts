@@ -747,8 +747,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // The external FastAPI service MUST implement this exact endpoint with identical filtering logic:
   // 
   // GET /api/v1/entities?teamId={teamId}
-  // - Should filter out inactive entities: WHERE is_active != false
-  // - Should return all active entities for the team (both entity owners and non-owners)
+  // - Should return ALL entities for the team (both active and inactive entities)
+  // - Team dashboard should show all entities for visibility and management
   // - This is used by Team Dashboard for entity counts and tables
   //
   // GET /api/v1/entities?tenant={tenant} (Summary Dashboard)
@@ -764,14 +764,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let entities: Entity[];
       
       if (teamId) {
-        // Get all entities for specific team but exclude inactive entities
+        // Get all entities for specific team (including inactive entities for visibility)
         // IMPORTANT: FastAPI service should implement the same filtering logic
         const teamIdNum = parseInt(teamId as string);
         if (isNaN(teamIdNum)) {
           return res.status(400).json(createErrorResponse("Invalid team ID", "validation_error"));
         }
         const allTeamEntities = await storage.getEntitiesByTeam(teamIdNum);
-        entities = allTeamEntities.filter(entity => entity.is_active !== false); // Filter out inactive entities for team dashboard
+        entities = allTeamEntities; // Show ALL entities (active and inactive) for team visibility
         console.log(`GET /api/v1/entities - Parameters: teamId=${teamId} - status: 200`);
       } else if (type) {
         // Get entities by type

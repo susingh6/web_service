@@ -748,11 +748,10 @@ export class RedisCache {
       // Generate team-specific data for each team in the tenant
       const tenantTeams = teams.filter(t => t.tenant_id === tenant.id);
       for (const team of tenantTeams) {
-        // For team dashboard: get ALL active entities (not just entity owners)
+        // For team dashboard: get ALL entities (active and inactive for visibility)
         const allTeamEntities = entities.filter(e => 
           e.tenant_name === tenant.name && 
-          e.teamId === team.id && 
-          e.is_active !== false
+          e.teamId === team.id
         );
         
         if (allTeamEntities.length > 0) {
@@ -913,11 +912,10 @@ export class RedisCache {
       if (!allEntities || allEntities.length === 0) return null;
       
       // Filter entities by tenant and team for the date range
-      // For team dashboard: exclude inactive entities (is_active: false)
+      // For team dashboard: include ALL entities (active and inactive for visibility)
       const teamEntities = allEntities.filter(entity => 
         entity.tenant_name === tenantName && 
         entity.team_name === teamName &&
-        entity.is_active !== false && // Exclude inactive entities for team dashboard
         entity.lastRefreshed &&
         entity.lastRefreshed >= startDate &&
         entity.lastRefreshed <= endDate
