@@ -173,7 +173,7 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
           ...entity,
           // Mock comprehensive field structure based on entity type
           tenant_name: entity.tenant_name || (entityType === 'table' ? 'Data Engineering' : 'Analytics'),
-          team_name: entity.team_name || 'PGM',
+          team_name: entity.team_name || initialTeamName || '',
           notification_preferences: entity.notification_preferences || ['email', 'slack'],
           is_active: entity.is_active !== undefined ? entity.is_active : true,
           expected_runtime_minutes: entity.expected_runtime_minutes || (entityType === 'table' ? 30 : 45),
