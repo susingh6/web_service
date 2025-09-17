@@ -45,7 +45,7 @@ export const devConfig = {
       byTeam: (teamId: number) => `/api/v1/entities?teamId=${teamId}`,
       history: (entityId: number) => `/api/v1/entities/${entityId}/history`,
       issues: (entityId: number) => `/api/v1/entities/${entityId}/issues`,
-      details: (entityId: number) => `/api/v1/entities/${entityId}/details`,
+      details: (entityId: number) => `/api/entities/${entityId}/details`,
       tasks: (entityId: number) => `/api/v1/entities/${entityId}/tasks`,
       notificationTimelines: (entityId: number) => `/api/v1/entities/${entityId}/notification-timelines`,
       trends30Day: '/api/v1/entities/trends/30-day',

@@ -122,8 +122,6 @@ const Summary = () => {
     entitiesSample: entities?.slice(0, 2)
   });
   
-  // DEBUG: Log selectedTenant state
-  console.log('[DEBUG] selectedTenant:', selectedTenant?.name || 'null');
   const [teamDateRanges, setTeamDateRanges] = useState<Record<string, { startDate: Date; endDate: Date; label: string }>>({});
   const [summaryDateRange, setSummaryDateRange] = useState({
     startDate: startOfDay(subDays(new Date(), 29)),
