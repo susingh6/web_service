@@ -420,12 +420,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Tenants endpoints - use cache
   app.get("/api/tenants", async (req, res) => {
     try {
+      const { active_only } = req.query;
       const cacheKey = 'all_tenants';
       let tenants = await redisCache.get(cacheKey);
       
       if (!tenants) {
         tenants = await storage.getTenants();
         await redisCache.set(cacheKey, tenants, 6 * 60 * 60); // 6 hour cache
+      }
+
+      // Filter by active status if requested
+      if (active_only === 'true') {
+        tenants = tenants.filter((tenant: any) => tenant.isActive === true);
       }
 
       res.json(tenants);
@@ -437,12 +443,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // FastAPI fallback route for admin tenants endpoint - use cache with HTTP versioning
   app.get("/api/v1/tenants", async (req, res) => {
     try {
+      const { active_only } = req.query;
       const cacheKey = 'all_tenants';
       let tenants = await redisCache.get(cacheKey);
       
       if (!tenants) {
         tenants = await storage.getTenants();
         await redisCache.set(cacheKey, tenants, 6 * 60 * 60); // 6 hour cache
+      }
+
+      // Filter by active status if requested
+      if (active_only === 'true') {
+        tenants = tenants.filter((tenant: any) => tenant.isActive === true);
       }
 
       // Add HTTP caching headers with versioning to avoid 304 on stale data
