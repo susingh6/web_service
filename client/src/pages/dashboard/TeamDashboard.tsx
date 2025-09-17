@@ -156,8 +156,8 @@ const TeamDashboard = ({
   }, [teamEntitiesFromQuery]);
 
   // Filter entities for this team from local state (for backward compatibility)
-  // For team dashboard: exclude inactive entities (is_active: false) to match server logic
-  const activeTeamEntities = teamEntities.filter((entity) => entity.is_active !== false);
+  // For team dashboard: show ALL entities (active and inactive) for team visibility
+  const activeTeamEntities = teamEntities; // Show all entities, don't filter by is_active
 
   // Fetch tenant-level summary for this team's selected date range (scoped to component)
   const { data: teamSummaryData, isLoading: teamSummaryLoading, isError: teamSummaryError } = useQuery({

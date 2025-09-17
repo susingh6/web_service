@@ -6,7 +6,7 @@ export const cacheKeys = {
   entitiesByTenantAndTeam: (tenant: string, teamId?: number | null) => ['entities', tenant, teamId ?? null] as const,
   entityDetails: (id: number | string, version?: string | number | boolean) => ['entity-details', id, version ?? null] as const,
   dashboardSummary: (tenant: string, teamId?: number | null, start?: string, end?: string) =>
-    ['dashboardSummary', tenant, teamId ?? null, start ?? null, end ?? null] as const,
+    ['dashboardSummary', tenant, teamId === undefined ? 'global' : teamId, start ?? null, end ?? null] as const,
   teamMembers: (tenant: string, teamId?: number | null) => ['teamMembers', tenant, teamId ?? null] as const,
   adminTeams: () => ['/api/teams'] as const,
   adminTenants: () => ['/api/tenants'] as const,
@@ -23,7 +23,9 @@ export function invalidateEntityCaches(
   if (tenant) {
     queryClient.invalidateQueries({ queryKey: cacheKeys.entitiesByTenant(tenant) });
     queryClient.invalidateQueries({ queryKey: cacheKeys.entitiesByTenantAndTeam(tenant, teamId) });
-    queryClient.invalidateQueries({ queryKey: cacheKeys.dashboardSummary(tenant, teamId ?? null, startDate, endDate) });
+    // Invalidate both team-specific and global summaries
+    queryClient.invalidateQueries({ queryKey: cacheKeys.dashboardSummary(tenant, teamId, startDate, endDate) });
+    queryClient.invalidateQueries({ queryKey: cacheKeys.dashboardSummary(tenant, undefined, startDate, endDate) });
   }
   if (entityId !== undefined) {
     // Invalidate specific entity-details and all versioned variants
