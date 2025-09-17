@@ -129,6 +129,19 @@ export const devConfig = {
       },
     },
     
+    // Audit and rollback endpoints - FastAPI with Express fallbacks
+    audit: {
+      // FastAPI endpoints (primary)
+      getDeletedEntitiesByName: (entityName: string) => `/api/v1/audit/entity-name?entity_name=${entityName}`,
+      getDeletedEntitiesByTeamTenant: (tenantId: number, teamId: number) => `/api/v1/audit/team-tenant?tenant_id=${tenantId}&team_id=${teamId}`,
+      performRollback: '/api/v1/audit/rollback',
+      
+      // Express fallback endpoints
+      getDeletedEntitiesByNameFallback: (entityName: string) => `/api/audit/entity-name?entity_name=${entityName}`,
+      getDeletedEntitiesByTeamTenantFallback: (tenantId: number, teamId: number) => `/api/audit/team-tenant?tenant_id=${tenantId}&team_id=${teamId}`,
+      performRollbackFallback: '/api/audit/rollback',
+    },
+    
     // FastAPI backend endpoints
     fastapi: {
       baseUrl: 'http://localhost:8080',

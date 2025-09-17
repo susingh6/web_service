@@ -119,6 +119,13 @@ export const prodConfig = {
         update: (roleId: number) => `/api/v1/roles/${roleId}`,
       },
     },
+    
+    // Audit and rollback endpoints - FastAPI only
+    audit: {
+      getDeletedEntitiesByName: (entityName: string) => `/api/v1/audit/entity-name?entity_name=${entityName}`,
+      getDeletedEntitiesByTeamTenant: (tenantId: number, teamId: number) => `/api/v1/audit/team-tenant?tenant_id=${tenantId}&team_id=${teamId}`,
+      performRollback: '/api/v1/audit/rollback',
+    },
   },
 
   // Cache configuration

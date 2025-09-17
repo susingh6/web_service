@@ -195,6 +195,22 @@ export const apiClient = {
     getTeams: () =>
       apiRequest('GET', buildUrl(endpoints.debug.teams)),
   },
+
+  // Audit and rollback operations
+  audit: {
+    getDeletedEntitiesByName: (entityName: string) =>
+      apiRequest('GET', buildUrl(endpoints.audit.getDeletedEntitiesByName, entityName)),
+    
+    getDeletedEntitiesByTeamTenant: (tenantId: number, teamId: number) =>
+      apiRequest('GET', buildUrl(endpoints.audit.getDeletedEntitiesByTeamTenant, tenantId, teamId)),
+    
+    performRollback: (rollbackData: {
+      entityId: number;
+      targetTimestamp: string;
+      reason?: string;
+    }) =>
+      apiRequest('POST', buildUrl(endpoints.audit.performRollback), rollbackData),
+  },
 };
 
 /**

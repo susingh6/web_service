@@ -342,6 +342,30 @@ export const INVALIDATION_SCENARIOS = {
     ...CACHE_PATTERNS.TASKS.BY_DAG_AND_PRIORITY(dagId, oldPriority),
     ...CACHE_PATTERNS.TASKS.BY_DAG_AND_PRIORITY(dagId, newPriority),
   ],
+
+  // Rollback-specific cache invalidation patterns
+  ENTITY_ROLLBACK: (entityId: number, teamId: number, entityType: 'table' | 'dag') => [
+    ...CACHE_PATTERNS.ENTITIES.LIST,
+    ...CACHE_PATTERNS.ENTITIES.BY_TEAM(teamId),
+    ...CACHE_PATTERNS.ENTITIES.BY_TYPE(entityType),
+    ...CACHE_PATTERNS.ENTITIES.BY_TEAM_AND_TYPE(teamId, entityType),
+    ...CACHE_PATTERNS.ENTITIES.DETAILS(entityId),
+    ...CACHE_PATTERNS.ENTITIES.HISTORY(entityId),
+    ...CACHE_PATTERNS.DASHBOARD.SUMMARY(), // Invalidate summary cache for immediate count update
+  ],
+
+  AUDIT_ROLLBACK: (entityId: string, teamId: string, tenantId: string, entityType: 'table' | 'dag') => [
+    ...CACHE_PATTERNS.ENTITIES.LIST,
+    ...CACHE_PATTERNS.DASHBOARD.SUMMARY(), // Dashboard summary
+    [`/api/entities/${entityId}`], // Specific entity
+    [`/api/entities`, { teamId: parseInt(teamId) }], // Team entities
+    [`/api/entities`, { type: entityType }], // Type-specific entities
+    [`/api/audit`, { tenant_id: tenantId }], // Audit history
+    ['entities', tenantId], // Tenant entities (using cacheKeys pattern)
+    ['entities', tenantId, parseInt(teamId)], // Tenant + team entities
+    ['dashboardSummary', tenantId], // Dashboard summaries by tenant
+    ['dashboardSummary', tenantId, parseInt(teamId)], // Dashboard summaries by tenant + team
+  ],
 } as const;
 
 // Centralized cache management hook

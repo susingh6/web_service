@@ -4,7 +4,9 @@ import {
   entities, type Entity, type InsertEntity,
   entityHistory, type EntityHistory, type InsertEntityHistory,
   issues, type Issue, type InsertIssue,
-  notificationTimelines, type NotificationTimeline, type InsertNotificationTimeline
+  notificationTimelines, type NotificationTimeline, type InsertNotificationTimeline,
+  slaDagAudit, type SlaDagAudit, type InsertSlaDagAudit,
+  slaTableAudit, type SlaTableAudit, type InsertSlaTableAudit
 } from "@shared/schema";
 
 // Tenant interface for tenant management
@@ -66,6 +68,11 @@ export interface IStorage {
   createNotificationTimeline(timeline: InsertNotificationTimeline): Promise<NotificationTimeline>;
   updateNotificationTimeline(id: string, timeline: Partial<NotificationTimeline>): Promise<NotificationTimeline | undefined>;
   deleteNotificationTimeline(id: string): Promise<boolean>;
+  
+  // Audit operations for rollback management
+  getDeletedEntitiesByName(entityName: string): Promise<Array<{ id: string; entity_name: string; entity_type: 'dag' | 'table'; tenant_name: string; team_name: string; deleted_date: string; deleted_by: string; entity_id: string; tenant_id: string; team_id: string }>>;
+  getDeletedEntitiesByTeamTenant(tenantId: number, teamId: number): Promise<Array<{ id: string; entity_name: string; entity_type: 'dag' | 'table'; tenant_name: string; team_name: string; deleted_date: string; deleted_by: string; entity_id: string; tenant_id: string; team_id: string }>>;
+  performEntityRollback(auditId: string, entityType: 'dag' | 'table'): Promise<Entity | null>;
 }
 
 // In-memory storage implementation
@@ -77,6 +84,8 @@ export class MemStorage implements IStorage {
   private entityHistories: Map<number, EntityHistory[]>;
   private entityIssues: Map<number, Issue[]>;
   private notificationTimelines: Map<string, NotificationTimeline>;
+  private dagAudit: Map<number, SlaDagAudit>;
+  private tableAudit: Map<number, SlaTableAudit>;
   
   private userId: number;
   private teamId: number;
@@ -84,6 +93,8 @@ export class MemStorage implements IStorage {
   private entityId: number;
   private historyId: number;
   private issueId: number;
+  private dagAuditId: number;
+  private tableAuditId: number;
   
   private initializationPromise: Promise<void>;
 
@@ -95,6 +106,8 @@ export class MemStorage implements IStorage {
     this.entityHistories = new Map();
     this.entityIssues = new Map();
     this.notificationTimelines = new Map();
+    this.dagAudit = new Map();
+    this.tableAudit = new Map();
     
     this.userId = 1;
     this.teamId = 1;
@@ -102,6 +115,8 @@ export class MemStorage implements IStorage {
     this.entityId = 1;
     this.historyId = 1;
     this.issueId = 1;
+    this.dagAuditId = 1;
+    this.tableAuditId = 1;
     
     // Initialize with some demo data
     this.initializationPromise = this.initDemoData().catch(err => {
@@ -372,6 +387,9 @@ export class MemStorage implements IStorage {
     
     // Add some table entities with correct statuses
     this.addTableEntities();
+    
+    // Initialize mock audit data for rollback management
+    this.initMockAuditData();
   }
   
   /**
@@ -1362,6 +1380,320 @@ export class MemStorage implements IStorage {
 
   async deleteNotificationTimeline(id: string): Promise<boolean> {
     return this.notificationTimelines.delete(id);
+  }
+  
+  /**
+   * Initialize mock audit data for rollback management
+   */
+  private initMockAuditData(): void {
+    const now = new Date();
+    
+    // Mock DAG audit data (deleted entities)
+    const mockDagAudit = [
+      {
+        id: this.dagAuditId++,
+        entityName: 'user_analytics_pipeline',
+        tenantId: 1, // Data Engineering
+        teamId: 3, // Viewer Product
+        auditSequenceId: 1,
+        auditUuidId: 'dag-audit-001',
+        actionType: 'DELETE' as const,
+        rowBefore: {
+          id: 999,
+          name: 'user_analytics_pipeline',
+          type: 'dag',
+          teamId: 3,
+          description: 'User analytics processing pipeline',
+          slaTarget: 95.0,
+          currentSla: 92.3,
+          status: 'Passed',
+          refreshFrequency: 'Daily',
+          tenant_name: 'Data Engineering',
+          team_name: 'Viewer Product',
+          dag_name: 'user_analytics_daily'
+        },
+        rowAfter: null,
+        changes: { deleted: true },
+        revertedFromAuditId: null,
+        actionByUserId: 1,
+        actionTimestamp: new Date('2025-09-15T10:30:00Z')
+      },
+      {
+        id: this.dagAuditId++,
+        entityName: 'sales_reporting_dag',
+        tenantId: 2, // Ad Engineering
+        teamId: 6, // Ad Serving
+        auditSequenceId: 2,
+        auditUuidId: 'dag-audit-002',
+        actionType: 'DELETE' as const,
+        rowBefore: {
+          id: 1000,
+          name: 'sales_reporting_dag',
+          type: 'dag',
+          teamId: 6,
+          description: 'Sales reporting and analytics DAG',
+          slaTarget: 88.0,
+          currentSla: 89.5,
+          status: 'Passed',
+          refreshFrequency: 'Daily',
+          tenant_name: 'Ad Engineering',
+          team_name: 'Ad Serving',
+          dag_name: 'sales_reporting_daily'
+        },
+        rowAfter: null,
+        changes: { deleted: true },
+        revertedFromAuditId: null,
+        actionByUserId: 2,
+        actionTimestamp: new Date('2025-09-13T09:15:00Z')
+      }
+    ];
+    
+    // Mock Table audit data (deleted entities)
+    const mockTableAudit = [
+      {
+        id: this.tableAuditId++,
+        entityName: 'customer_data_table',
+        tenantId: 1, // Data Engineering
+        teamId: 1, // PGM
+        auditSequenceId: 1,
+        auditUuidId: 'table-audit-001',
+        actionType: 'DELETE' as const,
+        rowBefore: {
+          id: 1001,
+          name: 'customer_data_table',
+          type: 'table',
+          teamId: 1,
+          description: 'Customer data and insights table',
+          slaTarget: 96.0,
+          currentSla: 94.2,
+          status: 'Passed',
+          refreshFrequency: 'Hourly',
+          tenant_name: 'Data Engineering',
+          team_name: 'PGM',
+          schema_name: 'customer_analytics',
+          table_name: 'customer_insights_hourly'
+        },
+        rowAfter: null,
+        changes: { deleted: true },
+        revertedFromAuditId: null,
+        actionByUserId: 3,
+        actionTimestamp: new Date('2025-09-14T15:45:00Z')
+      },
+      {
+        id: this.tableAuditId++,
+        entityName: 'inventory_tracking_table',
+        tenantId: 1, // Data Engineering
+        teamId: 5, // CDM
+        auditSequenceId: 2,
+        auditUuidId: 'table-audit-002',
+        actionType: 'DELETE' as const,
+        rowBefore: {
+          id: 1002,
+          name: 'inventory_tracking_table',
+          type: 'table',
+          teamId: 5,
+          description: 'Inventory tracking and management table',
+          slaTarget: 93.0,
+          currentSla: 95.1,
+          status: 'Passed',
+          refreshFrequency: 'Daily',
+          tenant_name: 'Data Engineering',
+          team_name: 'CDM',
+          schema_name: 'supply_chain',
+          table_name: 'inventory_tracking_daily'
+        },
+        rowAfter: null,
+        changes: { deleted: true },
+        revertedFromAuditId: null,
+        actionByUserId: 4,
+        actionTimestamp: new Date('2025-09-12T14:20:00Z')
+      }
+    ];
+    
+    // Store audit data in maps
+    mockDagAudit.forEach(audit => this.dagAudit.set(audit.id, audit));
+    mockTableAudit.forEach(audit => this.tableAudit.set(audit.id, audit));
+  }
+  
+  // Audit operations for rollback management
+  async getDeletedEntitiesByName(entityName: string): Promise<Array<{ id: string; entity_name: string; entity_type: 'dag' | 'table'; tenant_name: string; team_name: string; deleted_date: string; deleted_by: string; entity_id: string; tenant_id: string; team_id: string }>> {
+    await this.ensureInitialized();
+    const results: Array<{ id: string; entity_name: string; entity_type: 'dag' | 'table'; tenant_name: string; team_name: string; deleted_date: string; deleted_by: string; entity_id: string; tenant_id: string; team_id: string }> = [];
+    
+    // Search DAG audit records
+    Array.from(this.dagAudit.values()).forEach(audit => {
+      if (audit.actionType === 'DELETE' && audit.entityName.toLowerCase().includes(entityName.toLowerCase())) {
+        const rowBefore = audit.rowBefore as any;
+        if (rowBefore) {
+          // Get user who deleted the entity
+          const deletedByUser = Array.from(this.users.values()).find(user => user.id === audit.actionByUserId);
+          
+          results.push({
+            id: audit.auditUuidId,
+            entity_name: audit.entityName,
+            entity_type: 'dag',
+            tenant_name: rowBefore.tenant_name || 'Unknown Tenant',
+            team_name: rowBefore.team_name || 'Unknown Team',
+            deleted_date: audit.actionTimestamp.toISOString(),
+            deleted_by: deletedByUser?.email || deletedByUser?.username || 'Unknown User',
+            entity_id: `dag_${rowBefore.id || audit.id}`,
+            tenant_id: audit.tenantId.toString(),
+            team_id: audit.teamId.toString()
+          });
+        }
+      }
+    });
+    
+    // Search Table audit records
+    Array.from(this.tableAudit.values()).forEach(audit => {
+      if (audit.actionType === 'DELETE' && audit.entityName.toLowerCase().includes(entityName.toLowerCase())) {
+        const rowBefore = audit.rowBefore as any;
+        if (rowBefore) {
+          // Get user who deleted the entity
+          const deletedByUser = Array.from(this.users.values()).find(user => user.id === audit.actionByUserId);
+          
+          results.push({
+            id: audit.auditUuidId,
+            entity_name: audit.entityName,
+            entity_type: 'table',
+            tenant_name: rowBefore.tenant_name || 'Unknown Tenant',
+            team_name: rowBefore.team_name || 'Unknown Team',
+            deleted_date: audit.actionTimestamp.toISOString(),
+            deleted_by: deletedByUser?.email || deletedByUser?.username || 'Unknown User',
+            entity_id: `table_${rowBefore.id || audit.id}`,
+            tenant_id: audit.tenantId.toString(),
+            team_id: audit.teamId.toString()
+          });
+        }
+      }
+    });
+    
+    return results;
+  }
+  
+  async getDeletedEntitiesByTeamTenant(tenantId: number, teamId: number): Promise<Array<{ id: string; entity_name: string; entity_type: 'dag' | 'table'; tenant_name: string; team_name: string; deleted_date: string; deleted_by: string; entity_id: string; tenant_id: string; team_id: string }>> {
+    await this.ensureInitialized();
+    const results: Array<{ id: string; entity_name: string; entity_type: 'dag' | 'table'; tenant_name: string; team_name: string; deleted_date: string; deleted_by: string; entity_id: string; tenant_id: string; team_id: string }> = [];
+    
+    // Search DAG audit records for specific tenant/team
+    Array.from(this.dagAudit.values()).forEach(audit => {
+      if (audit.actionType === 'DELETE' && audit.tenantId === tenantId && audit.teamId === teamId) {
+        const rowBefore = audit.rowBefore as any;
+        if (rowBefore) {
+          // Get user who deleted the entity
+          const deletedByUser = Array.from(this.users.values()).find(user => user.id === audit.actionByUserId);
+          
+          results.push({
+            id: audit.auditUuidId,
+            entity_name: audit.entityName,
+            entity_type: 'dag',
+            tenant_name: rowBefore.tenant_name || 'Unknown Tenant',
+            team_name: rowBefore.team_name || 'Unknown Team',
+            deleted_date: audit.actionTimestamp.toISOString(),
+            deleted_by: deletedByUser?.email || deletedByUser?.username || 'Unknown User',
+            entity_id: `dag_${rowBefore.id || audit.id}`,
+            tenant_id: audit.tenantId.toString(),
+            team_id: audit.teamId.toString()
+          });
+        }
+      }
+    });
+    
+    // Search Table audit records for specific tenant/team
+    Array.from(this.tableAudit.values()).forEach(audit => {
+      if (audit.actionType === 'DELETE' && audit.tenantId === tenantId && audit.teamId === teamId) {
+        const rowBefore = audit.rowBefore as any;
+        if (rowBefore) {
+          // Get user who deleted the entity
+          const deletedByUser = Array.from(this.users.values()).find(user => user.id === audit.actionByUserId);
+          
+          results.push({
+            id: audit.auditUuidId,
+            entity_name: audit.entityName,
+            entity_type: 'table',
+            tenant_name: rowBefore.tenant_name || 'Unknown Tenant',
+            team_name: rowBefore.team_name || 'Unknown Team',
+            deleted_date: audit.actionTimestamp.toISOString(),
+            deleted_by: deletedByUser?.email || deletedByUser?.username || 'Unknown User',
+            entity_id: `table_${rowBefore.id || audit.id}`,
+            tenant_id: audit.tenantId.toString(),
+            team_id: audit.teamId.toString()
+          });
+        }
+      }
+    });
+    
+    return results;
+  }
+  
+  async performEntityRollback(auditId: string, entityType: 'dag' | 'table'): Promise<Entity | null> {
+    await this.ensureInitialized();
+    
+    let auditRecord: SlaDagAudit | SlaTableAudit | undefined;
+    
+    // Find the audit record by auditUuidId
+    if (entityType === 'dag') {
+      auditRecord = Array.from(this.dagAudit.values()).find(audit => audit.auditUuidId === auditId);
+    } else {
+      auditRecord = Array.from(this.tableAudit.values()).find(audit => audit.auditUuidId === auditId);
+    }
+    
+    if (!auditRecord || auditRecord.actionType !== 'DELETE' || !auditRecord.rowBefore) {
+      console.error(`Cannot rollback: Audit record not found or invalid for ${entityType} with auditId ${auditId}`);
+      return null;
+    }
+    
+    try {
+      const originalEntity = auditRecord.rowBefore as any;
+      
+      // Create a new entity from the original data
+      const restoredEntity: InsertEntity = {
+        name: originalEntity.name,
+        type: originalEntity.type,
+        teamId: originalEntity.teamId,
+        description: originalEntity.description,
+        slaTarget: originalEntity.slaTarget,
+        currentSla: originalEntity.currentSla,
+        status: originalEntity.status || 'Pending',
+        refreshFrequency: originalEntity.refreshFrequency,
+        lastRefreshed: originalEntity.lastRefreshed ? new Date(originalEntity.lastRefreshed) : null,
+        nextRefresh: originalEntity.nextRefresh ? new Date(originalEntity.nextRefresh) : null,
+        owner: originalEntity.owner,
+        ownerEmail: originalEntity.ownerEmail,
+        tenant_name: originalEntity.tenant_name,
+        team_name: originalEntity.team_name,
+        schema_name: originalEntity.schema_name,
+        table_name: originalEntity.table_name,
+        table_description: originalEntity.table_description,
+        table_schedule: originalEntity.table_schedule,
+        table_dependency: originalEntity.table_dependency,
+        dag_name: originalEntity.dag_name,
+        dag_description: originalEntity.dag_description,
+        dag_schedule: originalEntity.dag_schedule,
+        dag_dependency: originalEntity.dag_dependency,
+        server_name: originalEntity.server_name,
+        expected_runtime_minutes: originalEntity.expected_runtime_minutes,
+        notification_preferences: originalEntity.notification_preferences || [],
+        donemarker_location: originalEntity.donemarker_location,
+        donemarker_lookback: originalEntity.donemarker_lookback,
+        owner_email: originalEntity.owner_email,
+        user_email: originalEntity.user_email,
+        is_active: true, // Restore as active
+        is_entity_owner: originalEntity.is_entity_owner || false,
+        lastRun: originalEntity.lastRun ? new Date(originalEntity.lastRun) : null,
+        lastStatus: originalEntity.lastStatus
+      };
+      
+      // Create the restored entity
+      const newEntity = await this.createEntity(restoredEntity);
+      
+      console.log(`✅ Successfully rolled back ${entityType} entity: ${originalEntity.name} (new ID: ${newEntity.id})`);
+      return newEntity;
+      
+    } catch (error) {
+      console.error(`❌ Failed to rollback ${entityType} entity:`, error);
+      return null;
+    }
   }
 }
 

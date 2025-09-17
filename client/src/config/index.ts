@@ -107,6 +107,15 @@ interface ApiConfig {
         update: (roleId: number) => string;
       };
     };
+    audit: {
+      getDeletedEntitiesByName: (entityName: string) => string;
+      getDeletedEntitiesByTeamTenant: (tenantId: number, teamId: number) => string;
+      performRollback: string;
+      // Express fallback endpoints (development only)
+      getDeletedEntitiesByNameFallback?: (entityName: string) => string;
+      getDeletedEntitiesByTeamTenantFallback?: (tenantId: number, teamId: number) => string;
+      performRollbackFallback?: string;
+    };
     fastapi?: {
       baseUrl: string;
       auth: {

@@ -21,7 +21,8 @@ import {
   Security as RolesIcon,
   Dashboard as OverviewIcon,
   ArrowBack as ArrowBackIcon,
-  Home as HomeIcon
+  Home as HomeIcon,
+  RestoreFromTrash as RollbackIcon
 } from '@mui/icons-material';
 import { useQuery } from '@tanstack/react-query';
 import { buildUrl, endpoints } from '@/config';
@@ -35,6 +36,7 @@ import TenantsManagement from './sections/TenantsManagement';
 import ConflictsManagement from './sections/ConflictsManagement';
 import UsersManagement from './sections/UsersManagement';
 import RolesManagement from './sections/RolesManagement';
+import RollbackManagement from './sections/RollbackManagement';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -110,6 +112,11 @@ const AdminPage = () => {
       label: 'Roles',
       icon: <RolesIcon />,
       component: <RolesManagement />
+    },
+    {
+      label: 'Rollback',
+      icon: <RollbackIcon />,
+      component: <RollbackManagement />
     }
   ];
 
@@ -140,7 +147,7 @@ const AdminPage = () => {
           Admin Panel
         </Typography>
         <Typography variant="body1" color="text.secondary">
-          Manage teams, tenants, users, and resolve ownership conflicts
+          Manage teams, tenants, users, resolve ownership conflicts, and restore deleted entities
         </Typography>
       </Box>
 

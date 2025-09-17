@@ -83,6 +83,62 @@ function createErrorResponse(message: string, type: string = 'server_error', det
   };
 }
 
+// Helper function for rollback cache invalidation using existing patterns
+async function invalidateRollbackCaches(rolledBackEntity: Entity) {
+  const { team_name, tenant_name, type, is_active, is_entity_owner } = rolledBackEntity;
+  
+  // ALWAYS invalidate team caches - entity reappears in team dashboard regardless of status
+  if (team_name) {
+    // Use existing team cache invalidation patterns
+    await redisCache.invalidateTeamData(team_name);
+    
+    if (tenant_name) {
+      await redisCache.invalidateTeamMetricsCache(tenant_name, team_name);
+    }
+  }
+  
+  // Always invalidate team-specific entity caches using existing patterns
+  await redisCache.invalidateCache({
+    keys: [
+      `team_${rolledBackEntity.teamId}_entities`,
+      `entity_${rolledBackEntity.id}`,
+    ],
+    patterns: [
+      'entities_*',
+      'team_entities:*',
+      'team_details:*',
+      'team_metrics:*',
+      'team_trends:*'
+    ],
+    mainCacheKeys: ['ENTITIES', 'TEAMS'],
+    refreshAffectedData: true
+  });
+  
+  // CONDITIONALLY invalidate summary dashboard caches only if (is_active && is_entity_owner)
+  // Business rule: Summary dashboard only shows active entities owned by the team
+  if (is_active && is_entity_owner) {
+    console.log(`🔄 Rollback: Invalidating summary caches for active entity owner: ${rolledBackEntity.name}`);
+    
+    await redisCache.invalidateCache({
+      keys: [
+        'dashboard_summary',
+        'dashboardSummary',
+      ],
+      patterns: [
+        'dashboard_*',
+        'summary_*',
+        'dashboardSummary:*'
+      ],
+      mainCacheKeys: ['METRICS'],
+      refreshAffectedData: true
+    });
+  } else {
+    console.log(`🔄 Rollback: Skipping summary cache invalidation for entity ${rolledBackEntity.name} (is_active=${is_active}, is_entity_owner=${is_entity_owner})`);
+  }
+  
+  console.log(`✅ Rollback cache invalidation completed for ${type} entity: ${rolledBackEntity.name}`);
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Set up simplified authentication (no password hashing)
   setupSimpleAuth(app);
@@ -147,7 +203,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       '/entities',
       '/dashboard/summary',
       '/users',
-      '/tenants'
+      '/tenants',
+      '/audit'
     ];
     
     // Check core system paths first (always allowed)
@@ -2909,6 +2966,365 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ===== AUDIT ENDPOINTS FOR ROLLBACK MANAGEMENT =====
+
+  // Zod validation schemas for audit endpoints
+  const auditEntityNameSchema = z.object({
+    entity_name: z.string().min(1, "Entity name is required")
+  });
+
+  const auditTeamTenantSchema = z.object({
+    tenant_id: z.union([z.string(), z.number()]).transform(val => parseInt(val.toString())),
+    team_id: z.union([z.string(), z.number()]).transform(val => parseInt(val.toString()))
+  });
+
+  const auditRollbackSchema = z.object({
+    entity_id: z.string().min(1, "Entity ID is required"),
+    entity_name: z.string().min(1, "Entity name is required"), 
+    entity_type: z.enum(['dag', 'table']),
+    tenant_id: z.string().min(1, "Tenant ID is required"),
+    team_id: z.string().min(1, "Team ID is required"),
+    user_email: z.string().email("Valid email is required"),
+    reason: z.string().optional().default("")
+  });
+
+  // Mock audit data matching the DeletedEntity interface expected by the frontend
+  const MOCK_DELETED_ENTITIES = [
+    {
+      id: '1',
+      entity_name: 'user_analytics_pipeline',
+      entity_type: 'dag' as const,
+      tenant_name: 'Data Engineering123',
+      team_name: 'Analytics Team', 
+      deleted_date: '2025-09-15T10:30:00Z',
+      deleted_by: 'john.doe@company.com',
+      entity_id: 'dag_123',
+      tenant_id: '1',
+      team_id: '1'
+    },
+    {
+      id: '2',
+      entity_name: 'customer_data_table',
+      entity_type: 'table' as const,
+      tenant_name: 'Marketing Ops',
+      team_name: 'Customer Insights',
+      deleted_date: '2025-09-14T15:45:00Z',
+      deleted_by: 'jane.smith@company.com',
+      entity_id: 'table_456',
+      tenant_id: '2',
+      team_id: '2'
+    },
+    {
+      id: '3',
+      entity_name: 'sales_reporting_dag',
+      entity_type: 'dag' as const,
+      tenant_name: 'Sales Operations',
+      team_name: 'Sales Analytics',
+      deleted_date: '2025-09-13T09:15:00Z',
+      deleted_by: 'mike.wilson@company.com',
+      entity_id: 'dag_789',
+      tenant_id: '3',
+      team_id: '3'
+    },
+    {
+      id: '4',
+      entity_name: 'inventory_tracking_table',
+      entity_type: 'table' as const,
+      tenant_name: 'Operations',
+      team_name: 'Supply Chain',
+      deleted_date: '2025-09-12T14:20:00Z',
+      deleted_by: 'sarah.johnson@company.com',
+      entity_id: 'table_101',
+      tenant_id: '4',
+      team_id: '4'
+    },
+    {
+      id: '5',
+      entity_name: 'user_analytics_daily',
+      entity_type: 'table' as const,
+      tenant_name: 'Data Engineering123',
+      team_name: 'Analytics Team',
+      deleted_date: '2025-09-10T14:15:00Z',
+      deleted_by: 'sarah.analytics@company.com',
+      entity_id: 'table_567',
+      tenant_id: '1',
+      team_id: '1'
+    }
+  ];
+
+  // GET /api/audit/entity-name - Fetch audit history by entity name (Express)
+  app.get("/api/audit/entity-name", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const validationResult = auditEntityNameSchema.safeParse(req.query);
+      if (!validationResult.success) {
+        return res.status(400).json(createValidationErrorResponse(validationResult.error));
+      }
+
+      const { entity_name } = validationResult.data;
+      
+      structuredLogger.info('AUDIT_ENTITY_NAME_SEARCH', req.sessionContext, req.requestId, {
+        logger: 'app.audit.search'
+      });
+      console.log(`🔍 Audit entity name search: ${entity_name}`);
+
+      // Get actual deleted entities by name from storage
+      const matchingEntities = await storage.getDeletedEntitiesByName(entity_name);
+
+      res.json({
+        entities: matchingEntities,
+        total: matchingEntities.length,
+        search_term: entity_name,
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      console.error('Audit entity name search error:', error);
+      res.status(500).json(createErrorResponse('Failed to fetch audit history by entity name', 'search_error'));
+    }
+  });
+
+  // GET /api/v1/audit/entity-name - FastAPI fallback pattern
+  app.get("/api/v1/audit/entity-name", async (req: Request, res: Response) => {
+    try {
+      const validationResult = auditEntityNameSchema.safeParse(req.query);
+      if (!validationResult.success) {
+        return res.status(400).json(createValidationErrorResponse(validationResult.error));
+      }
+
+      const { entity_name } = validationResult.data;
+      
+      structuredLogger.info('AUDIT_ENTITY_NAME_SEARCH_V1', req.sessionContext, req.requestId, {
+        logger: 'app.audit.search.fastapi'
+      });
+      console.log(`🔍 Audit entity name search V1: ${entity_name}`);
+
+      // Get actual deleted entities by name from storage
+      const matchingEntities = await storage.getDeletedEntitiesByName(entity_name);
+
+      res.json({
+        entities: matchingEntities,
+        total: matchingEntities.length,
+        search_term: entity_name,
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      console.error('Audit entity name search V1 error:', error);
+      res.status(500).json(createErrorResponse('Failed to fetch audit history by entity name', 'search_error'));
+    }
+  });
+
+  // GET /api/audit/team-tenant - Fetch all deleted entities for team/tenant (Express)
+  app.get("/api/audit/team-tenant", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const validationResult = auditTeamTenantSchema.safeParse(req.query);
+      if (!validationResult.success) {
+        return res.status(400).json(createValidationErrorResponse(validationResult.error));
+      }
+
+      const { tenant_id, team_id } = validationResult.data;
+      
+      structuredLogger.info('AUDIT_TEAM_TENANT_SEARCH', req.sessionContext, req.requestId, {
+        logger: 'app.audit.search'
+      });
+      console.log(`🔍 Audit team/tenant search: tenant_id=${tenant_id}, team_id=${team_id}`);
+
+      // Get actual deleted entities by team/tenant from storage
+      const matchingEntities = await storage.getDeletedEntitiesByTeamTenant(tenant_id, team_id);
+
+      res.json({
+        entities: matchingEntities,
+        total: matchingEntities.length,
+        tenant_id,
+        team_id,
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      console.error('Audit team tenant search error:', error);
+      res.status(500).json(createErrorResponse('Failed to fetch deleted entities by team/tenant', 'search_error'));
+    }
+  });
+
+  // GET /api/v1/audit/team-tenant - FastAPI fallback pattern  
+  app.get("/api/v1/audit/team-tenant", async (req: Request, res: Response) => {
+    try {
+      const validationResult = auditTeamTenantSchema.safeParse(req.query);
+      if (!validationResult.success) {
+        return res.status(400).json(createValidationErrorResponse(validationResult.error));
+      }
+
+      const { tenant_id, team_id } = validationResult.data;
+      
+      structuredLogger.info('AUDIT_TEAM_TENANT_SEARCH_V1', req.sessionContext, req.requestId, {
+        logger: 'app.audit.search.fastapi'
+      });
+      console.log(`🔍 Audit team/tenant search V1: tenant_id=${tenant_id}, team_id=${team_id}`);
+
+      // Get actual deleted entities by team/tenant from storage
+      const matchingEntities = await storage.getDeletedEntitiesByTeamTenant(tenant_id, team_id);
+
+      res.json({
+        entities: matchingEntities,
+        total: matchingEntities.length,
+        tenant_id,
+        team_id,
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      console.error('Audit team tenant search V1 error:', error);
+      res.status(500).json(createErrorResponse('Failed to fetch deleted entities by team/tenant', 'search_error'));
+    }
+  });
+
+  // POST /api/audit/rollback - Perform rollback operation (Express)
+  app.post("/api/audit/rollback", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const validationResult = auditRollbackSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json(createValidationErrorResponse(validationResult.error));
+      }
+
+      const { entity_id, entity_name, entity_type, tenant_id, team_id, user_email, reason } = validationResult.data;
+      
+      // Create rollback audit log
+      const auditLog = createRollbackAuditLog('ROLLBACK_INITIATED', req, {
+        entity_id,
+        entity_name,
+        entity_type,
+        tenant_id,
+        team_id,
+        user_email,
+        reason
+      });
+      
+      structuredLogger.info('AUDIT_ROLLBACK_INITIATED', req.sessionContext, req.requestId, auditLog);
+
+      // Perform actual entity rollback using storage
+      // Find the audit record ID first based on entity_id and entity_type
+      const auditId = entity_id; // The storage method expects auditId
+      const rolledBackEntity = await storage.performEntityRollback(auditId, entity_type);
+      
+      if (!rolledBackEntity) {
+        return res.status(404).json(createErrorResponse('Deleted entity not found in audit history or rollback failed', 'not_found'));
+      }
+
+      // Success response with actual rollback result
+      const rollbackResult = {
+        success: true,
+        entity_id: rolledBackEntity.id.toString(),
+        entity_name: rolledBackEntity.name,
+        entity_type: rolledBackEntity.type,
+        restored_at: new Date().toISOString(),
+        restored_by: user_email,
+        reason: reason || 'Rollback requested via admin interface'
+      };
+
+      // Invalidate relevant caches after rollback using conditional patterns
+      await invalidateRollbackCaches(rolledBackEntity);
+
+      // Broadcast rollback event to all connected clients for real-time updates
+      await redisCache.broadcastEntityRollback({
+        entityId: rolledBackEntity.id.toString(),
+        entityName: rolledBackEntity.name,
+        entityType: rolledBackEntity.type,
+        teamName: rolledBackEntity.team_name || 'Unknown',
+        tenantName: rolledBackEntity.tenant_name || 'Unknown',
+        toVersion: 1, // Entity restored to active state
+        userEmail: user_email,
+        reason: reason || 'Rollback requested via admin interface',
+        originUserId: req.user?.id?.toString() || user_email
+      });
+
+      structuredLogger.info('AUDIT_ROLLBACK_COMPLETED', req.sessionContext, req.requestId, {
+        ...auditLog,
+        rollback_result: rollbackResult
+      });
+
+      res.json({
+        success: true,
+        message: `Entity ${entity_name} has been successfully restored`,
+        rollback_details: rollbackResult,
+        cache_invalidated: true,
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      console.error('Audit rollback error:', error);
+      structuredLogger.error('AUDIT_ROLLBACK_ERROR', req.sessionContext, req.requestId, {
+        logger: 'app.audit.rollback'
+      });
+      console.error('🚨 Audit rollback error:', error instanceof Error ? error.message : 'Unknown error');
+      res.status(500).json(createErrorResponse('Failed to perform rollback operation', 'rollback_error'));
+    }
+  });
+
+  // POST /api/v1/audit/rollback - FastAPI fallback pattern  
+  app.post("/api/v1/audit/rollback", async (req: Request, res: Response) => {
+    try {
+      const validationResult = auditRollbackSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json(createValidationErrorResponse(validationResult.error));
+      }
+
+      const { entity_id, entity_name, entity_type, tenant_id, team_id, user_email, reason } = validationResult.data;
+      
+      structuredLogger.info('AUDIT_ROLLBACK_V1_INITIATED', req.sessionContext, req.requestId, {
+        logger: 'app.audit.rollback.fastapi'
+      });
+      console.log(`🔄 Audit rollback V1 initiated: entity=${entity_name} (${entity_type}), user=${user_email}`);
+
+      // Perform actual entity rollback using storage
+      const auditId = entity_id; // The storage method expects auditId
+      const rolledBackEntity = await storage.performEntityRollback(auditId, entity_type);
+      
+      if (!rolledBackEntity) {
+        return res.status(404).json(createErrorResponse('Deleted entity not found in audit history or rollback failed', 'not_found'));
+      }
+
+      const rollbackResult = {
+        success: true,
+        entity_id: rolledBackEntity.id.toString(),
+        entity_name: rolledBackEntity.name,
+        entity_type: rolledBackEntity.type,
+        restored_at: new Date().toISOString(),
+        restored_by: user_email,
+        reason: reason || 'Rollback requested via admin interface'
+      };
+
+      // Invalidate relevant caches using conditional patterns
+      await invalidateRollbackCaches(rolledBackEntity);
+
+      // Broadcast rollback event to all connected clients for real-time updates
+      await redisCache.broadcastEntityRollback({
+        entityId: rolledBackEntity.id.toString(),
+        entityName: rolledBackEntity.name,
+        entityType: rolledBackEntity.type,
+        teamName: rolledBackEntity.team_name || 'Unknown',
+        tenantName: rolledBackEntity.tenant_name || 'Unknown',
+        toVersion: 1, // Entity restored to active state
+        userEmail: user_email,
+        reason: reason || 'Rollback requested via admin interface',
+        originUserId: 'api-v1-user' // FastAPI fallback identifier
+      });
+
+      res.json({
+        success: true,
+        message: `Entity ${entity_name} has been successfully restored`,
+        rollback_details: rollbackResult,
+        cache_invalidated: true,
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      console.error('Audit rollback V1 error:', error);
+      res.status(500).json(createErrorResponse('Failed to perform rollback operation', 'rollback_error'));
+    }
+  });
+
+  // ===== END AUDIT ENDPOINTS =====
+
   // Secured rollback endpoint for entity details modal
   app.post('/api/teams/:teamName/:entityType/:entityName/rollback', 
     async (req: Request, res: Response) => {
@@ -3047,6 +3463,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         reason: reason || `Rollback to version ${toVersion}`,
         originUserId: authContext.userEmail
       });
+      
+      // Apply rollback cache invalidation using conditional patterns
+      // Note: This endpoint broadcasts rollback but doesn't perform actual storage rollback
+      // Apply same cache invalidation logic for consistency
+      await invalidateRollbackCaches(entity);
       
       const responseData = {
         success: true,
