@@ -374,7 +374,7 @@ export const defaultValues = {
   common: {
     entity_name: '',
     tenant_name: 'Data Engineering',
-    team_name: 'PGM',
+    team_name: '',
     notification_preferences: [],
     owner_email: '',
     user_email: '',
