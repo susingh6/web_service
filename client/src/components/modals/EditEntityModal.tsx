@@ -164,8 +164,28 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
         const response = await apiRequest('GET', detailsEndpoint);
         const detailsData = await response.json();
         
-        // Entity details from API
-        return detailsData;
+        console.debug('[EditEntityModal] Raw API response:', { id: entity.id, detailsData });
+        
+        // Normalize team_name from various possible API response formats
+        const normalizedTeamName = detailsData.team_name 
+          || detailsData.team?.name
+          || teams.find(t => t.id === (detailsData.teamId || detailsData.team_id))?.name
+          || '';
+          
+        const normalized = {
+          ...detailsData,
+          team_name: normalizedTeamName
+        };
+        
+        console.debug('[EditEntityModal] Normalized entity details:', { 
+          id: entity.id, 
+          originalTeamName: detailsData.team_name,
+          normalizedTeamName,
+          teamId: detailsData.teamId || detailsData.team_id,
+          team: detailsData.team
+        });
+        
+        return normalized;
       } catch (error) {
         // Entity details API not available, using existing entity data
         // Fallback to basic entity data with enhanced mock data structure
