@@ -496,22 +496,24 @@ const RollbackManagement = () => {
                   </Select>
                 </FormControl>
 
-                <FormControl fullWidth>
+                <FormControl 
+                  fullWidth
+                  onClick={() => {
+                    if (!selectedTenant) {
+                      toast({
+                        title: "Select Tenant First",
+                        description: "Please select a tenant before choosing a team.",
+                        variant: "default"
+                      });
+                    }
+                  }}
+                >
                   <InputLabel>Team</InputLabel>
                   <Select
                     value={selectedTeam}
                     label="Team"
                     onChange={(e) => setSelectedTeam(e.target.value)}
                     disabled={!selectedTenant || teamTenantSearchMutation.isPending || availableTeams.length === 0}
-                    onOpen={() => {
-                      if (!selectedTenant) {
-                        toast({
-                          title: "Select Tenant First",
-                          description: "Please select a tenant before choosing a team.",
-                          variant: "default"
-                        });
-                      }
-                    }}
                     data-testid="select-team"
                   >
                     {availableTeams.map((team) => (
