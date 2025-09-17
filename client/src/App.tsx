@@ -1,4 +1,4 @@
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, useState } from "react";
 import { Switch, Route } from "wouter";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
@@ -12,26 +12,123 @@ import AuthPage from "@/pages/auth-page";
 import Summary from "@/pages/dashboard/Summary";
 import AdminPage from "@/pages/admin/AdminPage";
 import { Box, CircularProgress } from "@mui/material";
+import type { Entity } from "@/types/entity";
 
 // Lazy load components for better performance
 const TeamDashboard = lazy(() => import("@/pages/dashboard/TeamDashboard"));
 
+// Import modals
+const EditEntityModal = lazy(() => import("@/components/modals/EditEntityModal"));
+const AddEntityModal = lazy(() => import("@/components/modals/AddEntityModal"));
+const BulkUploadModal = lazy(() => import("@/components/modals/BulkUploadModal"));
+const ConfirmDialog = lazy(() => import("@/components/modals/ConfirmDialog"));
+
 // Wrapper component to handle TeamDashboard props
 const TeamDashboardWrapper = () => {
-  // Mock props for now - in a real app, these would come from route params or context
-  const mockProps = {
-    teamName: 'Development Team',
-    tenantName: 'Production',
-    onEditEntity: () => {},
-    onDeleteEntity: () => {},
-    onViewDetails: () => {},
-    onAddEntity: () => {},
-    onBulkUpload: () => {},
-    onNotificationTimeline: () => {},
-    onViewTasks: () => {}
+  // Modal state management
+  const [selectedEntity, setSelectedEntity] = useState<Entity | null>(null);
+  const [openEditModal, setOpenEditModal] = useState(false);
+  const [openAddModal, setOpenAddModal] = useState(false);
+  const [openBulkModal, setOpenBulkModal] = useState(false);
+  const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
+
+  // Handler functions
+  const handleEditEntity = (entity: Entity) => {
+    setSelectedEntity(entity);
+    setOpenEditModal(true);
   };
 
-  return <TeamDashboard {...mockProps} />;
+  const handleDeleteEntity = (entity: Entity) => {
+    setSelectedEntity(entity);
+    setOpenDeleteDialog(true);
+  };
+
+  const handleViewDetails = (entity: Entity) => {
+    // For now, just log - view details functionality would need proper implementation
+    console.log('View details for entity:', entity);
+  };
+
+  const handleAddEntity = () => {
+    setOpenAddModal(true);
+  };
+
+  const handleBulkUpload = () => {
+    setOpenBulkModal(true);
+  };
+
+  const handleNotificationTimeline = (entity: Entity) => {
+    // For now, just log - notification timeline functionality would need proper implementation
+    console.log('Notification timeline for entity:', entity);
+  };
+
+  const handleViewTasks = (entity: Entity) => {
+    // For now, just log - view tasks functionality would need proper implementation
+    console.log('View tasks for entity:', entity);
+  };
+
+  const handleConfirmDelete = () => {
+    if (selectedEntity) {
+      console.log('Deleting entity:', selectedEntity);
+      setOpenDeleteDialog(false);
+      setSelectedEntity(null);
+    }
+  };
+
+  const teamDashboardProps = {
+    teamName: 'Development Team',
+    tenantName: 'Production',
+    onEditEntity: handleEditEntity,
+    onDeleteEntity: handleDeleteEntity,
+    onViewDetails: handleViewDetails,
+    onAddEntity: handleAddEntity,
+    onBulkUpload: handleBulkUpload,
+    onNotificationTimeline: handleNotificationTimeline,
+    onViewTasks: handleViewTasks
+  };
+
+  return (
+    <>
+      <TeamDashboard {...teamDashboardProps} />
+      
+      {/* Modals */}
+      <Suspense fallback={null}>
+        <EditEntityModal
+          open={openEditModal}
+          onClose={() => setOpenEditModal(false)}
+          entity={selectedEntity}
+          teams={[]}
+          initialTenantName="Production"
+          initialTeamName="Development Team"
+        />
+        
+        <AddEntityModal
+          open={openAddModal}
+          onClose={() => setOpenAddModal(false)}
+          teams={[]}
+          initialTenantName="Production"
+          initialTeamName="Development Team"
+        />
+        
+        <BulkUploadModal
+          open={openBulkModal}
+          onClose={() => setOpenBulkModal(false)}
+          teams={[]}
+          initialTenantName="Production"
+        />
+        
+        <ConfirmDialog
+          open={openDeleteDialog}
+          onClose={() => setOpenDeleteDialog(false)}
+          onConfirm={handleConfirmDelete}
+          title="Delete Entity"
+          content={`Are you sure you want to delete "${selectedEntity?.name}"? This action cannot be undone.`}
+          confirmText="Delete"
+          cancelText="Cancel"
+          confirmColor="error"
+        />
+      </Suspense>
+    </>
+  );
 };
 
 // Loading fallback for lazy-loaded components
