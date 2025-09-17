@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -38,77 +38,13 @@ import {
   TableChart as TableIcon,
   AccountTree as DagIcon
 } from '@mui/icons-material';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
-import { tenantsApi } from '@/features/sla/api';
+import { tenantsApi, teamsApi, rollbackApi } from '@/features/sla/api';
+import { cacheKeys, invalidateAdminCaches, invalidateEntityCaches } from '@/lib/cacheKeys';
+import { useWebSocket } from '@/hooks/useWebSocket';
 import { buildUrl, endpoints } from '@/config';
 
-// Mock data for placeholder - will be replaced with actual API calls
-const MOCK_DELETED_ENTITIES: DeletedEntity[] = [
-  {
-    id: '1',
-    entity_name: 'user_analytics_pipeline',
-    entity_type: 'dag',
-    tenant_name: 'Data Engineering123',
-    team_name: 'Analytics Team',
-    deleted_date: '2025-09-15T10:30:00Z',
-    deleted_by: 'john.doe@company.com',
-    entity_id: 'dag_123',
-    tenant_id: '1',
-    team_id: '1'
-  },
-  {
-    id: '2',
-    entity_name: 'customer_data_table',
-    entity_type: 'table',
-    tenant_name: 'Marketing Ops',
-    team_name: 'Customer Insights',
-    deleted_date: '2025-09-14T15:45:00Z',
-    deleted_by: 'jane.smith@company.com',
-    entity_id: 'table_456',
-    tenant_id: '2',
-    team_id: '2'
-  },
-  {
-    id: '3',
-    entity_name: 'sales_reporting_dag',
-    entity_type: 'dag',
-    tenant_name: 'Sales Operations',
-    team_name: 'Sales Analytics',
-    deleted_date: '2025-09-13T09:15:00Z',
-    deleted_by: 'mike.wilson@company.com',
-    entity_id: 'dag_789',
-    tenant_id: '3',
-    team_id: '3'
-  },
-  {
-    id: '4',
-    entity_name: 'inventory_tracking_table',
-    entity_type: 'table',
-    tenant_name: 'Operations',
-    team_name: 'Supply Chain',
-    deleted_date: '2025-09-12T14:20:00Z',
-    deleted_by: 'sarah.johnson@company.com',
-    entity_id: 'table_101',
-    tenant_id: '4',
-    team_id: '4'
-  }
-];
-
-// Mock teams data
-interface MockTeam {
-  id: string;
-  name: string;
-  tenant_id: string;
-}
-
-const MOCK_TEAMS: MockTeam[] = [
-  { id: '1', name: 'Analytics Team', tenant_id: '1' },
-  { id: '2', name: 'Customer Insights', tenant_id: '2' },
-  { id: '3', name: 'Sales Analytics', tenant_id: '3' },
-  { id: '4', name: 'Supply Chain', tenant_id: '4' },
-  { id: '5', name: 'DevOps Team', tenant_id: '1' },
-];
 
 interface DeletedEntity {
   id: string;
@@ -130,63 +66,90 @@ const RollbackManagement = () => {
   const [selectedTeam, setSelectedTeam] = useState('');
   const [searchResults, setSearchResults] = useState<DeletedEntity[]>([]);
   const [showResults, setShowResults] = useState(false);
-  const [isSearching, setIsSearching] = useState(false);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
-  // Fetch active tenants for dropdown
+  // WebSocket integration for real-time audit updates
+  const sessionId = localStorage.getItem('fastapi_session_id');
+  const { sendMessage } = useWebSocket({
+    sessionId: sessionId || undefined,
+    onAuditUpdated: async (data) => {
+      console.log('📡 Received audit update via WebSocket:', data);
+      // Invalidate audit search results to refresh data
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'audit'] });
+      
+      // Also invalidate related caches
+      await invalidateAdminCaches(queryClient);
+      
+      // Show toast notification for the update
+      if (data.type === 'entity-restored') {
+        toast({ 
+          title: 'Entity Restored', 
+          description: `${data.entityName || 'Entity'} has been restored by ${data.restoredBy}` 
+        });
+        // Remove restored entity from current search results
+        setSearchResults(prev => prev.filter(e => e.id !== data.entityId));
+      }
+    },
+    onConnect: () => {
+      console.log('📡 WebSocket connected in RollbackManagement');
+    },
+    onDisconnect: () => {
+      console.log('📡 WebSocket disconnected in RollbackManagement');
+    }
+  });
+
+  // Listen for rollback data refresh events
+  useEffect(() => {
+    const handleRefreshAudit = () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'audit'] });
+    };
+    
+    window.addEventListener('refresh-audit-data', handleRefreshAudit);
+    return () => window.removeEventListener('refresh-audit-data', handleRefreshAudit);
+  }, [queryClient]);
+
+  // Fetch active tenants for dropdown with proper cache configuration
   const { data: tenants = [] } = useQuery({
     queryKey: ['/api/tenants', 'active'],
     queryFn: async () => {
       return await tenantsApi.getAll(true); // active_only=true
     },
-    staleTime: 6 * 60 * 60 * 1000,
+    staleTime: 60 * 1000, // 60 seconds to match other components
+    gcTime: 5 * 60 * 1000, // 5 minutes
   });
 
-  // Fetch teams for selected tenant
+  // Fetch teams for selected tenant using proper API calls
   const { data: teams = [] } = useQuery({
     queryKey: ['admin', 'teams', selectedTenant],
     queryFn: async () => {
       if (!selectedTenant) return [];
       
-      // Mock teams fetch - replace with actual API call
       console.log('🔍 Fetching teams for tenant:', selectedTenant);
-      return MOCK_TEAMS.filter(team => team.tenant_id === selectedTenant);
+      // Use proper API call instead of mock data
+      const allTeams = await teamsApi.getAll();
+      return allTeams.filter((team: any) => team.tenant_id === selectedTenant);
     },
     enabled: !!selectedTenant,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 60 * 1000, // 60 seconds to match other components
+    gcTime: 5 * 60 * 1000, // 5 minutes
   });
 
   // Filter teams based on selected tenant
   const availableTeams = useMemo(() => {
     if (!selectedTenant) return [];
-    return teams;
+    return teams.filter((team: any) => String(team.tenant_id) === String(selectedTenant));
   }, [teams, selectedTenant]);
 
-  // Handle entity name search
-  const handleEntityNameSearch = async () => {
-    if (!entityNameSearch.trim()) {
-      toast({
-        title: 'Search Required',
-        description: 'Please enter an entity name to search',
-        variant: 'destructive'
-      });
-      return;
-    }
-
-    setIsSearching(true);
-    console.log('🔍 Searching for entity by name:', entityNameSearch);
-
-    try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Mock search - find entities that match the name
-      const results = MOCK_DELETED_ENTITIES.filter(entity => 
-        entity.entity_name.toLowerCase().includes(entityNameSearch.toLowerCase())
-      );
-      
+  // Entity name search mutation using 3-tier fallback pattern
+  const entityNameSearchMutation = useMutation({
+    mutationFn: async (entityName: string) => {
+      console.log('🔍 Searching for entity by name:', entityName);
+      return await rollbackApi.getDeletedEntitiesByName(entityName);
+    },
+    onSuccess: (results: any[]) => {
       setSearchResults(results);
       setShowResults(true);
       setPage(0);
@@ -204,48 +167,31 @@ const RollbackManagement = () => {
           description: `Found ${results.length} deleted entity${results.length !== 1 ? 'ies' : ''} matching "${entityNameSearch}"`,
         });
       }
-    } catch (error) {
+    },
+    onError: (error: any) => {
       console.error('❌ Entity name search error:', error);
       toast({
         title: 'Search Failed',
         description: 'Failed to search for entities. Please try again.',
         variant: 'destructive'
       });
-    } finally {
-      setIsSearching(false);
     }
-  };
+  });
 
-  // Handle team/tenant search
-  const handleTeamTenantSearch = async () => {
-    if (!selectedTenant || !selectedTeam) {
-      toast({
-        title: 'Selection Required',
-        description: 'Please select both a tenant and team to search',
-        variant: 'destructive'
-      });
-      return;
-    }
-
-    setIsSearching(true);
-    console.log('🔍 Searching for deleted entities by team/tenant:', { selectedTenant, selectedTeam });
-
-    try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1200));
-      
-      // Mock search - find entities for the selected team/tenant
-      const results = MOCK_DELETED_ENTITIES.filter(entity => 
-        entity.tenant_id === selectedTenant && entity.team_id === selectedTeam
-      );
-      
+  // Team/tenant search mutation using 3-tier fallback pattern
+  const teamTenantSearchMutation = useMutation({
+    mutationFn: async ({ tenantId, teamId }: { tenantId: number; teamId: number }) => {
+      console.log('🔍 Searching for deleted entities by team/tenant:', { tenantId, teamId });
+      return await rollbackApi.getDeletedEntitiesByTeamTenant(tenantId, teamId);
+    },
+    onSuccess: (results: any[]) => {
       setSearchResults(results);
       setShowResults(true);
       setPage(0);
       
       console.log('✅ Team/tenant search results:', results);
       
-      const selectedTeamName = availableTeams.find((t: MockTeam) => t.id === selectedTeam)?.name;
+      const selectedTeamName = availableTeams.find((t: any) => t.id === selectedTeam)?.name;
       const selectedTenantName = tenants.find((t: any) => t.id === selectedTenant)?.name;
       
       if (results.length === 0) {
@@ -259,26 +205,30 @@ const RollbackManagement = () => {
           description: `Found ${results.length} deleted entity${results.length !== 1 ? 'ies' : ''} for ${selectedTeamName}`,
         });
       }
-    } catch (error) {
+    },
+    onError: (error: any) => {
       console.error('❌ Team/tenant search error:', error);
       toast({
         title: 'Search Failed',
         description: 'Failed to search for entities. Please try again.',
         variant: 'destructive'
       });
-    } finally {
-      setIsSearching(false);
     }
-  };
+  });
 
-  // Handle rollback action
-  const handleRollback = async (entity: DeletedEntity) => {
-    console.log('🔄 Initiating rollback for entity:', entity);
-    
-    try {
-      // Simulate rollback API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
+  // Rollback mutation using 2-tier fallback pattern (no mock fallback for write operations)
+  const rollbackMutation = useMutation({
+    mutationFn: async (entity: DeletedEntity) => {
+      console.log('🔄 Initiating rollback for entity:', entity);
+      return await rollbackApi.performRollback({
+        entity_id: entity.entity_id,
+        entity_name: entity.entity_name,
+        entity_type: entity.entity_type,
+        tenant_id: entity.tenant_id,
+        team_id: entity.team_id
+      });
+    },
+    onSuccess: async (result: any, entity: DeletedEntity) => {
       console.log('✅ Rollback successful for entity:', entity.entity_name);
       
       toast({
@@ -289,7 +239,36 @@ const RollbackManagement = () => {
       // Remove the restored entity from search results
       setSearchResults(prev => prev.filter(e => e.id !== entity.id));
       
-    } catch (error) {
+      // Dual-path cache invalidation following established patterns
+      await queryClient.invalidateQueries({ queryKey: ['/api/v1/entities'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/entities'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/v1/tenants'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/tenants'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/tenants', 'active'] });
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'audit'] });
+      
+      // Invalidate entity caches for the restored entity
+      await invalidateEntityCaches(queryClient, {
+        tenant: entity.tenant_name,
+        teamId: parseInt(entity.team_id),
+        entityId: entity.entity_id
+      });
+      
+      // Also invalidate admin caches
+      await invalidateAdminCaches(queryClient);
+      
+      // Emit custom event for other components to refresh
+      window.dispatchEvent(new CustomEvent('entity-restored', {
+        detail: { 
+          entityId: entity.entity_id,
+          entityName: entity.entity_name,
+          tenantId: entity.tenant_id,
+          teamId: entity.team_id,
+          source: 'rollback-management'
+        }
+      }));
+    },
+    onError: (error: any, entity: DeletedEntity) => {
       console.error('❌ Rollback error:', error);
       toast({
         title: 'Rollback Failed',
@@ -297,7 +276,46 @@ const RollbackManagement = () => {
         variant: 'destructive'
       });
     }
+  });
+
+  // Handle entity name search using mutation
+  const handleEntityNameSearch = () => {
+    if (!entityNameSearch.trim()) {
+      toast({
+        title: 'Search Required',
+        description: 'Please enter an entity name to search',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    entityNameSearchMutation.mutate(entityNameSearch);
   };
+
+  // Handle team/tenant search using mutation
+  const handleTeamTenantSearch = () => {
+    if (!selectedTenant || !selectedTeam) {
+      toast({
+        title: 'Selection Required',
+        description: 'Please select both a tenant and team to search',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    teamTenantSearchMutation.mutate({
+      tenantId: parseInt(selectedTenant),
+      teamId: parseInt(selectedTeam)
+    });
+  };
+
+  // Handle rollback action using mutation
+  const handleRollback = (entity: DeletedEntity) => {
+    rollbackMutation.mutate(entity);
+  };
+
+  // Update isSearching state based on mutation status
+  const isSearching = entityNameSearchMutation.isPending || teamTenantSearchMutation.isPending;
 
   // Clear search and results
   const handleClearSearch = () => {
@@ -418,11 +436,11 @@ const RollbackManagement = () => {
                 <Button
                   variant="contained"
                   onClick={handleEntityNameSearch}
-                  disabled={!entityNameSearch.trim() || isSearching}
+                  disabled={!entityNameSearch.trim() || entityNameSearchMutation.isPending}
                   sx={{ minWidth: 120 }}
                   data-testid="button-search-entity-name"
                 >
-                  {isSearching ? 'Searching...' : 'Search'}
+                  {entityNameSearchMutation.isPending ? 'Searching...' : 'Search'}
                 </Button>
               </Box>
             </Box>
@@ -448,7 +466,7 @@ const RollbackManagement = () => {
                       setSelectedTenant(e.target.value);
                       setSelectedTeam(''); // Clear team selection when tenant changes
                     }}
-                    disabled={isSearching}
+                    disabled={teamTenantSearchMutation.isPending || entityNameSearchMutation.isPending}
                     data-testid="select-tenant"
                   >
                     {tenants.map((tenant: any) => (
@@ -465,7 +483,7 @@ const RollbackManagement = () => {
                     value={selectedTeam}
                     label="Team"
                     onChange={(e) => setSelectedTeam(e.target.value)}
-                    disabled={!selectedTenant || isSearching || availableTeams.length === 0}
+                    disabled={!selectedTenant || teamTenantSearchMutation.isPending || availableTeams.length === 0}
                     data-testid="select-team"
                   >
                     {availableTeams.map((team) => (
@@ -479,11 +497,11 @@ const RollbackManagement = () => {
                 <Button
                   variant="contained"
                   onClick={handleTeamTenantSearch}
-                  disabled={!selectedTenant || !selectedTeam || isSearching}
+                  disabled={!selectedTenant || !selectedTeam || teamTenantSearchMutation.isPending}
                   sx={{ minWidth: 120 }}
                   data-testid="button-search-team-tenant"
                 >
-                  {isSearching ? 'Searching...' : 'Search'}
+                  {teamTenantSearchMutation.isPending ? 'Searching...' : 'Search'}
                 </Button>
               </Box>
             </Box>
@@ -600,6 +618,7 @@ const RollbackManagement = () => {
                                   size="small"
                                   startIcon={<RestoreIcon />}
                                   onClick={() => handleRollback(entity)}
+                                  disabled={rollbackMutation.isPending}
                                   data-testid={`button-rollback-${entity.id}`}
                                 >
                                   Rollback
