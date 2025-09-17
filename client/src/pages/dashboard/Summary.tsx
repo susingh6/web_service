@@ -88,13 +88,6 @@ const Summary = () => {
     metricsLoading,
     lastFetchFailed
   });
-  // Use React Query to fetch tenant-specific entities directly (avoids Redis collision with team fetches)
-  const { data: entities = [], isLoading: entitiesLoading } = useQuery({
-    queryKey: ['/api/entities', { tenant: selectedTenant?.name, scope: 'tenant' }],
-    queryFn: () => apiRequest(`/api/v1/entities?tenant=${encodeURIComponent(selectedTenant?.name || '')}`),
-    enabled: !!selectedTenant?.name
-  });
-  
   const { teams } = useAppSelector((state) => state.entities);
   
   // DEBUG: Log Entities Redux State
@@ -126,6 +119,13 @@ const Summary = () => {
   const [openTeamTabs, setOpenTeamTabs] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState('summary');
   const [teamsLoaded, setTeamsLoaded] = useState(false);
+
+  // Use React Query to fetch tenant-specific entities directly (avoids Redis collision with team fetches)
+  const { data: entities = [], isLoading: entitiesLoading } = useQuery({
+    queryKey: ['/api/entities', { tenant: selectedTenant?.name, scope: 'tenant' }],
+    queryFn: () => apiRequest(`/api/v1/entities?tenant=${encodeURIComponent(selectedTenant?.name || '')}`),
+    enabled: !!selectedTenant?.name
+  });
   const [teamDateRanges, setTeamDateRanges] = useState<Record<string, { startDate: Date; endDate: Date; label: string }>>({});
   const [summaryDateRange, setSummaryDateRange] = useState({
     startDate: startOfDay(subDays(new Date(), 29)),
