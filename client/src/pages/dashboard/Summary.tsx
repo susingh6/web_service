@@ -112,12 +112,7 @@ const Summary = () => {
   const [activeTab, setActiveTab] = useState('summary');
   const [teamsLoaded, setTeamsLoaded] = useState(false);
 
-  // Use React Query to fetch tenant-specific entities directly (avoids Redis collision with team fetches)
-  const { data: entities = [], isLoading: entitiesLoading } = useQuery({
-    queryKey: ['/api/entities', { tenant: selectedTenant?.name, scope: 'tenant' }],
-    queryFn: () => apiRequest(`/api/v1/entities?tenant=${encodeURIComponent(selectedTenant?.name || '')}`),
-    enabled: !!selectedTenant?.name
-  });
+  const { list: entities, isLoading: entitiesLoading } = useAppSelector((state) => state.entities);
 
   // DEBUG: Log Entities Redux State
   console.log('[DEBUG] Entities Redux State:', {
@@ -126,6 +121,9 @@ const Summary = () => {
     entitiesLoading,
     entitiesSample: entities?.slice(0, 2)
   });
+  
+  // DEBUG: Log selectedTenant state
+  console.log('[DEBUG] selectedTenant:', selectedTenant?.name || 'null');
   const [teamDateRanges, setTeamDateRanges] = useState<Record<string, { startDate: Date; endDate: Date; label: string }>>({});
   const [summaryDateRange, setSummaryDateRange] = useState({
     startDate: startOfDay(subDays(new Date(), 29)),
@@ -223,9 +221,9 @@ const Summary = () => {
       });
       scheduleNormalizedFlush();
 
-      // Invalidate tenant entities query to refresh
+      // Keep Redux-backed views fresh (legacy behavior preserved)
       if (selectedTenant) {
-        queryClient.invalidateQueries({ queryKey: ['/api/entities', { tenant: selectedTenant.name, scope: 'tenant' }] });
+        dispatch(fetchEntities({ tenant: selectedTenant.name }));
       }
       if (selectedTenant) {
         dispatch(fetchDashboardSummary({ tenantName: selectedTenant.name }));
@@ -254,7 +252,7 @@ const Summary = () => {
         dispatch(fetchDashboardSummary({ tenantName: selectedTenant.name }));
       }
       if (selectedTenant) {
-        queryClient.invalidateQueries({ queryKey: ['/api/entities', { tenant: selectedTenant.name, scope: 'tenant' }] });
+        dispatch(fetchEntities({ tenant: selectedTenant.name }));
       }
       toast({
         title: "Data Refreshed",
@@ -311,7 +309,8 @@ const Summary = () => {
         endDate
       }));
 
-      // React Query will automatically load tenant entities when selectedTenant changes
+      // Load entities for current tenant only (active entity owners)
+      dispatch(fetchEntities({ tenant: selectedTenant.name })); // Load tenant-specific entities for summary dashboard
       // Load teams data for chart display (silent load for summary page)
       dispatch(fetchTeams());
       setTeamsLoaded(true);
@@ -343,8 +342,8 @@ const Summary = () => {
           endDate
         }));
         
-        // Refresh tenant entities query to keep count in sync
-        queryClient.invalidateQueries({ queryKey: ['/api/entities', { tenant: selectedTenant.name, scope: 'tenant' }] });
+        // Also refresh entities to keep entity count in sync
+        dispatch(fetchEntities({ tenant: selectedTenant.name }));
       }
     };
     
