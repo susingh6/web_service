@@ -121,27 +121,38 @@ const RollbackManagement = () => {
     gcTime: 5 * 60 * 1000, // 5 minutes
   });
 
-  // Fetch teams for selected tenant using proper API calls
-  const { data: teams = [] } = useQuery({
-    queryKey: ['admin', 'teams', selectedTenant],
+  // Fetch ALL teams using same pattern as TeamsManagement
+  const { data: allTeams = [] } = useQuery({
+    queryKey: ['admin', 'teams'],
     queryFn: async () => {
-      if (!selectedTenant) return [];
+      console.log('🔍 Fetching all teams for rollback component');
+      // Build headers with session ID for RBAC enforcement (same as TeamsManagement)
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
       
-      console.log('🔍 Fetching teams for tenant:', selectedTenant);
-      // Use proper API call instead of mock data
-      const allTeams = await teamsApi.getAll();
-      return allTeams.filter((team: any) => team.tenant_id === selectedTenant);
+      const sessionId = localStorage.getItem('fastapi_session_id');
+      if (sessionId) headers['X-Session-ID'] = sessionId;
+      
+      const response = await fetch(buildUrl('/api/teams'), {
+        method: 'GET',
+        headers,
+        credentials: 'include',
+      });
+      
+      if (!response.ok) throw new Error('Failed to fetch teams');
+      return response.json();
     },
-    enabled: !!selectedTenant,
-    staleTime: 60 * 1000, // 60 seconds to match other components
+    staleTime: 60 * 1000, // 60 seconds to match other components  
     gcTime: 5 * 60 * 1000, // 5 minutes
   });
 
   // Filter teams based on selected tenant
   const availableTeams = useMemo(() => {
-    if (!selectedTenant) return [];
-    return teams.filter((team: any) => String(team.tenant_id) === String(selectedTenant));
-  }, [teams, selectedTenant]);
+    if (!selectedTenant || !allTeams) return [];
+    console.log('🔍 Filtering teams for tenant:', selectedTenant, 'from teams:', allTeams);
+    return allTeams.filter((team: any) => String(team.tenant_id) === String(selectedTenant));
+  }, [allTeams, selectedTenant]);
 
   // Entity name search mutation using 3-tier fallback pattern
   const entityNameSearchMutation = useMutation({
