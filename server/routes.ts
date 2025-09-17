@@ -782,8 +782,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         entities = await storage.getEntities();
         
         if (tenant) {
-          // Filter by tenant on the client side
-          entities = entities.filter(entity => entity.tenant_name === tenant);
+          // Filter for Summary Dashboard: only active entity owners for the tenant
+          entities = entities.filter(entity => 
+            entity.tenant_name === tenant && 
+            entity.is_entity_owner === true && 
+            entity.is_active !== false
+          );
           console.log(`GET /api/v1/entities - Parameters: tenant=${tenant} - status: 200`);
         } else {
           console.log(`GET /api/v1/entities - status: 200`);
