@@ -376,17 +376,8 @@ const Summary = () => {
     return () => window.removeEventListener('admin-tenants-updated', listener);
   }, [tenants]);
 
-  // Filter entities based on tab and tenant - only show active entity owners
-  const filterEntitiesByTenant = (entities: Entity[]) => {
-    // Filter by tenant_name and only show active entity owners
-    return entities.filter(entity => 
-      entity.tenant_name === selectedTenant?.name && 
-      entity.is_entity_owner === true &&
-      entity.is_active !== false
-    );
-  };
-
-  const filteredEntities = filterEntitiesByTenant(entities);
+  // Server already filters for active entity owners by tenant, no additional filtering needed
+  const filteredEntities = entities;
   const tables = filteredEntities.filter((entity) => entity.type === 'table');
   const dags = filteredEntities.filter((entity) => entity.type === 'dag');
 
@@ -397,9 +388,9 @@ const Summary = () => {
     (complianceTrends as any).trend.length > 0
   );
   
-  // Apply same filtering logic as count - Summary only shows active entity owners
+  // Server already filters for entity owners, only apply time-based filtering if needed
   const visibleTables = (() => {
-    let filteredTables = tables.filter(entity => entity.is_entity_owner); // Summary only shows entity owners
+    let filteredTables = tables; // Server already filtered for entity owners
     
     // Apply recent filter if metrics unavailable (same as EntityTable logic)
     if (!hasRangeData) {
@@ -410,7 +401,7 @@ const Summary = () => {
   })();
   
   const visibleDags = (() => {
-    let filteredDags = dags.filter(entity => entity.is_entity_owner); // Summary only shows entity owners
+    let filteredDags = dags; // Server already filtered for entity owners
     
     // Apply recent filter if metrics unavailable (same as EntityTable logic)
     if (!hasRangeData) {
@@ -730,15 +721,8 @@ const Summary = () => {
                   { 
                     title: "Entities Monitored", 
                     value: (() => {
-                      // Count entities exactly like Summary EntityTable displays them
-                      // Summary only shows active entity owners
-                      let filteredForDisplay = entities.filter((entity: Entity) => {
-                        // Filter by active status, entity ownership, and selected tenant
-                        if (!entity.is_active) return false;
-                        if (!entity.is_entity_owner) return false; // Summary only shows entity owners
-                        if (selectedTenant && entity.tenant_name !== selectedTenant.name) return false;
-                        return true;
-                      });
+                      // Server already filters for active entity owners by tenant
+                      let filteredForDisplay = entities;
                       
                       // Apply same filtering logic as EntityTable:
                       // If metrics unavailable for selected range, show only recent entities
@@ -752,19 +736,12 @@ const Summary = () => {
                     loading: metricsLoading && !lastFetchFailed,
                     showDataUnavailable: false, // Never show unavailable - always show actual count
                     subtitle: (() => {
-                      // Calculate breakdown using same filtering as count above
-                      // Summary only shows active entity owners
+                      // Server already filters for active entity owners by tenant
                       let tablesForDisplay = entities.filter((entity: Entity) => 
-                        entity.type === 'table' && 
-                        entity.is_active &&
-                        entity.is_entity_owner && // Summary only shows entity owners
-                        (!selectedTenant || entity.tenant_name === selectedTenant.name)
+                        entity.type === 'table'
                       );
                       let dagsForDisplay = entities.filter((entity: Entity) => 
-                        entity.type === 'dag' && 
-                        entity.is_active &&
-                        entity.is_entity_owner && // Summary only shows entity owners
-                        (!selectedTenant || entity.tenant_name === selectedTenant.name)
+                        entity.type === 'dag'
                       );
                       
                       // Apply recent filter if metrics unavailable (same as EntityTable logic)
@@ -774,7 +751,6 @@ const Summary = () => {
                       }
                       
                       return `${tablesForDisplay.length} Tables • ${dagsForDisplay.length} DAGs`;
-                      return `${visibleTables.length} Tables • ${visibleDags.length} DAGs`;
                     })()
                   }
                 ].map((card, idx) => (
