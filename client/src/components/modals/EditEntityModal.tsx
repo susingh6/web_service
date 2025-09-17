@@ -752,7 +752,7 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
           )}
           
 
-          {!watch().is_entity_owner && (
+          {!entityDetails?.is_entity_owner && (
             <Controller
               name="owner_entity_reference"
               control={control}
@@ -792,26 +792,8 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
             )}
           />
 
-          <Controller
-            name="is_entity_owner"
-            control={control}
-            render={({ field: { onChange, value } }) => (
-              <Box sx={{ mt: 2 }}>
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={value || false}
-                      onChange={(e) => onChange(e.target.checked)}
-                      name="is_entity_owner"
-                    />
-                  }
-                  label={fieldDefinitions.is_entity_owner.label}
-                />
-              </Box>
-            )}
-          />
 
-          {watch().is_entity_owner && (
+          {entityDetails?.is_entity_owner && (
             <>
 
               <Controller
