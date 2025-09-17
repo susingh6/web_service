@@ -117,6 +117,40 @@ export const notificationTimelines = pgTable("notification_timelines", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+// SLA DAG Audit table for tracking changes to DAG entities
+export const slaDagAudit = pgTable("sla_dag_audit", {
+  id: serial("id").primaryKey(),
+  entityName: text("entity_name").notNull(),
+  tenantId: integer("tenant_id").notNull(),
+  teamId: integer("team_id").notNull(),
+  auditSequenceId: integer("audit_sequence_id").notNull(),
+  auditUuidId: text("audit_uuid_id").notNull(),
+  actionType: text("action_type").notNull(), // 'INSERT', 'UPDATE', 'DELETE', 'REVERT'
+  rowBefore: json("row_before").$type<any>(),
+  rowAfter: json("row_after").$type<any>(),
+  changes: json("changes").$type<any>(),
+  revertedFromAuditId: text("reverted_from_audit_id"),
+  actionByUserId: integer("action_by_user_id").notNull(),
+  actionTimestamp: timestamp("action_timestamp").defaultNow().notNull(),
+});
+
+// SLA Table Audit table for tracking changes to Table entities  
+export const slaTableAudit = pgTable("sla_table_audit", {
+  id: serial("id").primaryKey(),
+  entityName: text("entity_name").notNull(),
+  tenantId: integer("tenant_id").notNull(),
+  teamId: integer("team_id").notNull(),
+  auditSequenceId: integer("audit_sequence_id").notNull(),
+  auditUuidId: text("audit_uuid_id").notNull(),
+  actionType: text("action_type").notNull(), // 'INSERT', 'UPDATE', 'DELETE', 'REVERT'
+  rowBefore: json("row_before").$type<any>(),
+  rowAfter: json("row_after").$type<any>(),
+  changes: json("changes").$type<any>(),
+  revertedFromAuditId: text("reverted_from_audit_id"),
+  actionByUserId: integer("action_by_user_id").notNull(),
+  actionTimestamp: timestamp("action_timestamp").defaultNow().notNull(),
+});
+
 // Zod schemas for data validation
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
@@ -204,6 +238,21 @@ export const insertNotificationTimelineSchema = createInsertSchema(notificationT
   updatedAt: true,
 });
 
+// Audit table insert schemas
+export const insertSlaDagAuditSchema = createInsertSchema(slaDagAudit).omit({
+  id: true,
+  actionTimestamp: true,
+}).extend({
+  actionType: z.enum(['INSERT', 'UPDATE', 'DELETE', 'REVERT']),
+});
+
+export const insertSlaTableAuditSchema = createInsertSchema(slaTableAudit).omit({
+  id: true,
+  actionTimestamp: true,
+}).extend({
+  actionType: z.enum(['INSERT', 'UPDATE', 'DELETE', 'REVERT']),
+});
+
 // Types for use in the application
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -254,3 +303,10 @@ export type InsertIssue = z.infer<typeof insertIssueSchema>;
 
 export type NotificationTimeline = typeof notificationTimelines.$inferSelect;
 export type InsertNotificationTimeline = z.infer<typeof insertNotificationTimelineSchema>;
+
+// Audit table types
+export type SlaDagAudit = typeof slaDagAudit.$inferSelect;
+export type InsertSlaDagAudit = z.infer<typeof insertSlaDagAuditSchema>;
+
+export type SlaTableAudit = typeof slaTableAudit.$inferSelect;
+export type InsertSlaTableAudit = z.infer<typeof insertSlaTableAuditSchema>;
