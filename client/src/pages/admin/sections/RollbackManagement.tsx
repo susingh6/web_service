@@ -503,6 +503,15 @@ const RollbackManagement = () => {
                     label="Team"
                     onChange={(e) => setSelectedTeam(e.target.value)}
                     disabled={!selectedTenant || teamTenantSearchMutation.isPending || availableTeams.length === 0}
+                    onOpen={() => {
+                      if (!selectedTenant) {
+                        toast({
+                          title: "Select Tenant First",
+                          description: "Please select a tenant before choosing a team.",
+                          variant: "default"
+                        });
+                      }
+                    }}
                     data-testid="select-team"
                   >
                     {availableTeams.map((team) => (
