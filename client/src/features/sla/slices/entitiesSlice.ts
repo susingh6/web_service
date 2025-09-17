@@ -20,7 +20,8 @@ interface UpdateEntityPayload {
 }
 
 interface EntitiesState {
-  list: Entity[];
+  list: Entity[]; // For tenant-wide entities (Summary dashboard)
+  teamLists: Record<number, Entity[]>; // For team-specific entities (Team dashboards)
   teams: Team[];
   selectedEntity: Entity | null;
   filter: EntityFilter;
@@ -30,6 +31,7 @@ interface EntitiesState {
 
 const initialState: EntitiesState = {
   list: [],
+  teamLists: {},
   teams: [],
   selectedEntity: null,
   filter: {
@@ -48,12 +50,16 @@ const initialState: EntitiesState = {
 export const fetchEntities = createAsyncThunk(
   'entities/fetchAll',
   async (params: { teamId?: number; type?: string; tenant?: string } = {}) => {
+    let entities;
     if (params.teamId) {
-      return await entitiesApi.getByTeam(params.teamId);
+      entities = await entitiesApi.getByTeam(params.teamId);
+      return { entities, isTeamSpecific: true, teamId: params.teamId };
     } else if (params.type) {
-      return await entitiesApi.getByType(params.type);
+      entities = await entitiesApi.getByType(params.type);
+      return { entities, isTeamSpecific: false };
     }
-    return await entitiesApi.getAll(params.tenant);
+    entities = await entitiesApi.getAll(params.tenant);
+    return { entities, isTeamSpecific: false };
   }
 );
 
@@ -117,7 +123,15 @@ const entitiesSlice = createSlice({
       })
       .addCase(fetchEntities.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.list = action.payload;
+        const { entities, isTeamSpecific, teamId } = action.payload;
+        
+        if (isTeamSpecific && teamId !== undefined) {
+          // Store team-specific entities in teamLists bucket
+          state.teamLists[teamId] = entities;
+        } else {
+          // Store tenant-wide entities in main list
+          state.list = entities;
+        }
       })
       .addCase(fetchEntities.rejected, (state, action) => {
         state.isLoading = false;
@@ -159,7 +173,15 @@ const entitiesSlice = createSlice({
       })
       .addCase(createEntity.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.list.push(action.payload);
+        const newEntity = action.payload;
+        
+        // Add to main tenant list
+        state.list.push(newEntity);
+        
+        // Add to team bucket if entity has teamId
+        if (newEntity.teamId && state.teamLists[newEntity.teamId]) {
+          state.teamLists[newEntity.teamId].push(newEntity);
+        }
       })
       .addCase(createEntity.rejected, (state, action) => {
         state.isLoading = false;
@@ -173,12 +195,26 @@ const entitiesSlice = createSlice({
       })
       .addCase(updateEntity.fulfilled, (state, action) => {
         state.isLoading = false;
-        const index = state.list.findIndex((entity: Entity) => entity.id === action.payload.id);
-        if (index !== -1) {
-          state.list[index] = action.payload;
+        const updatedEntity = action.payload;
+        
+        // Update in main tenant list
+        const mainIndex = state.list.findIndex((entity: Entity) => entity.id === updatedEntity.id);
+        if (mainIndex !== -1) {
+          state.list[mainIndex] = updatedEntity;
         }
-        if (state.selectedEntity && state.selectedEntity.id === action.payload.id) {
-          state.selectedEntity = action.payload;
+        
+        // Update in all team lists where this entity exists
+        Object.keys(state.teamLists).forEach(teamIdStr => {
+          const teamId = parseInt(teamIdStr);
+          const teamIndex = state.teamLists[teamId].findIndex((entity: Entity) => entity.id === updatedEntity.id);
+          if (teamIndex !== -1) {
+            state.teamLists[teamId][teamIndex] = updatedEntity;
+          }
+        });
+        
+        // Update selected entity if it matches
+        if (state.selectedEntity && state.selectedEntity.id === updatedEntity.id) {
+          state.selectedEntity = updatedEntity;
         }
       })
       .addCase(updateEntity.rejected, (state, action) => {
@@ -193,8 +229,19 @@ const entitiesSlice = createSlice({
       })
       .addCase(deleteEntity.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.list = state.list.filter((entity: Entity) => entity.id !== action.payload);
-        if (state.selectedEntity && state.selectedEntity.id === action.payload) {
+        const deletedId = action.payload;
+        
+        // Remove from main tenant list
+        state.list = state.list.filter((entity: Entity) => entity.id !== deletedId);
+        
+        // Remove from all team lists
+        Object.keys(state.teamLists).forEach(teamIdStr => {
+          const teamId = parseInt(teamIdStr);
+          state.teamLists[teamId] = state.teamLists[teamId].filter((entity: Entity) => entity.id !== deletedId);
+        });
+        
+        // Clear selected entity if it was deleted
+        if (state.selectedEntity && state.selectedEntity.id === deletedId) {
           state.selectedEntity = null;
         }
       })

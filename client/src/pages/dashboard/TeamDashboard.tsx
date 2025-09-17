@@ -54,7 +54,14 @@ const TeamDashboard = ({
   onViewTasks 
 }: TeamDashboardProps) => {
   const dispatch = useAppDispatch();
-  const { list: entities, teams, isLoading } = useAppSelector((state) => state.entities);
+  const { list: allEntities, teamLists, teams, isLoading } = useAppSelector((state) => state.entities);
+  
+  // Find current team ID from teamName
+  const currentTeam = teams.find(team => team.name === teamName);
+  const teamId = currentTeam?.id;
+  
+  // Get team-specific entities from teamLists bucket, fallback to empty array
+  const entities = teamId && teamLists[teamId] ? teamLists[teamId] : [];
   const {} = useAppSelector((state) => state.dashboard);
   const queryClient = useQueryClient();
 
