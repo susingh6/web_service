@@ -149,9 +149,17 @@ const RollbackManagement = () => {
 
   // Filter teams based on selected tenant
   const availableTeams = useMemo(() => {
-    if (!selectedTenant || !allTeams) return [];
+    if (!selectedTenant || !allTeams) {
+      console.log('🔍 No filtering: selectedTenant=', selectedTenant, 'allTeams=', allTeams?.length || 0);
+      return [];
+    }
+    
     console.log('🔍 Filtering teams for tenant:', selectedTenant, 'from teams:', allTeams);
-    return allTeams.filter((team: any) => String(team.tenant_id) === String(selectedTenant));
+    console.log('🔍 Sample team structure:', allTeams[0]);
+    
+    const filtered = allTeams.filter((team: any) => String(team.tenant_id) === String(selectedTenant));
+    console.log('🔍 Filtered teams result:', filtered);
+    return filtered;
   }, [allTeams, selectedTenant]);
 
   // Entity name search mutation using 3-tier fallback pattern
