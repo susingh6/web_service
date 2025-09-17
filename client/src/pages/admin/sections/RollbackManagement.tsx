@@ -157,7 +157,9 @@ const RollbackManagement = () => {
     console.log('🔍 Filtering teams for tenant:', selectedTenant, 'from teams:', allTeams);
     console.log('🔍 Sample team structure:', allTeams[0]);
     
-    const filtered = allTeams.filter((team: any) => String(team.tenant_id) === String(selectedTenant));
+    const filtered = allTeams.filter((team: any) => 
+      String(team.tenant_id) === String(selectedTenant) && team.isActive !== false
+    );
     console.log('🔍 Filtered teams result:', filtered);
     return filtered;
   }, [allTeams, selectedTenant]);
