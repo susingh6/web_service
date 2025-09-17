@@ -60,11 +60,12 @@ interface TeamFormDialogProps {
   open: boolean;
   onClose: () => void;
   team: any | null; // Use any since API may return different format than schema
-  tenants: any[];
+  tenants: any[]; // All tenants for name lookup
+  activeTenants: any[]; // Only active tenants for dropdown
   onSubmit: (teamData: any) => void;
 }
 
-const TeamFormDialog = ({ open, onClose, team, tenants, onSubmit }: TeamFormDialogProps) => {
+const TeamFormDialog = ({ open, onClose, team, tenants, activeTenants, onSubmit }: TeamFormDialogProps) => {
   const [formData, setFormData] = useState({
     name: team?.name || '',
     description: team?.description || '',
@@ -219,7 +220,7 @@ const TeamFormDialog = ({ open, onClose, team, tenants, onSubmit }: TeamFormDial
                     label="Tenant"
                     data-testid="select-tenant"
                   >
-                    {tenants.map((tenant) => (
+                    {activeTenants.map((tenant) => (
                       <MenuItem key={tenant.id} value={tenant.id}>
                         {tenant.name}
                       </MenuItem>
@@ -569,18 +570,22 @@ const TeamsManagement = () => {
     },
   });
 
-  // Fetch ACTIVE tenants for team creation (do not show inactive tenants)
-  const { data: tenants = [] } = useQuery({
-    queryKey: ['/api/tenants', 'active'],
+  // Fetch ALL tenants (including inactive) for proper name resolution
+  const { data: allTenants = [] } = useQuery({
+    queryKey: ['/api/tenants', 'all'],
     queryFn: async () => {
-      return await tenantsApi.getAll(true); // active_only=true
+      return await tenantsApi.getAll(false); // active_only=false to get all tenants
     },
     staleTime: 6 * 60 * 60 * 1000,
   });
 
-  // Create efficient tenant name lookup map (O(1) vs O(n) Array.find)
+  // Extract only active tenants for team creation dropdown 
+  const activeTenants = useMemo(() => 
+    allTenants.filter((t: any) => t.isActive !== false), [allTenants]);
+
+  // Create efficient tenant name lookup map using ALL tenants (O(1) vs O(n) Array.find)
   const tenantNameMap = useMemo(() => 
-    new Map(tenants.map((t: any) => [t.id, t.name])), [tenants]);
+    new Map(allTenants.map((t: any) => [t.id, t.name])), [allTenants]);
 
   // Multi-field search logic with normalized search index
   const filteredTeams = useMemo(() => {
@@ -1213,7 +1218,8 @@ const TeamsManagement = () => {
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
         team={selectedTeam}
-        tenants={tenants}
+        tenants={allTenants}
+        activeTenants={activeTenants}
         onSubmit={handleSubmitTeam}
       />
     </Box>
