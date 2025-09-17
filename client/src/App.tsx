@@ -1,5 +1,5 @@
 import { Suspense, lazy, useState } from "react";
-import { Switch, Route } from "wouter";
+import { Switch, Route, useRoute } from "wouter";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
 import { AuthProvider } from "@/hooks/use-auth";
@@ -12,7 +12,7 @@ import AuthPage from "@/pages/auth-page";
 import Summary from "@/pages/dashboard/Summary";
 import AdminPage from "@/pages/admin/AdminPage";
 import { Box, CircularProgress } from "@mui/material";
-import type { Entity } from "@/types/entity";
+import type { Entity } from "@shared/schema";
 
 // Lazy load components for better performance
 const TeamDashboard = lazy(() => import("@/pages/dashboard/TeamDashboard"));
@@ -25,6 +25,10 @@ const ConfirmDialog = lazy(() => import("@/components/modals/ConfirmDialog"));
 
 // Wrapper component to handle TeamDashboard props
 const TeamDashboardWrapper = () => {
+  // Get team ID from route params
+  const [match, params] = useRoute("/team/:id");
+  const teamId = params?.id;
+  
   // Modal state management
   const [selectedEntity, setSelectedEntity] = useState<Entity | null>(null);
   const [openEditModal, setOpenEditModal] = useState(false);
@@ -75,8 +79,8 @@ const TeamDashboardWrapper = () => {
   };
 
   const teamDashboardProps = {
-    teamName: 'Development Team',
-    tenantName: 'Production',
+    teamName: `Team ${teamId}`,
+    tenantName: 'Data Engineering',
     onEditEntity: handleEditEntity,
     onDeleteEntity: handleDeleteEntity,
     onViewDetails: handleViewDetails,
@@ -96,24 +100,22 @@ const TeamDashboardWrapper = () => {
           open={openEditModal}
           onClose={() => setOpenEditModal(false)}
           entity={selectedEntity}
-          teams={[]}
-          initialTenantName="Production"
-          initialTeamName="Development Team"
+          teams={[{ id: Number(teamId), name: `Team ${teamId}` }]}
+          initialTenantName="Data Engineering"
+          initialTeamName={`Team ${teamId}`}
         />
         
         <AddEntityModal
           open={openAddModal}
           onClose={() => setOpenAddModal(false)}
-          teams={[]}
-          initialTenantName="Production"
-          initialTeamName="Development Team"
+          teams={[{ id: Number(teamId), name: `Team ${teamId}` }]}
+          initialTenantName="Data Engineering"
+          initialTeamName={`Team ${teamId}`}
         />
         
         <BulkUploadModal
           open={openBulkModal}
           onClose={() => setOpenBulkModal(false)}
-          teams={[]}
-          initialTenantName="Production"
         />
         
         <ConfirmDialog
