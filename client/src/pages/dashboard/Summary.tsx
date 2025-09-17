@@ -89,14 +89,6 @@ const Summary = () => {
     lastFetchFailed
   });
   const { teams } = useAppSelector((state) => state.entities);
-  
-  // DEBUG: Log Entities Redux State
-  console.log('[DEBUG] Entities Redux State:', {
-    entities: entities?.length || 0,
-    teamsCount: teams?.length || 0,
-    entitiesLoading,
-    entitiesSample: entities?.slice(0, 2)
-  });
 
   const [tabValue, setTabValue] = useState(0);
   const [openAddModal, setOpenAddModal] = useState(false);
@@ -125,6 +117,14 @@ const Summary = () => {
     queryKey: ['/api/entities', { tenant: selectedTenant?.name, scope: 'tenant' }],
     queryFn: () => apiRequest(`/api/v1/entities?tenant=${encodeURIComponent(selectedTenant?.name || '')}`),
     enabled: !!selectedTenant?.name
+  });
+
+  // DEBUG: Log Entities Redux State
+  console.log('[DEBUG] Entities Redux State:', {
+    entities: entities?.length || 0,
+    teamsCount: teams?.length || 0,
+    entitiesLoading,
+    entitiesSample: entities?.slice(0, 2)
   });
   const [teamDateRanges, setTeamDateRanges] = useState<Record<string, { startDate: Date; endDate: Date; label: string }>>({});
   const [summaryDateRange, setSummaryDateRange] = useState({
