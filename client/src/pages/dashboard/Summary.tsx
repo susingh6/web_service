@@ -217,7 +217,9 @@ const Summary = () => {
       scheduleNormalizedFlush();
 
       // Keep Redux-backed views fresh (legacy behavior preserved)
-      dispatch(fetchEntities({}));
+      if (selectedTenant) {
+        dispatch(fetchEntities({ tenant: selectedTenant.name }));
+      }
       if (selectedTenant) {
         dispatch(fetchDashboardSummary({ tenantName: selectedTenant.name }));
       }
@@ -244,7 +246,9 @@ const Summary = () => {
       if (selectedTenant) {
         dispatch(fetchDashboardSummary({ tenantName: selectedTenant.name }));
       }
-      dispatch(fetchEntities({}));
+      if (selectedTenant) {
+        dispatch(fetchEntities({ tenant: selectedTenant.name }));
+      }
       toast({
         title: "Data Refreshed",
         description: "Dashboard data has been updated with latest information",
