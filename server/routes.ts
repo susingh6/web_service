@@ -1339,20 +1339,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       let entities;
       
-      // Team dashboard requests: get all entities but exclude inactive ones
+      // Team dashboard requests: get all entities (including inactive for visibility)
       if (req.query.teamId) {
         // For team-specific requests, get ALL entities directly from storage 
-        // but exclude inactive entities (is_active: false)
+        // including inactive entities for visibility and management
         const allEntities = await storage.getEntities();
-        entities = allEntities.filter(entity => entity.is_active !== false);
+        entities = allEntities; // Show ALL entities (active and inactive) for team visibility
       } else {
-        // Summary dashboard requests: use filtered cache (entity owners only)
-        entities = await redisCache.getAllEntities();
-        
-        // Filter by tenant if tenant parameter is provided
+        // Summary dashboard requests: show active entity owners across all teams
         if (req.query.tenant) {
+          // For tenant-specific summary, get ALL entities and filter for active entity owners
           const tenantName = req.query.tenant as string;
-          entities = await redisCache.getEntitiesByTenant(tenantName);
+          const allEntities = await storage.getEntities();
+          entities = allEntities.filter(entity => 
+            entity.tenant_name === tenantName && 
+            entity.is_entity_owner === true && 
+            entity.is_active !== false
+          );
+        } else {
+          // For global summary, use cached entity owners only (active entity owners)
+          entities = await redisCache.getAllEntities();
         }
       }
       

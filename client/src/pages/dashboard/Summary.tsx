@@ -300,8 +300,8 @@ const Summary = () => {
         endDate
       }));
 
-      // Always load ALL entities for Summary dashboard - don't filter by team
-      dispatch(fetchEntities({})); // Load ALL entities for summary dashboard
+      // Load entities for current tenant only (active entity owners)
+      dispatch(fetchEntities({ tenant: selectedTenant.name })); // Load tenant-specific entities for summary dashboard
       // Load teams data for chart display (silent load for summary page)
       dispatch(fetchTeams());
       setTeamsLoaded(true);
@@ -334,7 +334,7 @@ const Summary = () => {
         }));
         
         // Also refresh entities to keep entity count in sync
-        dispatch(fetchEntities({}));
+        dispatch(fetchEntities({ tenant: selectedTenant.name }));
       }
     };
     
