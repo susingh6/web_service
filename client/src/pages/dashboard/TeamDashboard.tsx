@@ -514,6 +514,9 @@ const TeamDashboard = ({
                   )}
                 </Box>
               </Box>
+
+              {/* Team Notification Settings */}
+              <TeamNotificationSettings team={team} tenantName={tenantName} />
             </Box>
 
             <Box display="flex" alignItems="center" gap={2}>
@@ -667,9 +670,6 @@ const TeamDashboard = ({
             />
           </Box>
         </Box>
-
-        {/* Team Notification Settings */}
-        <TeamNotificationSettings team={team} tenantName={tenantName} />
 
         {/* Tables/DAGs Sub-tabs */}
         <Tabs value={tabValue} onChange={handleTabChange} sx={{ mb: 3 }}>
