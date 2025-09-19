@@ -364,7 +364,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updateData = validationResult.data;
       
       // Get current user data BEFORE update to compare is_active status
-      const currentUser = await storage.getUserById(userId);
+      const currentUser = await storage.getUser(userId);
       if (!currentUser) {
         return res.status(404).json(createErrorResponse("User not found", "not_found"));
       }
