@@ -266,22 +266,53 @@ const AgentWorkspaceModal: React.FC<AgentWorkspaceModalProps> = ({
             status: 'complete'
           } : null);
           
-          // Auto-close current conversation after 4 seconds
+          // Instead of auto-closing, create a persistent conversation
+          const newConversationId = response.conversation_id || `conv-${Date.now()}`;
+          const newConversation: FullConversation & { messages: Array<{ id: string; type: 'user' | 'agent'; content: string; timestamp: Date; }> } = {
+            id: newConversationId,
+            date_key: new Date().toISOString().split('T')[0],
+            task_name: detectedIncidentContext?.task_name || dagEntity.name,
+            messages: [
+              {
+                id: `msg-${Date.now()}-user`,
+                type: 'user' as const,
+                content: messageText,
+                timestamp: new Date()
+              },
+              {
+                id: `msg-${Date.now()}-agent`,
+                type: 'agent' as const,
+                content: response.agent_response,
+                timestamp: new Date()
+              }
+            ],
+            status: 'pending' as const
+          };
+
+          // Add to expanded conversations so it persists
+          setExpandedConversations(prev => {
+            const newMap = new Map(prev);
+            newMap.set(newConversationId, newConversation);
+            return newMap;
+          });
+
+          // Add summary to the conversation list
+          const newSummary: ConversationSummary & { timestamp: Date } = {
+            id: newConversationId,
+            date_key: newConversation.date_key,
+            task_name: newConversation.task_name,
+            summary: messageText.length > 50 ? messageText.substring(0, 47) + '...' : messageText,
+            timestamp: new Date(),
+            status: 'pending',
+            messageCount: 2
+          };
+
+          setConversationSummaries(prev => [newSummary, ...prev]);
+          
+          // Clear current conversation after adding to persistent list
           setTimeout(() => {
             setCurrentConversation(null);
-            // Refresh conversation summaries to include new conversation
-            if (dagEntity) {
-              agentApi.getConversationSummaries(dagEntity.id)
-                .then(summaries => {
-                  const summariesWithDates = summaries.map(s => ({
-                    ...s,
-                    timestamp: new Date(s.timestamp)
-                  }));
-                  setConversationSummaries(summariesWithDates);
-                })
-                .catch(error => console.error('Failed to refresh summaries:', error));
-            }
-          }, 4000);
+          }, 1000);
         })
         .catch(error => {
           console.error('Failed to send message:', error);
