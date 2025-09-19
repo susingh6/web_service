@@ -102,6 +102,8 @@ export const devConfig = {
       sendMessage: (dagId: number) => `/api/v1/agent/conversations/${dagId}/send`,
       // Enhanced agent endpoint with incident context and OAuth claims
       chatWithIncident: (dagId: number) => `/api/v1/agent/dags/${dagId}/chat`,
+      // Direct FastAPI agent endpoint for real conversations
+      chatDirect: (dagId: number) => `/api/agent/chat/${dagId}`,
     },
     
     // Admin endpoints - FastAPI with role-based access control
@@ -215,7 +217,7 @@ export const devConfig = {
     teams: true,
     tasks: true,
     notifications: true,
-    agent: true, // Separate flag for agent workspace data
+    agent: false, // Turn off mock mode - use real FastAPI
   },
   
   // FastAPI Integration Control
