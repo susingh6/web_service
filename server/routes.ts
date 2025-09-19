@@ -438,7 +438,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         if (currentUser.email) {
           const allUsers = await storage.getUsers();
+          console.log(`[PROFILE DEBUG] Looking for user with email: ${currentUser.email}`);
+          console.log(`[PROFILE DEBUG] Available user emails:`, allUsers.map(u => ({ username: u.username, email: u.email })));
           existingUser = allUsers.find(user => user.email === currentUser.email);
+          
+          if (existingUser) {
+            console.log(`[PROFILE DEBUG] Found matching user:`, existingUser.username);
+          } else {
+            console.log(`[PROFILE DEBUG] No email match found, falling back to session data`);
+          }
         }
         
         if (existingUser) {

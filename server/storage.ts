@@ -145,11 +145,13 @@ export class MemStorage implements IStorage {
       username: "azure_test_user",
       // Pre-hashed password for "Azure123!" - this is the correct format for the auth.ts comparePassword function
       password: "fd8c4a1ca56057251afbd0fd4b308a15113651c3e557c44eb58b8284e6d7fd4c1212a99dc7784c5cbb5072a2c138185c806394074e6c5f599209185e9576ea2e.e33fe34bf418a28b",
-      email: "test@example.com",
+      email: "azure_test_user@example.com", // Fixed: Match OAuth email
       displayName: "Azure Test User",
       team: "Core",
       role: "admin", // Set admin role for test user
-      azureObjectId: "test-azure-object-id"
+      azureObjectId: "test-azure-object-id",
+      user_slack: ["@azure.tester", "@testuser"], // Test Slack handles
+      user_pagerduty: ["azure_test@pagerduty.com"] // Test PagerDuty email
     });
 
     // Create mock users for all team members
