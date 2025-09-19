@@ -108,8 +108,8 @@ const ProfilePage = () => {
         rollbackKeys: [['profile', 'current']],
       });
 
-      // IMPORTANT: Force refetch admin users data so admin panel reflects profile changes immediately
-      await queryClient.refetchQueries({ queryKey: ['admin', 'users'] });
+      // IMPORTANT: Reset admin users cache to force fresh data in admin panel
+      queryClient.resetQueries({ queryKey: ['admin', 'users'] });
 
       toast({
         title: "Profile Updated",
