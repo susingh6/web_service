@@ -362,7 +362,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
             action: 'user_status_update',
             memberId: String(updatedUser.id),
             memberName: updatedUser.username,
-            is_active: updatedUser.is_active,
             tenantName: 'Data Engineering'
           });
         }
