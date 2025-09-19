@@ -433,16 +433,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let profileData;
       
       try {
-        // First, try to get full user details from database using username or email
+        // Search by email only - if match found, use admin details
         let existingUser;
         
-        // Try by username first (more reliable)
-        if (currentUser.username) {
-          existingUser = await storage.getUserByUsername(currentUser.username);
-        }
-        
-        // If not found by username, search all users by email
-        if (!existingUser && currentUser.email) {
+        if (currentUser.email) {
           const allUsers = await storage.getUsers();
           existingUser = allUsers.find(user => user.email === currentUser.email);
         }
