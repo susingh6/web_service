@@ -10,9 +10,11 @@ import {
   TextField,
   Chip,
   Button,
-  Autocomplete
+  Autocomplete,
+  InputAdornment,
+  IconButton
 } from '@mui/material';
-import { Bell, Mail, MessageSquare, AlertTriangle } from 'lucide-react';
+import { Bell, Mail, MessageSquare, AlertTriangle, Plus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
@@ -21,9 +23,10 @@ import { Team } from '@shared/schema';
 interface TeamNotificationSettingsProps {
   team: Team;
   tenantName: string;
+  variant?: 'default' | 'compact';
 }
 
-export function TeamNotificationSettings({ team, tenantName }: TeamNotificationSettingsProps) {
+export function TeamNotificationSettings({ team, tenantName, variant = 'default' }: TeamNotificationSettingsProps) {
   const [formData, setFormData] = useState({
     team_email: team?.team_email || [],
     team_slack: team?.team_slack || [],
@@ -31,6 +34,11 @@ export function TeamNotificationSettings({ team, tenantName }: TeamNotificationS
   });
   
   const [hasChanges, setHasChanges] = useState(false);
+  const [inputValues, setInputValues] = useState({
+    team_email: '',
+    team_slack: '',
+    team_pagerduty: ''
+  });
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -113,16 +121,35 @@ export function TeamNotificationSettings({ team, tenantName }: TeamNotificationS
     return /^[a-zA-Z0-9._-]+$/.test(handle.replace('@', ''));
   };
 
-  const addValue = (type: 'team_email' | 'team_slack' | 'team_pagerduty', value: string) => {
-    if (!value.trim()) return;
+  const addValue = (type: 'team_email' | 'team_slack' | 'team_pagerduty') => {
+    const value = inputValues[type].trim();
+    if (!value) return;
     
     let isValid = true;
-    if (type === 'team_email') isValid = validateEmail(value.trim());
-    if (type === 'team_slack') isValid = validateSlackHandle(value.trim());
+    if (type === 'team_email') isValid = validateEmail(value);
+    if (type === 'team_slack') isValid = validateSlackHandle(value);
     
-    if (isValid) {
-      const newValues = [...(formData[type] || []), value.trim()];
+    if (isValid && !formData[type]?.includes(value)) {
+      const newValues = [...(formData[type] || []), value];
       setFormData({ ...formData, [type]: newValues });
+      setInputValues({ ...inputValues, [type]: '' });
+    } else if (!isValid) {
+      toast({
+        title: 'Invalid format',
+        description: type === 'team_email' ? 'Please enter a valid email address' : 'Please enter a valid format',
+        variant: 'destructive',
+      });
+    }
+  };
+  
+  const handleInputChange = (type: 'team_email' | 'team_slack' | 'team_pagerduty', value: string) => {
+    setInputValues({ ...inputValues, [type]: value });
+  };
+  
+  const handleKeyPress = (type: 'team_email' | 'team_slack' | 'team_pagerduty', event: React.KeyboardEvent) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      addValue(type);
     }
   };
 
@@ -174,7 +201,7 @@ export function TeamNotificationSettings({ team, tenantName }: TeamNotificationS
             color="text.secondary" 
             sx={{ 
               mb: 1, 
-              fontSize: '0.75rem', 
+              fontSize: variant === 'compact' ? '0.7rem' : '0.75rem', 
               lineHeight: 1, 
               display: 'inline-flex', 
               alignItems: 'center', 
@@ -196,28 +223,42 @@ export function TeamNotificationSettings({ team, tenantName }: TeamNotificationS
               />
             ))}
           </Box>
-          <Autocomplete
-            freeSolo
-            options={[]}
-            size="small"
-            sx={{ width: '100%' }}
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                size="small"
-                placeholder="Add email..."
-                sx={{ '& .MuiInputBase-root': { height: '24px', fontSize: '0.75rem' } }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    const value = (e.target as HTMLInputElement).value;
-                    addValue('team_email', value);
-                    (e.target as HTMLInputElement).value = '';
-                    e.preventDefault();
-                  }
-                }}
-              />
-            )}
-          />
+          <Box sx={{ display: 'flex', gap: 0.5 }}>
+            <TextField
+              size="small"
+              placeholder="name@company.com"
+              value={inputValues.team_email}
+              onChange={(e) => handleInputChange('team_email', e.target.value)}
+              onKeyDown={(e) => handleKeyPress('team_email', e)}
+              sx={{ 
+                flex: 1,
+                '& .MuiInputBase-root': { 
+                  height: '24px', 
+                  fontSize: '0.75rem' 
+                } 
+              }}
+            />
+            <IconButton 
+              size="small" 
+              onClick={() => addValue('team_email')}
+              disabled={!inputValues.team_email.trim()}
+              sx={{ 
+                height: '24px',
+                width: '24px',
+                color: 'primary.main',
+                '&:hover': { bgcolor: 'primary.lighter' }
+              }}
+            >
+              <Plus size={12} />
+            </IconButton>
+          </Box>
+          <Typography 
+            variant="caption" 
+            color="text.secondary" 
+            sx={{ fontSize: '0.65rem', mt: 0.5, display: 'block' }}
+          >
+            Type email and press Enter or click +
+          </Typography>
         </Box>
 
         {/* Slack Notifications */}
@@ -227,7 +268,7 @@ export function TeamNotificationSettings({ team, tenantName }: TeamNotificationS
             color="text.secondary" 
             sx={{ 
               mb: 1, 
-              fontSize: '0.75rem', 
+              fontSize: variant === 'compact' ? '0.7rem' : '0.75rem', 
               lineHeight: 1, 
               display: 'inline-flex', 
               alignItems: 'center', 
@@ -249,28 +290,42 @@ export function TeamNotificationSettings({ team, tenantName }: TeamNotificationS
               />
             ))}
           </Box>
-          <Autocomplete
-            freeSolo
-            options={[]}
-            size="small"
-            sx={{ width: '100%' }}
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                size="small"
-                placeholder="@user or #channel..."
-                sx={{ '& .MuiInputBase-root': { height: '24px', fontSize: '0.75rem' } }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    const value = (e.target as HTMLInputElement).value;
-                    addValue('team_slack', value);
-                    (e.target as HTMLInputElement).value = '';
-                    e.preventDefault();
-                  }
-                }}
-              />
-            )}
-          />
+          <Box sx={{ display: 'flex', gap: 0.5 }}>
+            <TextField
+              size="small"
+              placeholder="@user or #channel"
+              value={inputValues.team_slack}
+              onChange={(e) => handleInputChange('team_slack', e.target.value)}
+              onKeyDown={(e) => handleKeyPress('team_slack', e)}
+              sx={{ 
+                flex: 1,
+                '& .MuiInputBase-root': { 
+                  height: '24px', 
+                  fontSize: '0.75rem' 
+                } 
+              }}
+            />
+            <IconButton 
+              size="small" 
+              onClick={() => addValue('team_slack')}
+              disabled={!inputValues.team_slack.trim()}
+              sx={{ 
+                height: '24px',
+                width: '24px',
+                color: 'primary.main',
+                '&:hover': { bgcolor: 'primary.lighter' }
+              }}
+            >
+              <Plus size={12} />
+            </IconButton>
+          </Box>
+          <Typography 
+            variant="caption" 
+            color="text.secondary" 
+            sx={{ fontSize: '0.65rem', mt: 0.5, display: 'block' }}
+          >
+            Type handle and press Enter or click +
+          </Typography>
         </Box>
 
         {/* PagerDuty Notifications */}
@@ -280,7 +335,7 @@ export function TeamNotificationSettings({ team, tenantName }: TeamNotificationS
             color="text.secondary" 
             sx={{ 
               mb: 1, 
-              fontSize: '0.75rem', 
+              fontSize: variant === 'compact' ? '0.7rem' : '0.75rem', 
               lineHeight: 1, 
               display: 'inline-flex', 
               alignItems: 'center', 
@@ -302,28 +357,42 @@ export function TeamNotificationSettings({ team, tenantName }: TeamNotificationS
               />
             ))}
           </Box>
-          <Autocomplete
-            freeSolo
-            options={[]}
-            size="small"
-            sx={{ width: '100%' }}
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                size="small"
-                placeholder="service key..."
-                sx={{ '& .MuiInputBase-root': { height: '24px', fontSize: '0.75rem' } }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    const value = (e.target as HTMLInputElement).value;
-                    addValue('team_pagerduty', value);
-                    (e.target as HTMLInputElement).value = '';
-                    e.preventDefault();
-                  }
-                }}
-              />
-            )}
-          />
+          <Box sx={{ display: 'flex', gap: 0.5 }}>
+            <TextField
+              size="small"
+              placeholder="service-escalation"
+              value={inputValues.team_pagerduty}
+              onChange={(e) => handleInputChange('team_pagerduty', e.target.value)}
+              onKeyDown={(e) => handleKeyPress('team_pagerduty', e)}
+              sx={{ 
+                flex: 1,
+                '& .MuiInputBase-root': { 
+                  height: '24px', 
+                  fontSize: '0.75rem' 
+                } 
+              }}
+            />
+            <IconButton 
+              size="small" 
+              onClick={() => addValue('team_pagerduty')}
+              disabled={!inputValues.team_pagerduty.trim()}
+              sx={{ 
+                height: '24px',
+                width: '24px',
+                color: 'primary.main',
+                '&:hover': { bgcolor: 'primary.lighter' }
+              }}
+            >
+              <Plus size={12} />
+            </IconButton>
+          </Box>
+          <Typography 
+            variant="caption" 
+            color="text.secondary" 
+            sx={{ fontSize: '0.65rem', mt: 0.5, display: 'block' }}
+          >
+            Type service key and press Enter or click +
+          </Typography>
         </Box>
       </Box>
     </Box>

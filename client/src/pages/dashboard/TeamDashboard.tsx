@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { startOfDay, endOfDay, subDays, format } from 'date-fns';
 import { useQuery } from '@tanstack/react-query';
 import { cacheKeys, invalidateAdminCaches } from '@/lib/cacheKeys';
-import { Box, Typography, Tabs, Tab, Card, CardContent, Chip, Paper, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, FormControl, InputLabel, Select, MenuItem, IconButton } from '@mui/material';
+import { Box, Typography, Tabs, Tab, Card, CardContent, Chip, Paper, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, FormControl, InputLabel, Select, MenuItem, IconButton, Grid } from '@mui/material';
 import { Add as AddIcon, Upload as UploadIcon, Person as PersonIcon, Edit as EditIcon, Delete as DeleteIcon, PersonAdd as PersonAddIcon } from '@mui/icons-material';
 import { useAppDispatch, useAppSelector } from '@/lib/store';
 import { fetchEntities, fetchTeams } from '@/features/sla/slices/entitiesSlice';
@@ -414,109 +414,116 @@ const TeamDashboard = ({
                 />
               </Box>
 
-              {/* Team Members Section */}
-              <Box mt={2}>
-                <Box display="flex" alignItems="center" justifyContent="space-between" mb={1}>
-                  <Typography variant="body2" color="text.secondary">
-                    Team Members:
-                  </Typography>
-                  <Box display="flex" gap={1}>
-                    <Button
-                      size="small"
-                      startIcon={<PersonAddIcon />}
-                      onClick={handleAddMember}
-                      sx={{ fontSize: '0.75rem', py: 0.5, px: 1 }}
-                    >
-                      Add Member
-                    </Button>
-                    <Button
-                      size="small"
-                      startIcon={<DeleteIcon />}
-                      onClick={handleRemoveMember}
-                      color="error"
-                      sx={{ fontSize: '0.75rem', py: 0.5, px: 1 }}
-                      disabled={teamMembers.length === 0}
-                    >
-                      Remove Member
-                    </Button>
-                  </Box>
-                </Box>
-                <Box display="flex" flexWrap="wrap" gap={0.5}>
-                  {teamMembersLoading ? (
-                    // Show loading skeleton for team members
-                    Array.from({ length: 3 }).map((_, index) => (
-                      <Box
-                        key={index}
-                        sx={{
-                          width: '80px',
-                          height: '24px',
-                          bgcolor: 'grey.200',
-                          borderRadius: '12px',
-                          animation: 'pulse 1.5s ease-in-out infinite',
-                          '@keyframes pulse': {
-                            '0%': { opacity: 1 },
-                            '50%': { opacity: 0.5 },
-                            '100%': { opacity: 1 }
-                          }
-                        }}
-                      />
-                    ))
-                  ) : teamMembers.length > 0 ? (
-                    teamMembers.map((member: any) => {
-                      const isExpired = !member.is_active;
-                      return (
-                        <Chip 
-                          key={member.id}
-                          label={
-                            <Box display="flex" alignItems="center" gap={0.5}>
-                              <span
-                                style={{
-                                  textDecoration: isExpired ? 'line-through' : 'none',
-                                  opacity: isExpired ? 0.6 : 1,
-                                }}
-                              >
-                                {member.displayName || member.username}
-                              </span>
-                              {isExpired && (
-                                <Box
-                                  component="span"
-                                  sx={{
-                                    bgcolor: 'error.main',
-                                    color: 'white',
-                                    borderRadius: '4px',
-                                    px: 0.5,
-                                    py: 0.1,
-                                    fontSize: '0.6rem',
-                                    fontWeight: 600,
-                                  }}
-                                >
-                                  EXPIRED
-                                </Box>
-                              )}
-                            </Box>
-                          }
+              {/* Team Members and Notification Settings */}
+              <Grid container spacing={2} mt={1} alignItems="flex-start">
+                {/* Team Members Section */}
+                <Grid item xs={12} md={6}>
+                  <Box>
+                    <Box display="flex" alignItems="center" justifyContent="space-between" mb={1}>
+                      <Typography variant="body2" color="text.secondary">
+                        Team Members:
+                      </Typography>
+                      <Box display="flex" gap={1}>
+                        <Button
                           size="small"
-                          variant="outlined"
-                          sx={{ 
-                            fontSize: '0.75rem',
-                            height: '24px',
-                            borderColor: isExpired ? 'error.main' : undefined,
-                            opacity: isExpired ? 0.8 : 1,
-                            '& .MuiChip-label': { px: 1 }
-                          }}
-                        />
-                      );
-                    })
-                  ) : (
-                    <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
-                      No team members found
-                    </Typography>
-                  )}
-                </Box>
-              </Box>
-
-              {/* Team Notification Settings */}
-              <TeamNotificationSettings team={team} tenantName={tenantName} />
+                          startIcon={<PersonAddIcon />}
+                          onClick={handleAddMember}
+                          sx={{ fontSize: '0.75rem', py: 0.5, px: 1 }}
+                        >
+                          Add Member
+                        </Button>
+                        <Button
+                          size="small"
+                          startIcon={<DeleteIcon />}
+                          onClick={handleRemoveMember}
+                          color="error"
+                          sx={{ fontSize: '0.75rem', py: 0.5, px: 1 }}
+                          disabled={teamMembers.length === 0}
+                        >
+                          Remove Member
+                        </Button>
+                      </Box>
+                    </Box>
+                    <Box display="flex" flexWrap="wrap" gap={0.5}>
+                      {teamMembersLoading ? (
+                        // Show loading skeleton for team members
+                        Array.from({ length: 3 }).map((_, index) => (
+                          <Box
+                            key={index}
+                            sx={{
+                              width: '80px',
+                              height: '24px',
+                              bgcolor: 'grey.200',
+                              borderRadius: '12px',
+                              animation: 'pulse 1.5s ease-in-out infinite',
+                              '@keyframes pulse': {
+                                '0%': { opacity: 1 },
+                                '50%': { opacity: 0.5 },
+                                '100%': { opacity: 1 }
+                              }
+                            }}
+                          />
+                        ))
+                      ) : teamMembers.length > 0 ? (
+                        teamMembers.map((member: any) => {
+                          const isExpired = !member.is_active;
+                          return (
+                            <Chip 
+                              key={member.id}
+                              label={
+                                <Box display="flex" alignItems="center" gap={0.5}>
+                                  <span
+                                    style={{
+                                      textDecoration: isExpired ? 'line-through' : 'none',
+                                      opacity: isExpired ? 0.6 : 1,
+                                    }}
+                                  >
+                                    {member.displayName || member.username}
+                                  </span>
+                                  {isExpired && (
+                                    <Box
+                                      component="span"
+                                      sx={{
+                                        bgcolor: 'error.main',
+                                        color: 'white',
+                                        borderRadius: '4px',
+                                        px: 0.5,
+                                        py: 0.1,
+                                        fontSize: '0.6rem',
+                                        fontWeight: 600,
+                                      }}
+                                    >
+                                      EXPIRED
+                                    </Box>
+                                  )}
+                                </Box>
+                              }
+                              size="small"
+                              variant="outlined"
+                              sx={{ 
+                                fontSize: '0.75rem',
+                                height: '24px',
+                                borderColor: isExpired ? 'error.main' : undefined,
+                                opacity: isExpired ? 0.8 : 1,
+                                '& .MuiChip-label': { px: 1 }
+                              }}
+                            />
+                          );
+                        })
+                      ) : (
+                        <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                          No team members found
+                        </Typography>
+                      )}
+                    </Box>
+                  </Box>
+                </Grid>
+                
+                {/* Team Notification Settings */}
+                <Grid item xs={12} md={6}>
+                  <TeamNotificationSettings team={team} tenantName={tenantName} variant="compact" />
+                </Grid>
+              </Grid>
             </Box>
 
             <Box display="flex" alignItems="center" gap={2}>
