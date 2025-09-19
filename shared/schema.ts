@@ -273,6 +273,23 @@ export const conflictNotifications = pgTable("conflict_notifications", {
   resolvedAt: timestamp("resolved_at"),
 });
 
+// AI Agent Incidents table for tracking job failure incidents
+export const incidents = pgTable("incidents", {
+  id: text("id").primaryKey(), // notification_id from external system
+  dagId: integer("dag_id").notNull().references(() => entities.id),
+  dagName: text("dag_name").notNull(), // From external system
+  taskName: text("task_name").notNull(), // Formatted as "dag_name + task_name"
+  dateKey: text("date_key").notNull(), // Format: YYYY-MM-DD when incident occurred
+  summary: text("summary").notNull(), // Error summary from external system
+  logsUrl: text("logs_url"), // Link to Spark logs
+  ragAnalysis: text("rag_analysis"), // AI analysis from external system
+  status: text("status").notNull().default("open"), // 'open', 'resolved'
+  userEmail: text("user_email"), // User who should receive notifications
+  teamName: text("team_name"), // Team context for incident
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  resolvedAt: timestamp("resolved_at"),
+});
+
 // User roles for notification system
 export interface UserRole {
   role: string;
@@ -291,6 +308,15 @@ export const insertConflictNotificationSchema = createInsertSchema(conflictNotif
 
 export type ConflictNotification = typeof conflictNotifications.$inferSelect;
 export type InsertConflictNotification = z.infer<typeof insertConflictNotificationSchema>;
+
+// Incident schema and types
+export const insertIncidentSchema = createInsertSchema(incidents).omit({
+  createdAt: true,
+  resolvedAt: true,
+});
+
+export type Incident = typeof incidents.$inferSelect;
+export type InsertIncident = z.infer<typeof insertIncidentSchema>;
 
 export type Entity = typeof entities.$inferSelect;
 export type InsertEntity = z.infer<typeof insertEntitySchema>;
