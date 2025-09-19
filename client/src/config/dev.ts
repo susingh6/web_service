@@ -103,7 +103,10 @@ export const devConfig = {
       // Enhanced agent endpoint with incident context and OAuth claims
       chatWithIncident: (dagId: number) => `/api/v1/agent/dags/${dagId}/chat`,
       // Direct FastAPI agent endpoint for real conversations
-      chatDirect: (dagId: number) => `/api/agent/chat/${dagId}`,
+      chat: (dagId: number) => `/api/v1/agent/chat/${dagId}`,
+      // Conversation persistence endpoints
+      loadHistory: (dagId: number) => `/api/v1/agent/conversations/${dagId}/recent`,
+      saveConversation: (dagId: number) => `/api/v1/agent/conversations/${dagId}/save`,
     },
     
     // Admin endpoints - FastAPI with role-based access control

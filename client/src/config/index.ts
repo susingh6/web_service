@@ -74,6 +74,10 @@ interface ApiConfig {
       conversationSummaries: (dagId: number) => string;
       fullConversation: (conversationId: string) => string;
       sendMessage: (dagId: number) => string;
+      chatWithIncident: (dagId: number) => string;
+      chat: (dagId: number) => string;
+      loadHistory: (dagId: number) => string;
+      saveConversation: (dagId: number) => string;
     };
     admin: {
       conflicts: {

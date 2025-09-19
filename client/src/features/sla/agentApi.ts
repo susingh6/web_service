@@ -26,7 +26,12 @@ export interface FullConversation {
 
 export interface SendMessageRequest {
   message: string;
-  task_context?: string;
+  dag_id: number;
+  conversation_history?: ConversationMessage[];
+  user_context?: {
+    email?: string;
+    session_id?: string;
+  };
   incident_context?: {
     notification_id: string;
     task_name: string;
@@ -39,6 +44,24 @@ export interface SendMessageResponse {
   conversation_id: string;
   agent_response: string;
   status: 'complete' | 'pending';
+  confidence?: number;
+  sources?: Array<{ name: string; url: string }>;
+}
+
+export interface ConversationMessage {
+  id: string;
+  type: 'user' | 'agent';
+  content: string;
+  timestamp: Date | string;
+  confidence?: number;
+  sources?: Array<{ name: string; url: string }>;
+}
+
+export interface ConversationHistory {
+  messages: ConversationMessage[];
+  dag_id: number;
+  user_email?: string;
+  last_updated: Date | string;
 }
 
 // Mock data for agent conversations
@@ -133,8 +156,63 @@ const mockFullConversations: Record<string, FullConversation> = {
   },
 };
 
+// Utility functions for localStorage management
+const getStorageKey = (dagId: number) => `agent-chat-${dagId}`;
+
+const loadFromLocalStorage = (dagId: number): ConversationMessage[] => {
+  try {
+    const stored = localStorage.getItem(getStorageKey(dagId));
+    return stored ? JSON.parse(stored) : [];
+  } catch (error) {
+    console.warn('Failed to load conversation from localStorage:', error);
+    return [];
+  }
+};
+
+const saveToLocalStorage = (dagId: number, messages: ConversationMessage[]) => {
+  try {
+    localStorage.setItem(getStorageKey(dagId), JSON.stringify(messages));
+  } catch (error) {
+    console.warn('Failed to save conversation to localStorage:', error);
+  }
+};
+
 export const agentApi = {
-  // Get conversation summaries for a DAG
+  // Load conversation history from FastAPI (on modal open)
+  loadConversationHistory: async (dagId: number, limit: number = 10): Promise<ConversationMessage[]> => {
+    try {
+      const res = await apiRequest('GET', `${config.endpoints.agent.loadHistory(dagId)}?limit=${limit}`);
+      const data = await res.json();
+      
+      // Save to localStorage for session use
+      const messages = data.messages || [];
+      saveToLocalStorage(dagId, messages);
+      
+      return messages;
+    } catch (error) {
+      console.warn('Failed to load conversation history from FastAPI, using localStorage:', error);
+      return loadFromLocalStorage(dagId);
+    }
+  },
+
+  // Save conversation to FastAPI (on modal close)
+  saveConversationHistory: async (dagId: number, messages: ConversationMessage[], userContext?: { email?: string; session_id?: string }): Promise<boolean> => {
+    if (messages.length === 0) return true;
+    
+    try {
+      await apiRequest('POST', config.endpoints.agent.saveConversation(dagId), {
+        messages,
+        user_context: userContext,
+        last_updated: new Date().toISOString()
+      });
+      return true;
+    } catch (error) {
+      console.error('Failed to save conversation to FastAPI:', error);
+      return false;
+    }
+  },
+
+  // Get conversation summaries for a DAG (still using mock for now)
   getConversationSummaries: async (dagId: number): Promise<ConversationSummary[]> => {
     if (config.mock?.agent) {
       // Simulate network delay
@@ -164,35 +242,77 @@ export const agentApi = {
     return await res.json();
   },
 
-  // Send a new message to the agent
-  sendMessage: async (dagId: number, request: SendMessageRequest): Promise<SendMessageResponse> => {
-    if (config.mock?.agent) {
-      // Simulate network delays for different stages
-      await new Promise(resolve => setTimeout(resolve, 500)); // Sending delay
-      
-      // Mock response with incident context awareness
-      let mockResponse = `Based on my analysis of the current task status for DAG ${dagId}, everything appears to be running normally. The last execution completed successfully. No issues detected in the monitored tasks.`;
-      
-      if (request.incident_context) {
-        mockResponse = `I see there's an issue with the ${request.incident_context.task_name} task. Let me analyze the error: "${request.incident_context.error_summary}". Based on the context, this appears to be a ${request.incident_context.task_name} failure. The most common causes for this type of error are:
+  // Send message to Agent FastAPI with conversation history
+  sendMessage: async (dagId: number, message: string, conversationHistory?: ConversationMessage[], userContext?: { email?: string; session_id?: string }, incidentContext?: any): Promise<SendMessageResponse> => {
+    // First add user message to localStorage immediately
+    const userMessage: ConversationMessage = {
+      id: `user-${Date.now()}`,
+      type: 'user',
+      content: message,
+      timestamp: new Date()
+    };
+    
+    const currentHistory = conversationHistory || loadFromLocalStorage(dagId);
+    const updatedHistory = [...currentHistory, userMessage];
+    saveToLocalStorage(dagId, updatedHistory);
 
-1. **Data source connectivity issues** - Check if upstream data sources are accessible
-2. **Memory or resource constraints** - The job might need more resources to process the data
-3. **Schema changes** - Upstream schema might have changed, causing transformation failures
-4. **Dependency failures** - Check if dependent tasks completed successfully
+    try {
+      // Build request payload for your Agent FastAPI
+      const requestPayload: SendMessageRequest = {
+        message,
+        dag_id: dagId,
+        conversation_history: updatedHistory,
+        user_context: userContext,
+        incident_context: incidentContext
+      };
 
-Would you like me to investigate any of these areas specifically? I can also help you check the logs${request.incident_context.logs_url ? ' at the provided URL' : ''} for more detailed diagnostics.`;
-      }
-      
+      // Call your Agent FastAPI
+      const res = await apiRequest('POST', config.endpoints.agent.chat(dagId), requestPayload);
+      const response = await res.json();
+
+      // Add agent response to localStorage
+      const agentMessage: ConversationMessage = {
+        id: `agent-${Date.now()}`,
+        type: 'agent',
+        content: response.agent_response || response.message || 'I received your message but couldn\'t generate a response.',
+        timestamp: new Date(),
+        confidence: response.confidence,
+        sources: response.sources
+      };
+
+      const finalHistory = [...updatedHistory, agentMessage];
+      saveToLocalStorage(dagId, finalHistory);
+
       return {
-        conversation_id: Date.now().toString(),
-        agent_response: mockResponse,
-        status: 'complete',
+        conversation_id: response.conversation_id || `conv-${Date.now()}`,
+        agent_response: agentMessage.content,
+        status: response.status || 'complete',
+        confidence: response.confidence,
+        sources: response.sources
+      };
+
+    } catch (error) {
+      console.error('Agent FastAPI call failed:', error);
+      
+      // Fallback error response
+      const errorMessage: ConversationMessage = {
+        id: `agent-error-${Date.now()}`,
+        type: 'agent',
+        content: incidentContext 
+          ? 'I encountered an error while analyzing your job failure. Let me help you troubleshoot this issue. Can you provide more details about what happened?'
+          : 'I encountered an error while processing your message. Please try again or rephrase your question.',
+        timestamp: new Date()
+      };
+
+      const errorHistory = [...updatedHistory, errorMessage];
+      saveToLocalStorage(dagId, errorHistory);
+
+      return {
+        conversation_id: `error-conv-${Date.now()}`,
+        agent_response: errorMessage.content,
+        status: 'complete'
       };
     }
-    
-    const res = await apiRequest('POST', config.endpoints.agent.sendMessage(dagId), request);
-    return await res.json();
   },
 
   // Send a message with incident context using enhanced agent endpoint
