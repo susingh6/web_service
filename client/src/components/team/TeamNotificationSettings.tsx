@@ -5,20 +5,14 @@
 
 import { useState, useEffect } from 'react';
 import {
-  Card,
-  CardContent,
-  CardHeader,
   Box,
   Typography,
   TextField,
-  Button,
   Chip,
-  Autocomplete,
-  Divider,
-  Alert,
-  CircularProgress,
+  Button,
+  Autocomplete
 } from '@mui/material';
-import { Bell, Mail, MessageSquare, AlertTriangle, Save, Info } from 'lucide-react';
+import { Bell, Mail, MessageSquare, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
@@ -53,23 +47,16 @@ export function TeamNotificationSettings({ team, tenantName }: TeamNotificationS
     }
   }, [team]);
 
-  // Check for changes
+  // Track changes
   useEffect(() => {
-    const originalData = {
-      team_email: team?.team_email || [],
-      team_slack: team?.team_slack || [],
-      team_pagerduty: team?.team_pagerduty || [],
-    };
-
-    const hasActualChanges = 
-      JSON.stringify(formData.team_email.sort()) !== JSON.stringify(originalData.team_email.sort()) ||
-      JSON.stringify(formData.team_slack.sort()) !== JSON.stringify(originalData.team_slack.sort()) ||
-      JSON.stringify(formData.team_pagerduty.sort()) !== JSON.stringify(originalData.team_pagerduty.sort());
-
-    setHasChanges(hasActualChanges);
+    const hasDataChanges = (
+      JSON.stringify(formData.team_email) !== JSON.stringify(team?.team_email || []) ||
+      JSON.stringify(formData.team_slack) !== JSON.stringify(team?.team_slack || []) ||
+      JSON.stringify(formData.team_pagerduty) !== JSON.stringify(team?.team_pagerduty || [])
+    );
+    setHasChanges(hasDataChanges);
   }, [formData, team]);
 
-  // Update team notification settings mutation
   const updateNotificationsMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
       const response = await apiRequest('PUT', `/api/v1/teams/${team.id}`, data);
@@ -85,16 +72,11 @@ export function TeamNotificationSettings({ team, tenantName }: TeamNotificationS
       queryClient.invalidateQueries({ queryKey: ['teams'] });
       queryClient.invalidateQueries({ queryKey: ['admin', 'teams'] });
       queryClient.invalidateQueries({ queryKey: ['teamMembers', tenantName, team.id] });
-
+      
       setHasChanges(false);
-
-      // Dispatch custom event to notify admin panel of updates
-      window.dispatchEvent(new CustomEvent('admin-teams-updated', { 
-        detail: { teamId: team.id, teamName: team.name, tenantName } 
-      }));
     },
     onError: (error: any) => {
-      console.error('Error updating team notifications:', error);
+      console.error('Update team notifications error:', error);
       toast({
         title: 'Error',
         description: 'Failed to update team notification settings',
@@ -125,186 +107,177 @@ export function TeamNotificationSettings({ team, tenantName }: TeamNotificationS
     return /^[a-zA-Z0-9._-]+$/.test(handle.replace('@', ''));
   };
 
+  const addValue = (type: 'team_email' | 'team_slack' | 'team_pagerduty', value: string) => {
+    if (!value.trim()) return;
+    
+    let isValid = true;
+    if (type === 'team_email') isValid = validateEmail(value.trim());
+    if (type === 'team_slack') isValid = validateSlackHandle(value.trim());
+    
+    if (isValid) {
+      const newValues = [...(formData[type] || []), value.trim()];
+      setFormData({ ...formData, [type]: newValues });
+    }
+  };
+
+  const removeValue = (type: 'team_email' | 'team_slack' | 'team_pagerduty', index: number) => {
+    const newValues = formData[type]?.filter((_, i) => i !== index) || [];
+    setFormData({ ...formData, [type]: newValues });
+  };
+
   return (
-    <Card elevation={1} sx={{ mt: 3 }}>
-      <CardHeader
-        avatar={<Bell size={20} />}
-        title={
-          <Typography variant="h6" fontWeight={600}>
-            Team Notification Settings
-          </Typography>
-        }
-        subheader={
-          <Typography variant="body2" color="text.secondary">
-            Configure notification channels for this team's SLA alerts and updates
-          </Typography>
-        }
-      />
-      <CardContent sx={{ pt: 0 }}>
-        <Alert severity="info" sx={{ mb: 3 }} icon={<Info size={16} />}>
-          <Typography variant="body2">
-            These settings control where team-wide notifications are sent when entities owned by <strong>{team.name}</strong> have SLA breaches or status changes.
-            Individual entity notifications can be configured separately.
-          </Typography>
-        </Alert>
-
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-          {/* Email Notifications */}
-          <Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 1.5, gap: 1 }}>
-              <Mail size={16} />
-              <Typography variant="subtitle2" fontWeight={600}>
-                Email Notifications
-              </Typography>
-            </Box>
-            <Autocomplete
-              multiple
-              freeSolo
-              options={[]}
-              value={formData.team_email}
-              onChange={(event, newValue) => {
-                // Validate emails
-                const validEmails = newValue.filter(email => 
-                  typeof email === 'string' && validateEmail(email.trim())
-                );
-                setFormData({ ...formData, team_email: validEmails });
-              }}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  label="Team Email Addresses"
-                  placeholder="Add email addresses for team notifications..."
-                  helperText="Press Enter to add an email address. Only team members can modify these settings."
-                  data-testid="input-team-emails"
-                />
-              )}
-              renderTags={(tagValue, getTagProps) =>
-                tagValue.map((option, index) => (
-                  <Chip
-                    variant="outlined"
-                    label={option}
-                    {...getTagProps({ index })}
-                    key={option}
-                  />
-                ))
-              }
-            />
-          </Box>
-
-          <Divider />
-
-          {/* Slack Notifications */}
-          <Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 1.5, gap: 1 }}>
-              <MessageSquare size={16} />
-              <Typography variant="subtitle2" fontWeight={600}>
-                Slack Notifications
-              </Typography>
-            </Box>
-            <Autocomplete
-              multiple
-              freeSolo
-              options={[]}
-              value={formData.team_slack}
-              onChange={(event, newValue) => {
-                // Validate Slack handles
-                const validHandles = newValue.filter(handle => 
-                  typeof handle === 'string' && validateSlackHandle(handle.trim())
-                );
-                setFormData({ ...formData, team_slack: validHandles });
-              }}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  label="Team Slack Handles/Channels"
-                  placeholder="Add @username or #channel names..."
-                  helperText="Press Enter to add Slack usernames (@username) or channel names (#channel)"
-                  data-testid="input-team-slack"
-                />
-              )}
-              renderTags={(tagValue, getTagProps) =>
-                tagValue.map((option, index) => (
-                  <Chip
-                    variant="outlined"
-                    label={option}
-                    {...getTagProps({ index })}
-                    key={option}
-                  />
-                ))
-              }
-            />
-          </Box>
-
-          <Divider />
-
-          {/* PagerDuty Notifications */}
-          <Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 1.5, gap: 1 }}>
-              <AlertTriangle size={16} />
-              <Typography variant="subtitle2" fontWeight={600}>
-                PagerDuty Notifications
-              </Typography>
-            </Box>
-            <Autocomplete
-              multiple
-              freeSolo
-              options={[]}
-              value={formData.team_pagerduty}
-              onChange={(event, newValue) => {
-                setFormData({ ...formData, team_pagerduty: newValue as string[] });
-              }}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  label="PagerDuty Service Keys/Users"
-                  placeholder="Add service keys or user emails..."
-                  helperText="Press Enter to add PagerDuty service keys or user email addresses"
-                  data-testid="input-team-pagerduty"
-                />
-              )}
-              renderTags={(tagValue, getTagProps) =>
-                tagValue.map((option, index) => (
-                  <Chip
-                    variant="outlined"
-                    label={option}
-                    {...getTagProps({ index })}
-                    key={option}
-                  />
-                ))
-              }
-            />
-          </Box>
-
-          {/* Action Buttons */}
-          <Box sx={{ display: 'flex', gap: 2, pt: 2 }}>
+    <Box sx={{ mt: 2 }}>
+      <Box display="flex" alignItems="center" justifyContent="space-between" mb={1}>
+        <Typography variant="body2" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Bell size={14} />
+          Notification Settings:
+        </Typography>
+        {hasChanges && (
+          <Box display="flex" gap={1}>
             <Button
-              variant="contained"
-              onClick={handleSave}
-              disabled={!hasChanges || updateNotificationsMutation.isPending}
-              startIcon={updateNotificationsMutation.isPending ? <CircularProgress size={16} /> : <Save size={16} />}
-              data-testid="button-save-notifications"
-            >
-              {updateNotificationsMutation.isPending ? 'Saving...' : 'Save Changes'}
-            </Button>
-            <Button
-              variant="outlined"
+              size="small"
               onClick={handleReset}
-              disabled={!hasChanges || updateNotificationsMutation.isPending}
-              data-testid="button-reset-notifications"
+              sx={{ fontSize: '0.75rem', py: 0.5, px: 1 }}
             >
               Reset
             </Button>
+            <Button
+              size="small"
+              variant="contained"
+              onClick={handleSave}
+              disabled={updateNotificationsMutation.isPending}
+              sx={{ fontSize: '0.75rem', py: 0.5, px: 1 }}
+            >
+              {updateNotificationsMutation.isPending ? 'Saving...' : 'Save'}
+            </Button>
           </Box>
+        )}
+      </Box>
 
-          {hasChanges && (
-            <Alert severity="warning" sx={{ mt: 1 }}>
-              <Typography variant="body2">
-                You have unsaved changes. Click "Save Changes" to apply them.
-              </Typography>
-            </Alert>
-          )}
+      <Box sx={{ pl: 2 }}>
+        {/* Email Notifications */}
+        <Box sx={{ mb: 1.5 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5, fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Mail size={12} /> Email:
+          </Typography>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, alignItems: 'center' }}>
+            {formData.team_email?.map((email, index) => (
+              <Chip 
+                key={email}
+                label={email} 
+                size="small"
+                variant="outlined"
+                onDelete={() => removeValue('team_email', index)}
+                sx={{ fontSize: '0.7rem', height: '20px' }}
+              />
+            ))}
+            <Autocomplete
+              freeSolo
+              options={[]}
+              size="small"
+              sx={{ minWidth: '120px', maxWidth: '180px' }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  size="small"
+                  placeholder="Add email..."
+                  sx={{ '& .MuiInputBase-root': { height: '24px', fontSize: '0.75rem' } }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      const value = (e.target as HTMLInputElement).value;
+                      addValue('team_email', value);
+                      (e.target as HTMLInputElement).value = '';
+                      e.preventDefault();
+                    }
+                  }}
+                />
+              )}
+            />
+          </Box>
         </Box>
-      </CardContent>
-    </Card>
+
+        {/* Slack Notifications */}
+        <Box sx={{ mb: 1.5 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5, fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <MessageSquare size={12} /> Slack:
+          </Typography>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, alignItems: 'center' }}>
+            {formData.team_slack?.map((handle, index) => (
+              <Chip 
+                key={handle}
+                label={handle} 
+                size="small"
+                variant="outlined"
+                onDelete={() => removeValue('team_slack', index)}
+                sx={{ fontSize: '0.7rem', height: '20px' }}
+              />
+            ))}
+            <Autocomplete
+              freeSolo
+              options={[]}
+              size="small"
+              sx={{ minWidth: '120px', maxWidth: '180px' }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  size="small"
+                  placeholder="@user or #channel..."
+                  sx={{ '& .MuiInputBase-root': { height: '24px', fontSize: '0.75rem' } }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      const value = (e.target as HTMLInputElement).value;
+                      addValue('team_slack', value);
+                      (e.target as HTMLInputElement).value = '';
+                      e.preventDefault();
+                    }
+                  }}
+                />
+              )}
+            />
+          </Box>
+        </Box>
+
+        {/* PagerDuty Notifications */}
+        <Box>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5, fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <AlertTriangle size={12} /> PagerDuty:
+          </Typography>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, alignItems: 'center' }}>
+            {formData.team_pagerduty?.map((key, index) => (
+              <Chip 
+                key={key}
+                label={key} 
+                size="small"
+                variant="outlined"
+                onDelete={() => removeValue('team_pagerduty', index)}
+                sx={{ fontSize: '0.7rem', height: '20px' }}
+              />
+            ))}
+            <Autocomplete
+              freeSolo
+              options={[]}
+              size="small"
+              sx={{ minWidth: '120px', maxWidth: '180px' }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  size="small"
+                  placeholder="service key..."
+                  sx={{ '& .MuiInputBase-root': { height: '24px', fontSize: '0.75rem' } }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      const value = (e.target as HTMLInputElement).value;
+                      addValue('team_pagerduty', value);
+                      (e.target as HTMLInputElement).value = '';
+                      e.preventDefault();
+                    }
+                  }}
+                />
+              )}
+            />
+          </Box>
+        </Box>
+      </Box>
+    </Box>
   );
 }
