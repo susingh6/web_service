@@ -65,11 +65,8 @@ export function TeamNotificationSettings({ team, tenantName }: TeamNotificationS
 
   const updateNotificationsMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
-      console.log(`[DEBUG] Sending team notification update for team ${team.id}:`, data);
       const response = await apiRequest('PUT', `/api/v1/teams/${team.id}`, data);
-      const result = await response.json();
-      console.log(`[DEBUG] Team notification update response:`, result);
-      return result;
+      return response.json();
     },
     onSuccess: () => {
       toast({
