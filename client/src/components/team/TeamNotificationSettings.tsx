@@ -59,11 +59,6 @@ export function TeamNotificationSettings({ team, tenantName }: TeamNotificationS
       JSON.stringify(formData.team_pagerduty || []) !== JSON.stringify(teamPagerduty)
     );
     
-    console.log('TeamNotificationSettings - Change Detection:', {
-      formData,
-      teamData: { teamEmail, teamSlack, teamPagerduty },
-      hasDataChanges
-    });
     
     setHasChanges(hasDataChanges);
   }, [formData, team]);
@@ -119,19 +114,14 @@ export function TeamNotificationSettings({ team, tenantName }: TeamNotificationS
   };
 
   const addValue = (type: 'team_email' | 'team_slack' | 'team_pagerduty', value: string) => {
-    console.log('TeamNotificationSettings - addValue called:', { type, value });
-    
     if (!value.trim()) return;
     
     let isValid = true;
     if (type === 'team_email') isValid = validateEmail(value.trim());
     if (type === 'team_slack') isValid = validateSlackHandle(value.trim());
     
-    console.log('TeamNotificationSettings - addValue validation:', { type, value, isValid });
-    
     if (isValid) {
       const newValues = [...(formData[type] || []), value.trim()];
-      console.log('TeamNotificationSettings - addValue updating formData:', { type, oldValues: formData[type], newValues });
       setFormData({ ...formData, [type]: newValues });
     }
   };
@@ -170,9 +160,9 @@ export function TeamNotificationSettings({ team, tenantName }: TeamNotificationS
         )}
       </Box>
 
-      <Box sx={{ pl: 2 }}>
+      <Box sx={{ pl: 2, display: 'flex', flexWrap: 'wrap', gap: 3, alignItems: 'flex-start' }}>
         {/* Email Notifications */}
-        <Box sx={{ mb: 1.5 }}>
+        <Box sx={{ minWidth: '200px', flex: 1 }}>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5, fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: 0.5 }}>
             <Mail size={12} /> Email:
           </Typography>
@@ -213,7 +203,7 @@ export function TeamNotificationSettings({ team, tenantName }: TeamNotificationS
         </Box>
 
         {/* Slack Notifications */}
-        <Box sx={{ mb: 1.5 }}>
+        <Box sx={{ minWidth: '200px', flex: 1 }}>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5, fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: 0.5 }}>
             <MessageSquare size={12} /> Slack:
           </Typography>
@@ -254,7 +244,7 @@ export function TeamNotificationSettings({ team, tenantName }: TeamNotificationS
         </Box>
 
         {/* PagerDuty Notifications */}
-        <Box>
+        <Box sx={{ minWidth: '200px', flex: 1 }}>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5, fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: 0.5 }}>
             <AlertTriangle size={12} /> PagerDuty:
           </Typography>
