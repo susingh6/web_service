@@ -353,6 +353,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json(createErrorResponse("User not found", "not_found"));
       }
 
+      // CRITICAL FIX: Invalidate team member caches when user status changes
+      if (updateData.is_active !== undefined && updatedUser.team) {
+        await redisCache.invalidateTeamData(updatedUser.team, {
+          action: 'user_status_update',
+          memberId: String(updatedUser.id),
+          memberName: updatedUser.username,
+          is_active: updatedUser.is_active,
+          tenantName: 'Data Engineering' // Default tenant, could be improved to be dynamic
+        });
+      }
+
       // Transform response to match admin panel format
       const transformedUser = {
         user_id: updatedUser.id,
