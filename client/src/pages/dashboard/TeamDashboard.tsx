@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { startOfDay, endOfDay, subDays, format } from 'date-fns';
 import { useQuery } from '@tanstack/react-query';
 import { cacheKeys, invalidateAdminCaches } from '@/lib/cacheKeys';
@@ -124,9 +124,15 @@ const TeamDashboard = ({
   });
 
   // Ensure teams are loaded when visiting TeamDashboard directly
+  // Use ref to prevent infinite loops during cache invalidations
+  const hasInitiallyLoadedTeams = useRef(false);
   useEffect(() => {
-    if (!teams || teams.length === 0) {
+    if (!hasInitiallyLoadedTeams.current && (!teams || teams.length === 0)) {
       dispatch(fetchTeams());
+      hasInitiallyLoadedTeams.current = true;
+    }
+    if (teams && teams.length > 0) {
+      hasInitiallyLoadedTeams.current = true;
     }
   }, [teams, dispatch]);
 
