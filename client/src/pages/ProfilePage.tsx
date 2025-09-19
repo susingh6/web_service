@@ -111,19 +111,33 @@ const ProfilePage = () => {
       // IMPORTANT: Apply optimistic update to admin users cache (matches entity operation pattern)
       const currentUser = queryClient.getQueryData(['profile', 'current']) as ProfileData | undefined;
       if (currentUser?.user_email) {
+        // Check if admin users cache exists before updating
+        const adminUsers = queryClient.getQueryData(['admin', 'users']) as any[] | undefined;
+        console.log('Profile update: Admin users cache data:', { hasData: !!adminUsers, count: adminUsers?.length });
+        console.log('Profile update: Matching email:', currentUser.user_email);
+        
         cacheManager.setOptimisticData(['admin', 'users'], (old: any[] | undefined) => {
-          if (!old) return [];
-          return old.map(user => 
-            user.email === currentUser.user_email 
-              ? { 
-                  ...user, 
-                  user_name: userData.user_name,
-                  username: userData.user_name, // Admin uses both fields
-                  user_slack: userData.user_slack,
-                  user_pagerduty: userData.user_pagerduty,
-                }
-              : user
-          );
+          if (!old || old.length === 0) {
+            console.log('Profile update: Admin users cache is empty, skipping optimistic update');
+            return old || [];
+          }
+          
+          const updated = old.map(user => {
+            if (user.email === currentUser.user_email || user.user_email === currentUser.user_email) {
+              console.log('Profile update: Found matching user, updating:', user.email || user.user_email);
+              return { 
+                ...user, 
+                user_name: userData.user_name,
+                username: userData.user_name, // Admin uses both fields
+                user_slack: userData.user_slack,
+                user_pagerduty: userData.user_pagerduty,
+              };
+            }
+            return user;
+          });
+          
+          console.log('Profile update: Applied optimistic update to admin cache');
+          return updated;
         });
       }
 
