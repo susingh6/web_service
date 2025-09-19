@@ -181,7 +181,8 @@ export class MemStorage implements IStorage {
         displayName: "Michael Brown",
         team: "Core",
         role: "developer",
-        azureObjectId: null
+        azureObjectId: null,
+        is_active: false // Inactive user for testing
       },
       // Viewer Product Team Members
       {
@@ -210,7 +211,8 @@ export class MemStorage implements IStorage {
         displayName: "Maria Garcia",
         team: "IOT",
         role: "ops",
-        azureObjectId: null
+        azureObjectId: null,
+        is_active: false // Inactive user for testing
       },
       // CDM Team Members
       {
@@ -258,7 +260,8 @@ export class MemStorage implements IStorage {
         displayName: "Kevin Moore",
         team: null,
         role: "analyst",
-        azureObjectId: null
+        azureObjectId: null,
+        is_active: false // Inactive user for testing
       },
       {
         username: "rachel.kim",
