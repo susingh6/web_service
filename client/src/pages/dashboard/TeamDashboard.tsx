@@ -26,6 +26,7 @@ import { useTeamMemberMutation } from '@/utils/cache-management';
 import { useRealTimeEntities } from '@/hooks/useRealTimeEntities';
 import { useQueryClient } from '@tanstack/react-query';
 import { TeamNotificationSettings } from '@/components/team/TeamNotificationSettings';
+import NotificationSummary from '@/components/team/NotificationSummary';
 
 interface TeamDashboardProps {
   teamName: string;
@@ -441,7 +442,7 @@ const TeamDashboard = ({
                     </Button>
                   </Box>
                 </Box>
-                <Box display="flex" flexWrap="wrap" gap={0.5}>
+                <Box display="flex" flexWrap="wrap" gap={0.5} mb={2}>
                   {teamMembersLoading ? (
                     // Show loading skeleton for team members
                     Array.from({ length: 3 }).map((_, index) => (
@@ -513,10 +514,10 @@ const TeamDashboard = ({
                     </Typography>
                   )}
                 </Box>
-              </Box>
 
-              {/* Team Notification Settings */}
-              <TeamNotificationSettings team={team} tenantName={tenantName} variant="horizontal" />
+                {/* Notification Summary */}
+                <NotificationSummary team={team} tenantName={tenantName} />
+              </Box>
             </Box>
 
             <Box display="flex" alignItems="center" gap={2}>
