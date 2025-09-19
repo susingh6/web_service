@@ -160,13 +160,31 @@ export function TeamNotificationSettings({ team, tenantName }: TeamNotificationS
         )}
       </Box>
 
-      <Box sx={{ pl: 2, display: 'flex', flexWrap: 'wrap', gap: 3, alignItems: 'flex-start' }}>
+      <Box sx={{ 
+        pl: 2, 
+        display: 'grid', 
+        gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' }, 
+        gap: 2, 
+        alignItems: 'start' 
+      }}>
         {/* Email Notifications */}
-        <Box sx={{ minWidth: '200px', flex: 1 }}>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5, fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+        <Box>
+          <Typography 
+            variant="body2" 
+            color="text.secondary" 
+            sx={{ 
+              mb: 1, 
+              fontSize: '0.75rem', 
+              lineHeight: 1, 
+              display: 'inline-flex', 
+              alignItems: 'center', 
+              gap: 0.5,
+              height: '20px'
+            }}
+          >
             <Mail size={12} /> Email:
           </Typography>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, alignItems: 'center' }}>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, minHeight: '24px', mb: 1 }}>
             {formData.team_email?.map((email, index) => (
               <Chip 
                 key={email}
@@ -174,40 +192,52 @@ export function TeamNotificationSettings({ team, tenantName }: TeamNotificationS
                 size="small"
                 variant="outlined"
                 onDelete={() => removeValue('team_email', index)}
-                sx={{ fontSize: '0.7rem', height: '20px' }}
+                sx={{ fontSize: '0.75rem', height: '24px' }}
               />
             ))}
-            <Autocomplete
-              freeSolo
-              options={[]}
-              size="small"
-              sx={{ minWidth: '120px', maxWidth: '180px' }}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  size="small"
-                  placeholder="Add email..."
-                  sx={{ '& .MuiInputBase-root': { height: '24px', fontSize: '0.75rem' } }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      const value = (e.target as HTMLInputElement).value;
-                      addValue('team_email', value);
-                      (e.target as HTMLInputElement).value = '';
-                      e.preventDefault();
-                    }
-                  }}
-                />
-              )}
-            />
           </Box>
+          <Autocomplete
+            freeSolo
+            options={[]}
+            size="small"
+            sx={{ width: '100%' }}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                size="small"
+                placeholder="Add email..."
+                sx={{ '& .MuiInputBase-root': { height: '24px', fontSize: '0.75rem' } }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const value = (e.target as HTMLInputElement).value;
+                    addValue('team_email', value);
+                    (e.target as HTMLInputElement).value = '';
+                    e.preventDefault();
+                  }
+                }}
+              />
+            )}
+          />
         </Box>
 
         {/* Slack Notifications */}
-        <Box sx={{ minWidth: '200px', flex: 1 }}>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5, fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+        <Box>
+          <Typography 
+            variant="body2" 
+            color="text.secondary" 
+            sx={{ 
+              mb: 1, 
+              fontSize: '0.75rem', 
+              lineHeight: 1, 
+              display: 'inline-flex', 
+              alignItems: 'center', 
+              gap: 0.5,
+              height: '20px'
+            }}
+          >
             <MessageSquare size={12} /> Slack:
           </Typography>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, alignItems: 'center' }}>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, minHeight: '24px', mb: 1 }}>
             {formData.team_slack?.map((handle, index) => (
               <Chip 
                 key={handle}
@@ -215,40 +245,52 @@ export function TeamNotificationSettings({ team, tenantName }: TeamNotificationS
                 size="small"
                 variant="outlined"
                 onDelete={() => removeValue('team_slack', index)}
-                sx={{ fontSize: '0.7rem', height: '20px' }}
+                sx={{ fontSize: '0.75rem', height: '24px' }}
               />
             ))}
-            <Autocomplete
-              freeSolo
-              options={[]}
-              size="small"
-              sx={{ minWidth: '120px', maxWidth: '180px' }}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  size="small"
-                  placeholder="@user or #channel..."
-                  sx={{ '& .MuiInputBase-root': { height: '24px', fontSize: '0.75rem' } }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      const value = (e.target as HTMLInputElement).value;
-                      addValue('team_slack', value);
-                      (e.target as HTMLInputElement).value = '';
-                      e.preventDefault();
-                    }
-                  }}
-                />
-              )}
-            />
           </Box>
+          <Autocomplete
+            freeSolo
+            options={[]}
+            size="small"
+            sx={{ width: '100%' }}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                size="small"
+                placeholder="@user or #channel..."
+                sx={{ '& .MuiInputBase-root': { height: '24px', fontSize: '0.75rem' } }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const value = (e.target as HTMLInputElement).value;
+                    addValue('team_slack', value);
+                    (e.target as HTMLInputElement).value = '';
+                    e.preventDefault();
+                  }
+                }}
+              />
+            )}
+          />
         </Box>
 
         {/* PagerDuty Notifications */}
-        <Box sx={{ minWidth: '200px', flex: 1 }}>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5, fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+        <Box>
+          <Typography 
+            variant="body2" 
+            color="text.secondary" 
+            sx={{ 
+              mb: 1, 
+              fontSize: '0.75rem', 
+              lineHeight: 1, 
+              display: 'inline-flex', 
+              alignItems: 'center', 
+              gap: 0.5,
+              height: '20px'
+            }}
+          >
             <AlertTriangle size={12} /> PagerDuty:
           </Typography>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, alignItems: 'center' }}>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, minHeight: '24px', mb: 1 }}>
             {formData.team_pagerduty?.map((key, index) => (
               <Chip 
                 key={key}
@@ -256,32 +298,32 @@ export function TeamNotificationSettings({ team, tenantName }: TeamNotificationS
                 size="small"
                 variant="outlined"
                 onDelete={() => removeValue('team_pagerduty', index)}
-                sx={{ fontSize: '0.7rem', height: '20px' }}
+                sx={{ fontSize: '0.75rem', height: '24px' }}
               />
             ))}
-            <Autocomplete
-              freeSolo
-              options={[]}
-              size="small"
-              sx={{ minWidth: '120px', maxWidth: '180px' }}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  size="small"
-                  placeholder="service key..."
-                  sx={{ '& .MuiInputBase-root': { height: '24px', fontSize: '0.75rem' } }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      const value = (e.target as HTMLInputElement).value;
-                      addValue('team_pagerduty', value);
-                      (e.target as HTMLInputElement).value = '';
-                      e.preventDefault();
-                    }
-                  }}
-                />
-              )}
-            />
           </Box>
+          <Autocomplete
+            freeSolo
+            options={[]}
+            size="small"
+            sx={{ width: '100%' }}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                size="small"
+                placeholder="service key..."
+                sx={{ '& .MuiInputBase-root': { height: '24px', fontSize: '0.75rem' } }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const value = (e.target as HTMLInputElement).value;
+                    addValue('team_pagerduty', value);
+                    (e.target as HTMLInputElement).value = '';
+                    e.preventDefault();
+                  }
+                }}
+              />
+            )}
+          />
         </Box>
       </Box>
     </Box>
