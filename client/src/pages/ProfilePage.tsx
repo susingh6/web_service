@@ -262,10 +262,16 @@ const ProfilePage = () => {
               type="email"
               value={formData.user_email}
               onChange={(e) => setFormData({ ...formData, user_email: e.target.value })}
-              disabled={!isEditing}
+              disabled={true}
               required
-              helperText="Your email address"
+              helperText="Email is managed by OAuth and cannot be changed"
               data-testid="input-user-email"
+              sx={{
+                '& .MuiInputBase-input.Mui-disabled': {
+                  WebkitTextFillColor: 'rgba(0, 0, 0, 0.6)',
+                  opacity: 0.7
+                }
+              }}
             />
             
             <TextField

@@ -428,15 +428,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get current user data from session
       const currentUser = req.user as any;
       
-      // Transform user data to match admin panel format expected by ProfilePage
-      const profileData = {
-        user_id: currentUser.id,
-        user_name: currentUser.username,
-        user_email: currentUser.email || '',
-        user_slack: currentUser.user_slack || null,
-        user_pagerduty: currentUser.user_pagerduty || null,
-        is_active: currentUser.is_active ?? true
-      };
+      // IMPORTANT: Cross-reference with admin user database to get full SLA user details
+      // (Slack/PagerDuty info that may have been set up previously)
+      let profileData;
+      
+      try {
+        // First, try to get full user details from database using email or username
+        let existingUser = await storage.getUserByEmail(currentUser.email);
+        if (!existingUser && currentUser.username) {
+          existingUser = await storage.getUserByUsername(currentUser.username);
+        }
+        
+        if (existingUser) {
+          // User exists in SLA database - use their full admin record (includes Slack/PagerDuty)
+          profileData = {
+            user_id: existingUser.id,
+            user_name: existingUser.username,
+            user_email: existingUser.email || currentUser.email, // Email from OAuth is authoritative
+            user_slack: existingUser.user_slack || null,
+            user_pagerduty: existingUser.user_pagerduty || null,
+            is_active: existingUser.is_active ?? true
+          };
+        } else {
+          // New user - fall back to session data (only name/email from OAuth)
+          profileData = {
+            user_id: currentUser.id,
+            user_name: currentUser.username,
+            user_email: currentUser.email || '',
+            user_slack: null, // New users don't have Slack/PagerDuty yet
+            user_pagerduty: null,
+            is_active: true
+          };
+        }
+      } catch (dbError) {
+        console.warn('Failed to fetch existing user data, falling back to session:', dbError);
+        // Fall back to session data if database lookup fails
+        profileData = {
+          user_id: currentUser.id,
+          user_name: currentUser.username,
+          user_email: currentUser.email || '',
+          user_slack: currentUser.user_slack || null,
+          user_pagerduty: currentUser.user_pagerduty || null,
+          is_active: currentUser.is_active ?? true
+        };
+      }
 
       res.json(profileData);
     } catch (error) {
