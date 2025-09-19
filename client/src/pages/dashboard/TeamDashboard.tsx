@@ -25,6 +25,7 @@ import { z } from 'zod';
 import { useTeamMemberMutation } from '@/utils/cache-management';
 import { useRealTimeEntities } from '@/hooks/useRealTimeEntities';
 import { useQueryClient } from '@tanstack/react-query';
+import { TeamNotificationSettings } from '@/components/team/TeamNotificationSettings';
 
 interface TeamDashboardProps {
   teamName: string;
@@ -666,6 +667,9 @@ const TeamDashboard = ({
             />
           </Box>
         </Box>
+
+        {/* Team Notification Settings */}
+        <TeamNotificationSettings team={team} tenantName={tenantName} />
 
         {/* Tables/DAGs Sub-tabs */}
         <Tabs value={tabValue} onChange={handleTabChange} sx={{ mb: 3 }}>

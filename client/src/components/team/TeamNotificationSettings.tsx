@@ -22,20 +22,7 @@ import { Bell, Mail, MessageSquare, AlertTriangle, Save, Info } from 'lucide-rea
 import { useToast } from '@/hooks/use-toast';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
-
-interface Team {
-  id: number;
-  name: string;
-  description?: string;
-  tenant_id: number;
-  team_email?: string[];
-  team_slack?: string[];
-  team_pagerduty?: string[];
-  team_members_ids?: string[];
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
+import { Team } from '@shared/schema';
 
 interface TeamNotificationSettingsProps {
   team: Team;
