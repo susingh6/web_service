@@ -114,13 +114,13 @@ const TeamDashboard = ({
 
   // React Query to fetch team members - automatically updates when cache changes
   const { data: teamMembers = [], isLoading: teamMembersLoading } = useQuery({
-    queryKey: cacheKeys.teamMembers(tenantName, team?.id),
+    queryKey: ['teamMembers', tenantName, team?.id, team?.name],
     queryFn: async () => {
-      if (!teamName) return [];
-      const response = await apiClient.teams.getMembers(teamName);
+      if (!team?.name) return [];
+      const response = await apiClient.teams.getMembers(team.name);
       return await response.json();
     },
-    enabled: !!teamName && !!team?.id,
+    enabled: !!team?.name && !!team?.id,
   });
 
   // Ensure teams are loaded when visiting TeamDashboard directly
