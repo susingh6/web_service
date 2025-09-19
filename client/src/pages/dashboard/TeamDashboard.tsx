@@ -473,7 +473,7 @@ const TeamDashboard = ({
                               <span
                                 style={{
                                   textDecoration: isExpired ? 'line-through' : 'none',
-                                  opacity: isExpired ? 0.6 : 1,
+                                  fontWeight: isExpired ? 400 : 500,
                                 }}
                               >
                                 {member.displayName || member.username}
@@ -482,13 +482,14 @@ const TeamDashboard = ({
                                 <Box
                                   component="span"
                                   sx={{
-                                    bgcolor: 'error.main',
+                                    bgcolor: '#dc3545',
                                     color: 'white',
-                                    borderRadius: '4px',
+                                    borderRadius: '3px',
                                     px: 0.5,
                                     py: 0.1,
-                                    fontSize: '0.6rem',
-                                    fontWeight: 600,
+                                    fontSize: '0.55rem',
+                                    fontWeight: 700,
+                                    letterSpacing: '0.02em'
                                   }}
                                 >
                                   EXPIRED
@@ -497,13 +498,31 @@ const TeamDashboard = ({
                             </Box>
                           }
                           size="small"
-                          variant="outlined"
+                          variant={isExpired ? "outlined" : "filled"}
                           sx={{ 
                             fontSize: '0.75rem',
-                            height: '24px',
-                            borderColor: isExpired ? 'error.main' : undefined,
-                            opacity: isExpired ? 0.8 : 1,
-                            '& .MuiChip-label': { px: 1 }
+                            height: '26px',
+                            fontWeight: 500,
+                            // Active member styling
+                            ...(!isExpired && {
+                              bgcolor: '#e3f2fd',
+                              color: '#1565c0',
+                              borderColor: '#90caf9',
+                              '&:hover': {
+                                bgcolor: '#bbdefb'
+                              }
+                            }),
+                            // Expired member styling
+                            ...(isExpired && {
+                              bgcolor: '#ffebee',
+                              color: '#d32f2f',
+                              borderColor: '#ef5350',
+                              opacity: 0.85,
+                              '&:hover': {
+                                bgcolor: '#ffcdd2'
+                              }
+                            }),
+                            '& .MuiChip-label': { px: 1.5 }
                           }}
                         />
                       );

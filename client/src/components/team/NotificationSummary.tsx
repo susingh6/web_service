@@ -22,8 +22,8 @@ export default function NotificationSummary({ team, tenantName }: NotificationSu
   const pagerDutyCount = team?.team_pagerduty?.length || 0;
   const totalNotifications = emailCount + slackCount + pagerDutyCount;
 
-  const handleOpenModal = () => {
-    setIsModalOpen(true);
+  const handleToggleModal = () => {
+    setIsModalOpen(!isModalOpen);
   };
 
   const handleCloseModal = () => {
@@ -50,7 +50,7 @@ export default function NotificationSummary({ team, tenantName }: NotificationSu
             borderColor: 'primary.main',
           }
         }}
-        onClick={handleOpenModal}
+        onClick={handleToggleModal}
       >
         <Box display="flex" alignItems="center" gap={1}>
           <Bell size={16} color="gray" />
