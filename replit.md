@@ -45,6 +45,7 @@ Preferred communication style: Simple, everyday language.
 - **SLA Compliance Thresholds**: Configurable color thresholds for visual indication of SLA compliance.
 - **Entity Ownership**: Role-based access control for entity modification and deletion.
 - **Standardized CRUD Operations**: Unified optimistic update pattern with smart ID detection, operation queuing, and automatic reconciliation for consistent user experience across all data operations.
+- **User Deactivation System**: Inactive users show as "expired" on team dashboards with visual differentiation (strikethrough, opacity, red status), are filtered out of dropdown lists (Add Member, Owner Update), but remain visible on dashboards for removal actions via FastAPI/Express fallback.
 
 ## External Dependencies
 
@@ -72,3 +73,4 @@ Preferred communication style: Simple, everyday language.
 - Updated /api/dashboard/summary endpoint to support both team dashboards and summary dashboard with backward compatibility
 - Added team-specific cache methods (getTeamMetricsByRange, getTeamTrendsByRange, calculateTeamMetricsForDateRange)
 - Fixed timezone issue in date range formatting: replaced UTC-based toISOString() methods with date-fns format(date, 'yyyy-MM-dd') to prevent off-by-one-day errors near midnight in different timezones
+- Implemented user deactivation feature: Added is_active field to user data model, visual differentiation for expired users on team dashboards, filtered inactive users from dropdowns, and maintained admin removal capabilities with FastAPI/Express fallback integration
