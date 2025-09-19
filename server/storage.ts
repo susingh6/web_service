@@ -1013,6 +1013,16 @@ export class MemStorage implements IStorage {
     });
   }
 
+  async updateUsersTeamName(oldTeamName: string, newTeamName: string): Promise<void> {
+    await this.ensureInitialized();
+    // Update team field on all users belonging to this team
+    this.users.forEach((user, userId) => {
+      if (user.team === oldTeamName) {
+        this.users.set(userId, { ...user, team: newTeamName });
+      }
+    });
+  }
+
   async updateEntitiesTenantName(tenantId: number, newTenantName: string): Promise<void> {
     await this.ensureInitialized();
     // Update tenant_name on all entities whose team belongs to this tenant

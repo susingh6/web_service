@@ -664,9 +664,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json(createErrorResponse("Team not found", "not_found"));
       }
 
-      // If team name changed, propagate to entities so fallback metrics (and Redis keys) match new name
+      // If team name changed, propagate to entities and users so fallback metrics (and Redis keys) match new name
       if (updateData.name && beforeTeam && updateData.name !== beforeTeam.name) {
         await storage.updateEntitiesTeamName(teamId, updateData.name);
+        await storage.updateUsersTeamName(beforeTeam.name, updateData.name);
         // Invalidate team members/details caches for both old and new names
         await redisCache.invalidateTeamData(beforeTeam.name);
         await redisCache.invalidateTeamData(updateData.name);
@@ -723,9 +724,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json(createErrorResponse("Team not found", "not_found"));
       }
 
-      // If team name changed, propagate to entities so fallback metrics (and Redis keys) match new name
+      // If team name changed, propagate to entities and users so fallback metrics (and Redis keys) match new name
       if (updateData.name && beforeTeam2 && updateData.name !== beforeTeam2.name) {
         await storage.updateEntitiesTeamName(teamId, updateData.name);
+        await storage.updateUsersTeamName(beforeTeam2.name, updateData.name);
         await redisCache.invalidateTeamData(beforeTeam2.name);
         await redisCache.invalidateTeamData(updateData.name);
         await redisCache.invalidateTeamMetricsCache(beforeTeam2.tenant_id ? String(beforeTeam2.tenant_id) : 'UnknownTenant', beforeTeam2.name);
