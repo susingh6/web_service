@@ -6,12 +6,14 @@ import { AuthProvider } from "@/hooks/use-auth";
 import { useInactivityTimeout } from "@/hooks/use-inactivity-timeout";
 import { Toaster } from "@/components/ui/toaster";
 import { AdminRoute } from "@/lib/admin-route";
+import { ProtectedRoute } from "@/lib/protected-route";
 import AppLayout from "./components/layout/AppLayout";
 import NotFound from "@/pages/not-found";
 import AuthPage from "@/pages/auth-page";
 import Summary from "@/pages/dashboard/Summary";
 import AdminPage from "@/pages/admin/AdminPage";
 import IncidentPage from "@/pages/IncidentPage";
+import ProfilePage from "@/pages/ProfilePage";
 import { Box, CircularProgress } from "@mui/material";
 import type { Entity } from "@shared/schema";
 
@@ -149,6 +151,9 @@ function Router() {
       
       {/* Incident redirect route - accessible to authenticated users */}
       <Route path="/incident/:notificationId" component={IncidentPage} />
+      
+      {/* Profile route - accessible to all authenticated users */}
+      <ProtectedRoute path="/profile" component={ProfilePage} />
       
       {/* Admin-only Dashboard routes */}
       <AdminRoute path="/" component={Summary} />

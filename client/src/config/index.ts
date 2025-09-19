@@ -31,6 +31,10 @@ interface ApiConfig {
       getAll: string;
       getTeamMembers: (teamName: string) => string;
     };
+    profile: {
+      getCurrent: string;
+      updateCurrent: string;
+    };
     dashboard: {
       summary: string;
       teamPerformance: (teamId: number) => string;

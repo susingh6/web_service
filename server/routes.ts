@@ -214,6 +214,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       '/logout', 
       '/register',
       '/user',
+      '/user/profile', // Session-based profile management
       '/auth/azure/validate',
       '/dev/create-test-user'
     ];
@@ -413,6 +414,112 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(roles);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch user roles" });
+    }
+  });
+
+  // Profile endpoints - Session-based current user management
+  // NOTE: Profile endpoints intentionally use Express-only (not FastAPI) for session-based authentication
+  app.get("/api/user/profile", isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json(createErrorResponse("No user session found", "unauthorized"));
+      }
+
+      // Get current user data from session
+      const currentUser = req.user as any;
+      
+      // Transform user data to match admin panel format expected by ProfilePage
+      const profileData = {
+        user_id: currentUser.id,
+        user_name: currentUser.username,
+        user_email: currentUser.email || '',
+        user_slack: currentUser.user_slack || null,
+        user_pagerduty: currentUser.user_pagerduty || null,
+        is_active: currentUser.is_active ?? true
+      };
+
+      res.json(profileData);
+    } catch (error) {
+      console.error('Profile fetch error:', error);
+      res.status(500).json(createErrorResponse("Failed to fetch profile"));
+    }
+  });
+
+  app.put("/api/user/profile", isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json(createErrorResponse("No user session found", "unauthorized"));
+      }
+
+      const currentUser = req.user as any;
+      const userId = currentUser.id;
+
+      // Validate request body using admin user schema (but exclude is_active for profile updates)
+      const profileUpdateSchema = adminUserSchema.omit({ is_active: true });
+      const validationResult = profileUpdateSchema.safeParse(req.body);
+      
+      if (!validationResult.success) {
+        return res.status(400).json(createValidationErrorResponse(validationResult.error, "Invalid profile data"));
+      }
+
+      const updateData = validationResult.data;
+      
+      // Check if username is being changed and if it already exists (excluding current user)
+      if (updateData.user_name && updateData.user_name !== currentUser.username) {
+        const existingUser = await storage.getUserByUsername(updateData.user_name);
+        if (existingUser && existingUser.id !== userId) {
+          return res.status(409).json(createErrorResponse("Username already exists", "duplicate_username"));
+        }
+      }
+
+      // Transform admin panel fields to internal schema fields
+      const internalUpdateData: any = {};
+      if (updateData.user_name) internalUpdateData.username = updateData.user_name;
+      if (updateData.user_email) internalUpdateData.email = updateData.user_email;
+      if (updateData.user_slack) internalUpdateData.user_slack = updateData.user_slack;
+      if (updateData.user_pagerduty) internalUpdateData.user_pagerduty = updateData.user_pagerduty;
+
+      // Update user
+      const updatedUser = await storage.updateUser(userId, internalUpdateData);
+      if (!updatedUser) {
+        return res.status(404).json(createErrorResponse("User not found", "not_found"));
+      }
+
+      // Invalidate user-related caches with error handling
+      try {
+        await redisCache.invalidateUserData();
+      } catch (cacheError) {
+        console.warn('Failed to invalidate user data cache:', cacheError);
+        // Cache invalidation failure should not break profile update
+      }
+      
+      // IMPORTANT: Invalidate admin users cache so admin panel reflects profile changes
+      try {
+        await redisCache.invalidateCache({
+          keys: ['admin_users'],
+          patterns: ['admin_*', 'users_*'],
+          mainCacheKeys: ['ENTITIES'],
+          refreshAffectedData: true
+        });
+      } catch (cacheError) {
+        console.warn('Failed to invalidate admin users cache:', cacheError);
+        // Cache invalidation failure should not break profile update
+      }
+
+      // Transform response to match admin panel format
+      const profileData = {
+        user_id: updatedUser.id,
+        user_name: updatedUser.username,
+        user_email: updatedUser.email || '',
+        user_slack: updatedUser.user_slack || null,
+        user_pagerduty: updatedUser.user_pagerduty || null,
+        is_active: updatedUser.is_active ?? true
+      };
+
+      res.json(profileData);
+    } catch (error) {
+      console.error('Profile update error:', error);
+      res.status(500).json(createErrorResponse("Failed to update profile"));
     }
   });
 

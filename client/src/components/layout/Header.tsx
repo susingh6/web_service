@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { AppBar, Toolbar, Typography, IconButton, Badge, Avatar, Menu, MenuItem, Box, useTheme } from '@mui/material';
-import { Notifications as NotificationsIcon, AccountCircle, ArrowDropDown } from '@mui/icons-material';
+import { Notifications as NotificationsIcon, AccountCircle, ArrowDropDown, Person as PersonIcon } from '@mui/icons-material';
 import { useAuth } from '@/hooks/use-auth';
 import { useLocation } from 'wouter';
 import { AccountInfo } from '@azure/msal-browser';
@@ -31,6 +31,11 @@ const Header = () => {
   
   const handleAdminClick = () => {
     setLocation('/admin');
+    handleUserMenuClose();
+  };
+
+  const handleProfileClick = () => {
+    setLocation('/profile');
     handleUserMenuClose();
   };
 
@@ -151,6 +156,14 @@ const Header = () => {
             <Box display="flex" alignItems="center">
               <Typography variant="body2" color="primary" fontWeight={600}>
                 Admin
+              </Typography>
+            </Box>
+          </MenuItem>
+          <MenuItem onClick={handleProfileClick}>
+            <Box display="flex" alignItems="center" gap={1}>
+              <PersonIcon fontSize="small" />
+              <Typography variant="body2">
+                Profile
               </Typography>
             </Box>
           </MenuItem>

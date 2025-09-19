@@ -32,6 +32,12 @@ export const devConfig = {
       getTeamMembers: (teamName: string) => `/api/v1/get_team_members/${teamName}`,
     },
     
+    // Profile endpoints - Session-based user profile management
+    profile: {
+      getCurrent: '/api/user/profile',
+      updateCurrent: '/api/user/profile',
+    },
+    
     // Dashboard - FastAPI
     dashboard: {
       summary: '/api/dashboard/summary',
