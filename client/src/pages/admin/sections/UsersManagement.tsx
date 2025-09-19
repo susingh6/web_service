@@ -388,6 +388,14 @@ const UsersManagement = () => {
         rollbackKeys: [['admin', 'users']],
       });
 
+      // CRITICAL FIX: Invalidate team member caches when user status changes
+      if (userData.is_active !== undefined) {
+        // Invalidate all team member queries since user status affects team dashboards
+        queryClient.invalidateQueries({ queryKey: ['teamMembers'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/v1/get_team_members'] });
+        console.log('Cache invalidation: User status changed, invalidated team member caches');
+      }
+
       toast({
         title: "User Updated",
         description: "User has been successfully updated.",
