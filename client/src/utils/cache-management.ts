@@ -162,7 +162,19 @@ export function useStandardCrud<T = any>(config: StandardCrudConfig<T>) {
           headers,
           credentials: 'include',
         });
-        if (!response.ok) throw new Error(`Failed to delete ${config.entityType}`);
+        if (!response.ok) {
+          const text = (await response.text()) || response.statusText;
+          // Try to parse as JSON to extract a specific error message
+          try {
+            const errorData = JSON.parse(text);
+            if (errorData && typeof errorData.message === 'string') {
+              throw new Error(errorData.message);
+            }
+          } catch (parseError) {
+            // If JSON parsing fails, fall back to original behavior
+          }
+          throw new Error(`Failed to delete ${config.entityType}: ${response.status} ${text}`);
+        }
         return response.ok;
       },
       invalidationScenario: { scenario, params },
@@ -718,7 +730,19 @@ export function useEntityMutation() {
         headers,
         credentials: 'include',
       });
-      if (!response.ok) throw new Error('Failed to delete entity');
+      if (!response.ok) {
+        const text = (await response.text()) || response.statusText;
+        // Try to parse as JSON to extract a specific error message
+        try {
+          const errorData = JSON.parse(text);
+          if (errorData && typeof errorData.message === 'string') {
+            throw new Error(errorData.message);
+          }
+        } catch (parseError) {
+          // If JSON parsing fails, fall back to original behavior
+        }
+        throw new Error(`Failed to delete entity: ${response.status} ${text}`);
+      }
       return true;
     },
     onMutate: async ({ entityId, tenant, teamId }: { entityId: number; tenant?: string; teamId: number }) => {

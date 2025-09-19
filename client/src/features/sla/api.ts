@@ -68,6 +68,17 @@ async function expressApiRequest(
 
   if (!response.ok) {
     const text = (await response.text()) || response.statusText;
+    
+    // Try to parse as JSON to extract a specific error message
+    try {
+      const errorData = JSON.parse(text);
+      if (errorData && typeof errorData.message === 'string') {
+        throw new Error(errorData.message);
+      }
+    } catch (parseError) {
+      // If JSON parsing fails, fall back to original behavior
+    }
+    
     throw new Error(`${response.status}: ${text}`);
   }
   
@@ -173,11 +184,6 @@ export const entitiesApi = {
     const res = await environmentAwareApiRequest('PUT', endpoints.entity.byId(payload.id), payload.updates);
     
     console.log('🌐 API UPDATE RESPONSE:', { status: res.status, ok: res.ok, statusText: res.statusText });
-    
-    if (!res.ok) {
-      console.error('🌐 API UPDATE ERROR:', { status: res.status, statusText: res.statusText });
-      throw new Error(`Failed to update entity: ${res.status} ${res.statusText}`);
-    }
     
     const result = await res.json();
     console.log('🌐 API UPDATE SUCCESS:', result);
