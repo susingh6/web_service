@@ -46,6 +46,7 @@ Preferred communication style: Simple, everyday language.
 - **Entity Ownership**: Role-based access control for entity modification and deletion.
 - **Standardized CRUD Operations**: Unified optimistic update pattern with smart ID detection, operation queuing, and automatic reconciliation for consistent user experience across all data operations.
 - **User Deactivation System**: Inactive users show as "expired" on team dashboards with visual differentiation (strikethrough, opacity, red status), are filtered out of dropdown lists (Add Member, Owner Update), but remain visible on dashboards for removal actions via FastAPI/Express fallback.
+- **User Profile Management**: Complete self-service profile page accessible via header user menu, allowing users to update their own details (name, email, Slack/PagerDuty contacts) with real-time cache invalidation to sync admin panel views, session-based authentication, and robust validation.
 
 ## External Dependencies
 
