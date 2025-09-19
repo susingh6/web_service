@@ -1242,6 +1242,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await redisCache.set(cacheKey, members, 6 * 60 * 60);
       }
 
+      // Add cache-busting headers to prevent 304 responses after team renames
+      const version = Date.now();
+      res.set({
+        'ETag': `W/"team_members_${teamName}:${version}"`,
+        'Last-Modified': new Date().toUTCString(),
+        'Cache-Control': 'no-cache'
+      });
+
       res.json(members);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch team members" });
@@ -1259,6 +1267,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         members = await storage.getTeamMembers(teamName);
         await redisCache.set(cacheKey, members, 6 * 60 * 60);
       }
+
+      // Add cache-busting headers to prevent 304 responses after team renames
+      const version = Date.now();
+      res.set({
+        'ETag': `W/"team_members_${teamName}:${version}"`,
+        'Last-Modified': new Date().toUTCString(),
+        'Cache-Control': 'no-cache'
+      });
 
       res.json(members);
     } catch (error) {
