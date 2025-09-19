@@ -388,6 +388,21 @@ const UsersManagement = () => {
         rollbackKeys: [['admin', 'users']],
       });
 
+      // CRITICAL FIX: Apply optimistic update to profile cache if current user is being updated
+      const currentProfile = queryClient.getQueryData(['profile', 'current']) as any;
+      if (currentProfile && result && (currentProfile.user_email === result.email || currentProfile.user_id === userId)) {
+        cacheManager.setOptimisticData(['profile', 'current'], (old: any | undefined) => {
+          if (!old) return old;
+          return {
+            ...old,
+            user_name: result.user_name || result.username || old.user_name,
+            user_slack: result.user_slack || old.user_slack,
+            user_pagerduty: result.user_pagerduty || old.user_pagerduty,
+            is_active: result.is_active !== undefined ? result.is_active : old.is_active,
+          };
+        });
+      }
+
       // CRITICAL FIX: Invalidate team member caches when user status changes
       if (userData.is_active !== undefined) {
         // Invalidate all team member queries since user status affects team dashboards

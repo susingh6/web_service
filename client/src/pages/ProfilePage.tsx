@@ -112,7 +112,7 @@ const ProfilePage = () => {
       const currentUser = queryClient.getQueryData(['profile', 'current']) as ProfileData | undefined;
       if (currentUser?.user_email) {
         cacheManager.setOptimisticData(['admin', 'users'], (old: any[] | undefined) => {
-          if (!old) return old;
+          if (!old) return [];
           return old.map(user => 
             user.email === currentUser.user_email 
               ? { 
