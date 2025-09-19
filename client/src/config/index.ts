@@ -161,6 +161,7 @@ interface ApiConfig {
       entitiesUpdated: string;
       teamMembersUpdated: string;
       echoToOrigin: string;
+      userStatusChanged: string;
     };
     features: {
       enableEchoToOrigin: boolean;

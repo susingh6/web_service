@@ -532,6 +532,52 @@ export class RedisCache {
     });
   }
 
+  // Send targeted notification to specific user by userId or email
+  sendUserNotification(userIdentifier: string | number, event: string, data: any): boolean {
+    if (!this.wss) {
+      console.warn(`No WebSocket server available to send ${event} notification to user ${userIdentifier}`);
+      return false;
+    }
+
+    const userIdString = String(userIdentifier);
+    const message = JSON.stringify({ 
+      event, 
+      data, 
+      timestamp: new Date().toISOString() 
+    });
+    
+    let notificationSent = false;
+    
+    this.wss.clients.forEach((client: any) => {
+      if (client.readyState === 1) { // WebSocket.OPEN
+        const socketData = this.authenticatedSockets.get(client);
+        
+        // Match by userId (as string) - covers both cases where userIdentifier is number or string
+        if (socketData && socketData.userId === userIdString) {
+          this.sendWithBackpressureProtection(client, message, `user-notification:${event}`);
+          notificationSent = true;
+        }
+      }
+    });
+    
+    if (!notificationSent) {
+      console.log(`User ${userIdentifier} not currently connected, storing ${event} notification for next connection`);
+      // Store notification for when user connects next
+      this.pendingNotifications.push({ 
+        event, 
+        data: { ...data, targetUserId: userIdString }, 
+        timestamp: new Date() 
+      });
+      
+      // Keep only last 10 notifications per method
+      if (this.pendingNotifications.length > 10) {
+        this.pendingNotifications.shift();
+      }
+    }
+    
+    return notificationSent;
+  }
+
   private async refreshCacheWithWorker(): Promise<void> {
     if (!this.useRedis || !this.redis) {
       await this.refreshFallbackData();

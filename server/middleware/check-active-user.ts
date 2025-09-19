@@ -26,12 +26,11 @@ export const checkActiveUserForWrites = async (req: Request, res: Response, next
     const currentUser = req.user as any;
     
     // Cross-reference with admin database to get full user details including is_active status
-    // Use the same lookup pattern as profile endpoints (by email)
+    // PERFORMANCE FIX: Use efficient email/username lookup instead of loading all users
     let targetUser;
     try {
       if (currentUser.email) {
-        const allUsers = await storage.getUsers();
-        targetUser = allUsers.find(user => user.email === currentUser.email);
+        targetUser = await storage.getUserByEmail(currentUser.email);
       }
       
       // If no match by email, try by username as fallback
@@ -39,14 +38,21 @@ export const checkActiveUserForWrites = async (req: Request, res: Response, next
         targetUser = await storage.getUserByUsername(currentUser.username);
       }
     } catch (dbError) {
-      // If database lookup fails, log the error but allow the request to proceed
-      // This ensures that temporary database issues don't lock out all users
-      structuredLogger.warn('USER_ACTIVE_CHECK_DB_ERROR', req.sessionContext, req.requestId, {
-        logger: 'app.middleware.active-check'
+      // SECURITY FIX: Implement fail-closed approach
+      // If database lookup fails, block the request to prevent inactive users from writing
+      structuredLogger.error('USER_ACTIVE_CHECK_DB_ERROR', req.sessionContext, req.requestId, {
+        logger: 'app.middleware.active-check',
+        error: dbError instanceof Error ? dbError.message : String(dbError)
       });
       
-      console.warn('Failed to lookup user for active status check, allowing request:', dbError instanceof Error ? dbError.message : String(dbError));
-      return next();
+      console.error('Failed to lookup user for active status check, blocking request for security:', dbError instanceof Error ? dbError.message : String(dbError));
+      
+      return res.status(500).json({
+        message: "Unable to verify account status. Please try again or contact your administrator if the issue persists.",
+        type: "account_verification_error",
+        timestamp: new Date().toISOString(),
+        errorCode: "USER_LOOKUP_FAILED"
+      });
     }
     
     // If user not found in admin database, allow request to proceed
@@ -82,16 +88,21 @@ export const checkActiveUserForWrites = async (req: Request, res: Response, next
     return next();
     
   } catch (error) {
-    // Log the middleware error but don't block the request
-    // This ensures that middleware errors don't break the application
+    // SECURITY FIX: Implement fail-closed approach for middleware errors
+    // Block requests when middleware encounters unexpected errors to prevent security bypass
     structuredLogger.error('USER_ACTIVE_CHECK_MIDDLEWARE_ERROR', req.sessionContext, req.requestId, {
-      logger: 'app.middleware.active-check'
+      logger: 'app.middleware.active-check',
+      error: error instanceof Error ? error.message : String(error)
     });
     
-    console.error('Error in checkActiveUserForWrites middleware:', error instanceof Error ? error.message : String(error));
+    console.error('Error in checkActiveUserForWrites middleware, blocking request for security:', error instanceof Error ? error.message : String(error));
     
-    // Allow request to proceed to avoid breaking the application due to middleware errors
-    return next();
+    return res.status(500).json({
+      message: "Authentication middleware error. Please try again or contact your administrator if the issue persists.",
+      type: "middleware_error",
+      timestamp: new Date().toISOString(),
+      errorCode: "MIDDLEWARE_ERROR"
+    });
   }
 };
 

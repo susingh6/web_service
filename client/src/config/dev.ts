@@ -206,6 +206,7 @@ export const devConfig = {
       entitiesUpdated: 'entities-updated',
       teamMembersUpdated: 'team-members-updated',
       echoToOrigin: 'echo-to-origin',
+      userStatusChanged: 'user_status_changed',
     },
     features: {
       enableEchoToOrigin: true,

@@ -27,6 +27,7 @@ export interface IStorage {
   // User operations
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: number, user: Partial<User>): Promise<User | undefined>;
   getUsers(): Promise<User[]>;
@@ -842,6 +843,13 @@ export class MemStorage implements IStorage {
   async getUserByUsername(username: string): Promise<User | undefined> {
     return Array.from(this.users.values()).find(
       (user) => user.username === username
+    );
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    await this.ensureInitialized();
+    return Array.from(this.users.values()).find(
+      (user) => user.email === email
     );
   }
   
@@ -1750,6 +1758,10 @@ export class MemStorage implements IStorage {
     
     const newIncident: Incident = {
       ...incident,
+      status: incident.status || 'open',
+      logsUrl: incident.logsUrl || null,
+      ragAnalysis: incident.ragAnalysis || null,
+      userEmail: incident.userEmail || null,
       createdAt: new Date(),
       resolvedAt: null,
     };
@@ -1767,7 +1779,7 @@ export class MemStorage implements IStorage {
     await this.ensureInitialized();
     
     // Find entity by DAG name, optionally filtered by team
-    for (const entity of this.entities.values()) {
+    for (const entity of Array.from(this.entities.values())) {
       if (entity.type === 'dag' && entity.dag_name === dagName) {
         if (!teamName || entity.team_name === teamName) {
           return entity;

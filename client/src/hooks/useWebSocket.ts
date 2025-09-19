@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { config } from '@/config';
+import { toast } from '@/hooks/use-toast';
 
 interface WebSocketMessage {
   event: string;
@@ -14,6 +15,7 @@ interface UseWebSocketOptions {
   onCacheUpdated?: (data: any) => void;
   onEntityUpdated?: (data: any) => void;
   onTeamMembersUpdated?: (data: any) => void;
+  onUserStatusChanged?: (data: any) => void;
   onConnect?: () => void;
   onDisconnect?: () => void;
   onError?: (error: Event) => void;
@@ -121,6 +123,26 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
                 lastVersions.current.set(versionKey, teamEvent.version);
               }
               options.onTeamMembersUpdated?.(message.data);
+              break;
+            case config.websocket.events.userStatusChanged:
+              // Handle user status changed events with toast notifications
+              const userStatusEvent = message.data;
+              console.log('User status changed:', userStatusEvent);
+              
+              // Show toast notification based on status change
+              if (userStatusEvent?.user_email && userStatusEvent?.is_active !== undefined) {
+                const statusText = userStatusEvent.is_active ? 'activated' : 'deactivated';
+                const toastVariant = userStatusEvent.is_active ? 'default' : 'destructive';
+                
+                toast({
+                  title: "User Status Changed",
+                  description: `User ${userStatusEvent.user_email} has been ${statusText}`,
+                  variant: toastVariant,
+                });
+              }
+              
+              // Call custom handler if provided
+              options.onUserStatusChanged?.(message.data);
               break;
             case config.websocket.events.echoToOrigin:
               // Handle echo-to-origin for instant feedback

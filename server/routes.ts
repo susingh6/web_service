@@ -363,6 +363,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const updateData = validationResult.data;
       
+      // Get current user data BEFORE update to compare is_active status
+      const currentUser = await storage.getUserById(userId);
+      if (!currentUser) {
+        return res.status(404).json(createErrorResponse("User not found", "not_found"));
+      }
+      
       // Transform admin panel fields to internal schema fields
       const internalUpdateData: any = {};
       if (updateData.user_name) internalUpdateData.username = updateData.user_name;
@@ -375,6 +381,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updatedUser = await storage.updateUser(userId, internalUpdateData);
       if (!updatedUser) {
         return res.status(404).json(createErrorResponse("User not found", "not_found"));
+      }
+
+      // Check if is_active status actually changed and send WebSocket notification
+      if (updateData.is_active !== undefined && currentUser.is_active !== updatedUser.is_active) {
+        const statusText = updatedUser.is_active ? 'active' : 'inactive';
+        const actionText = updatedUser.is_active ? 'activated' : 'deactivated';
+        
+        const notificationData = {
+          type: 'user_status_changed',
+          status: statusText,
+          message: `Your account has been ${actionText} by an administrator`,
+          user_email: updatedUser.email,
+          is_active: updatedUser.is_active
+        };
+        
+        // Send targeted WebSocket notification to the specific user
+        const notificationSent = redisCache.sendUserNotification(
+          updatedUser.id, 
+          'user_status_changed', 
+          notificationData
+        );
+        
+        console.log(`User status notification: User ${updatedUser.username} (ID: ${updatedUser.id}) ${actionText}, notification ${notificationSent ? 'sent' : 'queued'}`);
       }
 
       // CRITICAL FIX: Invalidate ALL team member caches when user status changes
