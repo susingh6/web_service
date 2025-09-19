@@ -450,19 +450,51 @@ const TeamDashboard = ({
                       />
                     ))
                   ) : teamMembers.length > 0 ? (
-                    teamMembers.map((member: any) => (
-                      <Chip 
-                        key={member.id}
-                        label={member.displayName || member.username}
-                        size="small"
-                        variant="outlined"
-                        sx={{ 
-                          fontSize: '0.75rem',
-                          height: '24px',
-                          '& .MuiChip-label': { px: 1 }
-                        }}
-                      />
-                    ))
+                    teamMembers.map((member: any) => {
+                      const isExpired = !member.is_active;
+                      return (
+                        <Chip 
+                          key={member.id}
+                          label={
+                            <Box display="flex" alignItems="center" gap={0.5}>
+                              <span
+                                style={{
+                                  textDecoration: isExpired ? 'line-through' : 'none',
+                                  opacity: isExpired ? 0.6 : 1,
+                                }}
+                              >
+                                {member.displayName || member.username}
+                              </span>
+                              {isExpired && (
+                                <Box
+                                  component="span"
+                                  sx={{
+                                    bgcolor: 'error.main',
+                                    color: 'white',
+                                    borderRadius: '4px',
+                                    px: 0.5,
+                                    py: 0.1,
+                                    fontSize: '0.6rem',
+                                    fontWeight: 600,
+                                  }}
+                                >
+                                  EXPIRED
+                                </Box>
+                              )}
+                            </Box>
+                          }
+                          size="small"
+                          variant="outlined"
+                          sx={{ 
+                            fontSize: '0.75rem',
+                            height: '24px',
+                            borderColor: isExpired ? 'error.main' : undefined,
+                            opacity: isExpired ? 0.8 : 1,
+                            '& .MuiChip-label': { px: 1 }
+                          }}
+                        />
+                      );
+                    })
                   ) : (
                     <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
                       No team members found
