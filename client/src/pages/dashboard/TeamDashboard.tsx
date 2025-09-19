@@ -92,11 +92,11 @@ const TeamDashboard = ({
   // Keep local state in sync with parent-provided dateRange
   useEffect(() => {
     if (dateRange && dateRange.startDate && dateRange.endDate) {
-      setTeamDateRange({
+      setTeamDateRange(prev => ({
         startDate: dateRange.startDate,
         endDate: dateRange.endDate,
-        label: dateRange.label || teamDateRange.label,
-      });
+        label: dateRange.label || prev.label,
+      }));
     }
   }, [dateRange?.startDate?.getTime?.(), dateRange?.endDate?.getTime?.(), dateRange?.label]);
 
@@ -137,17 +137,22 @@ const TeamDashboard = ({
   }, [teams, dispatch]);
 
   // Listen for admin panel team updates (rename/member changes) and refresh members immediately
+  const teamIdRef = useRef(team?.id);
+  useEffect(() => {
+    teamIdRef.current = team?.id;
+  });
+  
   useEffect(() => {
     const handler = (e: any) => {
       const detail = e?.detail || {};
-      if (!team?.id) return;
+      if (!teamIdRef.current) return;
       // Always refresh team members for current team when admin updates fire
-      queryClient.invalidateQueries({ queryKey: cacheKeys.teamMembers(tenantName, team?.id) });
-      queryClient.refetchQueries({ queryKey: cacheKeys.teamMembers(tenantName, team?.id) });
+      queryClient.invalidateQueries({ queryKey: cacheKeys.teamMembers(tenantName, teamIdRef.current) });
+      queryClient.refetchQueries({ queryKey: cacheKeys.teamMembers(tenantName, teamIdRef.current) });
     };
     window.addEventListener('admin-teams-updated', handler);
     return () => window.removeEventListener('admin-teams-updated', handler);
-  }, [tenantName, team?.id, queryClient]);
+  }, [tenantName, queryClient]);
 
   // Fetch data when team is found
   // Use React Query for team entities so cache invalidation works
