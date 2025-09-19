@@ -12,9 +12,15 @@ import {
   Button,
   Autocomplete,
   InputAdornment,
-  IconButton
+  IconButton,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Grid,
+  CircularProgress
 } from '@mui/material';
-import { Bell, Mail, MessageSquare, AlertTriangle, Plus } from 'lucide-react';
+import { Bell, Mail, MessageSquare, AlertTriangle, Plus, X, Save as SaveIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
@@ -23,10 +29,11 @@ import { Team } from '@shared/schema';
 interface TeamNotificationSettingsProps {
   team: Team;
   tenantName: string;
-  variant?: 'default' | 'compact';
+  variant?: 'default' | 'compact' | 'modal';
+  onClose?: () => void;
 }
 
-export function TeamNotificationSettings({ team, tenantName, variant = 'default' }: TeamNotificationSettingsProps) {
+export function TeamNotificationSettings({ team, tenantName, variant = 'default', onClose }: TeamNotificationSettingsProps) {
   const [formData, setFormData] = useState({
     team_email: team?.team_email || [],
     team_slack: team?.team_slack || [],
@@ -41,6 +48,8 @@ export function TeamNotificationSettings({ team, tenantName, variant = 'default'
   });
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const isCompact = variant === 'compact';
+  const isModal = variant === 'modal';
 
   // Update form data when team prop changes
   useEffect(() => {
@@ -157,6 +166,215 @@ export function TeamNotificationSettings({ team, tenantName, variant = 'default'
     const newValues = formData[type]?.filter((_, i) => i !== index) || [];
     setFormData({ ...formData, [type]: newValues });
   };
+
+  // Modal variant
+  if (isModal) {
+    return (
+      <Dialog
+        open={true}
+        onClose={onClose}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: { minHeight: '500px' }
+        }}
+      >
+        <DialogTitle sx={{ pb: 1 }}>
+          <Box display="flex" alignItems="center" justifyContent="space-between">
+            <Typography variant="h6">Team Notification Settings</Typography>
+            <IconButton onClick={onClose} size="small">
+              <X size={20} />
+            </IconButton>
+          </Box>
+        </DialogTitle>
+        <DialogContent sx={{ pt: 1 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            Configure email, Slack, and PagerDuty notifications for the {team.name} team
+          </Typography>
+          
+          <Grid container spacing={4}>
+            {/* Email Notifications */}
+            <Grid item xs={12} md={4}>
+              <Box>
+                <Typography 
+                  variant="subtitle2" 
+                  sx={{ 
+                    mb: 2, 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: 1,
+                    fontWeight: 600
+                  }}
+                >
+                  <Mail size={16} /> Email Notifications
+                </Typography>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, minHeight: '32px', mb: 2 }}>
+                  {formData.team_email?.map((email, index) => (
+                    <Chip 
+                      key={email}
+                      label={email} 
+                      size="small"
+                      variant="outlined"
+                      onDelete={() => removeValue('team_email', index)}
+                      sx={{ fontSize: '0.8rem' }}
+                    />
+                  ))}
+                </Box>
+                <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    placeholder="name@company.com"
+                    value={inputValues.team_email}
+                    onChange={(e) => handleInputChange('team_email', e.target.value)}
+                    onKeyDown={(e) => handleKeyPress('team_email', e)}
+                  />
+                  <IconButton 
+                    onClick={() => addValue('team_email')}
+                    disabled={!inputValues.team_email.trim()}
+                    color="primary"
+                    size="small"
+                  >
+                    <Plus size={16} />
+                  </IconButton>
+                </Box>
+                <Typography 
+                  variant="caption" 
+                  color="text.secondary" 
+                  sx={{ fontSize: '0.7rem' }}
+                >
+                  Type email and press Enter or click +
+                </Typography>
+              </Box>
+            </Grid>
+
+            {/* Slack Notifications */}
+            <Grid item xs={12} md={4}>
+              <Box>
+                <Typography 
+                  variant="subtitle2" 
+                  sx={{ 
+                    mb: 2, 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: 1,
+                    fontWeight: 600
+                  }}
+                >
+                  <MessageSquare size={16} /> Slack Notifications
+                </Typography>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, minHeight: '32px', mb: 2 }}>
+                  {formData.team_slack?.map((handle, index) => (
+                    <Chip 
+                      key={handle}
+                      label={handle} 
+                      size="small"
+                      variant="outlined"
+                      onDelete={() => removeValue('team_slack', index)}
+                      sx={{ fontSize: '0.8rem' }}
+                    />
+                  ))}
+                </Box>
+                <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    placeholder="@user or #channel"
+                    value={inputValues.team_slack}
+                    onChange={(e) => handleInputChange('team_slack', e.target.value)}
+                    onKeyDown={(e) => handleKeyPress('team_slack', e)}
+                  />
+                  <IconButton 
+                    onClick={() => addValue('team_slack')}
+                    disabled={!inputValues.team_slack.trim()}
+                    color="primary"
+                    size="small"
+                  >
+                    <Plus size={16} />
+                  </IconButton>
+                </Box>
+                <Typography 
+                  variant="caption" 
+                  color="text.secondary" 
+                  sx={{ fontSize: '0.7rem' }}
+                >
+                  Type handle and press Enter or click +
+                </Typography>
+              </Box>
+            </Grid>
+
+            {/* PagerDuty Notifications */}
+            <Grid item xs={12} md={4}>
+              <Box>
+                <Typography 
+                  variant="subtitle2" 
+                  sx={{ 
+                    mb: 2, 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: 1,
+                    fontWeight: 600
+                  }}
+                >
+                  <AlertTriangle size={16} /> PagerDuty Notifications
+                </Typography>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, minHeight: '32px', mb: 2 }}>
+                  {formData.team_pagerduty?.map((key, index) => (
+                    <Chip 
+                      key={key}
+                      label={key} 
+                      size="small"
+                      variant="outlined"
+                      onDelete={() => removeValue('team_pagerduty', index)}
+                      sx={{ fontSize: '0.8rem' }}
+                    />
+                  ))}
+                </Box>
+                <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    placeholder="service-escalation"
+                    value={inputValues.team_pagerduty}
+                    onChange={(e) => handleInputChange('team_pagerduty', e.target.value)}
+                    onKeyDown={(e) => handleKeyPress('team_pagerduty', e)}
+                  />
+                  <IconButton 
+                    onClick={() => addValue('team_pagerduty')}
+                    disabled={!inputValues.team_pagerduty.trim()}
+                    color="primary"
+                    size="small"
+                  >
+                    <Plus size={16} />
+                  </IconButton>
+                </Box>
+                <Typography 
+                  variant="caption" 
+                  color="text.secondary" 
+                  sx={{ fontSize: '0.7rem' }}
+                >
+                  Type service key and press Enter or click +
+                </Typography>
+              </Box>
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 3, pt: 1 }}>
+          <Button onClick={handleReset} disabled={updateNotificationsMutation.isPending}>
+            Reset
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleSave}
+            disabled={!hasChanges || updateNotificationsMutation.isPending}
+            startIcon={updateNotificationsMutation.isPending ? <CircularProgress size={16} /> : <SaveIcon />}
+          >
+            {updateNotificationsMutation.isPending ? 'Saving...' : 'Save Changes'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    );
+  }
 
   return (
     <Box sx={{ mt: 2 }}>
