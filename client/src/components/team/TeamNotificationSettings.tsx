@@ -49,11 +49,22 @@ export function TeamNotificationSettings({ team, tenantName }: TeamNotificationS
 
   // Track changes
   useEffect(() => {
+    const teamEmail = team?.team_email || [];
+    const teamSlack = team?.team_slack || [];
+    const teamPagerduty = team?.team_pagerduty || [];
+    
     const hasDataChanges = (
-      JSON.stringify(formData.team_email) !== JSON.stringify(team?.team_email || []) ||
-      JSON.stringify(formData.team_slack) !== JSON.stringify(team?.team_slack || []) ||
-      JSON.stringify(formData.team_pagerduty) !== JSON.stringify(team?.team_pagerduty || [])
+      JSON.stringify(formData.team_email || []) !== JSON.stringify(teamEmail) ||
+      JSON.stringify(formData.team_slack || []) !== JSON.stringify(teamSlack) ||
+      JSON.stringify(formData.team_pagerduty || []) !== JSON.stringify(teamPagerduty)
     );
+    
+    console.log('TeamNotificationSettings - Change Detection:', {
+      formData,
+      teamData: { teamEmail, teamSlack, teamPagerduty },
+      hasDataChanges
+    });
+    
     setHasChanges(hasDataChanges);
   }, [formData, team]);
 
@@ -108,14 +119,19 @@ export function TeamNotificationSettings({ team, tenantName }: TeamNotificationS
   };
 
   const addValue = (type: 'team_email' | 'team_slack' | 'team_pagerduty', value: string) => {
+    console.log('TeamNotificationSettings - addValue called:', { type, value });
+    
     if (!value.trim()) return;
     
     let isValid = true;
     if (type === 'team_email') isValid = validateEmail(value.trim());
     if (type === 'team_slack') isValid = validateSlackHandle(value.trim());
     
+    console.log('TeamNotificationSettings - addValue validation:', { type, value, isValid });
+    
     if (isValid) {
       const newValues = [...(formData[type] || []), value.trim()];
+      console.log('TeamNotificationSettings - addValue updating formData:', { type, oldValues: formData[type], newValues });
       setFormData({ ...formData, [type]: newValues });
     }
   };
