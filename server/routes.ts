@@ -284,7 +284,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const users = await storage.getUsers();
       res.json(users);
     } catch (error) {
-      res.status(500).json({ message: "Failed to fetch users" });
+      console.error('Error fetching users:', error);
+      res.status(500).json(createErrorResponse(
+        "Unable to retrieve user list. Please try again or contact your administrator.",
+        "fetch_error"
+      ));
     }
   });
 
@@ -303,7 +307,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }));
       res.json(transformedUsers);
     } catch (error) {
-      res.status(500).json({ message: "Failed to fetch users from FastAPI fallback" });
+      console.error('Error fetching users from fallback:', error);
+      res.status(500).json(createErrorResponse(
+        "Unable to retrieve user list from backup system. Please try again or contact your administrator.",
+        "fallback_error"
+      ));
     }
   });
 
@@ -343,7 +351,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json(transformedUser);
     } catch (error) {
       console.error('User creation error:', error);
-      res.status(500).json(createErrorResponse("Failed to create user", "creation_error"));
+      res.status(500).json(createErrorResponse(
+        "Unable to create new user account. Please check the information and try again.",
+        "creation_error"
+      ));
     }
   });
 
@@ -434,7 +445,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(transformedUser);
     } catch (error) {
       console.error('User update error:', error);
-      res.status(500).json(createErrorResponse("Failed to update user", "update_error"));
+      res.status(500).json(createErrorResponse(
+        "Unable to update user information. Please try again or contact your administrator.",
+        "update_error"
+      ));
     }
   });
 
@@ -443,7 +457,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const roles = await storage.getUserRoles();
       res.json(roles);
     } catch (error) {
-      res.status(500).json({ message: "Failed to fetch user roles" });
+      console.error('Error fetching user roles:', error);
+      res.status(500).json(createErrorResponse(
+        "Unable to retrieve user roles. Please try again or contact your administrator.",
+        "fetch_error"
+      ));
     }
   });
 
@@ -1101,7 +1119,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(updatedEntity);
     } catch (error) {
       console.error('Entity update error:', error);
-      res.status(500).json(createErrorResponse("Failed to update entity", "update_error"));
+      res.status(500).json(createErrorResponse(
+        "Unable to update entity information. Please try again or contact your administrator.",
+        "update_error"
+      ));
     }
   });
 
@@ -2076,7 +2097,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.status(201).json(entity);
     } catch (error) {
-      res.status(500).json({ message: "Failed to create entity" });
+      console.error('Error creating entity:', error);
+      res.status(500).json(createErrorResponse(
+        "Unable to create new entity. Please check the information and try again.",
+        "creation_error"
+      ));
     }
   });
   
@@ -2221,7 +2246,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json(updatedEntity);
     } catch (error) {
-      res.status(500).json({ message: "Failed to update entity" });
+      console.error('Error updating entity:', error);
+      res.status(500).json(createErrorResponse(
+        "Unable to update entity information. Please try again or contact your administrator.",
+        "update_error"
+      ));
     }
   });
   
@@ -2247,7 +2276,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const success = await redisCache.deleteEntity(id);
       if (!success) {
-        return res.status(500).json({ message: "Failed to delete entity" });
+        return res.status(500).json(createErrorResponse(
+          "Unable to delete entity. Please try again or contact your administrator.",
+          "delete_error"
+        ));
       }
       
       // Force WebSocket notification to all clients for real-time frontend updates
@@ -2278,7 +2310,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.status(204).end();
     } catch (error) {
-      res.status(500).json({ message: "Failed to delete entity" });
+      console.error('Error deleting entity:', error);
+      res.status(500).json(createErrorResponse(
+        "Unable to delete entity. Please try again or contact your administrator.",
+        "delete_error"
+      ));
     }
   });
   

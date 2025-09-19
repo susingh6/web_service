@@ -71,7 +71,19 @@ export function useStandardCrud<T = any>(config: StandardCrudConfig<T>) {
           body: JSON.stringify(data),
           credentials: 'include',
         });
-        if (!response.ok) throw new Error(`Failed to create ${config.entityType}`);
+        if (!response.ok) {
+          const text = (await response.text()) || response.statusText;
+          // Try to parse as JSON to extract a specific error message
+          try {
+            const errorData = JSON.parse(text);
+            if (errorData && typeof errorData.message === 'string') {
+              throw new Error(errorData.message);
+            }
+          } catch (parseError) {
+            // If JSON parsing fails, fall back to descriptive message
+          }
+          throw new Error(`Unable to create ${config.entityType}. Please try again or contact your administrator.`);
+        }
         return response.json();
       },
       invalidationScenario: { scenario, params },
@@ -124,7 +136,19 @@ export function useStandardCrud<T = any>(config: StandardCrudConfig<T>) {
           body: JSON.stringify(data),
           credentials: 'include',
         });
-        if (!response.ok) throw new Error(`Failed to update ${config.entityType}`);
+        if (!response.ok) {
+          const text = (await response.text()) || response.statusText;
+          // Try to parse as JSON to extract a specific error message
+          try {
+            const errorData = JSON.parse(text);
+            if (errorData && typeof errorData.message === 'string') {
+              throw new Error(errorData.message);
+            }
+          } catch (parseError) {
+            // If JSON parsing fails, fall back to descriptive message
+          }
+          throw new Error(`Unable to update ${config.entityType}. Please try again or contact your administrator.`);
+        }
         return response.json();
       },
       invalidationScenario: { scenario, params },
@@ -173,7 +197,7 @@ export function useStandardCrud<T = any>(config: StandardCrudConfig<T>) {
           } catch (parseError) {
             // If JSON parsing fails, fall back to original behavior
           }
-          throw new Error(`Failed to delete ${config.entityType}: ${response.status} ${text}`);
+          throw new Error(`Unable to delete ${config.entityType}. Please try again or contact your administrator.`);
         }
         return response.ok;
       },
@@ -436,7 +460,19 @@ export function useCacheManager() {
             headers,
             credentials: 'include',
           });
-          if (!response.ok) throw new Error('Failed to fetch entities');
+          if (!response.ok) {
+            const text = (await response.text()) || response.statusText;
+            // Try to parse as JSON to extract a specific error message
+            try {
+              const errorData = JSON.parse(text);
+              if (errorData && typeof errorData.message === 'string') {
+                throw new Error(errorData.message);
+              }
+            } catch (parseError) {
+              // If JSON parsing fails, fall back to descriptive message
+            }
+            throw new Error('Unable to retrieve entities. Please try again or contact your administrator.');
+          }
           return response.json();
         },
         staleTime: 5 * 60 * 1000, // 5 minutes
@@ -462,7 +498,19 @@ export function useCacheManager() {
             headers,
             credentials: 'include',
           });
-          if (!response.ok) throw new Error('Failed to fetch team entities');
+          if (!response.ok) {
+            const text = (await response.text()) || response.statusText;
+            // Try to parse as JSON to extract a specific error message
+            try {
+              const errorData = JSON.parse(text);
+              if (errorData && typeof errorData.message === 'string') {
+                throw new Error(errorData.message);
+              }
+            } catch (parseError) {
+              // If JSON parsing fails, fall back to descriptive message
+            }
+            throw new Error('Unable to retrieve team entities. Please try again or contact your administrator.');
+          }
           return response.json();
         },
         staleTime: 5 * 60 * 1000, // 5 minutes
@@ -584,7 +632,19 @@ export function useTeamMemberMutation() {
           body: JSON.stringify({ action: 'add', memberId: userId }),
           credentials: 'include',
         });
-        if (!response.ok) throw new Error('Failed to add member');
+        if (!response.ok) {
+          const text = (await response.text()) || response.statusText;
+          // Try to parse as JSON to extract a specific error message
+          try {
+            const errorData = JSON.parse(text);
+            if (errorData && typeof errorData.message === 'string') {
+              throw new Error(errorData.message);
+            }
+          } catch (parseError) {
+            // If JSON parsing fails, fall back to descriptive message
+          }
+          throw new Error('Unable to add team member. Please try again or contact your administrator.');
+        }
         return response.json();
       },
       invalidationScenario: {
@@ -619,7 +679,19 @@ export function useTeamMemberMutation() {
           body: JSON.stringify({ action: 'remove', memberId: userId }),
           credentials: 'include',
         });
-        if (!response.ok) throw new Error('Failed to remove member');
+        if (!response.ok) {
+          const text = (await response.text()) || response.statusText;
+          // Try to parse as JSON to extract a specific error message
+          try {
+            const errorData = JSON.parse(text);
+            if (errorData && typeof errorData.message === 'string') {
+              throw new Error(errorData.message);
+            }
+          } catch (parseError) {
+            // If JSON parsing fails, fall back to descriptive message
+          }
+          throw new Error('Unable to remove team member. Please try again or contact your administrator.');
+        }
         return response.json();
       },
       invalidationScenario: {
@@ -648,7 +720,19 @@ export function useEntityMutation() {
         body: JSON.stringify(entityData),
         credentials: 'include',
       });
-      if (!response.ok) throw new Error('Failed to create entity');
+      if (!response.ok) {
+        const text = (await response.text()) || response.statusText;
+        // Try to parse as JSON to extract a specific error message
+        try {
+          const errorData = JSON.parse(text);
+          if (errorData && typeof errorData.message === 'string') {
+            throw new Error(errorData.message);
+          }
+        } catch (parseError) {
+          // If JSON parsing fails, fall back to descriptive message
+        }
+        throw new Error('Unable to create entity. Please try again or contact your administrator.');
+      }
       return response.json();
     },
     onMutate: async (entityData: any) => {
@@ -694,7 +778,19 @@ export function useEntityMutation() {
         body: JSON.stringify(entityData),
         credentials: 'include',
       });
-      if (!response.ok) throw new Error('Failed to update entity');
+      if (!response.ok) {
+        const text = (await response.text()) || response.statusText;
+        // Try to parse as JSON to extract a specific error message
+        try {
+          const errorData = JSON.parse(text);
+          if (errorData && typeof errorData.message === 'string') {
+            throw new Error(errorData.message);
+          }
+        } catch (parseError) {
+          // If JSON parsing fails, fall back to descriptive message
+        }
+        throw new Error('Unable to update entity. Please try again or contact your administrator.');
+      }
       return response.json();
     },
     onMutate: async ({ entityId, entityData }) => {
