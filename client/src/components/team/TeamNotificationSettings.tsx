@@ -97,6 +97,11 @@ export function TeamNotificationSettings({ team, tenantName, variant = 'default'
       queryClient.invalidateQueries({ queryKey: ['teamMembers', tenantName, team.id] });
       
       setHasChanges(false);
+      
+      // Close modal if in modal variant
+      if (isModal && onClose) {
+        onClose();
+      }
     },
     onError: (error: any) => {
       console.error('Update team notifications error:', error);
