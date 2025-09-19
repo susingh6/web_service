@@ -438,15 +438,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         if (currentUser.email) {
           const allUsers = await storage.getUsers();
-          console.log(`[PROFILE DEBUG] Looking for user with email: ${currentUser.email}`);
-          console.log(`[PROFILE DEBUG] Available user emails:`, allUsers.map(u => ({ username: u.username, email: u.email })));
           existingUser = allUsers.find(user => user.email === currentUser.email);
-          
-          if (existingUser) {
-            console.log(`[PROFILE DEBUG] Found matching user:`, existingUser.username);
-          } else {
-            console.log(`[PROFILE DEBUG] No email match found, falling back to session data`);
-          }
         }
         
         if (existingUser) {
@@ -497,7 +489,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const currentUser = req.user as any;
-      const userId = currentUser.id;
+      
+      // IMPORTANT: Cross-reference with admin database by email (same logic as fetch)
+      let targetUser;
+      if (currentUser.email) {
+        const allUsers = await storage.getUsers();
+        targetUser = allUsers.find(user => user.email === currentUser.email);
+      }
+      
+      if (!targetUser) {
+        return res.status(404).json(createErrorResponse("User not found in admin database", "not_found"));
+      }
+      
+      const userId = targetUser.id;
 
       // Validate request body using admin user schema (but exclude is_active for profile updates)
       const profileUpdateSchema = adminUserSchema.omit({ is_active: true });
@@ -510,7 +514,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updateData = validationResult.data;
       
       // Check if username is being changed and if it already exists (excluding current user)
-      if (updateData.user_name && updateData.user_name !== currentUser.username) {
+      if (updateData.user_name && updateData.user_name !== targetUser.username) {
         const existingUser = await storage.getUserByUsername(updateData.user_name);
         if (existingUser && existingUser.id !== userId) {
           return res.status(409).json(createErrorResponse("Username already exists", "duplicate_username"));
