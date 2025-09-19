@@ -6,6 +6,7 @@ import { redisCache } from "./redis-cache";
 import { insertEntitySchema, insertTeamSchema, updateTeamSchema, insertEntityHistorySchema, insertIssueSchema, insertUserSchema, insertNotificationTimelineSchema, adminUserSchema, Entity, InsertNotificationTimeline, insertIncidentSchema } from "@shared/schema";
 import { z } from "zod";
 import { logAuthenticationEvent, structuredLogger } from "./middleware/structured-logging";
+import { checkActiveUserForWrites, requireActiveUser } from "./middleware/check-active-user";
 
 // Zod validation schema for rollback requests
 const rollbackRequestSchema = z.object({
@@ -307,7 +308,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // FastAPI fallback route for creating new users
-  app.post("/api/v1/users", async (req, res) => {
+  app.post("/api/v1/users", requireActiveUser, async (req, res) => {
     try {
       // Validate request body with admin user schema
       const validationResult = adminUserSchema.safeParse(req.body);
@@ -347,7 +348,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // FastAPI fallback route for updating users
-  app.put("/api/v1/users/:userId", async (req, res) => {
+  app.put("/api/v1/users/:userId", requireActiveUser, async (req, res) => {
     try {
       const userId = parseInt(req.params.userId);
       if (isNaN(userId)) {
@@ -482,7 +483,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/user/profile", isAuthenticated, async (req, res) => {
+  app.put("/api/user/profile", requireActiveUser, async (req, res) => {
     try {
       if (!req.user) {
         return res.status(401).json(createErrorResponse("No user session found", "unauthorized"));
@@ -667,7 +668,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // FastAPI fallback route for creating new tenants
-  app.post("/api/v1/tenants", async (req, res) => {
+  app.post("/api/v1/tenants", requireActiveUser, async (req, res) => {
     try {
       // Validate request body
       const validationResult = adminTenantSchema.safeParse(req.body);
@@ -691,7 +692,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // FastAPI fallback route for updating tenants
-  app.put("/api/v1/tenants/:tenantId", async (req, res) => {
+  app.put("/api/v1/tenants/:tenantId", requireActiveUser, async (req, res) => {
     try {
       const tenantId = parseInt(req.params.tenantId);
       if (isNaN(tenantId)) {
@@ -781,7 +782,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // FastAPI fallback route for creating new teams
-  app.post("/api/v1/teams", async (req, res) => {
+  app.post("/api/v1/teams", requireActiveUser, async (req, res) => {
     try {
       // Validate request body
       const validationResult = insertTeamSchema.safeParse(req.body);
@@ -819,7 +820,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // FastAPI fallback route for updating teams
-  app.put("/api/v1/teams/:teamId", async (req, res) => {
+  app.put("/api/v1/teams/:teamId", requireActiveUser, async (req, res) => {
     try {
       const teamId = parseInt(req.params.teamId);
       if (isNaN(teamId)) {
@@ -879,7 +880,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Express fallback route for updating teams (for frontend fallback mechanism)
-  app.put("/api/teams/:teamId", async (req, res) => {
+  app.put("/api/teams/:teamId", requireActiveUser, async (req, res) => {
     try {
       const teamId = parseInt(req.params.teamId);
       if (isNaN(teamId)) {
@@ -997,7 +998,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // FastAPI fallback route for updating entities
-  app.put("/api/v1/entities/:entityId", async (req, res) => {
+  app.put("/api/v1/entities/:entityId", requireActiveUser, async (req, res) => {
     try {
       const entityId = parseInt(req.params.entityId);
       if (isNaN(entityId)) {
@@ -1532,7 +1533,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.post("/api/teams", async (req, res) => {
+  app.post("/api/teams", requireActiveUser, async (req, res) => {
     try {
       const result = insertTeamSchema.safeParse(req.body);
       
@@ -1741,7 +1742,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Team member management endpoints
-  app.post("/api/teams/:teamName/members", async (req, res) => {
+  app.post("/api/teams/:teamName/members", requireActiveUser, async (req, res) => {
     try {
       const { teamName } = req.params;
       
@@ -1975,7 +1976,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.post("/api/entities", async (req, res) => {
+  app.post("/api/entities", requireActiveUser, async (req, res) => {
     try {
       const result = insertEntitySchema.safeParse(req.body);
       
@@ -2119,7 +2120,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.put("/api/entities/:id", async (req, res) => {
+  app.put("/api/entities/:id", requireActiveUser, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -2195,7 +2196,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.delete("/api/entities/:id", async (req, res) => {
+  app.delete("/api/entities/:id", requireActiveUser, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -2267,7 +2268,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.post("/api/entities/:id/history", async (req, res) => {
+  app.post("/api/entities/:id/history", requireActiveUser, async (req, res) => {
     try {
       const entityId = parseInt(req.params.id);
       if (isNaN(entityId)) {
@@ -2303,7 +2304,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.post("/api/entities/:id/issues", async (req, res) => {
+  app.post("/api/entities/:id/issues", requireActiveUser, async (req, res) => {
     try {
       const entityId = parseInt(req.params.id);
       if (isNaN(entityId)) {
@@ -2324,7 +2325,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.put("/api/issues/:id/resolve", async (req, res) => {
+  app.put("/api/issues/:id/resolve", requireActiveUser, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -2567,7 +2568,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create notification timeline
-  app.post("/api/notification-timelines", isAuthenticated, async (req: Request, res: Response) => {
+  app.post("/api/notification-timelines", requireActiveUser, async (req: Request, res: Response) => {
     try {
       const validatedData = insertNotificationTimelineSchema.parse(req.body);
       const timeline = await storage.createNotificationTimeline(validatedData);
@@ -2594,7 +2595,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update notification timeline
-  app.put("/api/notification-timelines/:id", isAuthenticated, async (req: Request, res: Response) => {
+  app.put("/api/notification-timelines/:id", requireActiveUser, async (req: Request, res: Response) => {
     try {
       const timelineId = req.params.id;
       
@@ -2626,7 +2627,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Delete notification timeline
-  app.delete("/api/notification-timelines/:id", isAuthenticated, async (req: Request, res: Response) => {
+  app.delete("/api/notification-timelines/:id", requireActiveUser, async (req: Request, res: Response) => {
     try {
       const timelineId = req.params.id;
       const deleted = await storage.deleteNotificationTimeline(timelineId);
