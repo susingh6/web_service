@@ -108,6 +108,25 @@ const ProfilePage = () => {
         rollbackKeys: [['profile', 'current']],
       });
 
+      // IMPORTANT: Apply optimistic update to admin users cache (matches entity operation pattern)
+      const currentUser = queryClient.getQueryData(['profile', 'current']) as ProfileData | undefined;
+      if (currentUser?.user_email) {
+        cacheManager.setOptimisticData(['admin', 'users'], (old: any[] | undefined) => {
+          if (!old) return old;
+          return old.map(user => 
+            user.email === currentUser.user_email 
+              ? { 
+                  ...user, 
+                  user_name: userData.user_name,
+                  username: userData.user_name, // Admin uses both fields
+                  user_slack: userData.user_slack,
+                  user_pagerduty: userData.user_pagerduty,
+                }
+              : user
+          );
+        });
+      }
+
       toast({
         title: "Profile Updated",
         description: "Your profile has been successfully updated.",
