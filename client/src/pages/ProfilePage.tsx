@@ -16,13 +16,15 @@ import {
 import {
   Person as PersonIcon,
   Save as SaveIcon,
-  Cancel as CancelIcon
+  Cancel as CancelIcon,
+  ArrowBack as ArrowBackIcon
 } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { buildUrl, endpoints } from '@/config';
 import { apiRequest } from '@/lib/queryClient';
 import { useOptimisticMutation, CACHE_PATTERNS, INVALIDATION_SCENARIOS } from '@/utils/cache-management';
+import { useLocation } from 'wouter';
 
 interface ProfileData {
   user_id: number;
@@ -45,6 +47,7 @@ const ProfilePage = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { executeWithOptimism, cacheManager } = useOptimisticMutation();
+  const [location, setLocation] = useLocation();
 
   // Fetch current user profile
   const { data: profileData, isLoading, error } = useQuery({
@@ -196,6 +199,18 @@ const ProfilePage = () => {
 
   return (
     <Box sx={{ p: 3, maxWidth: 800, mx: 'auto' }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+        <Button
+          startIcon={<ArrowBackIcon />}
+          onClick={() => setLocation('/')}
+          variant="outlined"
+          size="small"
+          data-testid="button-back-to-dashboard"
+        >
+          Back to Dashboard
+        </Button>
+      </Box>
+      
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Box>
           <Typography variant="h4" gutterBottom>
