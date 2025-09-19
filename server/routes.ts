@@ -874,20 +874,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json(createErrorResponse("Invalid team ID", "validation_error"));
       }
 
+      console.log(`[DEBUG] PUT /api/v1/teams/${teamId} - Request body:`, JSON.stringify(req.body, null, 2));
+
       // Validate request body
       const validationResult = updateTeamSchema.safeParse(req.body);
       if (!validationResult.success) {
+        console.log(`[DEBUG] Validation failed:`, validationResult.error);
         return res.status(400).json(createValidationErrorResponse(validationResult.error));
       }
 
       const updateData = validationResult.data;
+      console.log(`[DEBUG] Validated update data:`, JSON.stringify(updateData, null, 2));
 
       // Update team
       const beforeTeam = await storage.getTeam(teamId);
+      console.log(`[DEBUG] Before update - team notification data:`, {
+        team_email: beforeTeam?.team_email,
+        team_slack: beforeTeam?.team_slack,
+        team_pagerduty: beforeTeam?.team_pagerduty
+      });
+      
       const updatedTeam = await storage.updateTeam(teamId, updateData);
       if (!updatedTeam) {
         return res.status(404).json(createErrorResponse("Team not found", "not_found"));
       }
+
+      console.log(`[DEBUG] After update - team notification data:`, {
+        team_email: updatedTeam.team_email,
+        team_slack: updatedTeam.team_slack,
+        team_pagerduty: updatedTeam.team_pagerduty
+      });
 
       // If team name changed, propagate to entities and users so fallback metrics (and Redis keys) match new name
       if (updateData.name && beforeTeam && updateData.name !== beforeTeam.name) {
