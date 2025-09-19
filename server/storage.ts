@@ -1050,10 +1050,20 @@ export class MemStorage implements IStorage {
         break;
       case 'remove':
         if (memberId) {
-          // Convert user ID to username for removal
-          const user = await this.getUser(parseInt(memberId));
-          if (user) {
-            updatedMembers = updatedMembers.filter(username => username !== user.username);
+          // Handle both username strings and user IDs for removal
+          let username: string | undefined;
+          
+          if (typeof memberId === 'string' && isNaN(parseInt(memberId))) {
+            // memberId is a username string (e.g., "michael.brown")
+            username = memberId;
+          } else {
+            // memberId is a user ID (convert to username)
+            const user = await this.getUser(parseInt(memberId));
+            username = user?.username;
+          }
+          
+          if (username) {
+            updatedMembers = updatedMembers.filter(memberUsername => memberUsername !== username);
           }
         }
         break;

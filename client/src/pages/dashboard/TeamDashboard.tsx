@@ -719,6 +719,7 @@ const TeamDashboard = ({
                   }}
                 >
                   {availableUsers
+                    .filter(user => user.is_active !== false) // Filter out inactive users
                     .filter(user => !teamMembers.some((member: any) => member.id === user.id))
                     .map((user) => (
                       <MenuItem key={user.id} value={user.id}>

@@ -54,6 +54,7 @@ interface User {
   user_id: string;
   user_email: string;
   user_name?: string;
+  is_active?: boolean; // Added for filtering inactive users
 }
 
 interface TeamFormDialogProps {
@@ -353,7 +354,7 @@ const TeamFormDialog = ({ open, onClose, team, tenants, activeTenants, onSubmit 
               
               <Autocomplete
                 multiple
-                options={availableUsers.filter((u: User) => !formData.team_members_ids.includes(u.user_name || u.user_email))}
+                options={availableUsers.filter((u: User) => u.is_active !== false && !formData.team_members_ids.includes(u.user_name || u.user_email))}
                 getOptionLabel={(option) => typeof option === 'string' ? option : option.user_email}
                 isOptionEqualToValue={(option, value) =>
                   typeof value === 'string'

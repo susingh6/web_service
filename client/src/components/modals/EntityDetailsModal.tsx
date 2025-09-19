@@ -659,7 +659,10 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
                   <Box sx={{ mt: 1 }}>
                     <Autocomplete
                       multiple
-                      options={availableUsers.map((u: any) => u.user_email || u.email).filter((e: string) => !!e)}
+                      options={availableUsers
+                        .filter((u: any) => u.is_active !== false) // Filter out inactive users
+                        .map((u: any) => u.user_email || u.email)
+                        .filter((e: string) => !!e)}
                       filterSelectedOptions
                       value={selectedOwnerEmails}
                       onChange={(_e, newValue) => setSelectedOwnerEmails(newValue as string[])}
