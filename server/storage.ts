@@ -6,7 +6,8 @@ import {
   issues, type Issue, type InsertIssue,
   notificationTimelines, type NotificationTimeline, type InsertNotificationTimeline,
   slaDagAudit, type SlaDagAudit, type InsertSlaDagAudit,
-  slaTableAudit, type SlaTableAudit, type InsertSlaTableAudit
+  slaTableAudit, type SlaTableAudit, type InsertSlaTableAudit,
+  incidents, type Incident, type InsertIncident
 } from "@shared/schema";
 
 // Tenant interface for tenant management
@@ -73,6 +74,12 @@ export interface IStorage {
   getDeletedEntitiesByName(entityName: string): Promise<Array<{ id: string; entity_name: string; entity_type: 'dag' | 'table'; tenant_name: string; team_name: string; deleted_date: string; deleted_by: string; entity_id: string; tenant_id: string; team_id: string }>>;
   getDeletedEntitiesByTeamTenant(tenantId: number, teamId: number): Promise<Array<{ id: string; entity_name: string; entity_type: 'dag' | 'table'; tenant_name: string; team_name: string; deleted_date: string; deleted_by: string; entity_id: string; tenant_id: string; team_id: string }>>;
   performEntityRollback(auditId: string, entityType: 'dag' | 'table'): Promise<Entity | null>;
+  
+  // Incident operations for AI agent integration
+  createIncident(incident: InsertIncident): Promise<Incident>;
+  getIncident(notificationId: string): Promise<Incident | undefined>;
+  getEntityByName(dagName: string, teamName?: string): Promise<Entity | undefined>;
+  resolveIncident(notificationId: string): Promise<Incident | undefined>;
 }
 
 // In-memory storage implementation
@@ -86,6 +93,7 @@ export class MemStorage implements IStorage {
   private notificationTimelines: Map<string, NotificationTimeline>;
   private dagAudit: Map<number, SlaDagAudit>;
   private tableAudit: Map<number, SlaTableAudit>;
+  private incidents: Map<string, Incident>; // keyed by notification_id
   
   private userId: number;
   private teamId: number;
@@ -108,6 +116,7 @@ export class MemStorage implements IStorage {
     this.notificationTimelines = new Map();
     this.dagAudit = new Map();
     this.tableAudit = new Map();
+    this.incidents = new Map();
     
     this.userId = 1;
     this.teamId = 1;
@@ -1731,6 +1740,57 @@ export class MemStorage implements IStorage {
       console.error(`❌ Failed to rollback ${entityType} entity:`, error);
       return null;
     }
+  }
+
+  // Incident operations for AI agent integration
+  async createIncident(incident: InsertIncident): Promise<Incident> {
+    await this.ensureInitialized();
+    
+    const newIncident: Incident = {
+      ...incident,
+      createdAt: new Date(),
+      resolvedAt: null,
+    };
+
+    this.incidents.set(incident.id, newIncident);
+    return newIncident;
+  }
+
+  async getIncident(notificationId: string): Promise<Incident | undefined> {
+    await this.ensureInitialized();
+    return this.incidents.get(notificationId);
+  }
+
+  async getEntityByName(dagName: string, teamName?: string): Promise<Entity | undefined> {
+    await this.ensureInitialized();
+    
+    // Find entity by DAG name, optionally filtered by team
+    for (const entity of this.entities.values()) {
+      if (entity.type === 'dag' && entity.dag_name === dagName) {
+        if (!teamName || entity.team_name === teamName) {
+          return entity;
+        }
+      }
+    }
+    
+    return undefined;
+  }
+
+  async resolveIncident(notificationId: string): Promise<Incident | undefined> {
+    await this.ensureInitialized();
+    
+    const incident = this.incidents.get(notificationId);
+    if (incident) {
+      const resolvedIncident: Incident = {
+        ...incident,
+        status: 'resolved',
+        resolvedAt: new Date(),
+      };
+      this.incidents.set(notificationId, resolvedIncident);
+      return resolvedIncident;
+    }
+    
+    return undefined;
   }
 }
 

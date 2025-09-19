@@ -35,10 +35,19 @@ import { Entity } from '@shared/schema';
 import { format } from 'date-fns';
 import { agentApi, ConversationSummary, FullConversation } from '@/features/sla/agentApi';
 
+interface IncidentContext {
+  notification_id: string;
+  task_name: string;
+  error_summary: string;
+  logs_url?: string;
+  date_key: string;
+}
+
 interface AgentWorkspaceModalProps {
   open: boolean;
   onClose: () => void;
   dagEntity: Entity | null;
+  incidentContext?: IncidentContext; // Optional incident context
 }
 
 // Types are now imported from agentApi
@@ -53,6 +62,7 @@ const AgentWorkspaceModal: React.FC<AgentWorkspaceModalProps> = ({
   open,
   onClose,
   dagEntity,
+  incidentContext,
 }) => {
   const [message, setMessage] = useState('');
   const [conversationSummaries, setConversationSummaries] = useState<(ConversationSummary & { timestamp: Date })[]>([]);
@@ -60,6 +70,37 @@ const AgentWorkspaceModal: React.FC<AgentWorkspaceModalProps> = ({
   const [loadingConversations, setLoadingConversations] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [currentConversation, setCurrentConversation] = useState<CurrentConversation | null>(null);
+  const [detectedIncidentContext, setDetectedIncidentContext] = useState<IncidentContext | null>(null);
+  const [hasInitializedIncidentChat, setHasInitializedIncidentChat] = useState(false);
+
+  // Incident context detection from sessionStorage or props
+  useEffect(() => {
+    if (open && dagEntity) {
+      // Check for incident context from sessionStorage (from incident redirect page)
+      const incidentContextKey = `incident_context_${dagEntity.id}`;
+      const storedIncidentContext = sessionStorage.getItem(incidentContextKey);
+      
+      let contextToUse: IncidentContext | null = null;
+      
+      if (incidentContext) {
+        // Use passed incident context (direct prop)
+        contextToUse = incidentContext;
+      } else if (storedIncidentContext) {
+        try {
+          // Use stored incident context (from redirect page)
+          contextToUse = JSON.parse(storedIncidentContext);
+          // Clear from sessionStorage after using
+          sessionStorage.removeItem(incidentContextKey);
+        } catch (error) {
+          console.error('Failed to parse incident context from sessionStorage:', error);
+        }
+      }
+      
+      if (contextToUse) {
+        setDetectedIncidentContext(contextToUse);
+      }
+    }
+  }, [open, dagEntity, incidentContext]);
 
   // Lazy load last 10 conversation summaries when modal opens
   useEffect(() => {
@@ -83,6 +124,64 @@ const AgentWorkspaceModal: React.FC<AgentWorkspaceModalProps> = ({
         });
     }
   }, [open, dagEntity]);
+
+  // Auto-initialize conversation with incident context
+  useEffect(() => {
+    if (open && dagEntity && detectedIncidentContext && !hasInitializedIncidentChat && !currentConversation) {
+      // Auto-start conversation with incident context
+      const incidentMessage = `Why did my job fail? I'm having issues with the ${detectedIncidentContext.task_name} task. The error was: "${detectedIncidentContext.error_summary}"`;
+      
+      setHasInitializedIncidentChat(true);
+      setCurrentConversation({
+        userMessage: incidentMessage,
+        agentResponse: '',
+        status: 'sending',
+      });
+
+      // Send the message with incident context
+      setTimeout(() => {
+        setCurrentConversation(prev => prev ? { ...prev, status: 'waiting' } : null);
+        
+        // API call to send message with incident context
+        agentApi.sendMessageWithIncident(dagEntity.id, { 
+          message: incidentMessage,
+          incident_context: detectedIncidentContext
+        })
+          .then(response => {
+            setCurrentConversation(prev => prev ? {
+              ...prev,
+              agentResponse: response.agent_response,
+              status: 'complete'
+            } : null);
+            
+            // Auto-close current conversation after 5 seconds to allow reading
+            setTimeout(() => {
+              setCurrentConversation(null);
+              // Refresh conversation summaries
+              if (dagEntity) {
+                agentApi.getConversationSummaries(dagEntity.id)
+                  .then(summaries => {
+                    const summariesWithDates = summaries.map(s => ({
+                      ...s,
+                      timestamp: new Date(s.timestamp)
+                    }));
+                    setConversationSummaries(summariesWithDates);
+                  })
+                  .catch(error => console.error('Failed to refresh summaries:', error));
+              }
+            }, 5000);
+          })
+          .catch(error => {
+            console.error('Failed to send incident message:', error);
+            setCurrentConversation(prev => prev ? {
+              ...prev,
+              agentResponse: 'I encountered an error while analyzing your incident. Let me help you troubleshoot this issue. Can you provide more details about what happened?',
+              status: 'complete'
+            } : null);
+          });
+      }, 1000); // Brief delay to show sending state
+    }
+  }, [open, dagEntity, detectedIncidentContext, hasInitializedIncidentChat, currentConversation]);
 
   // Load full conversation when user clicks expand
   const handleExpandConversation = async (conversationId: string) => {
@@ -147,8 +246,19 @@ const AgentWorkspaceModal: React.FC<AgentWorkspaceModalProps> = ({
     setTimeout(() => {
       setCurrentConversation(prev => prev ? { ...prev, status: 'waiting' } : null);
       
+      // Prepare message request with incident context if available
+      const messageRequest: any = { message: messageText };
+      if (detectedIncidentContext) {
+        messageRequest.incident_context = detectedIncidentContext;
+      }
+
+      // Choose the appropriate API method based on whether we have incident context
+      const apiCall = detectedIncidentContext 
+        ? agentApi.sendMessageWithIncident(dagEntity.id, messageRequest)
+        : agentApi.sendMessage(dagEntity.id, messageRequest);
+      
       // API call to send message
-      agentApi.sendMessage(dagEntity.id, { message: messageText })
+      apiCall
         .then(response => {
           setCurrentConversation(prev => prev ? {
             ...prev,
@@ -156,7 +266,7 @@ const AgentWorkspaceModal: React.FC<AgentWorkspaceModalProps> = ({
             status: 'complete'
           } : null);
           
-          // Auto-close current conversation after 3 seconds
+          // Auto-close current conversation after 4 seconds
           setTimeout(() => {
             setCurrentConversation(null);
             // Refresh conversation summaries to include new conversation
@@ -171,13 +281,15 @@ const AgentWorkspaceModal: React.FC<AgentWorkspaceModalProps> = ({
                 })
                 .catch(error => console.error('Failed to refresh summaries:', error));
             }
-          }, 3000);
+          }, 4000);
         })
         .catch(error => {
           console.error('Failed to send message:', error);
           setCurrentConversation(prev => prev ? {
             ...prev,
-            agentResponse: 'Sorry, I encountered an error while processing your message. Please try again.',
+            agentResponse: detectedIncidentContext 
+              ? 'I encountered an error while analyzing your incident. Let me help you troubleshoot this issue. Can you provide more details about what happened?'
+              : 'Sorry, I encountered an error while processing your message. Please try again.',
             status: 'complete'
           } : null);
         });
@@ -252,6 +364,62 @@ const AgentWorkspaceModal: React.FC<AgentWorkspaceModalProps> = ({
             </Typography>
           </Box>
         </Paper>
+
+        {/* Incident Context Alert */}
+        {detectedIncidentContext && (
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            <Typography variant="body2" fontWeight={500}>
+              🚨 <strong>Incident Alert:</strong> {detectedIncidentContext.task_name}
+            </Typography>
+            <Typography variant="body2" sx={{ mt: 1 }}>
+              <strong>Error:</strong> {detectedIncidentContext.error_summary}
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              Incident ID: {detectedIncidentContext.notification_id} • {detectedIncidentContext.date_key}
+            </Typography>
+            {detectedIncidentContext.logs_url && (
+              <Typography variant="body2" sx={{ mt: 1 }}>
+                📋 <strong>Logs:</strong> <a href={detectedIncidentContext.logs_url} target="_blank" rel="noopener noreferrer">View detailed logs</a>
+              </Typography>
+            )}
+          </Alert>
+        )}
+
+        {/* Quick Action Buttons for Incident Context */}
+        {detectedIncidentContext && !currentConversation && (
+          <Paper elevation={1} sx={{ p: 2, mb: 2, bgcolor: 'action.hover' }}>
+            <Typography variant="subtitle2" gutterBottom>
+              🔍 Quick Actions for Incident Resolution
+            </Typography>
+            <Box display="flex" flexWrap="wrap" gap={1}>
+              {[
+                "What's the root cause of this failure?",
+                "How can I prevent this error in the future?",
+                "What are the next steps to resolve this?",
+                "Are there any dependencies that failed?",
+                "Can you check the resource usage during failure?",
+                "What's the typical recovery time for this issue?"
+              ].map((question, index) => (
+                <Button
+                  key={index}
+                  variant="outlined"
+                  size="small"
+                  onClick={() => {
+                    setMessage(question);
+                    setTimeout(() => handleSendMessage(), 100);
+                  }}
+                  sx={{ 
+                    textTransform: 'none',
+                    borderRadius: 2,
+                    fontSize: '0.75rem',
+                  }}
+                >
+                  {question}
+                </Button>
+              ))}
+            </Box>
+          </Paper>
+        )}
 
         {/* AI Agent Note */}
         <Alert severity="info" sx={{ mb: 2 }}>

@@ -285,7 +285,8 @@ export const incidents = pgTable("incidents", {
   ragAnalysis: text("rag_analysis"), // AI analysis from external system
   status: text("status").notNull().default("open"), // 'open', 'resolved'
   userEmail: text("user_email"), // User who should receive notifications
-  teamName: text("team_name"), // Team context for incident
+  teamName: text("team_name").notNull(), // Team context for incident navigation
+  tenantName: text("tenant_name").notNull(), // Tenant context for incident navigation
   createdAt: timestamp("created_at").defaultNow().notNull(),
   resolvedAt: timestamp("resolved_at"),
 });

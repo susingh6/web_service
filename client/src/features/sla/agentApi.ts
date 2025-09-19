@@ -27,6 +27,12 @@ export interface FullConversation {
 export interface SendMessageRequest {
   message: string;
   task_context?: string;
+  incident_context?: {
+    notification_id: string;
+    task_name: string;
+    error_summary: string;
+    logs_url?: string;
+  };
 }
 
 export interface SendMessageResponse {
@@ -164,15 +170,40 @@ export const agentApi = {
       // Simulate network delays for different stages
       await new Promise(resolve => setTimeout(resolve, 500)); // Sending delay
       
-      // Mock response
+      // Mock response with incident context awareness
+      let mockResponse = `Based on my analysis of the current task status for DAG ${dagId}, everything appears to be running normally. The last execution completed successfully. No issues detected in the monitored tasks.`;
+      
+      if (request.incident_context) {
+        mockResponse = `I see there's an issue with the ${request.incident_context.task_name} task. Let me analyze the error: "${request.incident_context.error_summary}". Based on the context, this appears to be a ${request.incident_context.task_name} failure. The most common causes for this type of error are:
+
+1. **Data source connectivity issues** - Check if upstream data sources are accessible
+2. **Memory or resource constraints** - The job might need more resources to process the data
+3. **Schema changes** - Upstream schema might have changed, causing transformation failures
+4. **Dependency failures** - Check if dependent tasks completed successfully
+
+Would you like me to investigate any of these areas specifically? I can also help you check the logs${request.incident_context.logs_url ? ' at the provided URL' : ''} for more detailed diagnostics.`;
+      }
+      
       return {
         conversation_id: Date.now().toString(),
-        agent_response: `Based on my analysis of the current task status for DAG ${dagId}, everything appears to be running normally. The last execution completed successfully. No issues detected in the monitored tasks.`,
+        agent_response: mockResponse,
         status: 'complete',
       };
     }
     
     const res = await apiRequest('POST', config.endpoints.agent.sendMessage(dagId), request);
+    return await res.json();
+  },
+
+  // Send a message with incident context using enhanced agent endpoint
+  sendMessageWithIncident: async (dagId: number, request: SendMessageRequest): Promise<SendMessageResponse> => {
+    if (config.mock?.agent) {
+      // Use the same mock logic as sendMessage for now
+      return agentApi.sendMessage(dagId, request);
+    }
+    
+    // Use the enhanced agent chat endpoint with incident context and OAuth claims
+    const res = await apiRequest('POST', config.endpoints.agent.chatWithIncident(dagId), request);
     return await res.json();
   },
 };

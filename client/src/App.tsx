@@ -11,6 +11,7 @@ import NotFound from "@/pages/not-found";
 import AuthPage from "@/pages/auth-page";
 import Summary from "@/pages/dashboard/Summary";
 import AdminPage from "@/pages/admin/AdminPage";
+import IncidentPage from "@/pages/IncidentPage";
 import { Box, CircularProgress } from "@mui/material";
 import type { Entity } from "@shared/schema";
 
@@ -145,6 +146,9 @@ function Router() {
     <Switch>
       {/* Auth routes */}
       <Route path="/auth" component={AuthPage} />
+      
+      {/* Incident redirect route - accessible to authenticated users */}
+      <Route path="/incident/:notificationId" component={IncidentPage} />
       
       {/* Admin-only Dashboard routes */}
       <AdminRoute path="/" component={Summary} />

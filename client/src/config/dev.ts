@@ -88,11 +88,20 @@ export const devConfig = {
       teams: '/api/v1/debug/teams',
     },
 
-    // Agent workspace endpoints - FastAPI
+    // Incident management endpoints - FastAPI
+    incidents: {
+      register: '/api/v1/incidents/register',
+      getByNotificationId: (notificationId: string) => `/api/v1/incidents/${notificationId}`,
+      resolve: (notificationId: string) => `/api/v1/incidents/${notificationId}/resolve`,
+    },
+
+    // Agent workspace endpoints - FastAPI with incident support
     agent: {
       conversationSummaries: (dagId: number) => `/api/v1/agent/conversations/summaries/${dagId}`,
       fullConversation: (conversationId: string) => `/api/v1/agent/conversations/${conversationId}`,
       sendMessage: (dagId: number) => `/api/v1/agent/conversations/${dagId}/send`,
+      // Enhanced agent endpoint with incident context and OAuth claims
+      chatWithIncident: (dagId: number) => `/api/v1/agent/dags/${dagId}/chat`,
     },
     
     // Admin endpoints - FastAPI with role-based access control

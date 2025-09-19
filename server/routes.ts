@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { redisCache } from "./redis-cache";
-import { insertEntitySchema, insertTeamSchema, updateTeamSchema, insertEntityHistorySchema, insertIssueSchema, insertUserSchema, insertNotificationTimelineSchema, adminUserSchema, Entity, InsertNotificationTimeline } from "@shared/schema";
+import { insertEntitySchema, insertTeamSchema, updateTeamSchema, insertEntityHistorySchema, insertIssueSchema, insertUserSchema, insertNotificationTimelineSchema, adminUserSchema, Entity, InsertNotificationTimeline, insertIncidentSchema } from "@shared/schema";
 import { z } from "zod";
 import { logAuthenticationEvent, structuredLogger } from "./middleware/structured-logging";
 
@@ -42,6 +42,28 @@ const updateTenantSchema = z.object({
 
 const updateUserSchema = adminUserSchema.partial().refine(data => Object.keys(data).length > 0, {
   message: "At least one field must be provided for update"
+});
+
+// Incident validation schemas
+const incidentRegistrationSchema = z.object({
+  notification_id: z.string().min(1, "Notification ID is required"),
+  dag_name: z.string().min(1, "DAG name is required"),
+  task_name: z.string().min(1, "Task name is required"),
+  error_summary: z.string().min(1, "Error summary is required"),
+  logs_url: z.string().url("Valid logs URL required").optional(),
+  rag_analysis: z.string().optional(),
+  user_email: z.string().email("Valid email required").optional(),
+  team_name: z.string().optional(),
+});
+
+const agentChatSchema = z.object({
+  message: z.string().min(1, "Message is required"),
+  incident_context: z.object({
+    notification_id: z.string(),
+    task_name: z.string(),
+    error_summary: z.string(),
+    logs_url: z.string().optional(),
+  }).optional(),
 });
 
 // Helper function to create audit log entries for rollback operations
@@ -894,6 +916,218 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Entity update error:', error);
       res.status(500).json(createErrorResponse("Failed to update entity", "update_error"));
+    }
+  });
+
+  // ========================================
+  // INCIDENT MANAGEMENT ROUTES - AI AGENT INTEGRATION
+  // ========================================
+
+  // Incident registration endpoint - External webhook for job failures
+  app.post("/api/v1/incidents/register", async (req, res) => {
+    try {
+      structuredLogger.info('INCIDENT_REGISTRATION_REQUEST', req.sessionContext, req.requestId, {
+        logger: 'app.incident.register',
+        body_preview: { notification_id: req.body?.notification_id, dag_name: req.body?.dag_name }
+      });
+
+      // Validate request body
+      const result = incidentRegistrationSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json(createValidationErrorResponse(result.error));
+      }
+
+      const { notification_id, dag_name, task_name, error_summary, logs_url, rag_analysis, user_email, team_name } = result.data;
+
+      // Find the corresponding DAG entity
+      const dagEntity = await storage.getEntityByName(dag_name, team_name);
+      if (!dagEntity || dagEntity.type !== 'dag') {
+        structuredLogger.warn('INCIDENT_DAG_NOT_FOUND', req.sessionContext, req.requestId, {
+          logger: 'app.incident.register',
+          dag_name,
+          team_name
+        });
+        return res.status(404).json(createErrorResponse("DAG entity not found", "not_found"));
+      }
+
+      // Create incident record
+      const incident = await storage.createIncident({
+        id: notification_id,
+        dagId: dagEntity.id,
+        dagName: dag_name,
+        taskName: `${dag_name} + ${task_name}`, // Format as specified
+        dateKey: new Date().toISOString().split('T')[0], // YYYY-MM-DD format
+        summary: error_summary,
+        logsUrl: logs_url || null,
+        ragAnalysis: rag_analysis || null,
+        userEmail: user_email || null,
+        teamName: team_name || dagEntity.team_name || null,
+      });
+
+      // Generate agent chat URL for external systems
+      const agent_chat_url = `${req.protocol}://${req.get('host')}/incident/${notification_id}`;
+
+      structuredLogger.info('INCIDENT_REGISTERED_SUCCESS', req.sessionContext, req.requestId, {
+        logger: 'app.incident.register',
+        notification_id,
+        dag_id: dagEntity.id,
+        agent_chat_url
+      });
+
+      res.json({
+        message: "Incident registered successfully",
+        notification_id,
+        agent_chat_url,
+        dag_id: dagEntity.id,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      structuredLogger.error('INCIDENT_REGISTRATION_ERROR', req.sessionContext, req.requestId, {
+        logger: 'app.incident.register',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      res.status(500).json(createErrorResponse("Failed to register incident", "server_error"));
+    }
+  });
+
+  // Get incident by notification ID
+  app.get("/api/v1/incidents/:notificationId", async (req, res) => {
+    try {
+      const { notificationId } = req.params;
+
+      const incident = await storage.getIncident(notificationId);
+      if (!incident) {
+        return res.status(404).json(createErrorResponse("Incident not found", "not_found"));
+      }
+
+      // Get DAG entity details for context
+      const dagEntity = await storage.getEntity(incident.dagId);
+      if (!dagEntity) {
+        return res.status(404).json(createErrorResponse("Associated DAG entity not found", "not_found"));
+      }
+
+      structuredLogger.info('INCIDENT_RETRIEVED', req.sessionContext, req.requestId, {
+        logger: 'app.incident.retrieve',
+        notification_id: notificationId,
+        dag_id: incident.dagId
+      });
+
+      res.json({
+        incident,
+        dagEntity,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      structuredLogger.error('INCIDENT_RETRIEVAL_ERROR', req.sessionContext, req.requestId, {
+        logger: 'app.incident.retrieve',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      res.status(500).json(createErrorResponse("Failed to retrieve incident", "server_error"));
+    }
+  });
+
+  // Resolve incident to DAG ID (for redirect flow)
+  app.get("/api/v1/incidents/:notificationId/resolve", async (req, res) => {
+    try {
+      const { notificationId } = req.params;
+
+      const incident = await storage.getIncident(notificationId);
+      if (!incident) {
+        return res.status(404).json(createErrorResponse("Incident not found", "not_found"));
+      }
+
+      const dagEntity = await storage.getEntity(incident.dagId);
+      if (!dagEntity) {
+        return res.status(404).json(createErrorResponse("Associated DAG entity not found", "not_found"));
+      }
+
+      structuredLogger.info('INCIDENT_RESOLVED_TO_DAG', req.sessionContext, req.requestId, {
+        logger: 'app.incident.resolve',
+        notification_id: notificationId,
+        dag_id: incident.dagId,
+        dag_name: dagEntity.dag_name
+      });
+
+      res.json({
+        dagId: incident.dagId,
+        dagEntity,
+        incidentContext: {
+          notification_id: notificationId,
+          task_name: incident.taskName,
+          error_summary: incident.summary,
+          logs_url: incident.logsUrl,
+          date_key: incident.dateKey,
+        },
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      structuredLogger.error('INCIDENT_RESOLUTION_ERROR', req.sessionContext, req.requestId, {
+        logger: 'app.incident.resolve',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      res.status(500).json(createErrorResponse("Failed to resolve incident", "server_error"));
+    }
+  });
+
+  // Enhanced agent chat endpoint with incident context and OAuth claims
+  app.post("/api/v1/agent/dags/:dagId/chat", async (req, res) => {
+    try {
+      const dagId = parseInt(req.params.dagId);
+      if (isNaN(dagId)) {
+        return res.status(400).json(createErrorResponse("Invalid DAG ID", "validation_error"));
+      }
+
+      // Validate request body
+      const result = agentChatSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json(createValidationErrorResponse(result.error));
+      }
+
+      const { message, incident_context } = result.data;
+
+      // Get DAG entity
+      const dagEntity = await storage.getEntity(dagId);
+      if (!dagEntity || dagEntity.type !== 'dag') {
+        return res.status(404).json(createErrorResponse("DAG entity not found", "not_found"));
+      }
+
+      // Prepare OAuth claims context for FastAPI call
+      const oauthClaims = {
+        user_id: req.user?.id || null,
+        email: req.user?.email || req.user?.username || null,
+        session_id: req.sessionID || 'unknown',
+        roles: (req.user as any)?.role || 'user',
+        session_type: 'local',
+      };
+
+      structuredLogger.info('AGENT_CHAT_REQUEST', req.sessionContext, req.requestId, {
+        logger: 'app.agent.chat',
+        dag_id: dagId,
+        dag_name: dagEntity.dag_name,
+        has_incident_context: !!incident_context,
+        oauth_claims: oauthClaims
+      });
+
+      // TODO: Make actual FastAPI call here with OAuth claims
+      // For now, return mock response following the expected structure
+      const mockResponse = {
+        conversation_id: `conv_${Date.now()}`,
+        agent_response: incident_context
+          ? `I see there's an issue with the ${incident_context.task_name} task. Let me analyze the error: "${incident_context.error_summary}". Based on the context, this appears to be a ${dagEntity.dag_name} DAG failure. What specific aspect would you like me to investigate?`
+          : `Hello! I'm here to help you with the ${dagEntity.dag_name} DAG. What would you like to know about?`,
+        status: 'complete',
+        incident_context,
+        oauth_claims: oauthClaims,
+        timestamp: new Date().toISOString()
+      };
+
+      res.json(mockResponse);
+    } catch (error) {
+      structuredLogger.error('AGENT_CHAT_ERROR', req.sessionContext, req.requestId, {
+        logger: 'app.agent.chat',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      res.status(500).json(createErrorResponse("Failed to process agent chat", "server_error"));
     }
   });
 
