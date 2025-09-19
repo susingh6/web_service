@@ -71,11 +71,21 @@ export default function NotificationSummary({ team, tenantName }: NotificationSu
                   icon={<Mail size={12} />}
                   label={emailCount}
                   size="small"
-                  variant="outlined"
+                  variant="filled"
                   sx={{ 
                     fontSize: '0.65rem', 
                     height: '20px',
-                    '& .MuiChip-icon': { fontSize: '12px' }
+                    fontWeight: 500,
+                    bgcolor: '#e8f5e8',
+                    color: '#2e7d32',
+                    borderColor: '#81c784',
+                    '& .MuiChip-icon': { 
+                      fontSize: '12px',
+                      color: '#2e7d32'
+                    },
+                    '&:hover': {
+                      bgcolor: '#c8e6c9'
+                    }
                   }}
                 />
               )}
@@ -84,11 +94,21 @@ export default function NotificationSummary({ team, tenantName }: NotificationSu
                   icon={<MessageSquare size={12} />}
                   label={slackCount}
                   size="small"
-                  variant="outlined"
+                  variant="filled"
                   sx={{ 
                     fontSize: '0.65rem', 
                     height: '20px',
-                    '& .MuiChip-icon': { fontSize: '12px' }
+                    fontWeight: 500,
+                    bgcolor: '#f3e5f5',
+                    color: '#7b1fa2',
+                    borderColor: '#ba68c8',
+                    '& .MuiChip-icon': { 
+                      fontSize: '12px',
+                      color: '#7b1fa2'
+                    },
+                    '&:hover': {
+                      bgcolor: '#e1bee7'
+                    }
                   }}
                 />
               )}
@@ -97,11 +117,21 @@ export default function NotificationSummary({ team, tenantName }: NotificationSu
                   icon={<AlertTriangle size={12} />}
                   label={pagerDutyCount}
                   size="small"
-                  variant="outlined"
+                  variant="filled"
                   sx={{ 
                     fontSize: '0.65rem', 
                     height: '20px',
-                    '& .MuiChip-icon': { fontSize: '12px' }
+                    fontWeight: 500,
+                    bgcolor: '#fff3e0',
+                    color: '#ef6c00',
+                    borderColor: '#ffb74d',
+                    '& .MuiChip-icon': { 
+                      fontSize: '12px',
+                      color: '#ef6c00'
+                    },
+                    '&:hover': {
+                      bgcolor: '#ffe0b2'
+                    }
                   }}
                 />
               )}
