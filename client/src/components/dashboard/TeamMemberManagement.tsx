@@ -43,7 +43,7 @@ interface TeamMember {
   name: string;
   email: string;
   role?: string;
-  isActive: boolean;
+  is_active: boolean;
 }
 
 interface TeamDetails {
@@ -85,7 +85,7 @@ const TeamMemberManagement: React.FC<TeamMemberManagementProps> = ({
       name: '',
       email: '',
       role: 'developer',
-      isActive: true,
+      is_active: true,
     },
   });
 
@@ -118,7 +118,7 @@ const TeamMemberManagement: React.FC<TeamMemberManagementProps> = ({
       name: '',
       email: '',
       role: 'developer',
-      isActive: true,
+      is_active: true,
     });
     setDialogOpen(true);
   };
@@ -242,16 +242,44 @@ const TeamMemberManagement: React.FC<TeamMemberManagementProps> = ({
                 </TableHead>
                 <TableBody>
                   {teamDetails.members.map((member) => (
-                    <TableRow key={member.id}>
+                    <TableRow 
+                      key={member.id}
+                      sx={{
+                        backgroundColor: member.is_active ? 'inherit' : 'action.hover',
+                        '&:hover': {
+                          backgroundColor: member.is_active ? 'action.hover' : 'action.selected'
+                        }
+                      }}
+                      data-testid={`row-member-${member.id}`}
+                    >
                       <TableCell>
-                        <Typography variant="body2" fontWeight={500}>
+                        <Typography 
+                          variant="body2" 
+                          fontWeight={500}
+                          sx={{
+                            opacity: member.is_active ? 1 : 0.6,
+                            color: member.is_active ? 'text.primary' : 'text.disabled',
+                            textDecoration: member.is_active ? 'none' : 'line-through'
+                          }}
+                          data-testid={`text-member-name-${member.id}`}
+                        >
                           {member.name}
                         </Typography>
                       </TableCell>
                       <TableCell>
                         <Box display="flex" alignItems="center" gap={0.5}>
-                          <EmailIcon fontSize="small" color="action" />
-                          <Typography variant="body2" color="text.secondary">
+                          <EmailIcon 
+                            fontSize="small" 
+                            color={member.is_active ? "action" : "disabled"}
+                          />
+                          <Typography 
+                            variant="body2" 
+                            sx={{
+                              opacity: member.is_active ? 1 : 0.6,
+                              color: member.is_active ? 'text.secondary' : 'text.disabled'
+                            }}
+                            data-testid={`text-member-email-${member.id}`}
+                          >
                             {member.email}
                           </Typography>
                         </Box>
@@ -262,14 +290,25 @@ const TeamMemberManagement: React.FC<TeamMemberManagementProps> = ({
                           size="small"
                           color={getRoleColor(member.role)}
                           variant="outlined"
+                          sx={{
+                            opacity: member.is_active ? 1 : 0.6
+                          }}
+                          data-testid={`chip-member-role-${member.id}`}
                         />
                       </TableCell>
                       <TableCell>
                         <Chip
-                          label={member.isActive ? 'Active' : 'Inactive'}
+                          label={member.is_active ? 'Active' : 'Expired'}
                           size="small"
-                          color={member.isActive ? 'success' : 'default'}
-                          variant="filled"
+                          color={member.is_active ? 'success' : 'error'}
+                          variant={member.is_active ? 'filled' : 'outlined'}
+                          sx={{
+                            fontWeight: member.is_active ? 'normal' : 'bold',
+                            '& .MuiChip-label': {
+                              color: member.is_active ? 'white' : '#d32f2f'
+                            }
+                          }}
+                          data-testid={`chip-member-status-${member.id}`}
                         />
                       </TableCell>
                       <TableCell align="right">
@@ -278,6 +317,8 @@ const TeamMemberManagement: React.FC<TeamMemberManagementProps> = ({
                             size="small"
                             onClick={() => handleEditMember(member)}
                             color="primary"
+                            sx={{ opacity: member.is_active ? 1 : 0.7 }}
+                            data-testid={`button-edit-member-${member.id}`}
                           >
                             <EditIcon fontSize="small" />
                           </IconButton>
@@ -285,6 +326,8 @@ const TeamMemberManagement: React.FC<TeamMemberManagementProps> = ({
                             size="small"
                             onClick={() => handleDeleteMember(member.id)}
                             color="error"
+                            sx={{ opacity: member.is_active ? 1 : 0.7 }}
+                            data-testid={`button-delete-member-${member.id}`}
                           >
                             <DeleteIcon fontSize="small" />
                           </IconButton>

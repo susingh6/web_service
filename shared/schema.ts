@@ -205,7 +205,7 @@ export const teamMemberSchema = z.object({
   name: z.string(),
   email: z.string().email(),
   role: z.string().optional(),
-  isActive: z.boolean().default(true),
+  is_active: z.boolean().default(true),
 });
 
 export const teamDetailsUpdateSchema = z.object({
