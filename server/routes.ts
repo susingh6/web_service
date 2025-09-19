@@ -529,14 +529,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (updateData.user_pagerduty) internalUpdateData.user_pagerduty = updateData.user_pagerduty;
 
       // Update user
+      console.log(`[PROFILE UPDATE] Updating user ID ${userId} with data:`, internalUpdateData);
       const updatedUser = await storage.updateUser(userId, internalUpdateData);
       if (!updatedUser) {
         return res.status(404).json(createErrorResponse("User not found", "not_found"));
       }
+      console.log(`[PROFILE UPDATE] User updated successfully:`, { 
+        id: updatedUser.id, 
+        username: updatedUser.username, 
+        user_slack: updatedUser.user_slack 
+      });
 
       // Invalidate user-related caches with error handling
       try {
+        console.log(`[PROFILE UPDATE] Invalidating user data cache...`);
         await redisCache.invalidateUserData();
+        console.log(`[PROFILE UPDATE] User data cache invalidated successfully`);
       } catch (cacheError) {
         console.warn('Failed to invalidate user data cache:', cacheError);
         // Cache invalidation failure should not break profile update
@@ -544,12 +552,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // IMPORTANT: Invalidate admin users cache so admin panel reflects profile changes
       try {
+        console.log(`[PROFILE UPDATE] Invalidating admin users cache...`);
         await redisCache.invalidateCache({
           keys: ['admin_users'],
           patterns: ['admin_*', 'users_*'],
           mainCacheKeys: ['ENTITIES'],
           refreshAffectedData: true
         });
+        console.log(`[PROFILE UPDATE] Admin users cache invalidated successfully`);
       } catch (cacheError) {
         console.warn('Failed to invalidate admin users cache:', cacheError);
         // Cache invalidation failure should not break profile update
