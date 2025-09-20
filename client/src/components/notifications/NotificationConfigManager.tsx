@@ -18,6 +18,8 @@ import {
 import { EmailNotificationConfigComponent } from './EmailNotificationConfig';
 import { SlackNotificationConfigComponent } from './SlackNotificationConfig';
 import { PagerDutyNotificationConfigComponent } from './PagerDutyNotificationConfig';
+import { useQuery } from '@tanstack/react-query';
+import { buildUrl } from '@/config';
 
 interface NotificationConfigManagerProps {
   value: string[]; // Array of enabled notification types from form
@@ -25,10 +27,34 @@ interface NotificationConfigManagerProps {
   teamName?: string;
 }
 
+interface TeamData {
+  team_email: string[];
+  team_slack: string[];
+  team_pagerduty: string[];
+}
+
 export function NotificationConfigManager({ value, onChange, teamName }: NotificationConfigManagerProps) {
   const [enabledChannels, setEnabledChannels] = useState<string[]>(value || []);
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({});
   const [expandedChannels, setExpandedChannels] = useState<Set<string>>(new Set());
+
+  // Fetch team data to get team notification settings
+  const { data: teamData } = useQuery<TeamData>({
+    queryKey: ['team-notification-settings', teamName],
+    queryFn: async () => {
+      if (!teamName) return { team_email: [], team_slack: [], team_pagerduty: [] };
+      const response = await fetch(buildUrl(`/api/teams/by-name/${encodeURIComponent(teamName)}`));
+      if (!response.ok) throw new Error('Failed to fetch team data');
+      const team = await response.json();
+      return {
+        team_email: team.team_email || [],
+        team_slack: team.team_slack || [],
+        team_pagerduty: team.team_pagerduty || [],
+      };
+    },
+    enabled: !!teamName,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
 
   useEffect(() => {
     // Initialize settings for enabled channels
@@ -124,6 +150,7 @@ export function NotificationConfigManager({ value, onChange, teamName }: Notific
           <SlackNotificationConfigComponent
             config={notificationSettings.slack as SlackNotificationConfig || { channelName: '' }}
             onChange={(config) => handleChannelConfigChange('slack', config)}
+            teamSlackChannels={teamData?.team_slack || []}
           />
         );
       case 'pagerduty':
@@ -131,6 +158,7 @@ export function NotificationConfigManager({ value, onChange, teamName }: Notific
           <PagerDutyNotificationConfigComponent
             config={notificationSettings.pagerduty as PagerDutyNotificationConfig || { serviceKey: '', escalationPolicy: '' }}
             onChange={(config) => handleChannelConfigChange('pagerduty', config)}
+            teamPagerDutyKeys={teamData?.team_pagerduty || []}
           />
         );
       default:

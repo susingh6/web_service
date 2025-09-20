@@ -164,7 +164,7 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
       
       // Remove AI and regular task triggers if entity is a table OR if entity doesn't have ownership
       if (entity?.type === 'table' || !entity?.is_entity_owner) {
-        filteredTriggers = filteredTriggers.filter(trigger => 
+        filteredTriggers = filteredTriggers.filter((trigger: any) => 
           trigger.type !== 'ai_tasks_status' && trigger.type !== 'regular_tasks_status'
         );
       }
@@ -477,6 +477,7 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
                   setEnabledChannels(channels);
                   setNotificationSettings(settings);
                 }}
+                teamName={entity?.team_name || undefined}
               />
             </Box>
 

@@ -14,9 +14,10 @@ import { PagerDutyNotificationConfig } from '@/lib/notifications/types';
 interface PagerDutyConfigProps {
   config: PagerDutyNotificationConfig;
   onChange: (config: PagerDutyNotificationConfig) => void;
+  teamPagerDutyKeys?: string[];
 }
 
-export function PagerDutyNotificationConfigComponent({ config, onChange }: PagerDutyConfigProps) {
+export function PagerDutyNotificationConfigComponent({ config, onChange, teamPagerDutyKeys = [] }: PagerDutyConfigProps) {
   const [serviceKey, setServiceKey] = useState(config?.serviceKey || '');
   const [escalationPolicy, setEscalationPolicy] = useState(config?.escalationPolicy || '');
   const [serviceKeyError, setServiceKeyError] = useState('');
@@ -92,20 +93,46 @@ export function PagerDutyNotificationConfigComponent({ config, onChange }: Pager
           <Label htmlFor="pagerduty-service-key" className="text-sm">
             Service Integration Key <span className="text-red-500">*</span>
           </Label>
-          <div className="relative">
-            <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
-              <Key className="h-4 w-4 text-muted-foreground" />
+          
+          {/* Show team PagerDuty keys dropdown if available */}
+          {teamPagerDutyKeys.length > 0 && (
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Team PagerDuty Services</Label>
+              <Select onValueChange={(value) => handleServiceKeyChange(value)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a team PagerDuty service" />
+                </SelectTrigger>
+                <SelectContent>
+                  {teamPagerDutyKeys.map((key) => (
+                    <SelectItem key={key} value={key}>
+                      {key}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <Input
-              id="pagerduty-service-key"
-              type="password"
-              placeholder="Enter PagerDuty service integration key"
-              value={serviceKey}
-              onChange={(e) => handleServiceKeyChange(e.target.value)}
-              onBlur={handleBlur}
-              className="pl-10"
-              disabled={isValidating}
-            />
+          )}
+          
+          {/* Custom service key input */}
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">
+              {teamPagerDutyKeys.length > 0 ? 'Or enter custom service key' : 'Service integration key'}
+            </Label>
+            <div className="relative">
+              <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
+                <Key className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <Input
+                id="pagerduty-service-key"
+                type="password"
+                placeholder="Enter PagerDuty service integration key"
+                value={serviceKey}
+                onChange={(e) => handleServiceKeyChange(e.target.value)}
+                onBlur={handleBlur}
+                className="pl-10"
+                disabled={isValidating}
+              />
+            </div>
           </div>
           
           {serviceKeyError && (
