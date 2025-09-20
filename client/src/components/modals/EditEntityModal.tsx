@@ -920,7 +920,8 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
             startIcon={isSubmitting && <CircularProgress size={20} color="inherit" />}
             onClick={async () => {
               console.log('🔥 BUTTON CLICKED - Calling handleSubmit directly');
-              const formData = getValues();
+              const currentForm = entityType === 'table' ? tableForm : dagForm;
+              const formData = currentForm.getValues();
               console.log('🔥 FORM DATA:', formData);
               try {
                 await onSubmit(formData);
