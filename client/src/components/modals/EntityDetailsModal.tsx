@@ -184,9 +184,17 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
         }));
         // Immediate local visibility (even if refetch races)
         setLocalOwnerEmails(ownersArray);
-        // Invalidate and refetch the exact key to ensure consistency
+        
+        // CRITICAL: Invalidate ALL caches where entity owner data appears
         await queryClient.invalidateQueries({ queryKey: detailsKey as any });
         await queryClient.refetchQueries({ queryKey: detailsKey as any });
+        
+        // Invalidate team entities cache to update team dashboard
+        await queryClient.invalidateQueries({ queryKey: [`/api/v1/entities?teamId=${entity.teamId}`] });
+        await queryClient.invalidateQueries({ queryKey: [`/api/v1/entities?tenant=${entity.tenant_name || 'Data Engineering'}`] });
+        
+        // Invalidate individual entity cache 
+        await queryClient.invalidateQueries({ queryKey: [`/api/entities/${entity.id}`] });
         
         // Reset edit state
         setIsEditingOwner(false);
