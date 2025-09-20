@@ -115,6 +115,55 @@ async function environmentAwareApiRequest(
   return await apiRequest(method, url, data);
 }
 
+// Entity-specific request function with type-aware fallback support
+export async function entityRequest(
+  method: string,
+  entityType: 'table' | 'dag',
+  operation: 'create' | 'bulk',
+  data?: unknown | undefined,
+): Promise<Response> {
+  // Select primary and fallback endpoints based on entity type and operation
+  let primaryEndpoint: string;
+  let fallbackEndpoint: string | undefined;
+  
+  if (entityType === 'table') {
+    primaryEndpoint = operation === 'bulk' ? endpoints.tablesBulk : endpoints.tables;
+    fallbackEndpoint = operation === 'bulk' ? endpoints.tablesBulkFallback : endpoints.tablesFallback;
+  } else {
+    primaryEndpoint = operation === 'bulk' ? endpoints.dagsBulk : endpoints.dags;
+    fallbackEndpoint = operation === 'bulk' ? endpoints.dagsBulkFallback : endpoints.dagsFallback;
+  }
+  
+  console.log(`[ENTITY_REQUEST] ${method} ${entityType} (${operation}) - Primary: ${primaryEndpoint}, Fallback: ${fallbackEndpoint || 'none'}`);
+  
+  // In production/staging: Always use FastAPI with proper RBAC
+  if (isProduction || isStaging) {
+    console.log(`[${isProduction ? 'PRODUCTION' : 'STAGING'}] Using FastAPI with RBAC enforcement`);
+    return await apiRequest(method, primaryEndpoint, data);
+  }
+  
+  // In development: Try FastAPI first, fallback to Express if unavailable
+  if (isDevelopment) {
+    const isFastAPIAvailable = await checkFastAPIAvailable();
+    
+    if (isFastAPIAvailable) {
+      console.log('[DEVELOPMENT] Using FastAPI for entity operation');
+      return await apiRequest(method, primaryEndpoint, data);
+    } else {
+      if (!fallbackEndpoint) {
+        throw new Error(`FastAPI unavailable and no Express fallback configured for ${entityType} ${operation} operation`);
+      }
+      
+      console.log('[DEVELOPMENT] FastAPI unavailable, falling back to Express for entity operation');
+      return await expressApiRequest(method, fallbackEndpoint, data);
+    }
+  }
+  
+  // Default fallback (should not reach here)
+  console.warn('Unknown environment, defaulting to FastAPI for entity operation');
+  return await apiRequest(method, primaryEndpoint, data);
+}
+
 export const teamsApi = {
   getAll: async (teamName?: string) => {
     let url = endpoints.teams;
