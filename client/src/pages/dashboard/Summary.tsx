@@ -4,7 +4,7 @@ import { Box, Grid, Button, Typography, Tabs, Tab, Select, MenuItem, FormControl
 import { Add as AddIcon, Upload as UploadIcon, Close as CloseIcon } from '@mui/icons-material';
 import { useAppDispatch, useAppSelector } from '@/lib/store';
 import { fetchDashboardSummary } from '@/features/sla/slices/dashboardSlice';
-import { upsertEntity, fetchTeams } from '@/features/sla/slices/entitiesSlice';
+import { upsertEntity, fetchEntities, fetchTeams } from '@/features/sla/slices/entitiesSlice';
 import { Entity } from '@shared/schema';
 import MetricCard from '@/components/dashboard/MetricCard';
 import ChartCard from '@/components/dashboard/ChartCard';
@@ -310,7 +310,8 @@ const Summary = () => {
         endDate
       }));
 
-      // Removed fetchEntities to prevent cross-contamination - React Query handles data refresh
+      // Load entities for current tenant only (initial load for Summary dashboard)
+      dispatch(fetchEntities({ tenant: selectedTenant.name })); // Load tenant-specific entities for summary dashboard
       // Load teams data for chart display (silent load for summary page)
       dispatch(fetchTeams());
       setTeamsLoaded(true);
