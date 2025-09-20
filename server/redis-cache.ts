@@ -1674,8 +1674,24 @@ export class RedisCache {
       
       entities[entityIndex] = updatedEntity;
       
-      // Update fallback data
+      // Update fallback data - legacy entities array
       this.fallbackData.entities = entities;
+      
+      // CRITICAL: Update the new type-segregated Maps for proper cache isolation
+      if (this.fallbackData.entitiesById) {
+        this.fallbackData.entitiesById.set(entityId, updatedEntity);
+      }
+      
+      // Update name lookup map if name changed
+      if (this.fallbackData.entitiesByName && updates.name && updates.name !== entity.name) {
+        // Remove old name mapping
+        const oldNameKey = `${entity.teamId}:${entity.type}:${entity.name}`;
+        this.fallbackData.entitiesByName.delete(oldNameKey);
+        
+        // Add new name mapping
+        const newNameKey = `${entity.teamId}:${entity.type}:${updates.name}`;
+        this.fallbackData.entitiesByName.set(newNameKey, entityId);
+      }
       
       // Direct WebSocket broadcast in fallback mode with race condition protection
       const changeEvent: EntityChangeEvent = {
