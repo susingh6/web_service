@@ -1410,9 +1410,9 @@ export class RedisCache {
       
       entities.push(storedEntity);
       
-      // Update fallback data with persisted entity
+      // Update fallback data with persisted entity (deep clone to prevent shared references)
       if (this.fallbackData) {
-        this.fallbackData.entities = entities;
+        this.fallbackData.entities = structuredClone(entities);
       }
       
       // Direct WebSocket broadcast in fallback mode with race condition protection
@@ -1538,8 +1538,8 @@ export class RedisCache {
       // Remove entity from array
       entities.splice(entityIndex, 1);
       
-      // Update fallback data
-      this.fallbackData.entities = entities;
+      // Update fallback data (deep clone to prevent shared references)
+      this.fallbackData.entities = structuredClone(entities);
       
       // Direct WebSocket broadcast in fallback mode (standard envelope)
       const changeEvent: EntityChangeEvent = {
@@ -1674,12 +1674,12 @@ export class RedisCache {
       
       entities[entityIndex] = updatedEntity;
       
-      // Update fallback data - legacy entities array
-      this.fallbackData.entities = entities;
+      // Update fallback data - legacy entities array (deep clone to prevent shared references)
+      this.fallbackData.entities = structuredClone(entities);
       
-      // CRITICAL: Update the new type-segregated Maps for proper cache isolation
+      // CRITICAL: Update the new type-segregated Maps for proper cache isolation (deep clone to prevent shared references)
       if (this.fallbackData.entitiesById) {
-        this.fallbackData.entitiesById.set(entityId, updatedEntity);
+        this.fallbackData.entitiesById.set(entityId, structuredClone(updatedEntity));
       }
       
       // Update name lookup map if name changed
@@ -2138,7 +2138,7 @@ export class RedisCache {
             this.fallbackData.teams = await storage.getTeams();
             break;
           case 'ENTITIES':
-            this.fallbackData.entities = await storage.getEntities();
+            this.fallbackData.entities = structuredClone(await storage.getEntities());
             break;
           case 'TENANTS':
             this.fallbackData.tenants = await storage.getTenants();
@@ -2316,7 +2316,7 @@ export class RedisCache {
       entities.push(entity);
     });
     
-    this.fallbackData.entities = entities;
+    this.fallbackData.entities = structuredClone(entities);
   }
 
   // Background cache rebuilding for specific entity types

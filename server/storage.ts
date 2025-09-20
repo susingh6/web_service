@@ -790,10 +790,11 @@ export class MemStorage implements IStorage {
         expected_runtime_minutes: entity.expected_runtime_minutes ?? null,
         donemarker_location: entity.donemarker_location ?? null,
         donemarker_lookback: entity.donemarker_lookback ?? null,
-        owner: (entity as Partial<Entity>).owner ?? null,
-        owner_email: (entity as Partial<Entity>).owner_email ?? (entity as Partial<Entity>).ownerEmail ?? null,
-        ownerEmail: (entity as Partial<Entity>).ownerEmail ?? null,
-        user_email: (entity as any).user_email ?? null,
+        // Normalize owner fields based on entity ownership
+        owner: entity.is_entity_owner === true ? ((entity as Partial<Entity>).owner ?? null) : null,
+        owner_email: entity.is_entity_owner === true ? ((entity as Partial<Entity>).owner_email ?? (entity as Partial<Entity>).ownerEmail ?? null) : null,
+        ownerEmail: entity.is_entity_owner === true ? ((entity as Partial<Entity>).ownerEmail ?? null) : null,
+        user_email: (entity as any).user_email ?? null, // Never fallback to ownerEmail
         is_active: entity.is_active !== undefined ? entity.is_active : true,
         is_entity_owner: entity.is_entity_owner !== undefined ? entity.is_entity_owner : false,
         lastRun: entity.lastRefreshed ?? null,
@@ -851,9 +852,10 @@ export class MemStorage implements IStorage {
           ? 's3://ad-analytics-tables/done_markers/' 
           : 's3://ad-analytics-dags/campaign_optimization/'),
         donemarker_lookback: entity.donemarker_lookback ?? 2,
-        owner_email: (entity as Partial<Entity>).owner_email ?? (entity as Partial<Entity>).ownerEmail ?? null,
-        ownerEmail: (entity as Partial<Entity>).ownerEmail ?? null,
-        user_email: (entity as Partial<Entity>).user_email ?? (entity as Partial<Entity>).ownerEmail ?? null,
+        // Normalize owner fields based on entity ownership
+        owner_email: entity.is_entity_owner === true ? ((entity as Partial<Entity>).owner_email ?? (entity as Partial<Entity>).ownerEmail ?? null) : null,
+        ownerEmail: entity.is_entity_owner === true ? ((entity as Partial<Entity>).ownerEmail ?? null) : null,
+        user_email: (entity as Partial<Entity>).user_email ?? null, // Never fallback to ownerEmail
         is_active: entity.is_active !== undefined ? entity.is_active : true,
         is_entity_owner: entity.is_entity_owner !== undefined ? entity.is_entity_owner : false,
         lastRun: entity.lastRefreshed ?? null,
@@ -1346,10 +1348,11 @@ export class MemStorage implements IStorage {
       lastRefreshed: insertEntity.lastRefreshed || null,
       nextRefresh: insertEntity.nextRefresh ?? null,
       is_active: insertEntity.is_active ?? true,
-      owner: insertEntity.owner ?? null,
-      ownerEmail: insertEntity.ownerEmail ?? null,
-      owner_email: insertEntity.owner_email ?? insertEntity.ownerEmail ?? null,
-      user_email: insertEntity.user_email ?? null,
+      // Normalize owner fields based on entity ownership
+      owner: insertEntity.is_entity_owner === true ? (insertEntity.owner ?? null) : null,
+      ownerEmail: insertEntity.is_entity_owner === true ? (insertEntity.ownerEmail ?? null) : null,
+      owner_email: insertEntity.is_entity_owner === true ? (insertEntity.owner_email ?? insertEntity.ownerEmail ?? null) : null,
+      user_email: insertEntity.user_email ?? null, // Never fallback to ownerEmail
       tenant_name: insertEntity.tenant_name ?? null,
       team_name: insertEntity.team_name ?? null,
       schema_name: insertEntity.schema_name ?? null,
@@ -1378,15 +1381,21 @@ export class MemStorage implements IStorage {
     const entity = this.entities.get(id);
     if (!entity) return undefined;
     
-    const updatedEntity: Entity = { 
+    // Apply updates first
+    const mergedEntity = { 
       ...entity, 
       ...updates, 
       updatedAt: new Date(),
       nextRefresh: (updates.nextRefresh ?? entity.nextRefresh ?? null) as Date | null,
       is_active: (updates.is_active ?? entity.is_active ?? true) as boolean,
-      owner: (updates.owner ?? entity.owner ?? null) as string | null,
-      ownerEmail: (updates.ownerEmail ?? entity.ownerEmail ?? null) as string | null,
-      owner_email: (updates.owner_email ?? entity.owner_email ?? null) as string | null,
+    };
+    
+    // Then normalize owner fields based on is_entity_owner
+    const updatedEntity: Entity = {
+      ...mergedEntity,
+      owner: mergedEntity.is_entity_owner === true ? (updates.owner ?? entity.owner ?? null) : null,
+      ownerEmail: mergedEntity.is_entity_owner === true ? (updates.ownerEmail ?? entity.ownerEmail ?? null) : null,
+      owner_email: mergedEntity.is_entity_owner === true ? (updates.owner_email ?? entity.owner_email ?? null) : null,
     };
     this.entities.set(id, updatedEntity);
     return updatedEntity;
