@@ -4503,8 +4503,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json(createErrorResponse('Entity not found', 'not_found'));
       }
 
-      // Optional: targeted invalidation (entities by team) to refresh any dependent lists
-      await redisCache.invalidateEntityData((updated as any).teamId);
+      // Targeted invalidation: only invalidate tables for this team
+      await redisCache.invalidateEntityDataByType(entity.teamId, 'table');
 
       console.log(`[EXPRESS_FALLBACK] Table "${tableName}" owner updated successfully`);
       return res.json({ success: true, owner_email: (updated as any).owner_email || (updated as any).ownerEmail || null });
@@ -4551,8 +4551,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json(createErrorResponse('Entity not found', 'not_found'));
       }
 
-      // Optional: targeted invalidation (entities by team) to refresh any dependent lists
-      await redisCache.invalidateEntityData((updated as any).teamId);
+      // Targeted invalidation: only invalidate DAGs for this team
+      await redisCache.invalidateEntityDataByType(entity.teamId, 'dag');
 
       console.log(`[EXPRESS_FALLBACK] DAG "${dagName}" owner updated successfully`);
       return res.json({ success: true, owner_email: (updated as any).owner_email || (updated as any).ownerEmail || null });
@@ -4598,8 +4598,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json(createErrorResponse('Entity not found', 'not_found'));
       }
 
-      // Optional: targeted invalidation (entities by team) to refresh any dependent lists
-      await redisCache.invalidateEntityData((updated as any).teamId);
+      // Targeted invalidation: only invalidate tables for this team  
+      await redisCache.invalidateEntityDataByType(entity.teamId, 'table');
 
       return res.json({ success: true, owner_email: (updated as any).owner_email || (updated as any).ownerEmail || null });
     } catch (error) {
@@ -4644,8 +4644,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json(createErrorResponse('Entity not found', 'not_found'));
       }
 
-      // Optional: targeted invalidation (entities by team) to refresh any dependent lists
-      await redisCache.invalidateEntityData((updated as any).teamId);
+      // Targeted invalidation: only invalidate DAGs for this team
+      await redisCache.invalidateEntityDataByType(entity.teamId, 'dag');
 
       return res.json({ success: true, owner_email: (updated as any).owner_email || (updated as any).ownerEmail || null });
     } catch (error) {
