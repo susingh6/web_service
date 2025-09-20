@@ -57,6 +57,7 @@ import { fieldDefinitions } from '@/config/schemas';
 import { useOptimisticMutation } from '@/utils/cache-management';
 import { invalidateEntityCaches, cacheKeys } from '@/lib/cacheKeys';
 import { useQueryClient } from '@tanstack/react-query';
+import { useEntityMutation } from '@/utils/cache-management';
 
 // Entity types for validation
 interface BaseEntity {
@@ -114,6 +115,7 @@ interface BulkUploadModalProps {
 const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { createEntity } = useEntityMutation();
   const { executeWithOptimism } = useOptimisticMutation();
   const [tabValue, setTabValue] = useState('tables');
   const [file, setFile] = useState<File | null>(null);
@@ -556,106 +558,30 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
     setIsSubmitting(true);
     
     try {
+      // Try bulk endpoint first, fallback to individual calls using existing createEntity
       let result;
       
-      // Step 1: Try bulk endpoint first (FastAPI preferred)
       try {
+        // Try bulk endpoint
         const bulkPayload = {
           entities: validEntities,
           type: tabValue === 'tables' ? 'table' : 'dag'
         };
         
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-        const sessionId = localStorage.getItem('fastapi_session_id');
-        if (sessionId) headers['X-Session-ID'] = sessionId;
-        
-        const bulkResponse = await fetch(buildUrl(endpoints.entitiesBulk), {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(bulkPayload),
-          credentials: 'include',
-        });
-        
-        if (bulkResponse.ok) {
-          result = await bulkResponse.json();
-          
-          // Handle cache invalidation for bulk success (like single entity add)
-          for (const entity of validEntities) {
-            await invalidateEntityCaches(queryClient, {
-              tenant: entity.tenant_name,
-              teamId: entity.teamId,
-              entityId: result.entities?.find(e => e.entity_name === entity.entity_name)?.id,
-            });
-          }
-        } else if (bulkResponse.status === 404) {
-          // Bulk endpoint doesn't exist, fall back to individual calls
-          throw new Error('Bulk endpoint not available');
-        } else {
-          // Other error from bulk endpoint
-          const text = await bulkResponse.text();
-          throw new Error(`Bulk upload failed: ${text}`);
-        }
+        const res = await apiRequest('POST', buildUrl(endpoints.entitiesBulk), bulkPayload);
+        result = await res.json();
       } catch (bulkError) {
-        // Step 2: Fallback to individual entity calls (exactly like AddEntityModal)
         console.log('Bulk endpoint unavailable, falling back to individual calls');
         
-        // Create each entity individually using the same pattern as useEntityMutation
+        // Fallback: Use existing createEntity mutation for each entity
         const createdEntities = [];
-        const optimisticEntities = [];
         
         for (const entity of validEntities) {
           try {
-            // Generate optimistic ID and add optimistic entity (like useEntityMutation)
-            const optimisticId = Date.now() + Math.random(); // Ensure uniqueness
-            const optimisticEntity = { ...entity, id: optimisticId };
-            optimisticEntities.push(optimisticEntity);
-            
-            // Apply optimistic update immediately (using proper cache key like useEntityMutation)
-            const cacheKey = cacheKeys.entitiesByTenantAndTeam(entity.tenant_name, entity.teamId);
-            queryClient.setQueryData(cacheKey, (old: any[] | undefined) => 
-              old ? [...old, optimisticEntity] : [optimisticEntity]
-            );
-            
-            // Make the API call (same as useEntityMutation)
-            const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-            const sessionId = localStorage.getItem('fastapi_session_id');
-            if (sessionId) headers['X-Session-ID'] = sessionId;
-            
-            const response = await fetch('/api/entities', {
-              method: 'POST',
-              headers,
-              body: JSON.stringify(entity),
-              credentials: 'include',
-            });
-            
-            if (!response.ok) {
-              const text = await response.text();
-              throw new Error(`Failed to create entity ${entity.entity_name}: ${text}`);
-            }
-            
-            const createdEntity = await response.json();
+            const createdEntity = await createEntity.mutateAsync(entity);
             createdEntities.push(createdEntity);
-            
-            // Replace optimistic entity with real entity (like useEntityMutation)
-            queryClient.setQueryData(cacheKey, (old: any[] | undefined) => {
-              if (!old) return [createdEntity];
-              return old.map(e => e.id === optimisticId ? createdEntity : e);
-            });
-            
-            // Invalidate caches for this entity (like useEntityMutation)
-            await invalidateEntityCaches(queryClient, {
-              tenant: entity.tenant_name,
-              teamId: entity.teamId,
-              entityId: createdEntity.id,
-            });
-            
           } catch (entityError) {
-            // Remove optimistic entity on failure (from the specific cache key)
-            queryClient.setQueryData(cacheKey, (old: any[] | undefined) => {
-              if (!old) return [];
-              return old.filter(e => e.id !== optimisticId);
-            });
-            throw entityError;
+            throw new Error(`Failed to create entity ${entity.entity_name}: ${entityError.message}`);
           }
         }
         
