@@ -291,6 +291,31 @@ export const incidents = pgTable("incidents", {
   resolvedAt: timestamp("resolved_at"),
 });
 
+// System Alerts table for system-wide alerts (6-hour cached)
+export const alerts = pgTable("alerts", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(), // Alert title
+  message: text("message").notNull(), // Alert content  
+  alert_type: text("alert_type").notNull(), // 'system', 'maintenance', 'warning', 'info'
+  severity: text("severity").notNull(), // 'low', 'medium', 'high', 'critical'
+  date_key: text("date_key").notNull(), // YYYY-MM-DD format for daily filtering
+  is_active: boolean("is_active").notNull().default(true), // Whether alert should be shown
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  expires_at: timestamp("expires_at"), // When alert should stop showing
+});
+
+// Admin Broadcast Messages table for admin-created messages
+export const adminBroadcastMessages = pgTable("admin_broadcast_messages", {
+  id: serial("id").primaryKey(),
+  message: text("message").notNull(), // Admin message content
+  date_key: text("date_key").notNull(), // YYYY-MM-DD format for expiration
+  delivery_type: text("delivery_type").notNull(), // 'immediate' or 'login_triggered'
+  is_active: boolean("is_active").notNull().default(true), // Whether message should be shown
+  created_by_user_id: integer("created_by_user_id").notNull(), // Admin who created it
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  expires_at: timestamp("expires_at"), // When message should stop showing
+});
+
 // User roles for notification system
 export interface UserRole {
   role: string;
@@ -337,3 +362,21 @@ export type InsertSlaDagAudit = z.infer<typeof insertSlaDagAuditSchema>;
 
 export type SlaTableAudit = typeof slaTableAudit.$inferSelect;
 export type InsertSlaTableAudit = z.infer<typeof insertSlaTableAuditSchema>;
+
+// Alert and admin broadcast message insert schemas
+export const insertAlertSchema = createInsertSchema(alerts).omit({
+  id: true,
+  created_at: true,
+});
+
+export const insertAdminBroadcastMessageSchema = createInsertSchema(adminBroadcastMessages).omit({
+  id: true,
+  created_at: true,
+});
+
+// Alert and admin broadcast message types
+export type Alert = typeof alerts.$inferSelect;
+export type InsertAlert = z.infer<typeof insertAlertSchema>;
+
+export type AdminBroadcastMessage = typeof adminBroadcastMessages.$inferSelect;
+export type InsertAdminBroadcastMessage = z.infer<typeof insertAdminBroadcastMessageSchema>;
