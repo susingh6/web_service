@@ -128,17 +128,6 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
   const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // Debug logging for props changes
-  useEffect(() => {
-    console.log('[DEBUG] EditEntityModal props changed:', {
-      open,
-      entityId: entity?.id,
-      entityName: entity?.name,
-      entityType: entity?.type,
-      isEntityOwner: entity?.is_entity_owner,
-      hasEntity: !!entity
-    });
-  }, [open, entity]);
   
   // Determine entity type from the entity
   const entityType: EntityType = entity?.type === 'dag' ? 'dag' : 'table';
@@ -451,7 +440,14 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
   }
   
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
+    <Dialog 
+      open={open} 
+      onClose={handleClose} 
+      maxWidth="sm" 
+      fullWidth
+      sx={{ zIndex: 9999 }}
+      disablePortal={false}
+    >
       <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1 }}>
         <Typography variant="h6" fontWeight={600} fontFamily="Inter, sans-serif">
           Edit {entityType.toUpperCase()} Entity

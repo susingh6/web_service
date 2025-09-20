@@ -610,23 +610,7 @@ const EntityTable = ({
                       <TableCell align="center" onClick={(e) => e.stopPropagation()} sx={{ width: '120px' }}>
                         <Box display="flex" justifyContent="center">
                           <Tooltip title="Edit">
-                            <IconButton size="small" color="primary" onClick={() => {
-                              console.log('[DEBUG] Edit button clicked for entity:', {
-                                id: entity.id,
-                                name: entity.name,
-                                type: entity.type,
-                                is_entity_owner: entity.is_entity_owner,
-                                entity
-                              });
-                              
-                              console.log('[DEBUG] About to call onEditEntity...');
-                              try {
-                                onEditEntity(entity);
-                                console.log('[DEBUG] onEditEntity called successfully');
-                              } catch (error) {
-                                console.error('[DEBUG] Error calling onEditEntity:', error);
-                              }
-                            }}>
+                            <IconButton size="small" color="primary" onClick={() => onEditEntity(entity)}>
                               <Edit fontSize="small" />
                             </IconButton>
                           </Tooltip>

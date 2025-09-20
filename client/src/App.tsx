@@ -42,22 +42,8 @@ const TeamDashboardWrapper = () => {
 
   // Handler functions
   const handleEditEntity = (entity: Entity) => {
-    console.log('[DEBUG] handleEditEntity called with entity:', {
-      id: entity.id,
-      name: entity.name,
-      type: entity.type,
-      is_entity_owner: entity.is_entity_owner,
-      entity
-    });
-    
     setSelectedEntity(entity);
-    console.log('[DEBUG] Setting openEditModal to true');
     setOpenEditModal(true);
-    
-    // Verify state update
-    setTimeout(() => {
-      console.log('[DEBUG] Modal state after update - openEditModal:', true, 'selectedEntity:', entity.name);
-    }, 100);
   };
 
   const handleDeleteEntity = (entity: Entity) => {
