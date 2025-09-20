@@ -2610,7 +2610,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Express fallback routes for deleting entities by name (FastAPI alternatives)
-  app.delete("/api/tables/:name", requireActiveUser, async (req, res) => {
+  app.delete("/api/tables/:name", requireActiveUser, async (req: Request, res: Response) => {
     try {
       const tableName = req.params.name;
       console.log(`[EXPRESS_FALLBACK] DELETE /api/tables/${tableName}`);
@@ -2619,7 +2619,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const allEntities = await redisCache.getAllEntities();
       const entityToDelete = allEntities.find(e => 
         e.type === 'table' && 
-        (e.name === tableName || e.table_name === tableName || e.entity_name === tableName)
+        (e.name === tableName || e.table_name === tableName)
       );
       
       if (!entityToDelete) {
@@ -2672,7 +2672,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/dags/:name", requireActiveUser, async (req, res) => {
+  app.delete("/api/dags/:name", requireActiveUser, async (req: Request, res: Response) => {
     try {
       const dagName = req.params.name;
       console.log(`[EXPRESS_FALLBACK] DELETE /api/dags/${dagName}`);
@@ -2681,7 +2681,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const allEntities = await redisCache.getAllEntities();
       const entityToDelete = allEntities.find(e => 
         e.type === 'dag' && 
-        (e.name === dagName || e.dag_name === dagName || e.entity_name === dagName)
+        (e.name === dagName || e.dag_name === dagName)
       );
       
       if (!entityToDelete) {
