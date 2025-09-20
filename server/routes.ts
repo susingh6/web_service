@@ -2744,7 +2744,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const allEntities = await redisCache.getAllEntities();
       const entityToUpdate = allEntities.find(e => 
         e.type === 'table' && 
-        (e.table_name === tableName || e.name === tableName || e.entity_name === tableName)
+        (e.table_name === tableName || e.name === tableName)
       );
       
       if (!entityToUpdate) {
@@ -2814,7 +2814,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const allEntities = await redisCache.getAllEntities();
       const entityToUpdate = allEntities.find(e => 
         e.type === 'dag' &&
-        (e.dag_name === dagName || e.name === dagName || e.entity_name === dagName)
+        (e.dag_name === dagName || e.name === dagName)
       );
       
       if (!entityToUpdate) {
