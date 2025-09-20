@@ -597,8 +597,27 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
           
           console.log('Creating entity with formatted data:', entityWithType);
           
-          // Use existing proven createEntity logic - handles everything automatically
-          const createdEntity = await createEntity(entityWithType);
+          // Use type-specific endpoints like single entity creation should
+          const endpoint = entityType === 'table' ? config.endpoints.tables : config.endpoints.dags;
+          
+          // Call the type-specific API endpoint directly
+          const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+          const sessionId = localStorage.getItem('fastapi_session_id');
+          if (sessionId) headers['X-Session-ID'] = sessionId;
+          
+          const response = await fetch(endpoint, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(entityWithType),
+            credentials: 'include',
+          });
+          
+          if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Failed to create ${entityType}: ${errorText}`);
+          }
+          
+          const createdEntity = await response.json();
           createdEntities.push(createdEntity);
           
           console.log('Successfully created entity:', createdEntity);
