@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { AppBar, Toolbar, Typography, IconButton, Badge, Avatar, Menu, MenuItem, Box, useTheme, CircularProgress, Chip } from '@mui/material';
-import { Notifications as NotificationsIcon, AccountCircle, ArrowDropDown, Person as PersonIcon, Warning as WarningIcon, Info as InfoIcon, Build as BuildIcon, Computer as ComputerIcon } from '@mui/icons-material';
+import { AppBar, Toolbar, Typography, IconButton, Badge, Avatar, Menu, MenuItem, Box, useTheme, CircularProgress, Chip, Dialog, DialogTitle, DialogContent, DialogActions, Button } from '@mui/material';
+import { Notifications as NotificationsIcon, AccountCircle, ArrowDropDown, Person as PersonIcon, Warning as WarningIcon, Info as InfoIcon, Build as BuildIcon, Computer as ComputerIcon, Close as CloseIcon } from '@mui/icons-material';
 import { useAuth } from '@/hooks/use-auth';
 import { useLocation } from 'wouter';
 import { AccountInfo } from '@azure/msal-browser';
@@ -67,6 +67,8 @@ const Header = () => {
   
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [notificationsAnchor, setNotificationsAnchor] = useState<null | HTMLElement>(null);
+  const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
+  const [alertModalOpen, setAlertModalOpen] = useState(false);
 
   // Fetch active alerts
   const { data: alerts = [], isLoading: alertsLoading } = useQuery<Alert[]>({
@@ -106,6 +108,17 @@ const Header = () => {
   
   const handleNotificationsClose = () => {
     setNotificationsAnchor(null);
+  };
+
+  const handleAlertClick = (alert: Alert) => {
+    setSelectedAlert(alert);
+    setAlertModalOpen(true);
+    setNotificationsAnchor(null); // Close the notifications menu
+  };
+
+  const handleAlertModalClose = () => {
+    setAlertModalOpen(false);
+    setSelectedAlert(null);
   };
   
   const handleAdminClick = () => {
@@ -281,7 +294,7 @@ const Header = () => {
               return (
                 <MenuItem 
                   key={alert.id} 
-                  onClick={handleNotificationsClose}
+                  onClick={() => handleAlertClick(alert)}
                   data-testid={`notification-${alert.id}`}
                   sx={{ maxWidth: 'none', whiteSpace: 'normal' }}
                 >
@@ -328,6 +341,98 @@ const Header = () => {
             })
           )}
         </Menu>
+
+        {/* Alert Detail Modal */}
+        <Dialog
+          open={alertModalOpen}
+          onClose={handleAlertModalClose}
+          maxWidth="md"
+          fullWidth
+          data-testid="modal-alert-detail"
+        >
+          <DialogTitle>
+            <Box display="flex" alignItems="center" justifyContent="space-between">
+              <Box display="flex" alignItems="center" gap={1}>
+                {selectedAlert && (
+                  <>
+                    {(() => {
+                      const IconComponent = AlertTypeIcons[selectedAlert.alertType];
+                      return <IconComponent color={getAlertTypeColor(selectedAlert.alertType) as any} />;
+                    })()}
+                    <Typography variant="h6">{selectedAlert.title}</Typography>
+                  </>
+                )}
+              </Box>
+              <IconButton
+                onClick={handleAlertModalClose}
+                size="small"
+                data-testid="button-close-alert-modal"
+              >
+                <CloseIcon />
+              </IconButton>
+            </Box>
+          </DialogTitle>
+          <DialogContent>
+            {selectedAlert && (
+              <Box sx={{ py: 1 }}>
+                {/* Alert Type and Severity Chips */}
+                <Box display="flex" gap={1} mb={2}>
+                  <Chip 
+                    label={selectedAlert.alertType}
+                    color={getAlertTypeColor(selectedAlert.alertType) as any}
+                    size="small"
+                  />
+                  <Chip 
+                    label={selectedAlert.severity}
+                    color={getSeverityColor(selectedAlert.severity) as any}
+                    size="small"
+                  />
+                </Box>
+
+                {/* Alert Message */}
+                <Typography variant="body1" sx={{ mb: 3, lineHeight: 1.6 }}>
+                  {selectedAlert.message}
+                </Typography>
+
+                {/* Alert Metadata */}
+                <Box sx={{ bgcolor: 'grey.50', p: 2, borderRadius: 1, border: '1px solid', borderColor: 'grey.200' }}>
+                  <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+                    Alert Information
+                  </Typography>
+                  <Box display="flex" flexDirection="column" gap={1}>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography variant="body2" color="text.secondary">Created:</Typography>
+                      <Typography variant="body2">{formatTimeAgo(new Date(selectedAlert.createdAt))}</Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography variant="body2" color="text.secondary">Expires:</Typography>
+                      <Typography variant="body2">
+                        {selectedAlert.expiresAt 
+                          ? new Date(selectedAlert.expiresAt).toLocaleString()
+                          : 'Never'
+                        }
+                      </Typography>
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography variant="body2" color="text.secondary">Status:</Typography>
+                      <Chip 
+                        label={selectedAlert.isActive ? 'Active' : 'Inactive'}
+                        color={selectedAlert.isActive ? 'success' : 'default'}
+                        size="small"
+                        sx={{ height: 20 }}
+                      />
+                    </Box>
+                  </Box>
+                </Box>
+              </Box>
+            )}
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleAlertModalClose} variant="contained" data-testid="button-close-alert">
+              Close
+            </Button>
+          </DialogActions>
+        </Dialog>
       </Toolbar>
     </AppBar>
   );
