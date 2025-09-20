@@ -654,6 +654,7 @@ export function useTeamMemberMutation() {
         // This ensures EmailNotificationConfig shows updated team members immediately
         queryClient.invalidateQueries({ queryKey: ['/api/users'] });
         queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
+        queryClient.invalidateQueries({ queryKey: ['team-notification-settings', teamName] });
         
         return result;
       },
@@ -708,6 +709,7 @@ export function useTeamMemberMutation() {
         // This ensures EmailNotificationConfig shows updated team members immediately
         queryClient.invalidateQueries({ queryKey: ['/api/users'] });
         queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
+        queryClient.invalidateQueries({ queryKey: ['team-notification-settings', teamName] });
         
         return result;
       },
