@@ -29,19 +29,23 @@ interface ApiConfig {
     tablesBulk: string;
     tablesDelete: (entityName: string) => string;
     tablesUpdate: (entityName: string) => string;
+    tablesGet: (entityName: string) => string;
     dags: string;
     dagsBulk: string;
     dagsDelete: (entityName: string) => string;
     dagsUpdate: (entityName: string) => string;
+    dagsGet: (entityName: string) => string;
     // Optional Express fallback endpoints (development only)
     tablesFallback?: string;
     tablesBulkFallback?: string;
     tablesDeleteFallback?: (entityName: string) => string;
     tablesUpdateFallback?: (entityName: string) => string;
+    tablesGetFallback?: (entityName: string) => string;
     dagsFallback?: string;
     dagsBulkFallback?: string;
     dagsDeleteFallback?: (entityName: string) => string;
     dagsUpdateFallback?: (entityName: string) => string;
+    dagsGetFallback?: (entityName: string) => string;
     teams: string;
     tenants: string;
     teamDetails: (teamName: string) => string;
