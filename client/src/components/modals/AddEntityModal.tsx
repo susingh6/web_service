@@ -174,12 +174,18 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
 
   // This effect updates the form when entity type changes
   useEffect(() => {
-    // Reset form with appropriate default values when entity type changes
+    // Preserve current form values when switching entity type, only update entity-specific defaults
+    const currentValues = watch();
     reset({
       ...configDefaultValues.common,
-      ...(entityType === 'table' ? configDefaultValues.table : configDefaultValues.dag)
+      ...(entityType === 'table' ? configDefaultValues.table : configDefaultValues.dag),
+      // Preserve the current common field values to avoid losing user input
+      tenant_name: currentValues.tenant_name || configDefaultValues.common.tenant_name,
+      team_name: currentValues.team_name || configDefaultValues.common.team_name,
+      user_email: currentValues.user_email || configDefaultValues.common.user_email,
+      is_active: currentValues.is_active !== undefined ? currentValues.is_active : configDefaultValues.common.is_active,
     });
-  }, [entityType, reset]);
+  }, [entityType, reset, watch]);
 
   // Prefill tenant/team based on current page context when modal opens
   useEffect(() => {
