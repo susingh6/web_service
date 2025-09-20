@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { cacheKeys, invalidateEntityCaches } from '@/lib/cacheKeys';
 import { queryClient } from '@/lib/queryClient';
+import { entitiesApi } from '@/features/sla/api';
 
 // Utility to detect optimistic vs real IDs
 const isOptimisticId = (id: number): boolean => {
@@ -831,36 +832,19 @@ export function useEntityMutation() {
 
   // DELETE
   const deleteMutation = useMutation({
-    mutationFn: async ({ entityId }: { entityId: number }) => {
-      const headers: Record<string, string> = {};
-      const sessionId = localStorage.getItem('fastapi_session_id');
-      if (sessionId) headers['X-Session-ID'] = sessionId;
-      const response = await fetch(`/api/entities/${entityId}`, {
-        method: 'DELETE',
-        headers,
-        credentials: 'include',
-      });
-      if (!response.ok) {
-        const text = (await response.text()) || response.statusText;
-        // Try to parse as JSON to extract a specific error message
-        try {
-          const errorData = JSON.parse(text);
-          if (errorData && typeof errorData.message === 'string') {
-            throw new Error(errorData.message);
-          }
-        } catch (parseError) {
-          // If JSON parsing fails, fall back to original behavior
-        }
-        throw new Error(`Failed to delete entity: ${response.status} ${text}`);
-      }
-      return true;
+    mutationFn: async ({ entityName, entityType }: { entityName: string; entityType: 'table' | 'dag' }) => {
+      // Use the same API pattern as entitiesApi.delete with FastAPI/Express fallback
+      return await entitiesApi.delete(entityName, entityType);
     },
-    onMutate: async ({ entityId, tenant, teamId }: { entityId: number; tenant?: string; teamId: number }) => {
+    onMutate: async ({ entityName, entityType, tenant, teamId }: { entityName: string; entityType: 'table' | 'dag'; tenant?: string; teamId: number }) => {
       const effectiveTenant = tenant || 'Data Engineering';
       const key = cacheKeys.entitiesByTenantAndTeam(effectiveTenant, teamId);
       await queryClient.cancelQueries({ queryKey: key });
       const previous = queryClient.getQueryData<any[]>(key);
-      queryClient.setQueryData<any[]>(key, (old) => old ? old.filter(e => e.id !== entityId) : []);
+      // Filter by entity_name instead of id (entities have both name and entity_name fields)
+      queryClient.setQueryData<any[]>(key, (old) => old ? old.filter(e => 
+        e.entity_name !== entityName && e.name !== entityName
+      ) : []);
       return { previous, key, tenant: effectiveTenant, teamId };
     },
     onError: (_err, _vars, ctx: any) => {
@@ -870,15 +854,15 @@ export function useEntityMutation() {
       await invalidateEntityCaches(queryClient, {
         tenant: ctx?.tenant,
         teamId: ctx?.teamId,
-        entityId: vars?.entityId,
+        entityId: vars?.entityName, // Pass entityName for invalidation
       });
     },
   });
 
   const createEntity = async (entityData: any) => createMutation.mutateAsync(entityData);
   const updateEntity = async (entityId: number, entityData: any) => updateMutation.mutateAsync({ entityId, entityData });
-  const deleteEntity = async (entityId: number, teamId: number, _entityType: 'table' | 'dag', tenantName?: string) =>
-    deleteMutation.mutateAsync({ entityId, teamId, tenant: tenantName });
+  const deleteEntity = async (entityName: string, entityType: 'table' | 'dag', teamId: number, tenantName?: string) =>
+    deleteMutation.mutateAsync({ entityName, entityType, teamId, tenant: tenantName });
 
   return { createEntity, updateEntity, deleteEntity };
 }
