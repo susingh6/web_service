@@ -56,7 +56,6 @@ export const prodConfig = {
         `/api/v1/teams/${teamName}/${entityType}/${entityName}/sla_status_30days`,
       recentSettingsChanges: (entityType: string, teamName: string, entityName: string) => 
         `/api/v1/teams/${teamName}/${entityType}/${entityName}/settings_changes`,
-      updateOwner: (entityId: number) => `/api/v1/entities/${entityId}/owner`,
     },
 
     // Task operations

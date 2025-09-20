@@ -162,8 +162,9 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
         owners: ownersArray,
       } as any;
       
-      // Make PATCH request to update owner (centralized endpoint)
-      const response = await apiRequest('PATCH', buildUrl(endpoints.entity.updateOwner, entity.id), payload);
+      // Make PATCH request to update owner using entity_name-based endpoint
+      const updateEndpoint = entity.type === 'table' ? endpoints.tablesOwnerUpdate : endpoints.dagsOwnerUpdate;
+      const response = await apiRequest('PATCH', buildUrl(updateEndpoint, entity.name), payload);
       
       if (response.ok) {
         toast({
