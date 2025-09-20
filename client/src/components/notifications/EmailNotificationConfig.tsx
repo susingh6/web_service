@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { X, Plus, Users, Mail } from 'lucide-react';
 import { EmailNotificationConfig, SystemUser } from '@/lib/notifications/types';
 import { validateEmail } from '@/lib/notifications/types';
-import { getUsersFromCache, getTeamMemberEmails } from '@/lib/notifications/cacheUtils';
+import { getUsersFromCache, getCachedUsers, getTeamMemberEmails } from '@/lib/notifications/cacheUtils';
 
 interface EmailConfigProps {
   config: EmailNotificationConfig;
@@ -34,8 +34,16 @@ export function EmailNotificationConfigComponent({ config, onChange, teamName, t
   const [otherTeamEmails, setOtherTeamEmails] = useState<string[]>([]);
 
   useEffect(() => {
-    // Load cached data
-    setUsers(getUsersFromCache());
+    // Load cached data, fetch if empty
+    const loadUsers = async () => {
+      let cachedUsers = getUsersFromCache();
+      if (cachedUsers.length === 0) {
+        // Cache is empty (after restart), fetch fresh data
+        cachedUsers = await getCachedUsers();
+      }
+      setUsers(cachedUsers);
+    };
+    loadUsers();
   }, []);
 
   // Fetch all teams data and get ALL other emails
