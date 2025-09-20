@@ -1136,7 +1136,7 @@ export class RedisCache {
         }
         
         // If no cached tasks, generate and cache
-        const tasks = this.generateTasksFallback();
+        const tasks = await this.generateTasksFallback();
         await this.setTasks(tasks); // Cache with 6-hour TTL
         return tasks;
       } else {
@@ -1145,13 +1145,13 @@ export class RedisCache {
           return (this.fallbackData as any).tasks;
         }
         
-        const tasks = this.generateTasksFallback();
+        const tasks = await this.generateTasksFallback();
         await this.setTasks(tasks); // Update fallback cache
         return tasks;
       }
     } catch (error) {
       console.error('Error getting tasks from cache:', error);
-      return this.generateTasksFallback();
+      return await this.generateTasksFallback();
     }
   }
 
@@ -1196,7 +1196,7 @@ export class RedisCache {
   }
 
   // Generate tasks from current entities (DAGs) for fallback
-  private generateTasksFallback(): any[] {
+  private async generateTasksFallback(): Promise<any[]> {
     try {
       const entities = this.fallbackData ? this.fallbackData.entities : [];
       const dagEntities = entities.filter(e => e.type === 'dag');
@@ -1204,46 +1204,9 @@ export class RedisCache {
       const allTasks: any[] = [];
       let taskIdCounter = 1;
 
-      // Task templates for different DAG types
-      const dagTaskTemplates: Record<string, Array<{ name: string; type: string; preference: string }>> = {
-        'agg_daily_pgm': [
-          { name: 'data_extraction', type: 'extraction', preference: 'AI' },
-          { name: 'data_transformation', type: 'transformation', preference: 'regular' },
-          { name: 'quality_validation', type: 'validation', preference: 'AI' },
-          { name: 'aggregation_processing', type: 'processing', preference: 'regular' },
-          { name: 'output_generation', type: 'output', preference: 'regular' }
-        ],
-        'agg_hourly_pgm': [
-          { name: 'stream_ingestion', type: 'ingestion', preference: 'AI' },
-          { name: 'real_time_processing', type: 'processing', preference: 'AI' },
-          { name: 'metric_calculation', type: 'calculation', preference: 'regular' },
-          { name: 'dashboard_update', type: 'output', preference: 'regular' }
-        ],
-        'agg_daily_non_bucketed_core': [
-          { name: 'raw_data_ingestion', type: 'ingestion', preference: 'regular' },
-          { name: 'schema_validation', type: 'validation', preference: 'AI' },
-          { name: 'non_bucketed_processing', type: 'processing', preference: 'regular' },
-          { name: 'index_generation', type: 'indexing', preference: 'regular' }
-        ],
-        'PGM_Freeview_Play_agg_daily_core': [
-          { name: 'freeview_data_extraction', type: 'extraction', preference: 'regular' },
-          { name: 'play_event_processing', type: 'processing', preference: 'AI' },
-          { name: 'audience_analytics', type: 'analytics', preference: 'AI' },
-          { name: 'reporting_generation', type: 'reporting', preference: 'regular' }
-        ],
-        'CHN_billing_viewer_product': [
-          { name: 'billing_data_ingestion', type: 'ingestion', preference: 'regular' },
-          { name: 'rate_calculation', type: 'calculation', preference: 'AI' },
-          { name: 'invoice_generation', type: 'generation', preference: 'regular' },
-          { name: 'financial_reporting', type: 'reporting', preference: 'regular' }
-        ],
-        'default': [
-          { name: 'data_ingestion', type: 'ingestion', preference: 'regular' },
-          { name: 'data_processing', type: 'processing', preference: 'regular' },
-          { name: 'data_validation', type: 'validation', preference: 'AI' },
-          { name: 'output_generation', type: 'output', preference: 'regular' }
-        ]
-      };
+      // Load task templates from mock data
+      const { loadMockTaskTemplates } = await import('./test/mockData.js');
+      const dagTaskTemplates = await loadMockTaskTemplates();
 
       dagEntities.forEach(dag => {
         const dagName = dag.name;
@@ -1253,7 +1216,7 @@ export class RedisCache {
         // Get task template for this DAG
         const taskTemplate = dagTaskTemplates[dagName] || dagTaskTemplates.default;
         
-        taskTemplate.forEach(template => {
+        taskTemplate.forEach((template: any) => {
           allTasks.push({
             id: taskIdCounter++,
             task_name: template.name,
@@ -1294,7 +1257,13 @@ export class RedisCache {
       } else {
         // Update fallback data for in-memory cache
         if (!this.fallbackData) {
-          this.fallbackData = { entities: [], teams: [], tenants: [], metrics: {}, complianceTrends: {} };
+          this.fallbackData = {
+            entities: [], teams: [], tenants: [], metrics: {}, complianceTrends: {},
+            last30DayMetrics: {}, todayMetrics: {}, yesterdayMetrics: {}, last7DayMetrics: {},
+            thisMonthMetrics: {}, todayTrends: {}, yesterdayTrends: {}, last7DayTrends: {},
+            last30DayTrends: {}, thisMonthTrends: {}, teamMetrics: {}, teamTrends: {},
+            lastUpdated: new Date(), recentChanges: []
+          };
         }
         (this.fallbackData as any).tasks = tasks;
         console.log(`[Task Cache] Updated ${tasks.length} tasks in fallback memory`);

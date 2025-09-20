@@ -39,3 +39,20 @@ export async function loadMockDags(): Promise<Entity[]> {
     lastRun: dag.lastRun ? new Date(dag.lastRun) : null
   }));
 }
+
+/**
+ * Task template interface
+ */
+export interface TaskTemplate {
+  name: string;
+  type: string;
+  preference: 'regular' | 'AI';
+}
+
+/**
+ * Load mock task templates
+ * @returns Task templates organized by DAG type
+ */
+export async function loadMockTaskTemplates(): Promise<Record<string, TaskTemplate[]>> {
+  return await loadMockData<Record<string, TaskTemplate[]>>('mock-task-templates.json').then(data => data[0] || {});
+}

@@ -1,0 +1,39 @@
+{
+  "agg_daily_pgm": [
+    { "name": "data_extraction", "type": "extraction", "preference": "AI" },
+    { "name": "data_transformation", "type": "transformation", "preference": "regular" },
+    { "name": "quality_validation", "type": "validation", "preference": "AI" },
+    { "name": "aggregation_processing", "type": "processing", "preference": "regular" },
+    { "name": "output_generation", "type": "output", "preference": "regular" }
+  ],
+  "agg_hourly_pgm": [
+    { "name": "stream_ingestion", "type": "ingestion", "preference": "AI" },
+    { "name": "real_time_processing", "type": "processing", "preference": "AI" },
+    { "name": "metric_calculation", "type": "calculation", "preference": "regular" },
+    { "name": "dashboard_update", "type": "output", "preference": "regular" }
+  ],
+  "agg_daily_non_bucketed_core": [
+    { "name": "raw_data_ingestion", "type": "ingestion", "preference": "regular" },
+    { "name": "schema_validation", "type": "validation", "preference": "AI" },
+    { "name": "non_bucketed_processing", "type": "processing", "preference": "regular" },
+    { "name": "index_generation", "type": "indexing", "preference": "regular" }
+  ],
+  "PGM_Freeview_Play_agg_daily_core": [
+    { "name": "freeview_data_extraction", "type": "extraction", "preference": "regular" },
+    { "name": "play_event_processing", "type": "processing", "preference": "AI" },
+    { "name": "audience_analytics", "type": "analytics", "preference": "AI" },
+    { "name": "reporting_generation", "type": "reporting", "preference": "regular" }
+  ],
+  "CHN_billing_viewer_product": [
+    { "name": "billing_data_ingestion", "type": "ingestion", "preference": "regular" },
+    { "name": "rate_calculation", "type": "calculation", "preference": "AI" },
+    { "name": "invoice_generation", "type": "generation", "preference": "regular" },
+    { "name": "financial_reporting", "type": "reporting", "preference": "regular" }
+  ],
+  "default": [
+    { "name": "data_ingestion", "type": "ingestion", "preference": "regular" },
+    { "name": "data_processing", "type": "processing", "preference": "regular" },
+    { "name": "data_validation", "type": "validation", "preference": "AI" },
+    { "name": "output_generation", "type": "output", "preference": "regular" }
+  ]
+}
