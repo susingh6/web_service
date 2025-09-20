@@ -18,6 +18,8 @@ export interface SlackNotificationConfig extends BaseNotificationConfig {
   type: 'slack';
   channelName: string;
   channelId?: string; // Optional for validation
+  defaultRecipients?: string[]; // Selected Slack channels
+  customChannels?: string[]; // Custom Slack channels
 }
 
 export interface PagerDutyNotificationConfig extends BaseNotificationConfig {
@@ -53,6 +55,8 @@ export interface SystemUser {
   displayName?: string;
   team?: string;
   roles: string[];
+  user_slack?: string[]; // User's Slack handles
+  user_pagerduty?: string[]; // User's PagerDuty contacts
 }
 
 // Notification channel metadata for extensibility

@@ -3,36 +3,122 @@
  * Handles channel name validation and setup
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { MessageSquare, Hash, AlertCircle, ChevronDown } from 'lucide-react';
-import { SlackNotificationConfig } from '@/lib/notifications/types';
+import { MessageSquare, Hash, AlertCircle, ChevronDown, X, Plus, Users } from 'lucide-react';
+import { SlackNotificationConfig, SystemUser } from '@/lib/notifications/types';
 import { validateSlackChannel } from '@/lib/notifications/types';
+import { useQuery } from '@tanstack/react-query';
 
 interface SlackConfigProps {
   config: SlackNotificationConfig;
   onChange: (config: SlackNotificationConfig) => void;
+  teamName?: string;
   teamSlackChannels?: string[];
 }
 
-export function SlackNotificationConfigComponent({ config, onChange, teamSlackChannels = [] }: SlackConfigProps) {
+export function SlackNotificationConfigComponent({ config, onChange, teamName, teamSlackChannels = [] }: SlackConfigProps) {
+  // Use React Query for data fetching - same pattern as EmailNotificationConfig
+  const { data: users = [], isLoading: usersLoading } = useQuery<SystemUser[]>({ queryKey: ['/api/users'] });
+  const { data: allTeamsData = [], isLoading: teamsLoading } = useQuery<any[]>({ queryKey: ['/api/teams'] });
+  
   const [channelName, setChannelName] = useState(config?.channelName || '');
   const [channelError, setChannelError] = useState('');
   const [isValidating, setIsValidating] = useState(false);
+  const [customChannelInput, setCustomChannelInput] = useState('');
+  const [customChannels, setCustomChannels] = useState<string[]>(config?.customChannels || []);
+  const [selectedTeamSlacks, setSelectedTeamSlacks] = useState<string[]>([]);
+  const [selectedOtherSlacks, setSelectedOtherSlacks] = useState<string[]>([]);
+  const [selectedDropdownValue, setSelectedDropdownValue] = useState('');
+  
+  // Compute other team Slack handles from React Query data
+  const otherTeamSlacks = useMemo(() => {
+    const allOtherSlacks: string[] = [];
+    
+    // Add ALL team Slack channels from OTHER teams
+    allTeamsData.forEach((team: any) => {
+      if (team.name !== teamName && team.team_slack) {
+        allOtherSlacks.push(...team.team_slack);
+      }
+    });
+    
+    // Add ALL user Slack handles not in current team
+    users.forEach((user: SystemUser) => {
+      if (user.user_slack && Array.isArray(user.user_slack) && !teamSlackChannels.some(channel => user.user_slack?.includes(channel))) {
+        allOtherSlacks.push(...user.user_slack);
+      }
+    });
+    
+    // Remove duplicates
+    return Array.from(new Set(allOtherSlacks));
+  }, [allTeamsData, users, teamName, teamSlackChannels]);
+  
+  // Loading state
+  const isLoading = usersLoading || teamsLoading;
+  
+  // Get team member Slack handles
+  const teamMemberSlacks = useMemo(() => {
+    const slacks: string[] = [];
+    users.forEach((user: SystemUser) => {
+      if (user.team === teamName && user.user_slack && Array.isArray(user.user_slack)) {
+        slacks.push(...user.user_slack);
+      }
+    });
+    return Array.from(new Set([...teamSlackChannels, ...slacks]));
+  }, [users, teamName, teamSlackChannels]);
 
   useEffect(() => {
-    // Update parent config when channel name changes
-    if (channelName !== config?.channelName) {
-      const updatedConfig = {
-        ...(config || {}),
-        channelName: channelName,
-      };
-      onChange(updatedConfig);
+    // Update config with all selected Slack channels
+    const allSelectedChannels = [...selectedTeamSlacks, ...selectedOtherSlacks, ...customChannels];
+    const updatedConfig = {
+      ...config,
+      channelName: channelName,
+      defaultRecipients: allSelectedChannels,
+      customChannels: customChannels,
+    };
+    onChange(updatedConfig);
+  }, [selectedTeamSlacks, selectedOtherSlacks, customChannels, channelName]);
+  
+  const handleAddCustomChannel = () => {
+    const channel = customChannelInput.trim();
+    
+    if (!channel) {
+      setChannelError('Please enter a channel name');
+      return;
     }
-  }, [channelName, config, onChange]);
+    
+    if (!validateSlackChannel(channel)) {
+      setChannelError('Channel name must contain only lowercase letters, numbers, hyphens, and underscores');
+      return;
+    }
+    
+    const normalizedChannel = channel.startsWith('#') ? channel : `#${channel}`;
+    
+    if (customChannels.includes(normalizedChannel)) {
+      setChannelError('This channel is already added');
+      return;
+    }
+
+    setCustomChannels([...customChannels, normalizedChannel]);
+    setCustomChannelInput('');
+    setChannelError('');
+  };
+
+  const handleRemoveCustomChannel = (channelToRemove: string) => {
+    setCustomChannels(customChannels.filter(channel => channel !== channelToRemove));
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleAddCustomChannel();
+    }
+  };
 
   const handleChannelNameChange = (value: string) => {
     setChannelName(value);
@@ -78,89 +164,268 @@ export function SlackNotificationConfigComponent({ config, onChange, teamSlackCh
   };
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-sm flex items-center gap-2">
-          <MessageSquare className="h-4 w-4" />
-          Slack Configuration
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="slack-channel" className="text-sm">
-            Channel Name <span className="text-red-500">*</span>
-          </Label>
-          
-          {/* Show team channels dropdown if available */}
-          {teamSlackChannels.length > 0 && (
+    <div className="space-y-4">
+      {/* Team Members */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Users className="h-4 w-4" />
+            Team Members ({teamName || 'Default'})
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {/* Show team Slack channels/handles dropdown if available */}
+          {teamMemberSlacks.length > 0 && (
             <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground">Team Channels</Label>
-              <Select onValueChange={(value) => handleChannelNameChange(value)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a team channel" />
-                </SelectTrigger>
-                <SelectContent>
-                  {teamSlackChannels.map((channel) => (
-                    <SelectItem key={channel} value={channel}>
-                      {channel}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label className="text-xs text-muted-foreground">Team Slack Channels & Handles</Label>
+              <select 
+                className="w-full p-2 border border-gray-300 rounded-md"
+                value={selectedDropdownValue}
+                onChange={(e) => {
+                  const slack = e.target.value;
+                  if (slack && !selectedTeamSlacks.includes(slack)) {
+                    setSelectedTeamSlacks([...selectedTeamSlacks, slack]);
+                  }
+                  setSelectedDropdownValue(''); // Reset selection
+                }}
+              >
+                <option value="" disabled>Select a team Slack channel or handle</option>
+                {teamMemberSlacks.map((slack, index) => (
+                  <option key={slack} value={slack}>
+                    {slack}
+                  </option>
+                ))}
+              </select>
             </div>
           )}
           
-          {/* Custom channel input */}
+          {/* Display selected TEAM Slack channels */}
           <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">
-              {teamSlackChannels.length > 0 ? 'Or enter custom channel' : 'Channel name'}
-            </Label>
-            <div className="relative">
+            <Label className="text-xs text-muted-foreground">Selected team Slack channels</Label>
+            <div className="flex flex-wrap gap-2">
+              {selectedTeamSlacks.map((slack, index) => (
+                <Badge key={`team-${index}`} variant="secondary" className="text-xs">
+                  {slack}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-auto p-0 ml-1"
+                    onClick={() => setSelectedTeamSlacks(selectedTeamSlacks.filter(s => s !== slack))}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </Badge>
+              ))}
+              {selectedTeamSlacks.length === 0 && (
+                <p className="text-sm text-muted-foreground">No team Slack channels selected. Use the dropdown above to select team channels.</p>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Additional Recipients */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm">Additional Recipients</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {/* Other Team Slack channels and System Users - Multi-Select with Slider */}
+          {isLoading ? (
+            <div className="text-sm text-muted-foreground">Loading additional recipients...</div>
+          ) : (otherTeamSlacks.length > 0 || users.length > 0) && (
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Other Team & System User Slack Channels</Label>
+              <div className="border border-gray-300 rounded-md p-2 max-h-48 overflow-y-auto bg-white">
+                <div className="space-y-1">
+                  {/* Other team Slack channels */}
+                  {otherTeamSlacks.length > 0 && (
+                    <div>
+                      <div className="text-xs font-medium text-gray-600 mb-1 sticky top-0 bg-white py-1">Other Teams</div>
+                      {otherTeamSlacks.map((slack, index) => (
+                        <label key={`other-team-${index}`} className="flex items-center space-x-2 p-1 hover:bg-gray-50 cursor-pointer rounded">
+                          <input
+                            type="checkbox"
+                            checked={selectedOtherSlacks.includes(slack)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedOtherSlacks([...selectedOtherSlacks, slack]);
+                              } else {
+                                setSelectedOtherSlacks(selectedOtherSlacks.filter(s => s !== slack));
+                              }
+                            }}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="text-sm">{slack}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {/* System user Slack handles */}
+                  {users.length > 0 && (
+                    <div className={otherTeamSlacks.length > 0 ? "mt-3 pt-3 border-t border-gray-200" : ""}>
+                      <div className="text-xs font-medium text-gray-600 mb-1 sticky top-0 bg-white py-1">System Users</div>
+                      {users
+                        .filter(user => user.user_slack && Array.isArray(user.user_slack) && user.team !== teamName)
+                        .map((user) => (
+                          user.user_slack?.map((slack) => (
+                            <label key={`${user.id}-${slack}`} className="flex items-center space-x-2 p-1 hover:bg-gray-50 cursor-pointer rounded">
+                              <input
+                                type="checkbox"
+                                checked={selectedOtherSlacks.includes(slack)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedOtherSlacks([...selectedOtherSlacks, slack]);
+                                  } else {
+                                    setSelectedOtherSlacks(selectedOtherSlacks.filter(s => s !== slack));
+                                  }
+                                }}
+                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                              />
+                              <span className="text-sm">{slack}</span>
+                              {(user.displayName || user.username) && (
+                                <span className="text-xs text-gray-500">({user.displayName || user.username})</span>
+                              )}
+                            </label>
+                          ))
+                        ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              {/* Select All / Clear All buttons */}
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const allAvailableSlacks = [
+                      ...otherTeamSlacks,
+                      ...users
+                        .filter(user => user.user_slack && Array.isArray(user.user_slack) && user.team !== teamName)
+                        .flatMap(user => user.user_slack || [])
+                    ];
+                    setSelectedOtherSlacks(Array.from(new Set([...selectedOtherSlacks, ...allAvailableSlacks])));
+                  }}
+                  className="text-xs"
+                >
+                  Select All
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSelectedOtherSlacks([])}
+                  className="text-xs"
+                >
+                  Clear All
+                </Button>
+              </div>
+            </div>
+          )}
+          
+          {/* Display selected OTHER Slack channels */}
+          {selectedOtherSlacks.length > 0 && (
+            <div className="space-y-1 mt-3">
+              <Label className="text-xs text-muted-foreground">Selected additional recipients</Label>
+              <div className="flex flex-wrap gap-2">
+                {selectedOtherSlacks.map((slack, index) => (
+                  <Badge key={`other-${index}`} variant="outline" className="text-xs">
+                    {slack}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-auto p-0 ml-1"
+                      onClick={() => setSelectedOtherSlacks(selectedOtherSlacks.filter(s => s !== slack))}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Custom Slack Channels */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <MessageSquare className="h-4 w-4" />
+            Custom Slack Channels
+          </CardTitle>
+          <p className="text-xs text-muted-foreground mt-1">
+            * Use for external Slack channels or custom notifications
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex gap-2">
+            <div className="relative flex-1">
               <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
                 <Hash className="h-4 w-4 text-muted-foreground" />
               </div>
               <Input
-                id="slack-channel"
                 type="text"
                 placeholder="general"
-                value={channelName.startsWith('#') ? channelName.substring(1) : channelName}
-                onChange={(e) => handleChannelNameChange(e.target.value)}
-                onBlur={handleBlur}
-                className="pl-10"
-                disabled={isValidating}
+                value={customChannelInput}
+                onChange={(e) => {
+                  setCustomChannelInput(e.target.value);
+                  setChannelError('');
+                }}
+                onKeyPress={handleKeyPress}
+                className="h-8 pl-10"
               />
             </div>
+            <Button 
+              type="button" 
+              onClick={handleAddCustomChannel}
+              size="sm"
+              className="h-8"
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
           </div>
           
           {channelError && (
-            <div className="flex items-center gap-2 text-sm text-red-500">
-              <AlertCircle className="h-4 w-4" />
-              {channelError}
-            </div>
+            <p className="text-sm text-red-500">{channelError}</p>
           )}
           
-          {isValidating && (
-            <p className="text-sm text-muted-foreground">Validating channel...</p>
+          {/* Display custom channels */}
+          {customChannels.length > 0 && (
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Custom channels added</Label>
+              <div className="flex flex-wrap gap-2">
+                {customChannels.map((channel, index) => (
+                  <Badge key={index} variant="outline" className="text-xs">
+                    {channel}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-auto p-0 ml-1"
+                      onClick={() => handleRemoveCustomChannel(channel)}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </Badge>
+                ))}
+              </div>
+            </div>
           )}
-        </div>
 
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-          <h4 className="text-sm font-medium text-blue-900 mb-2">Setup Requirements</h4>
-          <ul className="text-sm text-blue-800 space-y-1">
-            <li>• Ensure the SLA Monitor bot is added to your Slack workspace</li>
-            <li>• Invite the bot to the specified channel</li>
-            <li>• Channel names must be lowercase with no spaces</li>
-          </ul>
-        </div>
-
-        {channelName && !channelError && (
-          <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-            <p className="text-sm text-green-800">
-              Notifications will be sent to: <code className="bg-green-100 px-1 rounded">{normalizeChannelName(channelName)}</code>
-            </p>
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <h4 className="text-sm font-medium text-blue-900 mb-2">Setup Requirements</h4>
+            <ul className="text-sm text-blue-800 space-y-1">
+              <li>• Ensure the SLA Monitor bot is added to your Slack workspace</li>
+              <li>• Invite the bot to the specified channel</li>
+              <li>• Channel names must be lowercase with no spaces</li>
+            </ul>
           </div>
-        )}
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </div>
   );
 }

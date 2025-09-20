@@ -156,6 +156,7 @@ export function NotificationConfigManager({ value, onChange, teamName }: Notific
           <SlackNotificationConfigComponent
             config={notificationSettings.slack as SlackNotificationConfig || { channelName: '' }}
             onChange={(config) => handleChannelConfigChange('slack', config)}
+            teamName={teamName}
             teamSlackChannels={teamData?.team_slack || []}
           />
         );
