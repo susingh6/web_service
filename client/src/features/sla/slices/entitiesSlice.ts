@@ -121,6 +121,30 @@ const entitiesSlice = createSlice({
       state.filter = initialState.filter;
     },
     resetEntities: () => initialState,
+    // Precise single-entity update without shared references
+    upsertEntity: (state, action: PayloadAction<Entity>) => {
+      const updatedEntity = action.payload;
+      
+      // Update in main tenant list with deep copy
+      const mainIndex = state.list.findIndex((entity: Entity) => entity.id === updatedEntity.id);
+      if (mainIndex !== -1) {
+        state.list[mainIndex] = { ...updatedEntity };
+      }
+      
+      // Update in all team lists where this entity exists with separate deep copies
+      Object.keys(state.teamLists).forEach(teamIdStr => {
+        const teamId = parseInt(teamIdStr);
+        const teamIndex = state.teamLists[teamId].findIndex((entity: Entity) => entity.id === updatedEntity.id);
+        if (teamIndex !== -1) {
+          state.teamLists[teamId][teamIndex] = { ...updatedEntity };
+        }
+      });
+      
+      // Update selected entity if it matches with deep copy
+      if (state.selectedEntity && state.selectedEntity.id === updatedEntity.id) {
+        state.selectedEntity = { ...updatedEntity };
+      }
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -205,24 +229,24 @@ const entitiesSlice = createSlice({
         state.isLoading = false;
         const updatedEntity = action.payload;
         
-        // Update in main tenant list
+        // Use upsertEntity logic to prevent shared references
         const mainIndex = state.list.findIndex((entity: Entity) => entity.id === updatedEntity.id);
         if (mainIndex !== -1) {
-          state.list[mainIndex] = updatedEntity;
+          state.list[mainIndex] = { ...updatedEntity };
         }
         
-        // Update in all team lists where this entity exists
+        // Update in all team lists where this entity exists with separate deep copies
         Object.keys(state.teamLists).forEach(teamIdStr => {
           const teamId = parseInt(teamIdStr);
           const teamIndex = state.teamLists[teamId].findIndex((entity: Entity) => entity.id === updatedEntity.id);
           if (teamIndex !== -1) {
-            state.teamLists[teamId][teamIndex] = updatedEntity;
+            state.teamLists[teamId][teamIndex] = { ...updatedEntity };
           }
         });
         
-        // Update selected entity if it matches
+        // Update selected entity if it matches with deep copy
         if (state.selectedEntity && state.selectedEntity.id === updatedEntity.id) {
-          state.selectedEntity = updatedEntity;
+          state.selectedEntity = { ...updatedEntity };
         }
       })
       .addCase(updateEntity.rejected, (state, action) => {
@@ -264,7 +288,8 @@ export const {
   selectEntity, 
   updateFilter, 
   resetFilter, 
-  resetEntities 
+  resetEntities,
+  upsertEntity
 } = entitiesSlice.actions;
 
 export default entitiesSlice.reducer;

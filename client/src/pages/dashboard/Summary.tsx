@@ -4,7 +4,7 @@ import { Box, Grid, Button, Typography, Tabs, Tab, Select, MenuItem, FormControl
 import { Add as AddIcon, Upload as UploadIcon, Close as CloseIcon } from '@mui/icons-material';
 import { useAppDispatch, useAppSelector } from '@/lib/store';
 import { fetchDashboardSummary } from '@/features/sla/slices/dashboardSlice';
-import { fetchEntities, fetchTeams } from '@/features/sla/slices/entitiesSlice';
+import { upsertEntity, fetchTeams } from '@/features/sla/slices/entitiesSlice';
 import { Entity } from '@shared/schema';
 import MetricCard from '@/components/dashboard/MetricCard';
 import ChartCard from '@/components/dashboard/ChartCard';
@@ -219,7 +219,15 @@ const Summary = () => {
       });
       scheduleNormalizedFlush();
 
-      // Only refresh dashboard summary, NOT all entities to prevent cross-contamination
+      // Use precise entity update instead of broad refetch to prevent cross-contamination
+      if (data.entity || data.data) {
+        const entityData = data.entity || data.data;
+        if (entityData) {
+          dispatch(upsertEntity(entityData));
+        }
+      }
+      
+      // Only refresh dashboard summary
       if (selectedTenant) {
         dispatch(fetchDashboardSummary({ tenantName: selectedTenant.name }));
       }
