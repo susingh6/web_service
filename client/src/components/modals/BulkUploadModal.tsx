@@ -115,6 +115,7 @@ interface BulkUploadModalProps {
 
 const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
   const { toast } = useToast();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const { createEntity } = useEntityMutation();
   const { executeWithOptimism } = useOptimisticMutation();
@@ -564,9 +565,8 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
       // ✅ Cache invalidation  
       // ✅ WebSocket broadcasting for real-time collaboration
       // ✅ Error handling and rollback
-      // Get authenticated user's email once (outside the loop)
-      const { user } = useAuth(); 
-      const userEmail = user?.email;
+      // Get authenticated user's email from component-level hook
+      const userEmail = user && 'email' in user ? user.email : null;
       
       if (!userEmail) {
         throw new Error('User email not found. Please log in again.');
@@ -584,17 +584,15 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
             user_email: userEmail, // Use authenticated user's email
             // Map form fields to API fields - use entity_name for both table and DAG
             name: entity.entity_name,
-            description: entityType === 'dag' ? entity.dag_description : entity.description,
+            description: entityType === 'dag' 
+              ? ('dag_description' in entity ? entity.dag_description : '')
+              : ('table_description' in entity ? entity.table_description : ''),
             type: entityType,
             teamId: 1, // Will be determined by backend from team_name
             
             is_entity_owner: entity.is_entity_owner || false,
             // Ensure required fields are included for both table and DAG entities
-            slaTarget: entity.slaTarget || 95,
-            status: entity.status || 'Active', 
-            refreshFrequency: entity.refreshFrequency || 'Daily',
-            owner: entity.owner || entity.owner_email || '',
-            ownerEmail: entity.ownerEmail || entity.owner_email || '',
+            owner: entity.owner_email || '',
           };
           
           console.log('Creating entity with formatted data:', entityWithType);
