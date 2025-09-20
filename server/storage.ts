@@ -1381,21 +1381,24 @@ export class MemStorage implements IStorage {
     const entity = this.entities.get(id);
     if (!entity) return undefined;
     
+    // Deep clone entity to prevent contamination across shared references
+    const clonedEntity = structuredClone(entity);
+    
     // Apply updates first
     const mergedEntity = { 
-      ...entity, 
+      ...clonedEntity, 
       ...updates, 
       updatedAt: new Date(),
-      nextRefresh: (updates.nextRefresh ?? entity.nextRefresh ?? null) as Date | null,
-      is_active: (updates.is_active ?? entity.is_active ?? true) as boolean,
+      nextRefresh: (updates.nextRefresh ?? clonedEntity.nextRefresh ?? null) as Date | null,
+      is_active: (updates.is_active ?? clonedEntity.is_active ?? true) as boolean,
     };
     
     // Then normalize owner fields based on is_entity_owner
     const updatedEntity: Entity = {
       ...mergedEntity,
-      owner: mergedEntity.is_entity_owner === true ? (updates.owner ?? entity.owner ?? null) : null,
-      ownerEmail: mergedEntity.is_entity_owner === true ? (updates.ownerEmail ?? entity.ownerEmail ?? null) : null,
-      owner_email: mergedEntity.is_entity_owner === true ? (updates.owner_email ?? entity.owner_email ?? null) : null,
+      owner: mergedEntity.is_entity_owner === true ? (updates.owner ?? clonedEntity.owner ?? null) : null,
+      ownerEmail: mergedEntity.is_entity_owner === true ? (updates.ownerEmail ?? clonedEntity.ownerEmail ?? null) : null,
+      owner_email: mergedEntity.is_entity_owner === true ? (updates.owner_email ?? clonedEntity.owner_email ?? null) : null,
     };
     this.entities.set(id, updatedEntity);
     return updatedEntity;
