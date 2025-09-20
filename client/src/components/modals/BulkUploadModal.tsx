@@ -558,38 +558,33 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
     setIsSubmitting(true);
     
     try {
-      // Try bulk endpoint first, fallback to individual calls using existing createEntity
-      let result;
+      // Use existing createEntity mutation for each entity - this automatically handles:
+      // ✅ Optimistic updates
+      // ✅ Cache invalidation  
+      // ✅ WebSocket broadcasting for real-time collaboration
+      // ✅ Error handling and rollback
+      const createdEntities = [];
       
-      try {
-        // Try bulk endpoint
-        const bulkPayload = {
-          entities: validEntities,
-          type: tabValue === 'tables' ? 'table' : 'dag'
-        };
-        
-        const res = await apiRequest('POST', buildUrl(endpoints.entitiesBulk), bulkPayload);
-        result = await res.json();
-      } catch (bulkError) {
-        console.log('Bulk endpoint unavailable, falling back to individual calls');
-        
-        // Fallback: Use existing createEntity mutation for each entity
-        const createdEntities = [];
-        
-        for (const entity of validEntities) {
-          try {
-            const createdEntity = await createEntity.mutateAsync(entity);
-            createdEntities.push(createdEntity);
-          } catch (entityError) {
-            throw new Error(`Failed to create entity ${entity.entity_name}: ${entityError.message}`);
-          }
+      for (const entity of validEntities) {
+        try {
+          // Add entity type to the entity data based on current tab
+          const entityWithType = {
+            ...entity,
+            type: tabValue === 'dags' ? 'dag' : 'table'
+          };
+          
+          // Use existing proven createEntity logic - handles everything automatically
+          const createdEntity = await createEntity.mutateAsync(entityWithType);
+          createdEntities.push(createdEntity);
+        } catch (entityError: any) {
+          throw new Error(`Failed to create ${entity.entity_name}: ${entityError.message || 'Unknown error'}`);
         }
-        
-        result = { entities: createdEntities };
       }
       
+      const result = { entities: createdEntities };
+      
       // Update upload summary with results
-      const successCount = Array.isArray(result) ? result.length : (result?.created?.length || validEntities.length);
+      const successCount = createdEntities.length;
       const failedCount = 0; // All or nothing - if we get here, all succeeded
       
       setUploadSummary(prev => ({

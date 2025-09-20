@@ -19,9 +19,18 @@ export const devConfig = {
       azureValidateFallback: '/api/auth/azure/validate',
     },
     
-    // Core entities - FastAPI
-    entities: '/api/v1/entities',
-    entitiesBulk: '/api/v1/entities/bulk',
+    // Core entities - FastAPI (type-specific endpoints)
+    entities: '/api/v1/entities', // Legacy unified endpoint
+    entitiesBulk: '/api/v1/entities/bulk', // Legacy bulk endpoint
+    tables: '/api/v1/tables', // Tables endpoint
+    tablesBulk: '/api/v1/tables/bulk', // Tables bulk endpoint
+    dags: '/api/v1/dags', // DAGs endpoint
+    dagsBulk: '/api/v1/dags/bulk', // DAGs bulk endpoint
+    // Express fallback endpoints (dev only)
+    tablesFallback: '/api/tables',
+    tablesBulkFallback: '/api/tables/bulk',
+    dagsFallback: '/api/dags',
+    dagsBulkFallback: '/api/dags/bulk',
     teams: '/api/teams',
     tenants: '/api/v1/tenants',
     teamDetails: (teamName: string) => `/api/v1/get_team_details/${teamName}`,

@@ -11,9 +11,13 @@ export const stagingConfig = {
       azureValidate: '/api/v1/auth/azure/validate',
     },
     
-    // Core entities - FastAPI
-    entities: '/api/v1/entities',
-    entitiesBulk: '/api/v1/entities/bulk',
+    // Core entities - FastAPI (type-specific endpoints)
+    entities: '/api/v1/entities', // Legacy unified endpoint
+    entitiesBulk: '/api/v1/entities/bulk', // Legacy bulk endpoint
+    tables: '/api/v1/tables', // Tables endpoint
+    tablesBulk: '/api/v1/tables/bulk', // Tables bulk endpoint
+    dags: '/api/v1/dags', // DAGs endpoint
+    dagsBulk: '/api/v1/dags/bulk', // DAGs bulk endpoint
     teams: '/api/v1/teams',
     
     // Dashboard - FastAPI
