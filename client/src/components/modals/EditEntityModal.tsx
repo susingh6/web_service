@@ -486,14 +486,12 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
               Unable to load entity details. Please try again.
             </Alert>
           ) : (
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Modal is open for {entityType.toUpperCase()} entity: {entity?.name}
-              <br />
-              Owner: {entity?.is_entity_owner ? 'Yes' : 'No'}
-              <br />
-              Entity details loaded successfully. Form fields coming soon...
-            </Typography>
-          )}
+            <>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Fields marked with an asterisk (*) are mandatory
+              </Typography>
+
+              {/* Common Fields */}
                     <Controller
                       name="entity_name"
                       control={control}
@@ -590,54 +588,58 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
                 )}
               />
 
-              <Controller
-                name="schema_name"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    label={fieldDefinitions.schema_name.label + " *"}
-                    fullWidth
-                    margin="normal"
-                    required
-                    error={!!errors.schema_name}
-                    helperText={errors.schema_name?.message}
+              {entityType === 'table' && (
+                <>
+                  <Controller
+                    name="schema_name"
+                    control={control}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        label={fieldDefinitions.schema_name.label + " *"}
+                        fullWidth
+                        margin="normal"
+                        required
+                        error={!!errors.schema_name}
+                        helperText={errors.schema_name?.message}
+                      />
+                    )}
                   />
-                )}
-              />
 
-              <Controller
-                name="table_name"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    label={fieldDefinitions.table_name.label + " *"}
-                    fullWidth
-                    margin="normal"
-                    required
-                    error={!!errors.table_name}
-                    helperText={errors.table_name?.message}
+                  <Controller
+                    name="table_name"
+                    control={control}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        label={fieldDefinitions.table_name.label + " *"}
+                        fullWidth
+                        margin="normal"
+                        required
+                        error={!!errors.table_name}
+                        helperText={errors.table_name?.message}
+                      />
+                    )}
                   />
-                )}
-              />
 
-              <Controller
-                name="table_description"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    label={fieldDefinitions.table_description.label}
-                    fullWidth
-                    margin="normal"
-                    multiline
-                    rows={3}
-                    error={!!errors.table_description}
-                    helperText={errors.table_description?.message}
+                  <Controller
+                    name="table_description"
+                    control={control}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        label={fieldDefinitions.table_description.label}
+                        fullWidth
+                        margin="normal"
+                        multiline
+                        rows={3}
+                        error={!!errors.table_description}
+                        helperText={errors.table_description?.message}
+                      />
+                    )}
                   />
-                )}
-              />
+                </>
+              )}
 
 
               {entityType === 'dag' && (
@@ -985,9 +987,7 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
                       />
                     )}
                   />
-                </>
               )}
-            </>
           )}
         </DialogContent>
 
