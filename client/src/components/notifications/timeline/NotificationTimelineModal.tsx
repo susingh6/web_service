@@ -264,10 +264,20 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
   };
 
   const onSubmit = (data: TimelineFormData) => {
+    // Pre-validation checks
     if (triggers.length === 0) {
       toast({
         title: 'Error',
         description: 'Please add at least one trigger',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    if (enabledChannels.length === 0) {
+      toast({
+        title: 'Error',
+        description: 'Please select at least one delivery mechanism (notification channel)',
         variant: 'destructive'
       });
       return;
@@ -426,7 +436,7 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
             {/* Trigger Configuration Section */}
             <Box>
               <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 2 }}>
-                Trigger Configuration
+                Trigger Configuration *
               </Typography>
               
               <Box sx={{ mb: 2 }}>
