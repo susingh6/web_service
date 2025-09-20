@@ -143,6 +143,7 @@ export function NotificationConfigManager({ value, onChange, teamName }: Notific
             config={notificationSettings.email as EmailNotificationConfig || { roleBasedRecipients: [], customEmails: [] }}
             onChange={(config) => handleChannelConfigChange('email', config)}
             teamName={teamName}
+            teamEmails={teamData?.team_email || []}
           />
         );
       case 'slack':

@@ -19,9 +19,10 @@ interface EmailConfigProps {
   config: EmailNotificationConfig;
   onChange: (config: EmailNotificationConfig) => void;
   teamName?: string;
+  teamEmails?: string[];
 }
 
-export function EmailNotificationConfigComponent({ config, onChange, teamName }: EmailConfigProps) {
+export function EmailNotificationConfigComponent({ config, onChange, teamName, teamEmails = [] }: EmailConfigProps) {
   const [users, setUsers] = useState<SystemUser[]>([]);
   const [selectedUsers, setSelectedUsers] = useState<number[]>([]);
   const [customEmailInput, setCustomEmailInput] = useState('');
@@ -34,18 +35,15 @@ export function EmailNotificationConfigComponent({ config, onChange, teamName }:
   }, []);
 
   useEffect(() => {
-    // Generate default recipients based on team
-    if (teamName && users.length > 0) {
-      const teamEmails = getTeamMemberEmails(users, teamName);
-      const updatedConfig = {
-        ...config,
-        defaultRecipients: teamEmails,
-        roleBasedRecipients: [], // No longer using roles
-        customEmails: customEmails,
-      };
-      onChange(updatedConfig);
-    }
-  }, [teamName, users, customEmails]);
+    // Generate default recipients based on team emails
+    const updatedConfig = {
+      ...config,
+      defaultRecipients: teamEmails,
+      roleBasedRecipients: [], // No longer using roles
+      customEmails: customEmails,
+    };
+    onChange(updatedConfig);
+  }, [teamEmails, customEmails]);
 
   const handleAddCustomEmail = () => {
     const email = customEmailInput.trim();
