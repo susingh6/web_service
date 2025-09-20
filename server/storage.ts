@@ -7,7 +7,9 @@ import {
   notificationTimelines, type NotificationTimeline, type InsertNotificationTimeline,
   slaDagAudit, type SlaDagAudit, type InsertSlaDagAudit,
   slaTableAudit, type SlaTableAudit, type InsertSlaTableAudit,
-  incidents, type Incident, type InsertIncident
+  incidents, type Incident, type InsertIncident,
+  alerts, type Alert, type InsertAlert,
+  adminBroadcastMessages, type AdminBroadcastMessage, type InsertAdminBroadcastMessage
 } from "@shared/schema";
 
 // Tenant interface for tenant management
@@ -81,6 +83,20 @@ export interface IStorage {
   getIncident(notificationId: string): Promise<Incident | undefined>;
   getEntityByName(dagName: string, teamName?: string): Promise<Entity | undefined>;
   resolveIncident(notificationId: string): Promise<Incident | undefined>;
+  
+  // Alert operations for system-wide alerts
+  getAlerts(dateKey?: string): Promise<Alert[]>;
+  getActiveAlerts(dateKey: string): Promise<Alert[]>;
+  createAlert(alert: InsertAlert): Promise<Alert>;
+  updateAlert(id: number, alert: Partial<Alert>): Promise<Alert | undefined>;
+  deleteAlert(id: number): Promise<boolean>;
+  
+  // Admin broadcast message operations
+  getAdminBroadcastMessages(dateKey?: string): Promise<AdminBroadcastMessage[]>;
+  getActiveAdminBroadcastMessages(dateKey: string): Promise<AdminBroadcastMessage[]>;
+  createAdminBroadcastMessage(message: InsertAdminBroadcastMessage): Promise<AdminBroadcastMessage>;
+  updateAdminBroadcastMessage(id: number, message: Partial<AdminBroadcastMessage>): Promise<AdminBroadcastMessage | undefined>;
+  deleteAdminBroadcastMessage(id: number): Promise<boolean>;
 }
 
 // In-memory storage implementation
@@ -95,6 +111,8 @@ export class MemStorage implements IStorage {
   private dagAudit: Map<number, SlaDagAudit>;
   private tableAudit: Map<number, SlaTableAudit>;
   private incidents: Map<string, Incident>; // keyed by notification_id
+  private alertsData: Map<number, Alert>; // System alerts
+  private adminBroadcastMessagesData: Map<number, AdminBroadcastMessage>; // Admin broadcast messages
   
   private userId: number;
   private teamId: number;
@@ -104,6 +122,8 @@ export class MemStorage implements IStorage {
   private issueId: number;
   private dagAuditId: number;
   private tableAuditId: number;
+  private alertId: number;
+  private adminBroadcastMessageId: number;
   
   private initializationPromise: Promise<void>;
 
@@ -118,6 +138,8 @@ export class MemStorage implements IStorage {
     this.dagAudit = new Map();
     this.tableAudit = new Map();
     this.incidents = new Map();
+    this.alertsData = new Map();
+    this.adminBroadcastMessagesData = new Map();
     
     this.userId = 1;
     this.teamId = 1;
@@ -127,6 +149,8 @@ export class MemStorage implements IStorage {
     this.issueId = 1;
     this.dagAuditId = 1;
     this.tableAuditId = 1;
+    this.alertId = 1;
+    this.adminBroadcastMessageId = 1;
     
     // Initialize with some demo data
     this.initializationPromise = this.initDemoData().catch(err => {
@@ -405,6 +429,9 @@ export class MemStorage implements IStorage {
     
     // Initialize mock audit data for rollback management
     this.initMockAuditData();
+    
+    // Initialize mock alert and admin broadcast message data
+    this.initMockAlertData();
   }
   
   /**
@@ -1570,6 +1597,103 @@ export class MemStorage implements IStorage {
     mockDagAudit.forEach(audit => this.dagAudit.set(audit.id, audit));
     mockTableAudit.forEach(audit => this.tableAudit.set(audit.id, audit));
   }
+
+  private initMockAlertData(): void {
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowString = tomorrow.toISOString().split('T')[0];
+    
+    // Mock system alerts
+    const mockAlerts = [
+      {
+        title: "System Maintenance Scheduled",
+        message: "Scheduled maintenance will occur tonight from 2:00 AM to 4:00 AM EST. Some services may be temporarily unavailable.",
+        alertType: "maintenance" as const,
+        severity: "medium" as const,
+        dateKey: today,
+        isActive: true,
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) // Expires in 24 hours
+      },
+      {
+        title: "High Data Processing Volume",
+        message: "System is experiencing higher than normal data processing volume. Some DAGs may take longer to complete.",
+        alertType: "warning" as const,
+        severity: "low" as const,
+        dateKey: today,
+        isActive: true,
+        expiresAt: new Date(Date.now() + 6 * 60 * 60 * 1000) // Expires in 6 hours
+      },
+      {
+        title: "New Feature Release",
+        message: "New task priority management features are now available in the DAG dashboard. Check out the updated interface!",
+        alertType: "info" as const,
+        severity: "low" as const,
+        dateKey: today,
+        isActive: true,
+        expiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000) // Expires in 48 hours
+      },
+      {
+        title: "Database Performance Alert",
+        message: "Database response times are currently elevated. Engineering team is investigating. ETAs may be delayed.",
+        alertType: "system" as const,
+        severity: "high" as const,
+        dateKey: tomorrowString,
+        isActive: true,
+        expiresAt: new Date(Date.now() + 12 * 60 * 60 * 1000) // Expires in 12 hours
+      }
+    ];
+
+    // Mock admin broadcast messages
+    const mockAdminMessages = [
+      {
+        message: "Welcome to the new SLA Management Dashboard! Please review the updated features and reach out to your team lead with any questions.",
+        dateKey: today,
+        deliveryType: "login_triggered" as const,
+        isActive: true,
+        createdByUserId: 1, // azure_test_user (admin)
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // Expires in 7 days
+      },
+      {
+        message: "Important: All DAG owners must review and update their notification settings by the end of this week. This is required for compliance.",
+        dateKey: today,
+        deliveryType: "immediate" as const,
+        isActive: true,
+        createdByUserId: 1, // azure_test_user (admin)  
+        expiresAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000) // Expires in 3 days
+      },
+      {
+        message: "Reminder: Monthly team performance review meeting is scheduled for next Tuesday at 2 PM EST. Please ensure all your entities are up to date.",
+        dateKey: tomorrowString,
+        deliveryType: "login_triggered" as const,
+        isActive: true,
+        createdByUserId: 1, // azure_test_user (admin)
+        expiresAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000) // Expires in 5 days
+      }
+    ];
+
+    // Store mock alerts
+    mockAlerts.forEach(alertData => {
+      const alert = {
+        ...alertData,
+        id: this.alertId++,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      this.alertsData.set(alert.id, alert);
+    });
+
+    // Store mock admin broadcast messages
+    mockAdminMessages.forEach(messageData => {
+      const message = {
+        ...messageData,
+        id: this.adminBroadcastMessageId++,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      this.adminBroadcastMessagesData.set(message.id, message);
+    });
+  }
   
   // Audit operations for rollback management
   async getDeletedEntitiesByName(entityName: string): Promise<Array<{ id: string; entity_name: string; entity_type: 'dag' | 'table'; tenant_name: string; team_name: string; deleted_date: string; deleted_by: string; entity_id: string; tenant_id: string; team_id: string }>> {
@@ -1805,6 +1929,140 @@ export class MemStorage implements IStorage {
     }
     
     return undefined;
+  }
+
+  // Alert operations for system-wide alerts
+  async getAlerts(dateKey?: string): Promise<Alert[]> {
+    await this.ensureInitialized();
+    
+    const alerts = Array.from(this.alertsData.values());
+    if (dateKey) {
+      return alerts.filter(alert => alert.dateKey === dateKey);
+    }
+    return alerts;
+  }
+
+  async getActiveAlerts(dateKey: string): Promise<Alert[]> {
+    await this.ensureInitialized();
+    
+    const now = new Date();
+    return Array.from(this.alertsData.values()).filter(alert => 
+      alert.dateKey === dateKey && 
+      alert.isActive && 
+      (!alert.expiresAt || new Date(alert.expiresAt) > now)
+    );
+  }
+
+  async createAlert(alert: InsertAlert): Promise<Alert> {
+    await this.ensureInitialized();
+    
+    const newAlert: Alert = {
+      ...alert,
+      id: this.alertId++,
+      isActive: alert.isActive ?? true,
+      expiresAt: alert.expiresAt ?? null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    this.alertsData.set(newAlert.id, newAlert);
+    return newAlert;
+  }
+
+  async updateAlert(id: number, alert: Partial<Alert>): Promise<Alert | undefined> {
+    await this.ensureInitialized();
+    
+    const existingAlert = this.alertsData.get(id);
+    if (!existingAlert) {
+      return undefined;
+    }
+
+    const updatedAlert: Alert = {
+      ...existingAlert,
+      ...alert,
+      id,
+      updatedAt: new Date(),
+    };
+
+    this.alertsData.set(id, updatedAlert);
+    return updatedAlert;
+  }
+
+  async deleteAlert(id: number): Promise<boolean> {
+    await this.ensureInitialized();
+    
+    const exists = this.alertsData.has(id);
+    if (exists) {
+      this.alertsData.delete(id);
+    }
+    return exists;
+  }
+
+  // Admin broadcast message operations
+  async getAdminBroadcastMessages(dateKey?: string): Promise<AdminBroadcastMessage[]> {
+    await this.ensureInitialized();
+    
+    const messages = Array.from(this.adminBroadcastMessagesData.values());
+    if (dateKey) {
+      return messages.filter(message => message.dateKey === dateKey);
+    }
+    return messages;
+  }
+
+  async getActiveAdminBroadcastMessages(dateKey: string): Promise<AdminBroadcastMessage[]> {
+    await this.ensureInitialized();
+    
+    const now = new Date();
+    return Array.from(this.adminBroadcastMessagesData.values()).filter(message => 
+      message.dateKey === dateKey && 
+      message.isActive && 
+      (!message.expiresAt || new Date(message.expiresAt) > now)
+    );
+  }
+
+  async createAdminBroadcastMessage(message: InsertAdminBroadcastMessage): Promise<AdminBroadcastMessage> {
+    await this.ensureInitialized();
+    
+    const newMessage: AdminBroadcastMessage = {
+      ...message,
+      id: this.adminBroadcastMessageId++,
+      isActive: message.isActive ?? true,
+      expiresAt: message.expiresAt ?? null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    this.adminBroadcastMessagesData.set(newMessage.id, newMessage);
+    return newMessage;
+  }
+
+  async updateAdminBroadcastMessage(id: number, message: Partial<AdminBroadcastMessage>): Promise<AdminBroadcastMessage | undefined> {
+    await this.ensureInitialized();
+    
+    const existingMessage = this.adminBroadcastMessagesData.get(id);
+    if (!existingMessage) {
+      return undefined;
+    }
+
+    const updatedMessage: AdminBroadcastMessage = {
+      ...existingMessage,
+      ...message,
+      id,
+      updatedAt: new Date(),
+    };
+
+    this.adminBroadcastMessagesData.set(id, updatedMessage);
+    return updatedMessage;
+  }
+
+  async deleteAdminBroadcastMessage(id: number): Promise<boolean> {
+    await this.ensureInitialized();
+    
+    const exists = this.adminBroadcastMessagesData.has(id);
+    if (exists) {
+      this.adminBroadcastMessagesData.delete(id);
+    }
+    return exists;
   }
 }
 

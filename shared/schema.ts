@@ -296,24 +296,26 @@ export const alerts = pgTable("alerts", {
   id: serial("id").primaryKey(),
   title: text("title").notNull(), // Alert title
   message: text("message").notNull(), // Alert content  
-  alert_type: text("alert_type").notNull(), // 'system', 'maintenance', 'warning', 'info'
+  alertType: text("alert_type").notNull(), // 'system', 'maintenance', 'warning', 'info'
   severity: text("severity").notNull(), // 'low', 'medium', 'high', 'critical'
-  date_key: text("date_key").notNull(), // YYYY-MM-DD format for daily filtering
-  is_active: boolean("is_active").notNull().default(true), // Whether alert should be shown
-  created_at: timestamp("created_at").defaultNow().notNull(),
-  expires_at: timestamp("expires_at"), // When alert should stop showing
+  dateKey: text("date_key").notNull(), // YYYY-MM-DD format for daily filtering
+  isActive: boolean("is_active").notNull().default(true), // Whether alert should be shown
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  expiresAt: timestamp("expires_at"), // When alert should stop showing
 });
 
 // Admin Broadcast Messages table for admin-created messages
 export const adminBroadcastMessages = pgTable("admin_broadcast_messages", {
   id: serial("id").primaryKey(),
   message: text("message").notNull(), // Admin message content
-  date_key: text("date_key").notNull(), // YYYY-MM-DD format for expiration
-  delivery_type: text("delivery_type").notNull(), // 'immediate' or 'login_triggered'
-  is_active: boolean("is_active").notNull().default(true), // Whether message should be shown
-  created_by_user_id: integer("created_by_user_id").notNull(), // Admin who created it
-  created_at: timestamp("created_at").defaultNow().notNull(),
-  expires_at: timestamp("expires_at"), // When message should stop showing
+  dateKey: text("date_key").notNull(), // YYYY-MM-DD format for expiration
+  deliveryType: text("delivery_type").notNull(), // 'immediate' or 'login_triggered'
+  isActive: boolean("is_active").notNull().default(true), // Whether message should be shown
+  createdByUserId: integer("created_by_user_id").notNull().references(() => users.id), // Admin who created it
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  expiresAt: timestamp("expires_at"), // When message should stop showing
 });
 
 // User roles for notification system
@@ -363,15 +365,44 @@ export type InsertSlaDagAudit = z.infer<typeof insertSlaDagAuditSchema>;
 export type SlaTableAudit = typeof slaTableAudit.$inferSelect;
 export type InsertSlaTableAudit = z.infer<typeof insertSlaTableAuditSchema>;
 
-// Alert and admin broadcast message insert schemas
+// Alert and admin broadcast message insert schemas with proper validation
 export const insertAlertSchema = createInsertSchema(alerts).omit({
   id: true,
-  created_at: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  alertType: z.enum(['system', 'maintenance', 'warning', 'info']),
+  severity: z.enum(['low', 'medium', 'high', 'critical']),
+  dateKey: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date key must be in YYYY-MM-DD format'),
+}).refine(data => {
+  if (data.expiresAt) {
+    const createdAt = new Date();
+    const expiresAt = new Date(data.expiresAt);
+    return expiresAt >= createdAt;
+  }
+  return true;
+}, {
+  message: "Expiration date must be in the future",
+  path: ["expiresAt"]
 });
 
 export const insertAdminBroadcastMessageSchema = createInsertSchema(adminBroadcastMessages).omit({
   id: true,
-  created_at: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  deliveryType: z.enum(['immediate', 'login_triggered']),
+  dateKey: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date key must be in YYYY-MM-DD format'),
+}).refine(data => {
+  if (data.expiresAt) {
+    const createdAt = new Date();
+    const expiresAt = new Date(data.expiresAt);
+    return expiresAt >= createdAt;
+  }
+  return true;
+}, {
+  message: "Expiration date must be in the future",
+  path: ["expiresAt"]
 });
 
 // Alert and admin broadcast message types
