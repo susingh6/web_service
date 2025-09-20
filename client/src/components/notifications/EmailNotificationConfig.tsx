@@ -38,7 +38,7 @@ export function EmailNotificationConfigComponent({ config, onChange, teamName, t
     setUsers(getUsersFromCache());
   }, []);
 
-  // Fetch all teams data to get emails from other teams
+  // Fetch all teams data and get ALL other emails
   useEffect(() => {
     const fetchAllTeams = async () => {
       try {
@@ -47,38 +47,36 @@ export function EmailNotificationConfigComponent({ config, onChange, teamName, t
           const teams = await response.json();
           setAllTeamsData(teams);
           
-          // Extract emails from all teams except current team
-          const otherEmails: string[] = [];
+          // Get ALL emails from system
+          const allOtherEmails: string[] = [];
+          
+          // Add ALL team emails from OTHER teams
           teams.forEach((team: any) => {
-            if (team.name !== teamName) {
-              // Add team emails
-              if (team.team_email && Array.isArray(team.team_email)) {
-                otherEmails.push(...team.team_email);
-              }
-              // Add member emails from other teams by looking up usernames in cached users
-              if (team.team_members_ids && Array.isArray(team.team_members_ids)) {
-                team.team_members_ids.forEach((username: string) => {
-                  const user = users.find(u => u.username === username);
-                  if (user && user.email) {
-                    otherEmails.push(user.email);
-                  }
-                });
-              }
+            if (team.name !== teamName && team.team_email) {
+              allOtherEmails.push(...team.team_email);
             }
           });
           
-          // Remove duplicates and filter out current team emails
-          const uniqueOtherEmails = Array.from(new Set(otherEmails)).filter(email => 
-            !teamEmails.includes(email)
-          );
-          setOtherTeamEmails(uniqueOtherEmails);
+          // Add ALL user emails from the cached users data
+          users.forEach((user: any) => {
+            if (user.email && !teamEmails.includes(user.email)) {
+              allOtherEmails.push(user.email);
+            }
+          });
+          
+          // Remove duplicates 
+          const uniqueEmails = Array.from(new Set(allOtherEmails));
+          setOtherTeamEmails(uniqueEmails);
         }
       } catch (error) {
         console.error('Error fetching teams data:', error);
       }
     };
 
-    fetchAllTeams();
+    // Only fetch if users are loaded
+    if (users.length > 0) {
+      fetchAllTeams();
+    }
   }, [teamName, teamEmails, users]);
 
   useEffect(() => {
@@ -166,9 +164,9 @@ export function EmailNotificationConfigComponent({ config, onChange, teamName, t
             </div>
           )}
           
-          {/* Display selected emails */}
+          {/* Display selected TEAM emails ONLY */}
           <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Selected emails</Label>
+            <Label className="text-xs text-muted-foreground">Selected team emails</Label>
             <div className="flex flex-wrap gap-2">
               {selectedTeamEmails.map((email, index) => (
                 <Badge key={`team-${index}`} variant="secondary" className="text-xs">
@@ -183,34 +181,8 @@ export function EmailNotificationConfigComponent({ config, onChange, teamName, t
                   </Button>
                 </Badge>
               ))}
-              {selectedOtherEmails.map((email, index) => (
-                <Badge key={`other-${index}`} variant="secondary" className="text-xs">
-                  {email}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-auto p-0 ml-1"
-                    onClick={() => setSelectedOtherEmails(selectedOtherEmails.filter(e => e !== email))}
-                  >
-                    <X className="h-3 w-3" />
-                  </Button>
-                </Badge>
-              ))}
-              {customEmails.map((email, index) => (
-                <Badge key={`custom-${index}`} variant="secondary" className="text-xs">
-                  {email}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-auto p-0 ml-1"
-                    onClick={() => handleRemoveCustomEmail(email)}
-                  >
-                    <X className="h-3 w-3" />
-                  </Button>
-                </Badge>
-              ))}
-              {selectedTeamEmails.length === 0 && selectedOtherEmails.length === 0 && customEmails.length === 0 && (
-                <p className="text-sm text-muted-foreground">No emails selected. Use the dropdowns above to select emails.</p>
+              {selectedTeamEmails.length === 0 && (
+                <p className="text-sm text-muted-foreground">No team emails selected. Use the dropdown above to select team emails.</p>
               )}
             </div>
           </div>
@@ -265,6 +237,28 @@ export function EmailNotificationConfigComponent({ config, onChange, teamName, t
               </select>
             </div>
           )}
+          
+          {/* Display selected OTHER emails */}
+          {selectedOtherEmails.length > 0 && (
+            <div className="space-y-1 mt-3">
+              <Label className="text-xs text-muted-foreground">Selected additional recipients</Label>
+              <div className="flex flex-wrap gap-2">
+                {selectedOtherEmails.map((email, index) => (
+                  <Badge key={`other-${index}`} variant="outline" className="text-xs">
+                    {email}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-auto p-0 ml-1"
+                      onClick={() => setSelectedOtherEmails(selectedOtherEmails.filter(e => e !== email))}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -303,21 +297,25 @@ export function EmailNotificationConfigComponent({ config, onChange, teamName, t
             <p className="text-sm text-red-500">{emailError}</p>
           )}
           
+          {/* Display custom emails */}
           {customEmails.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {customEmails.map((email, index) => (
-                <Badge key={index} variant="outline" className="text-xs">
-                  {email}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-auto p-0 ml-1"
-                    onClick={() => handleRemoveCustomEmail(email)}
-                  >
-                    <X className="h-3 w-3" />
-                  </Button>
-                </Badge>
-              ))}
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Custom emails added</Label>
+              <div className="flex flex-wrap gap-2">
+                {customEmails.map((email, index) => (
+                  <Badge key={index} variant="outline" className="text-xs">
+                    {email}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-auto p-0 ml-1"
+                      onClick={() => handleRemoveCustomEmail(email)}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </Badge>
+                ))}
+              </div>
             </div>
           )}
         </CardContent>
