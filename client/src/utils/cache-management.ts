@@ -113,7 +113,7 @@ export function useStandardCrud<T = any>(config: StandardCrudConfig<T>) {
       // Apply optimistic update immediately
       cacheManager.setOptimisticData(config.cacheKeyPattern, (old: any[] | undefined) => {
         if (!old) return [];
-        return old.map(entity => entity[identifierField] === entityId ? { ...entity, ...data } : entity);
+        return old.map(entity => entity[identifierField] === entityId ? structuredClone({ ...entity, ...data }) : entity);
       });
       return { ...data, [identifierField]: entityId };
     }
@@ -123,7 +123,7 @@ export function useStandardCrud<T = any>(config: StandardCrudConfig<T>) {
         queryKey: config.cacheKeyPattern,
         updater: (old: any[] | undefined) => {
           if (!old) return [];
-          return old.map(entity => entity[identifierField] === entityId ? { ...entity, ...data } : entity);
+          return old.map(entity => entity[identifierField] === entityId ? structuredClone({ ...entity, ...data }) : entity);
         },
       },
       mutationFn: async () => {
