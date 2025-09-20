@@ -28,6 +28,7 @@ export function EmailNotificationConfigComponent({ config, onChange, teamName, t
   const [customEmailInput, setCustomEmailInput] = useState('');
   const [customEmails, setCustomEmails] = useState<string[]>(config?.customEmails || []);
   const [emailError, setEmailError] = useState('');
+  const [selectedDropdownValue, setSelectedDropdownValue] = useState('');
 
   useEffect(() => {
     // Load cached data
@@ -35,15 +36,15 @@ export function EmailNotificationConfigComponent({ config, onChange, teamName, t
   }, []);
 
   useEffect(() => {
-    // Generate default recipients based on team emails
+    // Update config with custom emails only (don't auto-add all team emails)
     const updatedConfig = {
       ...config,
-      defaultRecipients: teamEmails,
+      defaultRecipients: [], // Don't auto-add team emails
       roleBasedRecipients: [], // No longer using roles
       customEmails: customEmails,
     };
     onChange(updatedConfig);
-  }, [teamEmails, customEmails]);
+  }, [customEmails]);
 
   const handleAddCustomEmail = () => {
     const email = customEmailInput.trim();
@@ -107,14 +108,14 @@ export function EmailNotificationConfigComponent({ config, onChange, teamName, t
               <Label className="text-xs text-muted-foreground">Team Email Addresses</Label>
               <select 
                 className="w-full p-2 border border-gray-300 rounded-md"
+                value={selectedDropdownValue}
                 onChange={(e) => {
                   const email = e.target.value;
                   if (email && !customEmails.includes(email)) {
                     setCustomEmails([...customEmails, email]);
-                    e.target.value = ''; // Reset selection
                   }
+                  setSelectedDropdownValue(''); // Reset selection
                 }}
-                defaultValue=""
               >
                 <option value="" disabled>Select a team member email</option>
                 {teamEmails.map((email, index) => (
@@ -126,19 +127,25 @@ export function EmailNotificationConfigComponent({ config, onChange, teamName, t
             </div>
           )}
           
-          {/* Display current team members */}
+          {/* Display selected emails */}
           <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">
-              {teamEmails.length > 0 ? 'Current team members' : 'Team members'}
-            </Label>
+            <Label className="text-xs text-muted-foreground">Selected emails</Label>
             <div className="flex flex-wrap gap-2">
-              {config.defaultRecipients?.map((email, index) => (
+              {customEmails.map((email, index) => (
                 <Badge key={index} variant="secondary" className="text-xs">
                   {email}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-auto p-0 ml-1"
+                    onClick={() => handleRemoveCustomEmail(email)}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
                 </Badge>
               ))}
-              {(!config.defaultRecipients || config.defaultRecipients.length === 0) && (
-                <p className="text-sm text-muted-foreground">No team members found</p>
+              {customEmails.length === 0 && (
+                <p className="text-sm text-muted-foreground">No emails selected. Use the dropdown above to select team member emails.</p>
               )}
             </div>
           </div>
