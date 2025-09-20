@@ -3,7 +3,7 @@
  * Supports default recipients and custom emails
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { X, Plus, Users, Mail } from 'lucide-react';
 import { EmailNotificationConfig, SystemUser } from '@/lib/notifications/types';
 import { validateEmail } from '@/lib/notifications/types';
-import { getUsersFromCache, getCachedUsers, getTeamMemberEmails } from '@/lib/notifications/cacheUtils';
+import { useQuery } from '@tanstack/react-query';
 
 interface EmailConfigProps {
   config: EmailNotificationConfig;
@@ -23,69 +23,41 @@ interface EmailConfigProps {
 }
 
 export function EmailNotificationConfigComponent({ config, onChange, teamName, teamEmails = [] }: EmailConfigProps) {
-  const [users, setUsers] = useState<SystemUser[]>([]);
+  // Use React Query for data fetching - this replaces localStorage cache
+  const { data: users = [], isLoading: usersLoading } = useQuery<SystemUser[]>({ queryKey: ['/api/users'] });
+  const { data: allTeamsData = [], isLoading: teamsLoading } = useQuery<any[]>({ queryKey: ['/api/teams'] });
+  
   const [customEmailInput, setCustomEmailInput] = useState('');
   const [customEmails, setCustomEmails] = useState<string[]>(config?.customEmails || []);
   const [selectedTeamEmails, setSelectedTeamEmails] = useState<string[]>([]);
   const [selectedOtherEmails, setSelectedOtherEmails] = useState<string[]>([]);
   const [emailError, setEmailError] = useState('');
   const [selectedDropdownValue, setSelectedDropdownValue] = useState('');
-  const [allTeamsData, setAllTeamsData] = useState<any[]>([]);
-  const [otherTeamEmails, setOtherTeamEmails] = useState<string[]>([]);
-
-  useEffect(() => {
-    // Load cached data, fetch if empty
-    const loadUsers = async () => {
-      let cachedUsers = getUsersFromCache();
-      if (cachedUsers.length === 0) {
-        // Cache is empty (after restart), fetch fresh data
-        cachedUsers = await getCachedUsers();
+  
+  // Compute other team emails from React Query data
+  const otherTeamEmails = useMemo(() => {
+    const allOtherEmails: string[] = [];
+    
+    // Add ALL team emails from OTHER teams
+    allTeamsData.forEach((team: any) => {
+      if (team.name !== teamName && team.team_email) {
+        allOtherEmails.push(...team.team_email);
       }
-      setUsers(cachedUsers);
-    };
-    loadUsers();
-  }, []);
-
-  // Fetch all teams data and get ALL other emails
-  useEffect(() => {
-    const fetchAllTeams = async () => {
-      try {
-        const response = await fetch('/api/teams');
-        if (response.ok) {
-          const teams = await response.json();
-          setAllTeamsData(teams);
-          
-          // Get ALL emails from system
-          const allOtherEmails: string[] = [];
-          
-          // Add ALL team emails from OTHER teams
-          teams.forEach((team: any) => {
-            if (team.name !== teamName && team.team_email) {
-              allOtherEmails.push(...team.team_email);
-            }
-          });
-          
-          // Add ALL user emails from the cached users data
-          users.forEach((user: any) => {
-            if (user.email && !teamEmails.includes(user.email)) {
-              allOtherEmails.push(user.email);
-            }
-          });
-          
-          // Remove duplicates 
-          const uniqueEmails = Array.from(new Set(allOtherEmails));
-          setOtherTeamEmails(uniqueEmails);
-        }
-      } catch (error) {
-        console.error('Error fetching teams data:', error);
+    });
+    
+    // Add ALL user emails not in current team
+    users.forEach((user: SystemUser) => {
+      if (user.email && !teamEmails.includes(user.email)) {
+        allOtherEmails.push(user.email);
       }
-    };
+    });
+    
+    // Remove duplicates
+    return Array.from(new Set(allOtherEmails));
+  }, [allTeamsData, users, teamName, teamEmails]);
 
-    // Only fetch if users are loaded
-    if (users.length > 0) {
-      fetchAllTeams();
-    }
-  }, [teamName, teamEmails, users]);
+  // Loading state
+  const isLoading = usersLoading || teamsLoading;
 
   useEffect(() => {
     // Update config with all selected emails
@@ -204,7 +176,9 @@ export function EmailNotificationConfigComponent({ config, onChange, teamName, t
         </CardHeader>
         <CardContent className="space-y-3">
           {/* Other Team Emails and System Users - Multi-Select with Slider */}
-          {(otherTeamEmails.length > 0 || users.length > 0) && (
+          {isLoading ? (
+            <div className="text-sm text-muted-foreground">Loading additional recipients...</div>
+          ) : (otherTeamEmails.length > 0 || users.length > 0) && (
             <div className="space-y-2">
               <Label className="text-xs text-muted-foreground">Other Team & System User Emails</Label>
               <div className="border border-gray-300 rounded-md p-2 max-h-48 overflow-y-auto bg-white">

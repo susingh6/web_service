@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { cacheKeys, invalidateEntityCaches } from '@/lib/cacheKeys';
+import { queryClient } from '@/lib/queryClient';
 
 // Utility to detect optimistic vs real IDs
 const isOptimisticId = (id: number): boolean => {
@@ -649,10 +650,10 @@ export function useTeamMemberMutation() {
         }
         const result = await response.json();
         
-        // CRITICAL: Clear localStorage cache for notification system 
+        // CRITICAL: Invalidate React Query cache for notification system 
         // This ensures EmailNotificationConfig shows updated team members immediately
-        localStorage.removeItem('notification_users');
-        localStorage.removeItem('notification_users_time');
+        queryClient.invalidateQueries({ queryKey: ['/api/users'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
         
         return result;
       },
@@ -703,10 +704,10 @@ export function useTeamMemberMutation() {
         }
         const result = await response.json();
         
-        // CRITICAL: Clear localStorage cache for notification system 
+        // CRITICAL: Invalidate React Query cache for notification system 
         // This ensures EmailNotificationConfig shows updated team members immediately
-        localStorage.removeItem('notification_users');
-        localStorage.removeItem('notification_users_time');
+        queryClient.invalidateQueries({ queryKey: ['/api/users'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
         
         return result;
       },
