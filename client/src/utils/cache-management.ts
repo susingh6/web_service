@@ -265,6 +265,7 @@ export const INVALIDATION_SCENARIOS = {
     ['team-members', teamName],
     ...CACHE_PATTERNS.TEAMS.DETAILS(teamName),
     ...CACHE_PATTERNS.TEAMS.LIST,
+    ...CACHE_PATTERNS.USERS.ALL, // CRITICAL: Invalidate user cache so notification timeline sees team changes
   ],
   
   TEAM_MEMBER_REMOVED: (teamName: string) => [
@@ -272,6 +273,7 @@ export const INVALIDATION_SCENARIOS = {
     ['team-members', teamName],
     ...CACHE_PATTERNS.TEAMS.DETAILS(teamName),
     ...CACHE_PATTERNS.TEAMS.LIST,
+    ...CACHE_PATTERNS.USERS.ALL, // CRITICAL: Invalidate user cache so notification timeline sees team changes  
   ],
   
   // Entity-type-specific cache invalidation (targeted approach)
