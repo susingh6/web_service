@@ -610,7 +610,16 @@ const EntityTable = ({
                       <TableCell align="center" onClick={(e) => e.stopPropagation()} sx={{ width: '120px' }}>
                         <Box display="flex" justifyContent="center">
                           <Tooltip title="Edit">
-                            <IconButton size="small" color="primary" onClick={() => onEditEntity(entity)}>
+                            <IconButton size="small" color="primary" onClick={() => {
+                              console.log('[DEBUG] Edit button clicked for entity:', {
+                                id: entity.id,
+                                name: entity.name,
+                                type: entity.type,
+                                is_entity_owner: entity.is_entity_owner,
+                                entity
+                              });
+                              onEditEntity(entity);
+                            }}>
                               <Edit fontSize="small" />
                             </IconButton>
                           </Tooltip>

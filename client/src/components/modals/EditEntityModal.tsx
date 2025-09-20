@@ -128,6 +128,18 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
   const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   
+  // Debug logging for props changes
+  useEffect(() => {
+    console.log('[DEBUG] EditEntityModal props changed:', {
+      open,
+      entityId: entity?.id,
+      entityName: entity?.name,
+      entityType: entity?.type,
+      isEntityOwner: entity?.is_entity_owner,
+      hasEntity: !!entity
+    });
+  }, [open, entity]);
+  
   // Determine entity type from the entity
   const entityType: EntityType = entity?.type === 'dag' ? 'dag' : 'table';
   
