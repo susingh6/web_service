@@ -1,9 +1,64 @@
 import { useState } from 'react';
-import { AppBar, Toolbar, Typography, IconButton, Badge, Avatar, Menu, MenuItem, Box, useTheme } from '@mui/material';
-import { Notifications as NotificationsIcon, AccountCircle, ArrowDropDown, Person as PersonIcon } from '@mui/icons-material';
+import { AppBar, Toolbar, Typography, IconButton, Badge, Avatar, Menu, MenuItem, Box, useTheme, CircularProgress, Chip } from '@mui/material';
+import { Notifications as NotificationsIcon, AccountCircle, ArrowDropDown, Person as PersonIcon, Warning as WarningIcon, Info as InfoIcon, Build as BuildIcon, Computer as ComputerIcon } from '@mui/icons-material';
 import { useAuth } from '@/hooks/use-auth';
 import { useLocation } from 'wouter';
 import { AccountInfo } from '@azure/msal-browser';
+import { useQuery } from '@tanstack/react-query';
+import { buildUrl } from '@/config';
+
+interface Alert {
+  id: number;
+  title: string;
+  message: string;
+  alertType: 'info' | 'warning' | 'maintenance' | 'system';
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  dateKey: string;
+  isActive: boolean;
+  expiresAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const AlertTypeIcons = {
+  info: InfoIcon,
+  warning: WarningIcon,
+  maintenance: BuildIcon,
+  system: ComputerIcon,
+};
+
+const getSeverityColor = (severity: string) => {
+  switch (severity) {
+    case 'critical': return 'error';
+    case 'high': return 'error';
+    case 'medium': return 'warning';
+    case 'low': return 'info';
+    default: return 'default';
+  }
+};
+
+const getAlertTypeColor = (type: string) => {
+  switch (type) {
+    case 'warning': return 'warning';
+    case 'maintenance': return 'info';
+    case 'system': return 'error';
+    case 'info': return 'success';
+    default: return 'default';
+  }
+};
+
+const formatTimeAgo = (date: Date) => {
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMinutes = Math.floor(diffMs / (1000 * 60));
+  const diffHours = Math.floor(diffMinutes / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffMinutes < 1) return 'Just now';
+  if (diffMinutes < 60) return `${diffMinutes} minute${diffMinutes > 1 ? 's' : ''} ago`;
+  if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+  return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+};
 
 const Header = () => {
   const theme = useTheme();
@@ -12,6 +67,30 @@ const Header = () => {
   
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [notificationsAnchor, setNotificationsAnchor] = useState<null | HTMLElement>(null);
+
+  // Fetch active alerts
+  const { data: alerts = [], isLoading: alertsLoading } = useQuery<Alert[]>({
+    queryKey: ['notifications', 'alerts'],
+    queryFn: async () => {
+      const response = await fetch(buildUrl('/api/v1/alerts'), {
+        headers: { 'Cache-Control': 'no-cache' }
+      });
+      if (!response.ok) throw new Error('Failed to fetch alerts');
+      const data = await response.json();
+      
+      // Filter only active alerts that haven't expired
+      const now = new Date();
+      return data.filter((alert: Alert) => 
+        alert.isActive && 
+        (!alert.expiresAt || new Date(alert.expiresAt) > now)
+      );
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    refetchInterval: 5 * 60 * 1000, // Refetch every 5 minutes
+  });
+
+  // Count of active alerts for badge
+  const alertCount = alerts.length;
   
   const handleUserMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
@@ -106,8 +185,9 @@ const Header = () => {
             sx={{ mr: 2 }}
             onClick={handleNotificationsOpen}
             aria-label="notifications"
+            data-testid="button-notifications"
           >
-            <Badge badgeContent={3} color="error">
+            <Badge badgeContent={alertCount > 0 ? alertCount : undefined} color="error">
               <NotificationsIcon />
             </Badge>
           </IconButton>
@@ -177,41 +257,76 @@ const Header = () => {
           onClose={handleNotificationsClose}
           transformOrigin={{ horizontal: 'right', vertical: 'top' }}
           anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
-          sx={{ maxWidth: 320 }}
+          sx={{ maxWidth: 380, maxHeight: 400 }}
+          data-testid="menu-notifications"
         >
-          <MenuItem onClick={handleNotificationsClose}>
-            <Box>
-              <Typography variant="subtitle2">SLA Compliance Alert</Typography>
-              <Typography variant="body2" color="text.secondary">
-                customer_data_dag missed 95% SLA target - currently at 87%
-              </Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                2 minutes ago
-              </Typography>
-            </Box>
-          </MenuItem>
-          <MenuItem onClick={handleNotificationsClose}>
-            <Box>
-              <Typography variant="subtitle2">Performance Warning</Typography>
-              <Typography variant="body2" color="text.secondary">
-                sales_summary table refresh time increased by 40%
-              </Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                15 minutes ago
-              </Typography>
-            </Box>
-          </MenuItem>
-          <MenuItem onClick={handleNotificationsClose}>
-            <Box>
-              <Typography variant="subtitle2">Entity Status Update</Typography>
-              <Typography variant="body2" color="text.secondary">
-                product_analytics_dag has been restored and passed SLA
-              </Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                1 hour ago
-              </Typography>
-            </Box>
-          </MenuItem>
+          {alertsLoading ? (
+            <MenuItem>
+              <Box display="flex" alignItems="center" gap={1} sx={{ py: 1 }}>
+                <CircularProgress size={16} />
+                <Typography variant="body2">Loading notifications...</Typography>
+              </Box>
+            </MenuItem>
+          ) : alerts.length === 0 ? (
+            <MenuItem onClick={handleNotificationsClose}>
+              <Box sx={{ py: 1 }}>
+                <Typography variant="body2" color="text.secondary">
+                  No active notifications
+                </Typography>
+              </Box>
+            </MenuItem>
+          ) : (
+            alerts.map((alert) => {
+              const IconComponent = AlertTypeIcons[alert.alertType];
+              return (
+                <MenuItem 
+                  key={alert.id} 
+                  onClick={handleNotificationsClose}
+                  data-testid={`notification-${alert.id}`}
+                  sx={{ maxWidth: 'none', whiteSpace: 'normal' }}
+                >
+                  <Box sx={{ width: '100%' }}>
+                    <Box display="flex" alignItems="flex-start" gap={1} mb={0.5}>
+                      <IconComponent 
+                        fontSize="small" 
+                        color={getAlertTypeColor(alert.alertType) as any}
+                        sx={{ mt: 0.25, flexShrink: 0 }}
+                      />
+                      <Box sx={{ flex: 1 }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                          {alert.title}
+                        </Typography>
+                        <Box display="flex" align="center" gap={1} mb={0.5}>
+                          <Chip 
+                            label={alert.alertType}
+                            size="small"
+                            color={getAlertTypeColor(alert.alertType) as any}
+                            sx={{ height: 20, fontSize: '0.7rem' }}
+                          />
+                          <Chip 
+                            label={alert.severity}
+                            size="small"
+                            color={getSeverityColor(alert.severity) as any}
+                            sx={{ height: 20, fontSize: '0.7rem' }}
+                          />
+                        </Box>
+                      </Box>
+                    </Box>
+                    <Typography variant="body2" color="text.secondary" sx={{ ml: 3 }}>
+                      {alert.message}
+                    </Typography>
+                    <Typography 
+                      variant="caption" 
+                      color="text.secondary" 
+                      sx={{ display: 'block', mt: 0.5, ml: 3 }}
+                    >
+                      {formatTimeAgo(new Date(alert.createdAt))}
+                    </Typography>
+                  </Box>
+                </MenuItem>
+              );
+            })
+          )}
         </Menu>
       </Toolbar>
     </AppBar>
