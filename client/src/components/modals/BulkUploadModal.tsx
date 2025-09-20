@@ -55,6 +55,7 @@ import { fetchWithCacheGeneric, getFromCacheGeneric } from '@/lib/cacheUtils';
 import { buildUrl, endpoints } from '@/config/index';
 import { apiRequest } from '@/lib/queryClient';
 import { fieldDefinitions } from '@/config/schemas';
+import { entityRequest } from '@/features/sla/api';
 import { useOptimisticMutation } from '@/utils/cache-management';
 import { invalidateEntityCaches, cacheKeys } from '@/lib/cacheKeys';
 import { useQueryClient } from '@tanstack/react-query';
@@ -597,20 +598,10 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
           
           console.log('Creating entity with formatted data:', entityWithType);
           
-          // Use type-specific endpoints like single entity creation should
-          const endpoint = entityType === 'table' ? config.endpoints.tables : config.endpoints.dags;
+          // Use type-specific endpoints with proper FastAPI/Express fallback
+          console.log(`⏳ Creating ${entityType} entity with fallback support...`);
           
-          // Call the type-specific API endpoint directly
-          const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-          const sessionId = localStorage.getItem('fastapi_session_id');
-          if (sessionId) headers['X-Session-ID'] = sessionId;
-          
-          const response = await fetch(endpoint, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify(entityWithType),
-            credentials: 'include',
-          });
+          const response = await entityRequest('POST', entityType, 'create', entityWithType);
           
           if (!response.ok) {
             const errorText = await response.text();
