@@ -86,17 +86,20 @@ export interface IStorage {
   
   // Alert operations for system-wide alerts
   getAlerts(dateKey?: string): Promise<Alert[]>;
-  getActiveAlerts(dateKey: string): Promise<Alert[]>;
+  getActiveAlerts(dateKey?: string): Promise<Alert[]>; // Make dateKey optional for system-wide alerts
   createAlert(alert: InsertAlert): Promise<Alert>;
   updateAlert(id: number, alert: Partial<Alert>): Promise<Alert | undefined>;
   deleteAlert(id: number): Promise<boolean>;
+  deactivateAlert(id: number): Promise<boolean>; // Add deactivate method
   
   // Admin broadcast message operations
   getAdminBroadcastMessages(dateKey?: string): Promise<AdminBroadcastMessage[]>;
-  getActiveAdminBroadcastMessages(dateKey: string): Promise<AdminBroadcastMessage[]>;
+  getActiveAdminBroadcastMessages(dateKey?: string): Promise<AdminBroadcastMessage[]>; // Make dateKey optional
+  getAdminBroadcastMessagesForUser(userId: number): Promise<AdminBroadcastMessage[]>; // Add user-specific method
   createAdminBroadcastMessage(message: InsertAdminBroadcastMessage): Promise<AdminBroadcastMessage>;
   updateAdminBroadcastMessage(id: number, message: Partial<AdminBroadcastMessage>): Promise<AdminBroadcastMessage | undefined>;
   deleteAdminBroadcastMessage(id: number): Promise<boolean>;
+  deactivateAdminBroadcastMessage(id: number): Promise<boolean>; // Add deactivate method
 }
 
 // In-memory storage implementation
@@ -1942,15 +1945,14 @@ export class MemStorage implements IStorage {
     return alerts;
   }
 
-  async getActiveAlerts(dateKey: string): Promise<Alert[]> {
+  async getActiveAlerts(dateKey?: string): Promise<Alert[]> {
     await this.ensureInitialized();
     
     const now = new Date();
-    return Array.from(this.alertsData.values()).filter(alert => 
-      alert.dateKey === dateKey && 
-      alert.isActive && 
-      (!alert.expiresAt || new Date(alert.expiresAt) > now)
-    );
+    return Array.from(this.alertsData.values()).filter(alert => {
+      if (dateKey && alert.dateKey !== dateKey) return false;
+      return alert.isActive && (!alert.expiresAt || new Date(alert.expiresAt) > now);
+    });
   }
 
   async createAlert(alert: InsertAlert): Promise<Alert> {
@@ -1998,6 +2000,24 @@ export class MemStorage implements IStorage {
     return exists;
   }
 
+  async deactivateAlert(id: number): Promise<boolean> {
+    await this.ensureInitialized();
+    
+    const alert = this.alertsData.get(id);
+    if (!alert) {
+      return false;
+    }
+
+    const deactivatedAlert: Alert = {
+      ...alert,
+      isActive: false,
+      updatedAt: new Date(),
+    };
+
+    this.alertsData.set(id, deactivatedAlert);
+    return true;
+  }
+
   // Admin broadcast message operations
   async getAdminBroadcastMessages(dateKey?: string): Promise<AdminBroadcastMessage[]> {
     await this.ensureInitialized();
@@ -2009,15 +2029,14 @@ export class MemStorage implements IStorage {
     return messages;
   }
 
-  async getActiveAdminBroadcastMessages(dateKey: string): Promise<AdminBroadcastMessage[]> {
+  async getActiveAdminBroadcastMessages(dateKey?: string): Promise<AdminBroadcastMessage[]> {
     await this.ensureInitialized();
     
     const now = new Date();
-    return Array.from(this.adminBroadcastMessagesData.values()).filter(message => 
-      message.dateKey === dateKey && 
-      message.isActive && 
-      (!message.expiresAt || new Date(message.expiresAt) > now)
-    );
+    return Array.from(this.adminBroadcastMessagesData.values()).filter(message => {
+      if (dateKey && message.dateKey !== dateKey) return false;
+      return message.isActive && (!message.expiresAt || new Date(message.expiresAt) > now);
+    });
   }
 
   async createAdminBroadcastMessage(message: InsertAdminBroadcastMessage): Promise<AdminBroadcastMessage> {
@@ -2063,6 +2082,41 @@ export class MemStorage implements IStorage {
       this.adminBroadcastMessagesData.delete(id);
     }
     return exists;
+  }
+
+  async getAdminBroadcastMessagesForUser(userId: number): Promise<AdminBroadcastMessage[]> {
+    await this.ensureInitialized();
+    
+    const now = new Date();
+    const today = new Date().toISOString().split('T')[0];
+    
+    return Array.from(this.adminBroadcastMessagesData.values()).filter(message => {
+      if (!message.isActive || (message.expiresAt && new Date(message.expiresAt) <= now)) {
+        return false;
+      }
+      
+      // Include login-triggered messages for today and all immediate messages
+      return (message.deliveryType === 'login_triggered' && message.dateKey === today) ||
+             message.deliveryType === 'immediate';
+    });
+  }
+
+  async deactivateAdminBroadcastMessage(id: number): Promise<boolean> {
+    await this.ensureInitialized();
+    
+    const message = this.adminBroadcastMessagesData.get(id);
+    if (!message) {
+      return false;
+    }
+
+    const deactivatedMessage: AdminBroadcastMessage = {
+      ...message,
+      isActive: false,
+      updatedAt: new Date(),
+    };
+
+    this.adminBroadcastMessagesData.set(id, deactivatedMessage);
+    return true;
   }
 }
 

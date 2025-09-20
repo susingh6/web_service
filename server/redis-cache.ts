@@ -43,7 +43,7 @@ interface SocketData {
 }
 
 // Cache keys
-const CACHE_KEYS = {
+export const CACHE_KEYS = {
   ENTITIES: 'sla:entities',
   TEAMS: 'sla:teams',
   TENANTS: 'sla:tenants',
@@ -54,7 +54,9 @@ const CACHE_KEYS = {
   RECENT_CHANGES: 'sla:recentChanges',
   CACHE_LOCK: 'sla:cache_lock',
   REFRESH_CHANNEL: 'sla:refresh',
-  CHANGES_CHANNEL: 'sla:changes'
+  CHANGES_CHANNEL: 'sla:changes',
+  ALERTS: 'sla:alerts',
+  ADMIN_MESSAGES: 'sla:adminMessages'
 };
 
 export class RedisCache {
@@ -102,6 +104,7 @@ export class RedisCache {
     // Subscribe to cache refresh notifications
     this.subscriber.subscribe(CACHE_KEYS.REFRESH_CHANNEL);
     this.subscriber.subscribe(CACHE_KEYS.CHANGES_CHANNEL);
+    this.subscriber.subscribe(CACHE_KEYS.ADMIN_MESSAGES);
 
     this.subscriber.on('message', (channel, message) => {
       if (channel === CACHE_KEYS.REFRESH_CHANNEL) {
@@ -111,6 +114,10 @@ export class RedisCache {
         // Entity change notification received - filtered broadcast
         const changeEvent: EntityChangeEvent = JSON.parse(message);
         this.enqueueCoalescedBroadcast(changeEvent);
+      } else if (channel === CACHE_KEYS.ADMIN_MESSAGES) {
+        // Admin message notification received - broadcast to all authenticated clients
+        const adminMessageEvent = JSON.parse(message);
+        this.broadcastAdminMessageToClients(adminMessageEvent);
       }
     });
   }
@@ -160,11 +167,8 @@ export class RedisCache {
 
       this.setupEventHandlers();
       
-      // Test the connection
-      await this.redis.connect();
-      await this.subscriber.connect();
-      
-      // Ping test
+      // Test the connection (ioredis auto-connects, no need for explicit connect())
+      // Ping test to verify connection
       await this.redis.ping();
       
       // Redis connection successful
@@ -528,6 +532,23 @@ export class RedisCache {
     this.wss.clients.forEach((client) => {
       if (client.readyState === 1) { // WebSocket.OPEN
         this.sendWithBackpressureProtection(client, message, `cache:${event}`);
+      }
+    });
+  }
+
+  // Broadcast admin message to all authenticated clients (for multi-instance support)
+  private broadcastAdminMessageToClients(adminMessageEvent: any): void {
+    if (!this.wss) return;
+
+    const message = JSON.stringify(adminMessageEvent);
+    
+    // Broadcast to all authenticated WebSocket clients
+    this.wss.clients.forEach((client: any) => {
+      if (client.readyState === 1) { // WebSocket.OPEN
+        const socketData = this.authenticatedSockets.get(client);
+        if (socketData) {
+          this.sendWithBackpressureProtection(client, message, `admin-message:broadcast`);
+        }
       }
     });
   }
@@ -2167,6 +2188,54 @@ export class RedisCache {
       
     } catch (error) {
       console.error('Error broadcasting rollback event:', error);
+      throw error;
+    }
+  }
+
+  // Broadcast admin message to all connected clients
+  async broadcastAdminMessage(messageData: {
+    id: number;
+    message: string;
+    deliveryType: 'immediate' | 'login_triggered';
+    createdAt: Date;
+    expiresAt: Date | null;
+  }): Promise<void> {
+    try {
+      if (!this.wss) return;
+
+      const broadcastData = {
+        event: 'admin-message',
+        data: {
+          id: messageData.id,
+          message: messageData.message,
+          deliveryType: messageData.deliveryType,
+          createdAt: messageData.createdAt.toISOString(),
+          expiresAt: messageData.expiresAt ? messageData.expiresAt.toISOString() : null,
+          timestamp: new Date().toISOString()
+        }
+      };
+
+      const message = JSON.stringify(broadcastData);
+      
+      // Broadcast to all authenticated WebSocket clients
+      this.wss.clients.forEach((client: any) => {
+        if (client.readyState === 1) { // WebSocket.OPEN
+          const socketData = this.authenticatedSockets.get(client);
+          if (socketData) {
+            this.sendWithBackpressureProtection(client, message, `admin-message:${messageData.id}`);
+          }
+        }
+      });
+
+      // Also publish to Redis channel for multi-instance deployments
+      if (this.useRedis && this.redis) {
+        await this.redis.publish(CACHE_KEYS.ADMIN_MESSAGES, JSON.stringify(broadcastData));
+      }
+
+      console.log(`Admin message broadcasted: ${messageData.message.substring(0, 50)}...`);
+      
+    } catch (error) {
+      console.error('Error broadcasting admin message:', error);
       throw error;
     }
   }

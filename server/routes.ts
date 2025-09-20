@@ -2,8 +2,8 @@ import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
-import { redisCache } from "./redis-cache";
-import { insertEntitySchema, insertTeamSchema, updateTeamSchema, insertEntityHistorySchema, insertIssueSchema, insertUserSchema, insertNotificationTimelineSchema, adminUserSchema, Entity, InsertNotificationTimeline, insertIncidentSchema } from "@shared/schema";
+import { redisCache, CACHE_KEYS } from "./redis-cache";
+import { insertEntitySchema, insertTeamSchema, updateTeamSchema, insertEntityHistorySchema, insertIssueSchema, insertUserSchema, insertNotificationTimelineSchema, adminUserSchema, Entity, InsertNotificationTimeline, insertIncidentSchema, insertAlertSchema, insertAdminBroadcastMessageSchema } from "@shared/schema";
 import { z } from "zod";
 import { logAuthenticationEvent, structuredLogger } from "./middleware/structured-logging";
 import { checkActiveUserForWrites, requireActiveUser } from "./middleware/check-active-user";
@@ -4266,6 +4266,340 @@ export async function registerRoutes(app: Express): Promise<Server> {
   process.on('SIGINT', () => {
     clearInterval(heartbeatInterval);
     clearInterval(cleanupInterval);
+  });
+
+  // Alert System API Routes
+  
+  // GET /api/alerts - Get system-wide alerts (Express) with 6-hour caching
+  app.get("/api/alerts", async (req: Request, res: Response) => {
+    try {
+      const cacheKey = CACHE_KEYS.ALERTS;
+      let alerts = await redisCache.get(cacheKey);
+      
+      if (!alerts) {
+        alerts = await storage.getActiveAlerts();
+        await redisCache.set(cacheKey, alerts, 6 * 60 * 60); // 6 hour cache
+      }
+
+      // Add HTTP caching headers with versioning to avoid 304 on stale data
+      const lastUpdatedRaw = await (redisCache as any).get ? await (redisCache as any).get(CACHE_KEYS.LAST_UPDATED) : null;
+      const lastUpdated = lastUpdatedRaw || new Date();
+      const version = Date.now();
+      res.set({
+        'ETag': `W/"alerts:${version}"`,
+        'Last-Modified': new Date(lastUpdated).toUTCString(),
+        'Cache-Control': 'no-cache'
+      });
+
+      res.json(alerts);
+    } catch (error) {
+      console.error('Error fetching alerts:', error);
+      res.status(500).json(createErrorResponse("Failed to fetch system alerts", "server_error"));
+    }
+  });
+
+  // GET /api/v1/alerts - FastAPI fallback for system-wide alerts with 6-hour caching
+  app.get("/api/v1/alerts", async (req: Request, res: Response) => {
+    try {
+      const cacheKey = CACHE_KEYS.ALERTS;
+      let alerts = await redisCache.get(cacheKey);
+      
+      if (!alerts) {
+        alerts = await storage.getActiveAlerts();
+        await redisCache.set(cacheKey, alerts, 6 * 60 * 60); // 6 hour cache
+      }
+
+      // Add HTTP caching headers with versioning to avoid 304 on stale data
+      const lastUpdatedRaw = await (redisCache as any).get ? await (redisCache as any).get(CACHE_KEYS.LAST_UPDATED) : null;
+      const lastUpdated = lastUpdatedRaw || new Date();
+      const version = Date.now();
+      res.set({
+        'ETag': `W/"alerts:${version}"`,
+        'Last-Modified': new Date(lastUpdated).toUTCString(),
+        'Cache-Control': 'no-cache'
+      });
+
+      res.json(alerts);
+    } catch (error) {
+      console.error('Error fetching alerts from FastAPI fallback:', error);
+      res.status(500).json(createErrorResponse("Failed to fetch system alerts from backup system", "fallback_error"));
+    }
+  });
+
+  // POST /api/alerts - Create new alert (Express, admin only)
+  app.post("/api/alerts", requireActiveUser, async (req: Request, res: Response) => {
+    try {
+      const result = insertAlertSchema.safeParse(req.body);
+      
+      if (!result.success) {
+        return res.status(400).json(createValidationErrorResponse(result.error));
+      }
+
+      const alert = await storage.createAlert(result.data);
+      
+      // Invalidate alert caches using consistent cache key patterns
+      await redisCache.invalidateCache({
+        keys: [CACHE_KEYS.ALERTS, 'system_alerts'],
+        patterns: ['alerts:*', 'alert_*'],
+        mainCacheKeys: ['ALERTS'],
+        refreshAffectedData: true
+      });
+
+      res.status(201).json(alert);
+    } catch (error) {
+      console.error('Error creating alert:', error);
+      res.status(500).json(createErrorResponse("Failed to create alert", "server_error"));
+    }
+  });
+
+  // POST /api/v1/alerts - FastAPI fallback for creating alerts (development only)
+  app.post("/api/v1/alerts", requireActiveUser, async (req: Request, res: Response) => {
+    try {
+      const result = insertAlertSchema.safeParse(req.body);
+      
+      if (!result.success) {
+        return res.status(400).json(createValidationErrorResponse(result.error));
+      }
+
+      const alert = await storage.createAlert(result.data);
+      
+      // Invalidate alert caches using consistent cache key patterns
+      await redisCache.invalidateCache({
+        keys: [CACHE_KEYS.ALERTS, 'system_alerts'],
+        patterns: ['alerts:*', 'alert_*'],
+        mainCacheKeys: ['ALERTS'],
+        refreshAffectedData: true
+      });
+
+      res.status(201).json(alert);
+    } catch (error) {
+      console.error('Error creating alert from FastAPI fallback:', error);
+      res.status(500).json(createErrorResponse("Failed to create alert from backup system", "fallback_error"));
+    }
+  });
+
+  // DELETE /api/alerts/:id - Deactivate alert (Express, admin only)
+  app.delete("/api/alerts/:id", requireActiveUser, async (req: Request, res: Response) => {
+    try {
+      const alertId = parseInt(req.params.id);
+      if (isNaN(alertId)) {
+        return res.status(400).json(createErrorResponse("Invalid alert ID", "validation_error"));
+      }
+
+      await storage.deactivateAlert(alertId);
+      
+      // Invalidate alert caches using consistent cache key patterns
+      await redisCache.invalidateCache({
+        keys: [CACHE_KEYS.ALERTS, 'system_alerts'],
+        patterns: ['alerts:*', 'alert_*'],
+        mainCacheKeys: ['ALERTS'],
+        refreshAffectedData: true
+      });
+
+      res.json({ message: "Alert deactivated successfully" });
+    } catch (error) {
+      console.error('Error deactivating alert:', error);
+      res.status(500).json(createErrorResponse("Failed to deactivate alert", "server_error"));
+    }
+  });
+
+  // DELETE /api/v1/alerts/:id - FastAPI fallback for deactivating alerts (development only)
+  app.delete("/api/v1/alerts/:id", requireActiveUser, async (req: Request, res: Response) => {
+    try {
+      const alertId = parseInt(req.params.id);
+      if (isNaN(alertId)) {
+        return res.status(400).json(createErrorResponse("Invalid alert ID", "validation_error"));
+      }
+
+      await storage.deactivateAlert(alertId);
+      
+      // Invalidate alert caches using consistent cache key patterns
+      await redisCache.invalidateCache({
+        keys: [CACHE_KEYS.ALERTS, 'system_alerts'],
+        patterns: ['alerts:*', 'alert_*'],
+        mainCacheKeys: ['ALERTS'],
+        refreshAffectedData: true
+      });
+
+      res.json({ message: "Alert deactivated successfully" });
+    } catch (error) {
+      console.error('Error deactivating alert from FastAPI fallback:', error);
+      res.status(500).json(createErrorResponse("Failed to deactivate alert from backup system", "fallback_error"));
+    }
+  });
+
+  // Admin Broadcast Message API Routes
+
+  // GET /api/admin/broadcast-messages - Get admin broadcast messages (Express)
+  app.get("/api/admin/broadcast-messages", async (req: Request, res: Response) => {
+    try {
+      const { user_id } = req.query;
+      
+      if (user_id) {
+        // Get messages for specific user (login-triggered + active immediate)
+        const userId = parseInt(user_id as string);
+        if (isNaN(userId)) {
+          return res.status(400).json(createErrorResponse("Invalid user ID", "validation_error"));
+        }
+        const messages = await storage.getAdminBroadcastMessagesForUser(userId);
+        res.json(messages);
+      } else {
+        // Get all active admin broadcast messages
+        const messages = await storage.getActiveAdminBroadcastMessages();
+        res.json(messages);
+      }
+    } catch (error) {
+      console.error('Error fetching admin broadcast messages:', error);
+      res.status(500).json(createErrorResponse("Failed to fetch admin broadcast messages", "server_error"));
+    }
+  });
+
+  // GET /api/v1/admin/broadcast-messages - FastAPI fallback for admin broadcast messages
+  app.get("/api/v1/admin/broadcast-messages", async (req: Request, res: Response) => {
+    try {
+      const { user_id } = req.query;
+      
+      if (user_id) {
+        // Get messages for specific user (login-triggered + active immediate)
+        const userId = parseInt(user_id as string);
+        if (isNaN(userId)) {
+          return res.status(400).json(createErrorResponse("Invalid user ID", "validation_error"));
+        }
+        const messages = await storage.getAdminBroadcastMessagesForUser(userId);
+        res.json(messages);
+      } else {
+        // Get all active admin broadcast messages
+        const messages = await storage.getActiveAdminBroadcastMessages();
+        res.json(messages);
+      }
+    } catch (error) {
+      console.error('Error fetching admin broadcast messages from FastAPI fallback:', error);
+      res.status(500).json(createErrorResponse("Failed to fetch admin broadcast messages from backup system", "fallback_error"));
+    }
+  });
+
+  // POST /api/admin/broadcast-messages - Create new admin broadcast message (Express, admin only)
+  app.post("/api/admin/broadcast-messages", requireActiveUser, async (req: Request, res: Response) => {
+    try {
+      const result = insertAdminBroadcastMessageSchema.safeParse(req.body);
+      
+      if (!result.success) {
+        return res.status(400).json(createValidationErrorResponse(result.error));
+      }
+
+      const message = await storage.createAdminBroadcastMessage(result.data);
+      
+      // Invalidate admin message caches and broadcast real-time updates  
+      await redisCache.invalidateCache({
+        keys: [CACHE_KEYS.ADMIN_MESSAGES, 'admin_broadcast_messages'],
+        patterns: ['admin_messages:*', 'admin_*'],
+        mainCacheKeys: ['ADMIN_MESSAGES'],
+        refreshAffectedData: true
+      });
+
+      // Broadcast immediate message to all connected clients if it's immediate delivery
+      if (result.data.deliveryType === 'immediate') {
+        await redisCache.broadcastAdminMessage({
+          id: message.id,
+          message: message.message,
+          deliveryType: message.deliveryType as 'immediate' | 'login_triggered',
+          createdAt: message.createdAt,
+          expiresAt: message.expiresAt
+        });
+      }
+
+      res.status(201).json(message);
+    } catch (error) {
+      console.error('Error creating admin broadcast message:', error);
+      res.status(500).json(createErrorResponse("Failed to create admin broadcast message", "server_error"));
+    }
+  });
+
+  // POST /api/v1/admin/broadcast-messages - FastAPI fallback for creating admin broadcast messages (development only)
+  app.post("/api/v1/admin/broadcast-messages", requireActiveUser, async (req: Request, res: Response) => {
+    try {
+      const result = insertAdminBroadcastMessageSchema.safeParse(req.body);
+      
+      if (!result.success) {
+        return res.status(400).json(createValidationErrorResponse(result.error));
+      }
+
+      const message = await storage.createAdminBroadcastMessage(result.data);
+      
+      // Invalidate admin message caches and broadcast real-time updates  
+      await redisCache.invalidateCache({
+        keys: [CACHE_KEYS.ADMIN_MESSAGES, 'admin_broadcast_messages'],
+        patterns: ['admin_messages:*', 'admin_*'],
+        mainCacheKeys: ['ADMIN_MESSAGES'],
+        refreshAffectedData: true
+      });
+
+      // Broadcast immediate message to all connected clients if it's immediate delivery
+      if (result.data.deliveryType === 'immediate') {
+        await redisCache.broadcastAdminMessage({
+          id: message.id,
+          message: message.message,
+          deliveryType: message.deliveryType as 'immediate' | 'login_triggered',
+          createdAt: message.createdAt,
+          expiresAt: message.expiresAt
+        });
+      }
+
+      res.status(201).json(message);
+    } catch (error) {
+      console.error('Error creating admin broadcast message from FastAPI fallback:', error);
+      res.status(500).json(createErrorResponse("Failed to create admin broadcast message from backup system", "fallback_error"));
+    }
+  });
+
+  // DELETE /api/admin/broadcast-messages/:id - Deactivate admin broadcast message (Express, admin only)
+  app.delete("/api/admin/broadcast-messages/:id", requireActiveUser, async (req: Request, res: Response) => {
+    try {
+      const messageId = parseInt(req.params.id);
+      if (isNaN(messageId)) {
+        return res.status(400).json(createErrorResponse("Invalid message ID", "validation_error"));
+      }
+
+      await storage.deactivateAdminBroadcastMessage(messageId);
+      
+      // Invalidate admin message caches
+      await redisCache.invalidateCache({
+        keys: [CACHE_KEYS.ADMIN_MESSAGES, 'admin_broadcast_messages'],
+        patterns: ['admin_messages:*', 'admin_*'],
+        mainCacheKeys: ['ADMIN_MESSAGES'],
+        refreshAffectedData: true
+      });
+
+      res.json({ message: "Admin broadcast message deactivated successfully" });
+    } catch (error) {
+      console.error('Error deactivating admin broadcast message:', error);
+      res.status(500).json(createErrorResponse("Failed to deactivate admin broadcast message", "server_error"));
+    }
+  });
+
+  // DELETE /api/v1/admin/broadcast-messages/:id - FastAPI fallback for deactivating admin broadcast messages (development only)
+  app.delete("/api/v1/admin/broadcast-messages/:id", requireActiveUser, async (req: Request, res: Response) => {
+    try {
+      const messageId = parseInt(req.params.id);
+      if (isNaN(messageId)) {
+        return res.status(400).json(createErrorResponse("Invalid message ID", "validation_error"));
+      }
+
+      await storage.deactivateAdminBroadcastMessage(messageId);
+      
+      // Invalidate admin message caches
+      await redisCache.invalidateCache({
+        keys: [CACHE_KEYS.ADMIN_MESSAGES, 'admin_broadcast_messages'],
+        patterns: ['admin_messages:*', 'admin_*'],
+        mainCacheKeys: ['ADMIN_MESSAGES'],
+        refreshAffectedData: true
+      });
+
+      res.json({ message: "Admin broadcast message deactivated successfully" });
+    } catch (error) {
+      console.error('Error deactivating admin broadcast message from FastAPI fallback:', error);
+      res.status(500).json(createErrorResponse("Failed to deactivate admin broadcast message from backup system", "fallback_error"));
+    }
   });
 
   // Connect WebSocket to cache system with authenticated sockets
