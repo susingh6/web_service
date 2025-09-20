@@ -74,8 +74,8 @@ interface AdminBroadcastMessage {
 interface AlertFormData {
   title: string;
   message: string;
-  alertType: 'info' | 'warning' | 'maintenance' | 'system';
-  severity: 'low' | 'medium' | 'high';
+  alertType: 'system' | 'maintenance' | 'warning' | 'info';
+  severity: 'low' | 'medium' | 'high' | 'critical';
   expiresInHours: number;
 }
 
@@ -94,6 +94,7 @@ const AlertTypeIcons = {
 
 const getSeverityColor = (severity: string) => {
   switch (severity) {
+    case 'critical': return 'error';
     case 'high': return 'error';
     case 'medium': return 'warning';
     case 'low': return 'info';
@@ -593,6 +594,7 @@ const NotificationsManagement = () => {
                       <MenuItem value="low">Low</MenuItem>
                       <MenuItem value="medium">Medium</MenuItem>
                       <MenuItem value="high">High</MenuItem>
+                      <MenuItem value="critical">Critical</MenuItem>
                     </Select>
                   </FormControl>
                 )}
