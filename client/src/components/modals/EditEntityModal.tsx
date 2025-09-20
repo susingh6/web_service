@@ -344,6 +344,10 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
   }, [entityDetails, reset, open, entityType, isLoadingEntityDetails, isLockedContext, initialTenantName, initialTeamName]);
 
   const onSubmit = async (data: any) => {
+    console.log('🔥 FORM SUBMIT ATTEMPT:', { entity: entity?.name, isOwner: entity?.is_entity_owner, data });
+    console.log('🔥 FORM ERRORS:', errors);
+    console.log('🔥 FORM STATE:', { isSubmitting, isValid: Object.keys(errors).length === 0 });
+    
     if (!entity) return;
 
     try {
