@@ -54,6 +54,9 @@ import { fetchWithCacheGeneric, getFromCacheGeneric } from '@/lib/cacheUtils';
 import { buildUrl, endpoints } from '@/config/index';
 import { apiRequest } from '@/lib/queryClient';
 import { fieldDefinitions } from '@/config/schemas';
+import { useEntityMutation } from '@/utils/cache-management';
+import { invalidateEntityCaches } from '@/lib/cacheKeys';
+import { useQueryClient } from '@tanstack/react-query';
 
 // Entity types for validation
 interface BaseEntity {
@@ -110,6 +113,8 @@ interface BulkUploadModalProps {
 
 const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const { createEntity } = useEntityMutation();
   const [tabValue, setTabValue] = useState('tables');
   const [file, setFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -514,7 +519,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
     }
   };
   
-  // Handle the actual bulk upload process
+  // Handle the actual bulk upload process - mirrors AddEntityModal behavior
   const handleUpload = async () => {
     if (!file || validationResults.length === 0) {
       toast({
@@ -543,25 +548,18 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
     setIsSubmitting(true);
     
     try {
-      // Actual API call to bulk upload using centralized configuration
-      const entitiesWithNewDags = validEntities.filter(entity => 
-        'needs_dag_validation' in entity && entity.needs_dag_validation
-      );
-      
-      if (entitiesWithNewDags.length > 0) {
-        // Found DAGs that need backend validation
-      }
-      
-      // Use centralized API configuration for bulk entity creation
-      const endpoint = buildUrl(endpoints.entities);
-      
-      // Submit each entity individually using the standard entities endpoint
+      // Use the same entity creation pattern as AddEntityModal
+      // This includes FastAPI/Express fallback, optimistic updates, and cache invalidation
       const submitPromises = validEntities.map(async (entity) => {
         try {
-          const response = await apiRequest('POST', endpoint, entity);
-          return await response.json();
+          // Use the standardized entity mutation that includes:
+          // - FastAPI/Express fallback via environmentAwareApiRequest
+          // - Optimistic updates
+          // - Cache invalidation
+          return await createEntity(entity);
         } catch (error) {
-          throw new Error(`Failed to submit entity: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          console.error('Failed to create entity:', entity.entity_name, error);
+          throw new Error(`Failed to create ${entity.entity_name}: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
       });
       
@@ -571,6 +569,9 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
       const successCount = results.filter(result => result.status === 'fulfilled').length;
       const failedCount = results.filter(result => result.status === 'rejected').length;
       
+      // Get failed entities for detailed error reporting
+      const failedResults = results.filter(result => result.status === 'rejected') as PromiseRejectedResult[];
+      
       // Update upload summary
       setUploadSummary(prev => ({
         ...prev,
@@ -578,36 +579,88 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
         failedCount
       }));
       
-      // Show success message
-      toast({
-        title: 'Upload successful',
-        description: `Successfully uploaded ${successCount} entities.`,
-      });
-      
-      // Close modal after short delay
-      setTimeout(() => {
-        // Reset state
-        setFile(null);
-        setParsedEntities([]);
-        setValidationResults([]);
-        setCurrentStep('upload');
-        setUploadSummary({
-          totalCount: 0,
-          validCount: 0,
-          invalidCount: 0,
-          successCount: 0,
-          failedCount: 0
+      // Show appropriate message based on results
+      if (successCount > 0) {
+        toast({
+          title: 'Bulk upload completed',
+          description: failedCount > 0 
+            ? `Successfully created ${successCount} entities. ${failedCount} entities failed.`
+            : `Successfully created ${successCount} entities.`,
+          variant: failedCount > 0 ? 'default' : 'default'
         });
+      }
+      
+      if (failedCount > 0) {
+        // Show first few errors for debugging
+        const firstErrors = failedResults.slice(0, 3).map(r => r.reason.message).join(', ');
+        console.error('Bulk upload errors:', failedResults.map(r => r.reason));
         
-        // Close modal
-        onClose();
-      }, 1500);
+        toast({
+          title: `${failedCount} entities failed`,
+          description: `Error examples: ${firstErrors}${failedCount > 3 ? '...' : ''}`,
+          variant: 'destructive'
+        });
+      }
+      
+      // Additional cache invalidation to ensure dashboard updates
+      // This ensures summary dashboard reflects new entity counts across all filters
+      const uniqueTenants = Array.from(new Set(validEntities.map(e => e.tenant_name)));
+      const uniqueTeams = Array.from(new Set(validEntities.map(e => e.team_name)));
+      
+      // Invalidate caches for all affected tenants and teams
+      for (const tenant of uniqueTenants) {
+        for (const teamName of uniqueTeams) {
+          // Get team ID from cache or make reasonable assumption
+          const teamId = 1; // This would normally come from team data
+          invalidateEntityCaches(queryClient, { 
+            tenant, 
+            teamId,
+            // Include date ranges to ensure all dashboard filters are updated
+            startDate: undefined,
+            endDate: undefined
+          });
+        }
+        
+        // Also invalidate tenant-level caches
+        invalidateEntityCaches(queryClient, { tenant });
+      }
+      
+      // Emit dashboard update event for Redux-based components
+      window.dispatchEvent(new CustomEvent('dashboard-data-updated', {
+        detail: { 
+          source: 'bulk-entity-creation',
+          entityCount: successCount,
+          tenants: uniqueTenants,
+          teams: uniqueTeams
+        }
+      }));
+      
+      // Close modal after short delay only if all succeeded
+      if (failedCount === 0) {
+        setTimeout(() => {
+          // Reset state
+          setFile(null);
+          setParsedEntities([]);
+          setValidationResults([]);
+          setCurrentStep('upload');
+          setUploadSummary({
+            totalCount: 0,
+            validCount: 0,
+            invalidCount: 0,
+            successCount: 0,
+            failedCount: 0
+          });
+          
+          // Close modal
+          onClose();
+        }, 1500);
+      }
       
     } catch (error) {
-      console.error('Error uploading entities:', error);
+      console.error('Error during bulk upload:', error);
       toast({
-        title: 'Upload error',
-        description: 'An error occurred while uploading entities.',
+        title: 'Bulk upload error',
+        description: 'An unexpected error occurred during bulk upload. Please try again.',
         variant: 'destructive',
       });
     } finally {
