@@ -27,13 +27,17 @@ interface ApiConfig {
     // Type-specific endpoints for tables and DAGs
     tables: string;
     tablesBulk: string;
+    tablesDelete: (entityName: string) => string;
     dags: string;
     dagsBulk: string;
+    dagsDelete: (entityName: string) => string;
     // Optional Express fallback endpoints (development only)
     tablesFallback?: string;
     tablesBulkFallback?: string;
+    tablesDeleteFallback?: (entityName: string) => string;
     dagsFallback?: string;
     dagsBulkFallback?: string;
+    dagsDeleteFallback?: (entityName: string) => string;
     teams: string;
     tenants: string;
     teamDetails: (teamName: string) => string;
@@ -42,7 +46,7 @@ interface ApiConfig {
       getAll: string;
       getTeamMembers: (teamName: string) => string;
     };
-    profile: {
+    profile?: {
       getCurrent: string;
       updateCurrent: string;
     };

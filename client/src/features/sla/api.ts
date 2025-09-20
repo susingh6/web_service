@@ -243,9 +243,32 @@ export const entitiesApi = {
     console.log('🌐 API UPDATE SUCCESS:', result);
     return normalizeEntity(result);
   },
-  delete: async (id: number) => {
-    const res = await environmentAwareApiRequest('DELETE', endpoints.entity.byId(id));
-    return res.ok;
+  delete: async (entityName: string, entityType: 'table' | 'dag') => {
+    // Use type-specific endpoints with FastAPI/Express fallback pattern like entity creation
+    const primaryEndpoint = entityType === 'table' ? 
+      endpoints.tablesDelete(entityName) : 
+      endpoints.dagsDelete(entityName);
+    
+    const fallbackEndpoint = entityType === 'table' ? 
+      endpoints.tablesDeleteFallback?.(entityName) : 
+      endpoints.dagsDeleteFallback?.(entityName);
+
+    console.log(`[ENTITY_REQUEST] DELETE ${entityType} (delete) - Primary: ${primaryEndpoint}, Fallback: ${fallbackEndpoint}`);
+
+    try {
+      console.log('[DEVELOPMENT] Trying FastAPI for entity deletion');
+      const res = await environmentAwareApiRequest('DELETE', primaryEndpoint);
+      return res.ok;
+    } catch (error) {
+      console.log(`[DEVELOPMENT] FastAPI failed (${error}), falling back to Express for entity deletion`);
+      
+      if (fallbackEndpoint) {
+        const res = await environmentAwareApiRequest('DELETE', fallbackEndpoint);
+        return res.ok;
+      } else {
+        throw error; // No fallback available, re-throw the original error
+      }
+    }
   },
 };
 
