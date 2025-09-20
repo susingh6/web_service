@@ -644,101 +644,6 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
 
               {entityType === 'dag' && (
                 <>
-              <Controller
-                name="entity_name"
-                control={control}
-                render={({ field: { onChange, value, onBlur, ref } }) => (
-                  <TextField
-                    value={value}
-                    onChange={onChange}
-                    onBlur={onBlur}
-                    ref={ref}
-                    label={fieldDefinitions.entity_name.label + " *"}
-                    required
-                    fullWidth
-                    margin="normal"
-                    error={!!errors.entity_name}
-                    helperText={errors.entity_name?.message}
-                    placeholder={fieldDefinitions.entity_name.placeholder}
-                  />
-                )}
-              />
-
-              <Controller
-                name="tenant_name"
-                control={control}
-                render={({ field: { onChange, value, onBlur, ref } }) => (
-                  <Autocomplete
-                    disabled={isLockedContext}
-                    value={value}
-                    onChange={(_, newValue) => {
-                      onChange(newValue);
-                    }}
-                    freeSolo={!isLockedContext}
-                    options={tenantOptions}
-                    loading={loadingTenants}
-                    renderInput={(params) => (
-                      <TextField
-                        {...params}
-                        label="Tenant Name *"
-                        required
-                        fullWidth
-                        margin="normal"
-                        error={!!errors.tenant_name}
-                        helperText={errors.tenant_name?.message}
-                        onBlur={onBlur}
-                        InputProps={{
-                          ...params.InputProps,
-                          endAdornment: (
-                            <>
-                              {loadingTenants ? <CircularProgress color="inherit" size={20} /> : null}
-                              {params.InputProps.endAdornment}
-                            </>
-                          ),
-                        }}
-                      />
-                    )}
-                  />
-                )}
-              />
-
-              <Controller
-                name="team_name"
-                control={control}
-                render={({ field: { onChange, value, onBlur, ref } }) => (
-                  <Autocomplete
-                    disabled={isLockedContext}
-                    value={value}
-                    onChange={(_, newValue) => {
-                      onChange(newValue);
-                    }}
-                    freeSolo={!isLockedContext}
-                    options={teamOptions}
-                    loading={loadingTeams}
-                    renderInput={(params) => (
-                      <TextField
-                        {...params}
-                        label={fieldDefinitions.team_name.label + " *"}
-                        required
-                        fullWidth
-                        margin="normal"
-                        error={!!errors.team_name}
-                        helperText={errors.team_name?.message}
-                        onBlur={onBlur}
-                        InputProps={{
-                          ...params.InputProps,
-                          endAdornment: (
-                            <>
-                              {loadingTeams ? <CircularProgress color="inherit" size={20} /> : null}
-                              {params.InputProps.endAdornment}
-                            </>
-                          ),
-                        }}
-                      />
-                    )}
-                  />
-                )}
-              />
 
               <Controller
                 name="dag_name"
@@ -793,6 +698,8 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
                   />
                 )}
               />
+                </>
+              )}
 
 
             </>
@@ -987,7 +894,9 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
                       />
                     )}
                   />
+                </>
               )}
+            </>
           )}
         </DialogContent>
 
