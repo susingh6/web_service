@@ -42,6 +42,7 @@ import {
 import { buildUrl, endpoints } from '@/config';
 import { apiRequest } from '@/lib/queryClient';
 import { useEntityMutation } from '@/utils/cache-management';
+import { entityRequest } from '@/features/sla/api';
 
 type EntityType = 'table' | 'dag';
 
@@ -267,21 +268,10 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
       
       console.log('📤 Final entity data to submit:', entityData);
       
-      // Use type-specific endpoints like bulk upload (consistent approach)
-      console.log('⏳ Calling type-specific API endpoint...');
-      const endpoint = entityType === 'table' ? endpoints.tables : endpoints.dags;
+      // Use type-specific endpoints with proper FastAPI/Express fallback
+      console.log('⏳ Calling type-specific API endpoint with fallback support...');
       
-      // Call the type-specific API endpoint directly
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      const sessionId = localStorage.getItem('fastapi_session_id');
-      if (sessionId) headers['X-Session-ID'] = sessionId;
-      
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(entityData),
-        credentials: 'include',
-      });
+      const response = await entityRequest('POST', entityType, 'create', entityData);
       
       if (!response.ok) {
         const errorText = await response.text();
