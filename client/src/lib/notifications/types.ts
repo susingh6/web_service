@@ -25,7 +25,6 @@ export interface SlackNotificationConfig extends BaseNotificationConfig {
 export interface PagerDutyNotificationConfig extends BaseNotificationConfig {
   type: 'pagerduty';
   serviceKey: string;
-  escalationPolicy?: string;
 }
 
 export type NotificationConfig = 
