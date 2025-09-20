@@ -555,10 +555,16 @@ const Summary = () => {
       }
 
       // Use centralized delete mutation with proper cache management
+      // Get the actual entity name for the delete operation
+      const entityName = selectedEntity.type === 'table' ? selectedEntity.table_name : selectedEntity.dag_name;
+      if (!entityName) {
+        throw new Error(`Missing ${selectedEntity.type} name for entity ${selectedEntity.name}`);
+      }
+      
       await deleteEntity(
-        selectedEntity.id, 
-        selectedEntity.teamId, 
+        entityName,
         selectedEntity.type as 'table' | 'dag',
+        selectedEntity.teamId, 
         selectedTenant?.name
       );
 

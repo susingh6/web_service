@@ -93,9 +93,9 @@ export const updateEntity = createAsyncThunk(
 
 export const deleteEntity = createAsyncThunk(
   'entities/deleteEntity',
-  async (id: number) => {
-    await entitiesApi.delete(id);
-    return id;
+  async ({ entity, type }: { entity: any; type: 'table' | 'dag' }) => {
+    await entitiesApi.deleteEntity({ type, entity });
+    return entity.id;
   }
 );
 

@@ -833,8 +833,8 @@ export function useEntityMutation() {
   // DELETE
   const deleteMutation = useMutation({
     mutationFn: async ({ entityName, entityType }: { entityName: string; entityType: 'table' | 'dag' }) => {
-      // Use the same API pattern as entitiesApi.delete with FastAPI/Express fallback
-      return await entitiesApi.delete(entityName, entityType);
+      // Use the new deleteEntity function with FastAPI/Express fallback
+      return await entitiesApi.deleteEntity({ type: entityType, entityName });
     },
     onMutate: async ({ entityName, entityType, tenant, teamId }: { entityName: string; entityType: 'table' | 'dag'; tenant?: string; teamId: number }) => {
       const effectiveTenant = tenant || 'Data Engineering';
