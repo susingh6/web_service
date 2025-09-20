@@ -125,24 +125,24 @@ const entitiesSlice = createSlice({
     upsertEntity: (state, action: PayloadAction<Entity>) => {
       const updatedEntity = action.payload;
       
-      // Update in main tenant list with deep copy
+      // Update in main tenant list with deep clone to prevent nested reference sharing
       const mainIndex = state.list.findIndex((entity: Entity) => entity.id === updatedEntity.id);
       if (mainIndex !== -1) {
-        state.list[mainIndex] = { ...updatedEntity };
+        state.list[mainIndex] = structuredClone(updatedEntity);
       }
       
-      // Update in all team lists where this entity exists with separate deep copies
+      // Update in all team lists where this entity exists with separate deep clones
       Object.keys(state.teamLists).forEach(teamIdStr => {
         const teamId = parseInt(teamIdStr);
         const teamIndex = state.teamLists[teamId].findIndex((entity: Entity) => entity.id === updatedEntity.id);
         if (teamIndex !== -1) {
-          state.teamLists[teamId][teamIndex] = { ...updatedEntity };
+          state.teamLists[teamId][teamIndex] = structuredClone(updatedEntity);
         }
       });
       
-      // Update selected entity if it matches with deep copy
+      // Update selected entity if it matches with deep clone
       if (state.selectedEntity && state.selectedEntity.id === updatedEntity.id) {
-        state.selectedEntity = { ...updatedEntity };
+        state.selectedEntity = structuredClone(updatedEntity);
       }
     },
   },
@@ -158,11 +158,11 @@ const entitiesSlice = createSlice({
         const { entities, isTeamSpecific, teamId } = action.payload;
         
         if (isTeamSpecific && teamId !== undefined) {
-          // Store team-specific entities in teamLists bucket
-          state.teamLists[teamId] = entities;
+          // Store team-specific entities in teamLists bucket - deep clone to prevent nested reference sharing
+          state.teamLists[teamId] = entities.map((e: Entity) => structuredClone(e));
         } else {
-          // Store tenant-wide entities in main list
-          state.list = entities;
+          // Store tenant-wide entities in main list - deep clone to prevent nested reference sharing
+          state.list = entities.map((e: Entity) => structuredClone(e));
         }
       })
       .addCase(fetchEntities.rejected, (state, action) => {
@@ -177,7 +177,8 @@ const entitiesSlice = createSlice({
       })
       .addCase(fetchEntity.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.selectedEntity = action.payload;
+        // Deep clone to prevent nested reference sharing with list entities
+        state.selectedEntity = structuredClone(action.payload);
       })
       .addCase(fetchEntity.rejected, (state, action) => {
         state.isLoading = false;
@@ -229,24 +230,24 @@ const entitiesSlice = createSlice({
         state.isLoading = false;
         const updatedEntity = action.payload;
         
-        // Use upsertEntity logic to prevent shared references
+        // Use deep cloning to prevent nested reference sharing
         const mainIndex = state.list.findIndex((entity: Entity) => entity.id === updatedEntity.id);
         if (mainIndex !== -1) {
-          state.list[mainIndex] = { ...updatedEntity };
+          state.list[mainIndex] = structuredClone(updatedEntity);
         }
         
-        // Update in all team lists where this entity exists with separate deep copies
+        // Update in all team lists where this entity exists with separate deep clones
         Object.keys(state.teamLists).forEach(teamIdStr => {
           const teamId = parseInt(teamIdStr);
           const teamIndex = state.teamLists[teamId].findIndex((entity: Entity) => entity.id === updatedEntity.id);
           if (teamIndex !== -1) {
-            state.teamLists[teamId][teamIndex] = { ...updatedEntity };
+            state.teamLists[teamId][teamIndex] = structuredClone(updatedEntity);
           }
         });
         
-        // Update selected entity if it matches with deep copy
+        // Update selected entity if it matches with deep clone
         if (state.selectedEntity && state.selectedEntity.id === updatedEntity.id) {
-          state.selectedEntity = { ...updatedEntity };
+          state.selectedEntity = structuredClone(updatedEntity);
         }
       })
       .addCase(updateEntity.rejected, (state, action) => {
