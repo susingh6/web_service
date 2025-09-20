@@ -13,6 +13,7 @@ import {
 import { Close as CloseIcon, Campaign as CampaignIcon } from '@mui/icons-material';
 import { useQuery } from '@tanstack/react-query';
 import { buildUrl } from '@/config';
+import { useAuth } from '@/hooks/use-auth';
 
 interface AdminBroadcastMessage {
   id: number;
@@ -27,10 +28,11 @@ interface AdminBroadcastMessage {
 }
 
 const BroadcastMessagePopup = () => {
+  const { isAuthenticated } = useAuth();
   const [currentMessage, setCurrentMessage] = useState<AdminBroadcastMessage | null>(null);
   const [seenMessages, setSeenMessages] = useState<Set<number>>(new Set());
 
-  // Fetch active broadcast messages
+  // Fetch active broadcast messages only when authenticated
   const { data: messages = [] } = useQuery<AdminBroadcastMessage[]>({
     queryKey: ['broadcast-messages'],
     queryFn: async () => {
@@ -49,6 +51,7 @@ const BroadcastMessagePopup = () => {
     },
     staleTime: 1 * 60 * 1000, // 1 minute
     refetchInterval: 1 * 60 * 1000, // Refetch every 1 minute
+    enabled: isAuthenticated, // Only fetch when authenticated
   });
 
   // Load seen messages from localStorage on mount
