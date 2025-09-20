@@ -268,17 +268,10 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
       
       console.log('📤 Final entity data to submit:', entityData);
       
-      // Use type-specific endpoints with proper FastAPI/Express fallback
-      console.log('⏳ Calling type-specific API endpoint with fallback support...');
+      // Use React Query mutation for proper cache invalidation
+      console.log('⏳ Creating entity with proper cache invalidation...');
       
-      const response = await entityRequest('POST', entityType, 'create', entityData);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to create ${entityType}: ${errorText}`);
-      }
-      
-      const result = await response.json();
+      const result = await createEntity(entityData);
       console.log('✅ Entity created successfully:', result);
       
       // Update local caches for dropdowns

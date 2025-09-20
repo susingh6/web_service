@@ -730,15 +730,10 @@ export function useEntityMutation() {
   // CREATE
   const createMutation = useMutation({
     mutationFn: async (entityData: any) => {
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      const sessionId = localStorage.getItem('fastapi_session_id');
-      if (sessionId) headers['X-Session-ID'] = sessionId;
-      const response = await fetch('/api/entities', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(entityData),
-        credentials: 'include',
-      });
+      const { entityRequest } = await import('@/features/sla/api');
+      const entityType = entityData.type as 'table' | 'dag';
+      const response = await entityRequest('POST', entityType, 'create', entityData);
+      
       if (!response.ok) {
         const text = (await response.text()) || response.statusText;
         // Try to parse as JSON to extract a specific error message

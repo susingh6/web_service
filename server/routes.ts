@@ -2119,6 +2119,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const result = insertEntitySchema.safeParse(entityData);
       if (!result.success) {
+        console.error('Entity validation failed:', result.error.format());
+        console.error('Entity data received:', JSON.stringify(entityData, null, 2));
         return res.status(400).json({ message: "Invalid table data", errors: result.error.format() });
       }
       

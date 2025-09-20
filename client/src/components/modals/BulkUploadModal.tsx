@@ -598,17 +598,10 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
           
           console.log('Creating entity with formatted data:', entityWithType);
           
-          // Use type-specific endpoints with proper FastAPI/Express fallback
-          console.log(`⏳ Creating ${entityType} entity with fallback support...`);
+          // Use React Query mutation for proper cache invalidation
+          console.log(`⏳ Creating ${entityType} entity with cache invalidation...`);
           
-          const response = await entityRequest('POST', entityType, 'create', entityWithType);
-          
-          if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`Failed to create ${entityType}: ${errorText}`);
-          }
-          
-          const createdEntity = await response.json();
+          const createdEntity = await createEntity(entityWithType);
           createdEntities.push(createdEntity);
           
           console.log('Successfully created entity:', createdEntity);
