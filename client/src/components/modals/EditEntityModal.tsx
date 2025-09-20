@@ -127,39 +127,39 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
   const { toast } = useToast();
   const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
-  
+
+
   // Determine entity type from the entity - use robust inference
   const entityType: EntityType = entity?.type === 'dag' ? 'dag' : 
     entity?.type === 'table' ? 'table' :
     (entity as any)?.dag_name ? 'dag' : 'table';
-  
+
   // State for dynamic options - initialize from cache for instant load
   const [tenantOptions, setTenantOptions] = useState<string[]>(() => getFromCacheGeneric<string[]>('tenants', ['Ad Engineering', 'Data Engineering']));
   const [teamOptions, setTeamOptions] = useState<string[]>(() => getFromCacheGeneric<string[]>('teams', ['PGM', 'Core', 'Viewer Product', 'IOT', 'CDM']));
   const [dagOptions, setDagOptions] = useState<string[]>(() => getFromCacheGeneric<string[]>('dags', ['agg_daily', 'agg_hourly', 'PGM_Freeview_Play_Agg_Daily', 'CHN_agg', 'CHN_billing']));
   const isLockedContext = Boolean(initialTeamName && initialTenantName);
-  
+
   // Loading states
   const [loadingTenants, setLoadingTenants] = useState(false);
   const [loadingTeams, setLoadingTeams] = useState(false);
   const [loadingDags, setLoadingDags] = useState(false);
-  
+
   // State for validation errors
   const [validationError, setValidationError] = useState<string | null>(null);
-  
+
   // Dynamic schema selection
   const schema = React.useMemo(() => 
     entityType === 'table' ? tableSchema : dagSchema, 
     [entityType]
   );
-  
+
   // Fetch entity details for pre-population using entity_name - remove fragile type gating
   const { data: entityDetails, isLoading: isLoadingEntityDetails } = useQuery({
     queryKey: ['entity-details-by-name', entity?.name, entity?.team_name, entityType],
     queryFn: async () => {
       if (!entity?.name || !entity?.team_name) return null;
-      
+
       try {
         // Use the new entity_name-based API call with inferred type
         const detailsData = await entitiesApi.readEntityByName({
@@ -168,29 +168,29 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
           teamName: entity.team_name,
           entity: entity
         });
-        
+
         console.debug('[EditEntityModal] Raw API response:', { 
           entityName: entity.name, 
           teamName: entity.team_name,
           entityType: entity.type,
           detailsData 
         });
-        
+
         // Normalize team_name from various possible API response formats
         const normalizedTeamName = detailsData.team_name || '';
-          
+
         const normalized = {
           ...detailsData,
           team_name: normalizedTeamName
         };
-        
+
         console.debug('[EditEntityModal] Normalized entity details:', { 
           entityName: entity.name, 
           originalTeamName: detailsData.team_name,
           normalizedTeamName,
           teamId: detailsData.teamId
         });
-        
+
         return normalized;
       } catch (error) {
         // Entity details API not available, using existing entity data
@@ -229,7 +229,7 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
     refetchOnMount: 'always',
     refetchOnWindowFocus: false,
   });
-  
+
   const tableForm = useForm({
     resolver: yupResolver(tableSchema),
     defaultValues: {
@@ -274,19 +274,19 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
 
   // Use type-safe form handling to avoid TypeScript union type issues
   const isTable = entityType === 'table';
-  
+
   // Use type assertion to handle form union types
   const control = (isTable ? tableForm.control : dagForm.control) as any;
   const handleSubmit = isTable ? tableForm.handleSubmit : dagForm.handleSubmit;
   const reset = isTable ? tableForm.reset : dagForm.reset;
   const watch = isTable ? tableForm.watch : dagForm.watch;
   const errors = (isTable ? tableForm.formState.errors : dagForm.formState.errors) as any;
-  
+
   // Reset form when entity details are loaded
   useEffect(() => {
     if (open && entityDetails && !isLoadingEntityDetails) {
       // Resetting form with entity details
-      
+
       // Map entity details to form fields
       const formData = entityType === 'table' ? {
         entity_name: entityDetails.name || '',
@@ -325,7 +325,7 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
       };
 
       reset(formData);
-      
+
       // Load cache data when modal opens
       if (isLockedContext) {
         setTenantOptions(initialTenantName ? [initialTenantName] : []);
@@ -342,14 +342,14 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
       reset();
     }
   }, [entityDetails, reset, open, entityType, isLoadingEntityDetails, isLockedContext, initialTenantName, initialTeamName]);
-  
+
   const onSubmit = async (data: any) => {
     if (!entity) return;
-    
+
     try {
       setIsSubmitting(true);
       setValidationError(null);
-      
+
       // Basic validation
       if (entityType === 'table') {
         if (!validateTenant(data.tenant_name)) {
@@ -366,14 +366,14 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
           return;
         }
       }
-      
+
       // Get user email from authentication context with proper type handling
       const userEmail = (user as any)?.email || (user as any)?.mail || (user as any)?.preferredUsername || '';
       if (!userEmail) {
         setValidationError('User email not found. Please log in again.');
         return;
       }
-      
+
       // Convert form data to entity format
       const entityData = {
         name: data.entity_name, // Use entity_name from form
@@ -383,18 +383,18 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
         user_email: userEmail, // Use authenticated user's email
         ...data,
       };
-      
+
       console.log('🚀 ENTITY UPDATE START:', { entityId: entity.id, entityData });
-      
+
       const result = await dispatch(
         updateEntity({
           id: entity.id,
           updates: entityData,
         })
       ).unwrap();
-      
+
       console.log('✅ ENTITY UPDATE SUCCESS:', result);
-      
+
       await invalidateEntityCaches(queryClient, {
         tenant: entity.tenant_name || undefined,
         teamId: entity.teamId,
@@ -402,25 +402,25 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
       });
       // Also invalidate entity-details keys to refresh any open detail views
       queryClient.invalidateQueries({ queryKey: ['entity-details', entity.id] });
-      
+
       // Force refresh Redux state first (so UI reflects change immediately)
       if (entity.teamId) {
         dispatch(fetchEntities({ teamId: entity.teamId }));
       }
       dispatch(fetchEntities({ tenant: entity.tenant_name || 'Data Engineering' }));
-      
+
       toast({
         title: 'Success',
         description: `${entity.name} has been updated successfully.`,
         variant: 'default',
       });
-      
+
       onClose();
     } catch (error) {
       console.error('❌ ENTITY UPDATE ERROR:', error);
       console.error('❌ ERROR TYPE:', typeof error);
       console.error('❌ ERROR DETAILS:', JSON.stringify(error, null, 2));
-      
+
       toast({
         title: 'Error',
         description: `Failed to update: ${error}`,
@@ -436,11 +436,11 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
     setValidationError(null);
     onClose();
   };
-  
+
   if (!entity) {
     return null;
   }
-  
+
   return (
     <Dialog 
       open={open} 
@@ -458,7 +458,7 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
           <CloseIcon />
         </IconButton>
       </DialogTitle>
-      
+
       <form onSubmit={handleSubmit(onSubmit)}>
         <DialogContent>
           <Box sx={{ mb: 2 }}>
@@ -469,13 +469,13 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
               Entity: {entity?.name} | Team: {entity?.team_name} | Owner: {entity?.is_entity_owner ? 'Yes' : 'No'}
             </Typography>
           </Box>
-          
+
           {validationError && (
             <Alert severity="error" sx={{ mb: 2 }}>
               {validationError}
             </Alert>
           )}
-          
+
           {isLoadingEntityDetails ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
               <CircularProgress />
@@ -513,7 +513,7 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
                         />
                       )}
                     />
-              
+
               <Controller
                 name="tenant_name"
                 control={control}
@@ -551,7 +551,7 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
                   />
                 )}
               />
-              
+
               <Controller
                 name="team_name"
                 control={control}
@@ -589,7 +589,7 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
                   />
                 )}
               />
-              
+
               <Controller
                 name="schema_name"
                 control={control}
@@ -605,7 +605,7 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
                   />
                 )}
               />
-              
+
               <Controller
                 name="table_name"
                 control={control}
@@ -621,7 +621,7 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
                   />
                 )}
               />
-              
+
               <Controller
                 name="table_description"
                 control={control}
@@ -638,8 +638,7 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
                   />
                 )}
               />
-                </>
-              )}
+
 
               {entityType === 'dag' && (
                 <>
@@ -662,7 +661,7 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
                   />
                 )}
               />
-              
+
               <Controller
                 name="tenant_name"
                 control={control}
@@ -700,7 +699,7 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
                   />
                 )}
               />
-              
+
               <Controller
                 name="team_name"
                 control={control}
@@ -738,7 +737,7 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
                   />
                 )}
               />
-              
+
               <Controller
                 name="dag_name"
                 control={control}
@@ -775,7 +774,7 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
                   />
                 )}
               />
-              
+
               <Controller
                 name="dag_description"
                 control={control}
@@ -792,11 +791,11 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
                   />
                 )}
               />
-              
+
 
             </>
           )}
-          
+
 
           {!entityDetails?.is_entity_owner && (
             <Controller
@@ -817,8 +816,8 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
               )}
             />
           )}
-          
-          
+
+
           <Controller
             name="is_active"
             control={control}
@@ -936,7 +935,7 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
                 </>
               )}
 
-              {entityType === 'dag' && (
+              {entityDetails?.is_entity_owner && entityType === 'dag' && (
                 <>
                   <Controller
                     name="dag_schedule"
@@ -991,7 +990,7 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
             </>
           )}
         </DialogContent>
-        
+
         <DialogActions sx={{ px: 3, py: 2 }}>
           <Button onClick={onClose} variant="outlined" color="inherit">
             Cancel
