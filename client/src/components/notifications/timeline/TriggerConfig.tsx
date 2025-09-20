@@ -55,7 +55,7 @@ export const TriggerConfig: React.FC<TriggerConfigProps> = ({
             value={trigger.time || '09:00'}
             onChange={(e) => onChange({ ...trigger, time: e.target.value })}
             InputLabelProps={{ shrink: true }}
-            inputProps={{ step: 300 }} // 5 minute steps
+            inputProps={{ step: 600 }} // 10 minute steps
             fullWidth
             margin="normal"
           />
@@ -137,7 +137,7 @@ export const TriggerConfig: React.FC<TriggerConfigProps> = ({
                 />
               ))}
             </FormGroup>
-            {(!(trigger as AiTasksStatusTrigger).taskNames || (trigger as AiTasksStatusTrigger).taskNames.length === 0) && (
+            {(!(trigger as AiTasksStatusTrigger).taskNames || (trigger as AiTasksStatusTrigger).taskNames?.length === 0) && (
               <Chip 
                 label="Monitoring all AI tasks" 
                 size="small" 
@@ -270,7 +270,7 @@ export const TriggerConfig: React.FC<TriggerConfigProps> = ({
                 />
               ))}
             </FormGroup>
-            {(!(trigger as RegularTasksStatusTrigger).taskNames || (trigger as RegularTasksStatusTrigger).taskNames.length === 0) && (
+            {(!(trigger as RegularTasksStatusTrigger).taskNames || (trigger as RegularTasksStatusTrigger).taskNames?.length === 0) && (
               <Chip 
                 label="Monitoring all regular tasks" 
                 size="small" 
