@@ -225,6 +225,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       '/debug/teams',
       '/teams',
       '/entities',
+      '/tables',        // Express fallback for tables
+      '/tables/bulk',   // Express fallback for tables bulk
+      '/dags',          // Express fallback for dags
+      '/dags/bulk',     // Express fallback for dags bulk
       '/dashboard/summary',
       '/users',
       '/tenants',
