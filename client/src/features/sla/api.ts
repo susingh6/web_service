@@ -243,6 +243,81 @@ export const entitiesApi = {
     console.log('🌐 API UPDATE SUCCESS:', result);
     return normalizeEntity(result);
   },
+  updateEntity: async ({ type, entityName, entity, updates }: { 
+    type: 'table' | 'dag'; 
+    entityName?: string; 
+    entity?: any; 
+    updates: any; 
+  }) => {
+    console.log(`[UPDATE_ENTITY_DEBUG] Input parameters:`, { type, entityName, entity, updates });
+    
+    // Defensively resolve entity name with fallbacks
+    let resolvedEntityName = entityName;
+    if (!resolvedEntityName && entity) {
+      console.log(`[UPDATE_ENTITY_DEBUG] Entity object:`, {
+        id: entity.id,
+        name: entity.name,
+        type: entity.type,
+        dag_name: entity.dag_name,
+        table_name: entity.table_name,
+        entity_name: entity.entity_name
+      });
+      
+      if (type === 'dag') {
+        resolvedEntityName = entity.dag_name || entity.name || entity.entity_name;
+      } else {
+        resolvedEntityName = entity.table_name || entity.name || entity.entity_name;
+      }
+    }
+    
+    if (!resolvedEntityName) {
+      throw new Error(`Cannot determine entity name for ${type} update`);
+    }
+    
+    console.log(`[UPDATE_ENTITY] Updating ${type}: "${resolvedEntityName}"`);
+    
+    // Use type-specific endpoints with FastAPI/Express fallback pattern
+    const primaryEndpoint = type === 'table' ? 
+      endpoints.tablesUpdate(resolvedEntityName) : 
+      endpoints.dagsUpdate(resolvedEntityName);
+    
+    const fallbackEndpoint = type === 'table' ? 
+      endpoints.tablesUpdateFallback?.(resolvedEntityName) : 
+      endpoints.dagsUpdateFallback?.(resolvedEntityName);
+
+    console.log(`[UPDATE_ENTITY] Primary URL: ${primaryEndpoint}, Fallback URL: ${fallbackEndpoint}`);
+
+    try {
+      console.log('[UPDATE_ENTITY] Trying FastAPI for entity update');
+      const res = await environmentAwareApiRequest('PATCH', primaryEndpoint, updates);
+      console.log(`[UPDATE_ENTITY] FastAPI response: ${res.status}`);
+      
+      if (!res.ok) {
+        throw new Error(`FastAPI returned ${res.status}`);
+      }
+      
+      const result = await res.json();
+      console.log('🌐 UPDATE_ENTITY SUCCESS:', result);
+      return normalizeEntity(result);
+    } catch (error) {
+      console.log(`[UPDATE_ENTITY] FastAPI failed (${error}), falling back to Express`);
+      
+      if (fallbackEndpoint) {
+        const res = await environmentAwareApiRequest('PATCH', fallbackEndpoint, updates);
+        console.log(`[UPDATE_ENTITY] Express fallback response: ${res.status}`);
+        
+        if (!res.ok) {
+          throw new Error(`Express fallback returned ${res.status}`);
+        }
+        
+        const result = await res.json();
+        console.log('🌐 UPDATE_ENTITY FALLBACK SUCCESS:', result);
+        return normalizeEntity(result);
+      } else {
+        throw error; // No fallback available, re-throw the original error
+      }
+    }
+  },
   deleteEntity: async ({ type, entityName, entity }: { type: 'table' | 'dag', entityName?: string, entity?: any }) => {
     console.log(`[DELETE_ENTITY_DEBUG] Input parameters:`, { type, entityName, entity });
     
