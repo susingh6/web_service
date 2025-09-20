@@ -162,6 +162,14 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
       }
     }
   }, [open, tabValue]);
+
+  // Effect to re-validate entities when tab changes
+  useEffect(() => {
+    if (parsedEntities.length > 0 && currentStep === 'validate') {
+      // Re-run validation when tab changes and we have entities to validate
+      validateEntities(parsedEntities);
+    }
+  }, [tabValue]); // Only re-validate when tabValue changes
   
   // Functions to fetch options
   const fetchTenantOptions = async () => {
