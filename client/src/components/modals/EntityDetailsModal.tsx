@@ -498,12 +498,8 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
   const handleConfirmDelete = async () => {
     try {
       // Use the new entity_name and type-based delete pattern with FastAPI/Express fallback
-      const entityName = entity.type === 'table' ? entity.table_name : entity.dag_name;
+      const entityName = entity.name; // Use entity.name as the primary entity_name identifier
       const entityType = entity.type as 'table' | 'dag';
-      
-      if (!entityName) {
-        throw new Error(`Missing ${entityType} name for entity ${entity.name}`);
-      }
       
       await entitiesApi.delete(entityName, entityType);
       
