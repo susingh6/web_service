@@ -3192,6 +3192,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // FastAPI fallback - Get all tasks for an entity using cache system
+  app.get("/api/v1/entities/:entityId/tasks", async (req: Request, res: Response) => {
+    try {
+      console.log("EXPRESS_FASTAPI_FALLBACK_DEV", req.sessionID);
+      
+      const entityId = parseInt(req.params.entityId);
+      if (isNaN(entityId)) {
+        return res.status(400).json(createErrorResponse("Invalid entity ID", "validation_error"));
+      }
+
+      // Get tasks from cache using DAG-based lookup (since tasks are associated with DAGs)
+      const tasks = await redisCache.getTasksByDAG(entityId);
+      
+      console.log(`GET /api/v1/entities/${entityId}/tasks - found ${tasks.length} tasks`);
+      res.json(tasks);
+    } catch (error) {
+      console.error(`Error fetching tasks for entity ${req.params.entityId}:`, error);
+      res.status(500).json(createErrorResponse("Failed to fetch entity tasks", "server_error"));
+    }
+  });
+
   // Get current DAG settings by team name and entity name
   app.get("/api/dags/current-settings", isAuthenticated, async (req: Request, res: Response) => {
     try {
