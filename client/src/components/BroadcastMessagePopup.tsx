@@ -19,7 +19,7 @@ interface AdminBroadcastMessage {
   id: number;
   message: string;
   dateKey: string;
-  deliveryType: 'immediate' | 'login_triggered';
+  deliveryType: 'immediate' | 'login_triggered' | 'both';
   isActive: boolean;
   createdByUserId: number;
   expiresAt: Date | null;
@@ -71,9 +71,9 @@ const BroadcastMessagePopup = () => {
   useEffect(() => {
     if (messages.length === 0) return;
 
-    // Find the most recent immediate delivery message that hasn't been seen
+    // Find the most recent immediate or both delivery message that hasn't been seen
     const immediateMessages = messages
-      .filter(msg => msg.deliveryType === 'immediate')
+      .filter(msg => msg.deliveryType === 'immediate' || msg.deliveryType === 'both')
       .filter(msg => !seenMessages.has(msg.id))
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
@@ -158,8 +158,14 @@ const BroadcastMessagePopup = () => {
               <Box display="flex" justifyContent="space-between" alignItems="center">
                 <Typography variant="body2" color="text.secondary">Type:</Typography>
                 <Chip 
-                  label={currentMessage.deliveryType === 'immediate' ? 'Immediate' : 'Login Triggered'}
-                  color={currentMessage.deliveryType === 'immediate' ? 'warning' : 'info'}
+                  label={
+                    currentMessage.deliveryType === 'immediate' ? 'Immediate' : 
+                    currentMessage.deliveryType === 'login_triggered' ? 'Login Triggered' : 'Both'
+                  }
+                  color={
+                    currentMessage.deliveryType === 'immediate' ? 'warning' : 
+                    currentMessage.deliveryType === 'both' ? 'secondary' : 'info'
+                  }
                   size="small"
                 />
               </Box>

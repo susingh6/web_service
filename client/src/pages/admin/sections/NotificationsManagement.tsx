@@ -63,7 +63,7 @@ interface AdminBroadcastMessage {
   id: number;
   message: string;
   dateKey: string;
-  deliveryType: 'immediate' | 'login_triggered';
+  deliveryType: 'immediate' | 'login_triggered' | 'both';
   isActive: boolean;
   createdByUserId: number;
   expiresAt: Date | null;
@@ -81,7 +81,7 @@ interface AlertFormData {
 
 interface AdminMessageFormData {
   message: string;
-  deliveryType: 'immediate' | 'login_triggered';
+  deliveryType: 'immediate' | 'login_triggered' | 'both';
   expiresInDays: number;
 }
 
@@ -491,8 +491,14 @@ const NotificationsManagement = () => {
                           </TableCell>
                           <TableCell>
                             <Chip 
-                              label={message.deliveryType === 'immediate' ? 'Immediate' : 'Login Triggered'}
-                              color={message.deliveryType === 'immediate' ? 'warning' : 'info'}
+                              label={
+                                message.deliveryType === 'immediate' ? 'Immediate' : 
+                                message.deliveryType === 'login_triggered' ? 'Login Triggered' : 'Both'
+                              }
+                              color={
+                                message.deliveryType === 'immediate' ? 'warning' : 
+                                message.deliveryType === 'both' ? 'secondary' : 'info'
+                              }
                               size="small"
                             />
                           </TableCell>
@@ -683,9 +689,10 @@ const NotificationsManagement = () => {
                   <Select {...field} label="Delivery Type" data-testid="select-delivery-type">
                     <MenuItem value="immediate">Immediate (show to all currently logged-in users)</MenuItem>
                     <MenuItem value="login_triggered">Login Triggered (show when users log in)</MenuItem>
+                    <MenuItem value="both">Both (show immediately AND every login until expiry)</MenuItem>
                   </Select>
                   <FormHelperText>
-                    Immediate messages are shown right away to logged-in users. Login-triggered messages appear when users next log in.
+                    Immediate: Show right away. Login-triggered: Show on login. Both: Show immediately AND every login until expiry.
                   </FormHelperText>
                 </FormControl>
               )}
