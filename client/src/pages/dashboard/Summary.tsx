@@ -254,9 +254,7 @@ const Summary = () => {
       if (selectedTenant) {
         dispatch(fetchDashboardSummary({ tenantName: selectedTenant.name }));
       }
-      if (selectedTenant) {
-        dispatch(fetchEntities({ tenant: selectedTenant.name }));
-      }
+      // Removed fetchEntities to prevent cross-contamination - React Query handles data refresh
       toast({
         title: "Data Refreshed",
         description: "Dashboard data has been updated with latest information",
@@ -312,8 +310,7 @@ const Summary = () => {
         endDate
       }));
 
-      // Load entities for current tenant only (active entity owners)
-      dispatch(fetchEntities({ tenant: selectedTenant.name })); // Load tenant-specific entities for summary dashboard
+      // Removed fetchEntities to prevent cross-contamination - React Query handles data refresh
       // Load teams data for chart display (silent load for summary page)
       dispatch(fetchTeams());
       setTeamsLoaded(true);
@@ -345,8 +342,7 @@ const Summary = () => {
           endDate
         }));
         
-        // Also refresh entities to keep entity count in sync
-        dispatch(fetchEntities({ tenant: selectedTenant.name }));
+        // Removed fetchEntities to prevent cross-contamination - React Query handles data refresh
       }
     };
     
