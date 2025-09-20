@@ -61,6 +61,9 @@ export const prodConfig = {
     tasks: {
       byDag: (dagId: number) => `/api/v1/dags/${dagId}/tasks`,
       updatePriority: (taskId: number) => `/api/v1/tasks/${taskId}`,
+      // New endpoints for comprehensive task management
+      getAll: '/api/v1/get_tasks',
+      updatePreference: (taskId: number) => `/api/v1/tasks/${taskId}/preference`,
     },
     
     // Issues

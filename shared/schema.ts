@@ -413,3 +413,29 @@ export type InsertAlert = z.infer<typeof insertAlertSchema>;
 
 export type AdminBroadcastMessage = typeof adminBroadcastMessages.$inferSelect;
 export type InsertAdminBroadcastMessage = z.infer<typeof insertAdminBroadcastMessageSchema>;
+
+// Task types for DAG task management (cached data, not database)
+export interface Task {
+  task_name: string;
+  task_type: string;
+  dag_name: string;
+  team_name: string;
+  team_id: number;
+  tenant_name: string;
+  tenant_id: number;
+  task_preference: 'AI' | 'regular';
+}
+
+export const taskPreferenceSchema = z.enum(['AI', 'regular']);
+export const taskSchema = z.object({
+  task_name: z.string(),
+  task_type: z.string(),
+  dag_name: z.string(),
+  team_name: z.string(),
+  team_id: z.number(),
+  tenant_name: z.string(),
+  tenant_id: z.number(),
+  task_preference: taskPreferenceSchema,
+});
+
+export type TaskPreference = z.infer<typeof taskPreferenceSchema>;

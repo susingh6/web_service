@@ -84,6 +84,14 @@ interface ApiConfig {
     tasks: {
       byDag: (dagId: number) => string;
       updatePriority: (taskId: number) => string;
+      // New endpoints for comprehensive task management
+      getAll: string;
+      updatePreference: (taskId: number) => string;
+      // Express fallback endpoints (development only)
+      getAllFallback?: string;
+      byDagFallback?: (dagId: number) => string;
+      updatePriorityFallback?: (taskId: number) => string;
+      updatePreferenceFallback?: (taskId: number) => string;
     };
     issues: {
       resolve: (issueId: number) => string;

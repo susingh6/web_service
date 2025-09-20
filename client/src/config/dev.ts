@@ -92,10 +92,19 @@ export const devConfig = {
       updateOwner: (entityId: number) => `/api/v1/entities/${entityId}/owner`,
     },
 
-    // Task operations - FastAPI
+    // Task operations - FastAPI with Express fallbacks
     tasks: {
       byDag: (dagId: number) => `/api/v1/dags/${dagId}/tasks`,
       updatePriority: (taskId: number) => `/api/v1/tasks/${taskId}`,
+      // New endpoints for comprehensive task management
+      getAll: '/api/v1/get_tasks', // Get all tasks for cache building
+      updatePreference: (taskId: number) => `/api/v1/tasks/${taskId}/preference`, // Update task preference (AI/regular)
+      
+      // Express fallback endpoints
+      getAllFallback: '/api/get_tasks',
+      byDagFallback: (dagId: number) => `/api/dags/${dagId}/tasks`,
+      updatePriorityFallback: (taskId: number) => `/api/tasks/${taskId}`,
+      updatePreferenceFallback: (taskId: number) => `/api/tasks/${taskId}/preference`,
     },
     
     // Issues - FastAPI

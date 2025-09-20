@@ -56,7 +56,8 @@ export const CACHE_KEYS = {
   REFRESH_CHANNEL: 'sla:refresh',
   CHANGES_CHANNEL: 'sla:changes',
   ALERTS: 'sla:alerts',
-  ADMIN_MESSAGES: 'sla:adminMessages'
+  ADMIN_MESSAGES: 'sla:adminMessages',
+  TASKS: 'sla:tasks'
 };
 
 export class RedisCache {
@@ -1119,6 +1120,205 @@ export class RedisCache {
     } catch (error) {
       console.error('Error getting dashboard metrics:', error);
       return this.fallbackData ? this.fallbackData.metrics[tenantName] || null : null;
+    }
+  }
+
+  // ============================================
+  // TASK CACHE METHODS - 6-hour cache integration
+  // ============================================
+
+  async getAllTasks(): Promise<any[]> {
+    try {
+      if (this.useRedis && this.redis) {
+        const data = await this.redis.get(CACHE_KEYS.TASKS);
+        if (data) {
+          return JSON.parse(data);
+        }
+        
+        // If no cached tasks, generate and cache
+        const tasks = this.generateTasksFallback();
+        await this.setTasks(tasks); // Cache with 6-hour TTL
+        return tasks;
+      } else {
+        // Use fallback data or generate from storage entities  
+        if (this.fallbackData && (this.fallbackData as any).tasks) {
+          return (this.fallbackData as any).tasks;
+        }
+        
+        const tasks = this.generateTasksFallback();
+        await this.setTasks(tasks); // Update fallback cache
+        return tasks;
+      }
+    } catch (error) {
+      console.error('Error getting tasks from cache:', error);
+      return this.generateTasksFallback();
+    }
+  }
+
+  async getTasksByDAG(dagId: number): Promise<any[]> {
+    try {
+      const allTasks = await this.getAllTasks();
+      return allTasks.filter(task => task.dag_id === dagId);
+    } catch (error) {
+      console.error('Error filtering tasks by DAG ID:', error);
+      return [];
+    }
+  }
+
+  async getTasksByDAGName(dagName: string): Promise<any[]> {
+    try {
+      const allTasks = await this.getAllTasks();
+      return allTasks.filter(task => task.dag_name === dagName);
+    } catch (error) {
+      console.error('Error filtering tasks by DAG name:', error);
+      return [];
+    }
+  }
+
+  async getTasksByTeam(teamName: string): Promise<any[]> {
+    try {
+      const allTasks = await this.getAllTasks();
+      return allTasks.filter(task => task.team_name === teamName);
+    } catch (error) {
+      console.error('Error filtering tasks by team:', error);
+      return [];
+    }
+  }
+
+  async getTasksByTenant(tenantName: string): Promise<any[]> {
+    try {
+      const allTasks = await this.getAllTasks();
+      return allTasks.filter(task => task.tenant_name === tenantName);
+    } catch (error) {
+      console.error('Error filtering tasks by tenant:', error);
+      return [];
+    }
+  }
+
+  // Generate tasks from current entities (DAGs) for fallback
+  private generateTasksFallback(): any[] {
+    try {
+      const entities = this.fallbackData ? this.fallbackData.entities : [];
+      const dagEntities = entities.filter(e => e.type === 'dag');
+      
+      const allTasks: any[] = [];
+      let taskIdCounter = 1;
+
+      // Task templates for different DAG types
+      const dagTaskTemplates: Record<string, Array<{ name: string; type: string; preference: string }>> = {
+        'agg_daily_pgm': [
+          { name: 'data_extraction', type: 'extraction', preference: 'AI' },
+          { name: 'data_transformation', type: 'transformation', preference: 'regular' },
+          { name: 'quality_validation', type: 'validation', preference: 'AI' },
+          { name: 'aggregation_processing', type: 'processing', preference: 'regular' },
+          { name: 'output_generation', type: 'output', preference: 'regular' }
+        ],
+        'agg_hourly_pgm': [
+          { name: 'stream_ingestion', type: 'ingestion', preference: 'AI' },
+          { name: 'real_time_processing', type: 'processing', preference: 'AI' },
+          { name: 'metric_calculation', type: 'calculation', preference: 'regular' },
+          { name: 'dashboard_update', type: 'output', preference: 'regular' }
+        ],
+        'agg_daily_non_bucketed_core': [
+          { name: 'raw_data_ingestion', type: 'ingestion', preference: 'regular' },
+          { name: 'schema_validation', type: 'validation', preference: 'AI' },
+          { name: 'non_bucketed_processing', type: 'processing', preference: 'regular' },
+          { name: 'index_generation', type: 'indexing', preference: 'regular' }
+        ],
+        'PGM_Freeview_Play_agg_daily_core': [
+          { name: 'freeview_data_extraction', type: 'extraction', preference: 'regular' },
+          { name: 'play_event_processing', type: 'processing', preference: 'AI' },
+          { name: 'audience_analytics', type: 'analytics', preference: 'AI' },
+          { name: 'reporting_generation', type: 'reporting', preference: 'regular' }
+        ],
+        'CHN_billing_viewer_product': [
+          { name: 'billing_data_ingestion', type: 'ingestion', preference: 'regular' },
+          { name: 'rate_calculation', type: 'calculation', preference: 'AI' },
+          { name: 'invoice_generation', type: 'generation', preference: 'regular' },
+          { name: 'financial_reporting', type: 'reporting', preference: 'regular' }
+        ],
+        'default': [
+          { name: 'data_ingestion', type: 'ingestion', preference: 'regular' },
+          { name: 'data_processing', type: 'processing', preference: 'regular' },
+          { name: 'data_validation', type: 'validation', preference: 'AI' },
+          { name: 'output_generation', type: 'output', preference: 'regular' }
+        ]
+      };
+
+      dagEntities.forEach(dag => {
+        const dagName = dag.name;
+        const teamName = dag.team_name || 'Unknown';
+        const tenantName = dag.tenant_name || 'Data Engineering';
+        
+        // Get task template for this DAG
+        const taskTemplate = dagTaskTemplates[dagName] || dagTaskTemplates.default;
+        
+        taskTemplate.forEach(template => {
+          allTasks.push({
+            id: taskIdCounter++,
+            task_name: template.name,
+            task_type: template.type,
+            dag_name: dagName,
+            dag_id: dag.id, // CRITICAL: Add DAG ID for instant cross-linking
+            team_name: teamName,
+            team_id: dag.teamId || 1,
+            tenant_name: tenantName,
+            tenant_id: dag.tenant_name === 'Ad Engineering' ? 2 : 1,
+            task_preference: template.preference as 'regular' | 'AI',
+            status: ['pending', 'running', 'completed', 'failed'][Math.floor(Math.random() * 4)],
+            priority: ['low', 'normal', 'high'][Math.floor(Math.random() * 3)],
+            duration_minutes: Math.floor(Math.random() * 120) + 5,
+            last_run: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString(),
+            next_run: new Date(Date.now() + Math.random() * 24 * 60 * 60 * 1000).toISOString(),
+            dependencies: template.name === 'data_extraction' || template.name === 'raw_data_ingestion' ? [] : 
+                         [taskTemplate[taskTemplate.indexOf(template) - 1]?.name || 'previous_task']
+          });
+        });
+      });
+
+      return allTasks;
+    } catch (error) {
+      console.error('Error generating tasks fallback:', error);
+      return [];
+    }
+  }
+
+  // Cache tasks data with 6-hour expiration
+  async setTasks(tasks: any[]): Promise<void> {
+    try {
+      if (this.useRedis && this.redis) {
+        // Set with 6-hour TTL in Redis
+        const ttlMs = 6 * 60 * 60 * 1000; // 6 hours in milliseconds
+        await this.redis.set(CACHE_KEYS.TASKS, JSON.stringify(tasks), 'PX', ttlMs);
+        console.log(`[Task Cache] Cached ${tasks.length} tasks in Redis for 6 hours`);
+      } else {
+        // Update fallback data for in-memory cache
+        if (!this.fallbackData) {
+          this.fallbackData = { entities: [], teams: [], tenants: [], metrics: {}, complianceTrends: {} };
+        }
+        (this.fallbackData as any).tasks = tasks;
+        console.log(`[Task Cache] Updated ${tasks.length} tasks in fallback memory`);
+      }
+    } catch (error) {
+      console.error('Error setting tasks cache:', error);
+    }
+  }
+
+  // Invalidate task cache (for preference updates)
+  async invalidateTaskCache(): Promise<void> {
+    try {
+      if (this.useRedis && this.redis) {
+        await this.redis.del(CACHE_KEYS.TASKS);
+        console.log('[Task Cache] Redis task cache invalidated');
+      }
+      
+      // Also clear from fallback data
+      if (this.fallbackData && (this.fallbackData as any).tasks) {
+        delete (this.fallbackData as any).tasks;
+        console.log('[Task Cache] Fallback task cache invalidated');
+      }
+    } catch (error) {
+      console.error('Error invalidating task cache:', error);
     }
   }
 
