@@ -2733,6 +2733,147 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ));
     }
   });
+
+  // Express fallback routes for updating entities by name (FastAPI alternatives)
+  app.patch("/api/tables/:name", requireActiveUser, async (req: Request, res: Response) => {
+    try {
+      const tableName = req.params.name;
+      console.log(`[EXPRESS_FALLBACK] PATCH /api/tables/${tableName}`);
+      
+      // Find the table entity by name
+      const allEntities = await redisCache.getAllEntities();
+      const entityToUpdate = allEntities.find(e => 
+        e.type === 'table' && 
+        (e.table_name === tableName || e.name === tableName || e.entity_name === tableName)
+      );
+      
+      if (!entityToUpdate) {
+        return res.status(404).json(createErrorResponse(
+          `Table "${tableName}" not found`,
+          "not_found"
+        ));
+      }
+      
+      // Validate the updates using the appropriate schema
+      const validationResult = insertEntitySchema.partial().safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json(createValidationErrorResponse(validationResult.error));
+      }
+      
+      // Update the entity
+      const updatedEntity = await storage.updateEntity(entityToUpdate.id, validationResult.data);
+      
+      if (!updatedEntity) {
+        return res.status(500).json(createErrorResponse(
+          "Unable to update table. Please try again or contact your administrator.",
+          "update_error"
+        ));
+      }
+      
+      // Force WebSocket notification
+      redisCache.forceNotifyClients('entity-updated', {
+        entityId: updatedEntity.id,
+        entityName: updatedEntity.name,
+        entityType: updatedEntity.type,
+        teamName: updatedEntity.team_name || 'Unknown',
+        tenantName: updatedEntity.tenant_name || 'Unknown',
+        type: 'updated',
+        entity: updatedEntity,
+        timestamp: new Date()
+      });
+      
+      // Cache invalidation
+      await redisCache.invalidateAndRebuildEntityCache(
+        updatedEntity.teamId, 
+        'table',
+        true
+      );
+      
+      await redisCache.invalidateTeamMetricsCache(
+        updatedEntity.tenant_name || 'Data Engineering',
+        updatedEntity.team_name || 'Unknown'
+      );
+      
+      console.log(`[EXPRESS_FALLBACK] Table "${tableName}" updated successfully`);
+      res.status(200).json(updatedEntity);
+    } catch (error) {
+      console.error('[EXPRESS_FALLBACK] Error updating table:', error);
+      res.status(500).json(createErrorResponse(
+        "Unable to update table. Please try again or contact your administrator.",
+        "update_error"
+      ));
+    }
+  });
+
+  app.patch("/api/dags/:name", requireActiveUser, async (req: Request, res: Response) => {
+    try {
+      const dagName = req.params.name;
+      console.log(`[EXPRESS_FALLBACK] PATCH /api/dags/${dagName}`);
+      
+      // Find the DAG entity by name
+      const allEntities = await redisCache.getAllEntities();
+      const entityToUpdate = allEntities.find(e => 
+        e.type === 'dag' &&
+        (e.dag_name === dagName || e.name === dagName || e.entity_name === dagName)
+      );
+      
+      if (!entityToUpdate) {
+        return res.status(404).json(createErrorResponse(
+          `DAG "${dagName}" not found`,
+          "not_found"
+        ));
+      }
+      
+      // Validate the updates using the appropriate schema
+      const validationResult = insertEntitySchema.partial().safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json(createValidationErrorResponse(validationResult.error));
+      }
+      
+      // Update the entity
+      const updatedEntity = await storage.updateEntity(entityToUpdate.id, validationResult.data);
+      
+      if (!updatedEntity) {
+        return res.status(500).json(createErrorResponse(
+          "Unable to update DAG. Please try again or contact your administrator.",
+          "update_error"
+        ));
+      }
+      
+      // Force WebSocket notification
+      redisCache.forceNotifyClients('entity-updated', {
+        entityId: updatedEntity.id,
+        entityName: updatedEntity.name,
+        entityType: updatedEntity.type,
+        teamName: updatedEntity.team_name || 'Unknown',
+        tenantName: updatedEntity.tenant_name || 'Unknown',
+        type: 'updated',
+        entity: updatedEntity,
+        timestamp: new Date()
+      });
+      
+      // Cache invalidation
+      await redisCache.invalidateAndRebuildEntityCache(
+        updatedEntity.teamId, 
+        'dag',
+        true
+      );
+      
+      await redisCache.invalidateTeamMetricsCache(
+        updatedEntity.tenant_name || 'Data Engineering',
+        updatedEntity.team_name || 'Unknown'
+      );
+      
+      console.log(`[EXPRESS_FALLBACK] DAG "${dagName}" updated successfully`);
+      res.status(200).json(updatedEntity);
+    } catch (error) {
+      console.error('[EXPRESS_FALLBACK] Error updating DAG:', error);
+      res.status(500).json(createErrorResponse(
+        "Unable to update DAG. Please try again or contact your administrator.",
+        "update_error"
+      ));
+    }
+  });
   
   // Entity History endpoints
   app.get("/api/entities/:id/history", async (req, res) => {
