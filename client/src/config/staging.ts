@@ -19,11 +19,13 @@ export const stagingConfig = {
     tablesDelete: (entityName: string) => `/api/v1/tables/${entityName}`, // Tables delete by entity_name
     tablesUpdate: (entityName: string) => `/api/v1/tables/${entityName}`, // Tables update by entity_name
     tablesGet: (entityName: string) => `/api/v1/tables/${entityName}`, // Tables get by entity_name
+    tablesOwnerUpdate: (entityName: string) => `/api/v1/tables/${entityName}/owner`, // Tables owner update by entity_name
     dags: '/api/v1/dags', // DAGs endpoint
     dagsBulk: '/api/v1/dags/bulk', // DAGs bulk endpoint
     dagsDelete: (entityName: string) => `/api/v1/dags/${entityName}`, // DAGs delete by entity_name
     dagsUpdate: (entityName: string) => `/api/v1/dags/${entityName}`, // DAGs update by entity_name
     dagsGet: (entityName: string) => `/api/v1/dags/${entityName}`, // DAGs get by entity_name
+    dagsOwnerUpdate: (entityName: string) => `/api/v1/dags/${entityName}/owner`, // DAGs owner update by entity_name
     teams: '/api/v1/teams',
     
     // Dashboard - FastAPI

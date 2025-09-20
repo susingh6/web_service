@@ -27,22 +27,26 @@ export const devConfig = {
     tablesDelete: (entityName: string) => `/api/v1/tables/${entityName}`, // Tables delete by entity_name
     tablesUpdate: (entityName: string) => `/api/v1/tables/${entityName}`, // Tables update by entity_name
     tablesGet: (entityName: string) => `/api/v1/tables/${entityName}`, // Tables get by entity_name
+    tablesOwnerUpdate: (entityName: string) => `/api/v1/tables/${entityName}/owner`, // Tables owner update by entity_name
     dags: '/api/v1/dags', // DAGs endpoint
     dagsBulk: '/api/v1/dags/bulk', // DAGs bulk endpoint
     dagsDelete: (entityName: string) => `/api/v1/dags/${entityName}`, // DAGs delete by entity_name
     dagsUpdate: (entityName: string) => `/api/v1/dags/${entityName}`, // DAGs update by entity_name
     dagsGet: (entityName: string) => `/api/v1/dags/${entityName}`, // DAGs get by entity_name
+    dagsOwnerUpdate: (entityName: string) => `/api/v1/dags/${entityName}/owner`, // DAGs owner update by entity_name
     // Express fallback endpoints (dev only)
     tablesFallback: '/api/tables',
     tablesBulkFallback: '/api/tables/bulk',
     tablesDeleteFallback: (entityName: string) => `/api/tables/${entityName}`,
     tablesUpdateFallback: (entityName: string) => `/api/tables/${entityName}`,
     tablesGetFallback: (entityName: string) => `/api/tables/${entityName}`,
+    tablesOwnerUpdateFallback: (entityName: string) => `/api/tables/${entityName}/owner`,
     dagsFallback: '/api/dags',
     dagsBulkFallback: '/api/dags/bulk',
     dagsDeleteFallback: (entityName: string) => `/api/dags/${entityName}`,
     dagsUpdateFallback: (entityName: string) => `/api/dags/${entityName}`,
     dagsGetFallback: (entityName: string) => `/api/dags/${entityName}`,
+    dagsOwnerUpdateFallback: (entityName: string) => `/api/dags/${entityName}/owner`,
     teams: '/api/teams',
     tenants: '/api/v1/tenants',
     teamDetails: (teamName: string) => `/api/v1/get_team_details/${teamName}`,
