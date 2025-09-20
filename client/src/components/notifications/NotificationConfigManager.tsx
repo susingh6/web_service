@@ -19,7 +19,7 @@ import { EmailNotificationConfigComponent } from './EmailNotificationConfig';
 import { SlackNotificationConfigComponent } from './SlackNotificationConfig';
 import { PagerDutyNotificationConfigComponent } from './PagerDutyNotificationConfig';
 import { useQuery } from '@tanstack/react-query';
-import { buildUrl } from '@/config';
+import { apiClient } from '@/config/api';
 
 interface NotificationConfigManagerProps {
   value: string[]; // Array of enabled notification types from form
@@ -43,8 +43,7 @@ export function NotificationConfigManager({ value, onChange, teamName }: Notific
     queryKey: ['team-notification-settings', teamName],
     queryFn: async () => {
       if (!teamName) return { team_email: [], team_slack: [], team_pagerduty: [] };
-      const response = await fetch(buildUrl(`/api/teams/by-name/${encodeURIComponent(teamName)}`));
-      if (!response.ok) throw new Error('Failed to fetch team data');
+      const response = await apiClient.teams.getDetails(teamName);
       const team = await response.json();
       return {
         team_email: team.team_email || [],
