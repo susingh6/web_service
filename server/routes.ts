@@ -4592,14 +4592,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       updates.owner_email = normalized;
       updates.ownerEmail = normalized;
 
+      console.log(`[DEBUG_OWNER_UPDATE] Updating table ${tableName} (ID: ${entity.id}) owner from "${entity.owner_email || entity.ownerEmail || 'null'}" to "${normalized}"`);
+      console.log(`[DEBUG_OWNER_UPDATE] Entity before update: is_entity_owner=${entity.is_entity_owner}, type=${entity.type}, teamId=${entity.teamId}`);
+
       // Update via redis cache helper to persist to Redis and fallback consistently
       const updated = await redisCache.updateEntityById(entity.id, updates);
       if (!updated) {
         return res.status(404).json(createErrorResponse('Entity not found', 'not_found'));
       }
 
+      console.log(`[DEBUG_OWNER_UPDATE] Entity after updateEntityById: owner_email="${(updated as any)?.owner_email}", ownerEmail="${(updated as any)?.ownerEmail}", is_entity_owner=${(updated as any)?.is_entity_owner}`);
+
+      // Check all entities before invalidation
+      const entitiesBeforeInvalidation = await redisCache.getAllEntities();
+      const targetEntityBefore = entitiesBeforeInvalidation.find(e => e.id === entity.id);
+      console.log(`[DEBUG_OWNER_UPDATE] Target entity before invalidation: owner_email="${targetEntityBefore?.owner_email}", ownerEmail="${targetEntityBefore?.ownerEmail}"`);
+
       // Targeted invalidation: only invalidate tables for this team  
       await redisCache.invalidateEntityDataByType(entity.teamId, 'table');
+
+      // Check all entities after invalidation
+      const entitiesAfterInvalidation = await redisCache.getAllEntities();
+      const targetEntityAfter = entitiesAfterInvalidation.find(e => e.id === entity.id);
+      console.log(`[DEBUG_OWNER_UPDATE] Target entity after invalidation: owner_email="${targetEntityAfter?.owner_email}", ownerEmail="${targetEntityAfter?.ownerEmail}"`);
+      console.log(`[DEBUG_OWNER_UPDATE] All table entities in team ${entity.teamId}:`, entitiesAfterInvalidation.filter(e => e.type === 'table' && e.teamId === entity.teamId).map(e => ({ id: e.id, name: e.name, owner_email: e.owner_email, ownerEmail: e.ownerEmail, is_entity_owner: e.is_entity_owner })));
 
       return res.json({ success: true, owner_email: (updated as any).owner_email || (updated as any).ownerEmail || null });
     } catch (error) {
