@@ -52,6 +52,7 @@ import { queryClient, apiRequest } from '@/lib/queryClient';
 import { buildUrl, endpoints } from '@/config';
 import { useQuery } from '@tanstack/react-query';
 import { cacheKeys, invalidateEntityCaches } from '@/lib/cacheKeys';
+import { entitiesApi } from '@/features/sla/api';
 
 interface EntityDetailsModalProps {
   open: boolean;
@@ -496,7 +497,11 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
   
   const handleConfirmDelete = async () => {
     try {
-      await apiRequest("DELETE", buildUrl(endpoints.entity.delete(entity.id)));
+      // Use the new entity_name and type-based delete pattern with FastAPI/Express fallback
+      const entityName = entity.name; // Use entity.name as the entity identifier
+      const entityType = entity.type as 'table' | 'dag';
+      
+      await entitiesApi.delete(entityName, entityType);
       
       toast({
         title: 'Success',
