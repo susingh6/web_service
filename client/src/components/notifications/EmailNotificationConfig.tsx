@@ -100,16 +100,45 @@ export function EmailNotificationConfigComponent({ config, onChange, teamName, t
             Team Members ({teamName || 'Default'})
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-2">
-            {config.defaultRecipients?.map((email, index) => (
-              <Badge key={index} variant="secondary" className="text-xs">
-                {email}
-              </Badge>
-            ))}
-            {(!config.defaultRecipients || config.defaultRecipients.length === 0) && (
-              <p className="text-sm text-muted-foreground">No team members found</p>
-            )}
+        <CardContent className="space-y-3">
+          {/* Show team emails dropdown if available */}
+          {teamEmails.length > 0 && (
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Team Email Addresses</Label>
+              <Select onValueChange={(email) => {
+                if (!customEmails.includes(email)) {
+                  setCustomEmails([...customEmails, email]);
+                }
+              }}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a team member email" />
+                </SelectTrigger>
+                <SelectContent>
+                  {teamEmails.map((email) => (
+                    <SelectItem key={email} value={email}>
+                      {email}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          
+          {/* Display current team members */}
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">
+              {teamEmails.length > 0 ? 'Current team members' : 'Team members'}
+            </Label>
+            <div className="flex flex-wrap gap-2">
+              {config.defaultRecipients?.map((email, index) => (
+                <Badge key={index} variant="secondary" className="text-xs">
+                  {email}
+                </Badge>
+              ))}
+              {(!config.defaultRecipients || config.defaultRecipients.length === 0) && (
+                <p className="text-sm text-muted-foreground">No team members found</p>
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>
