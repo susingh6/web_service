@@ -530,7 +530,7 @@ const NotificationsManagement = () => {
         <DialogContent>
           <Box component="form" sx={{ mt: 2, display: 'flex', flexDirection: 'column', gap: 3 }}>
             <Alert severity="info">
-              System alerts are displayed to all users via the notification bell icon with 6-hour caching.
+              System alerts are displayed to all users via the notification bell icon.
             </Alert>
             
             <Controller
