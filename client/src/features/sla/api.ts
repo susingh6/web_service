@@ -1,5 +1,5 @@
 import { Entity } from '@shared/schema';
-import { endpoints, isDevelopment, isStaging, isProduction } from '@/config';
+import { endpoints, isDevelopment, isStaging, isProduction, buildUrlWithParams } from '@/config';
 import { apiRequest } from '@/lib/queryClient';
 
 // Check if FastAPI is available (for development fallback only)
@@ -312,6 +312,85 @@ export const entitiesApi = {
         
         const result = await res.json();
         console.log('🌐 UPDATE_ENTITY FALLBACK SUCCESS:', result);
+        return normalizeEntity(result);
+      } else {
+        throw error; // No fallback available, re-throw the original error
+      }
+    }
+  },
+  readEntityByName: async ({ type, entityName, entity, teamName }: { 
+    type: 'table' | 'dag'; 
+    entityName?: string; 
+    entity?: any; 
+    teamName?: string;
+  }) => {
+    console.log(`[READ_ENTITY_DEBUG] Input parameters:`, { type, entityName, entity, teamName });
+    
+    // Defensively resolve entity name with fallbacks
+    let resolvedEntityName = entityName;
+    if (!resolvedEntityName && entity) {
+      console.log(`[READ_ENTITY_DEBUG] Entity object:`, {
+        id: entity.id,
+        name: entity.name,
+        type: entity.type,
+        dag_name: entity.dag_name,
+        table_name: entity.table_name
+      });
+      
+      if (type === 'dag') {
+        resolvedEntityName = entity.dag_name || entity.name;
+      } else {
+        resolvedEntityName = entity.table_name || entity.name;
+      }
+    }
+    
+    if (!resolvedEntityName) {
+      throw new Error(`Cannot determine entity name for ${type} read`);
+    }
+    
+    console.log(`[READ_ENTITY] Reading ${type}: "${resolvedEntityName}"`);
+    
+    // Use type-specific endpoints with FastAPI/Express fallback pattern
+    const primaryEndpoint = type === 'table' ? 
+      endpoints.tablesGet(resolvedEntityName) : 
+      endpoints.dagsGet(resolvedEntityName);
+    
+    const fallbackEndpoint = type === 'table' ? 
+      endpoints.tablesGetFallback?.(resolvedEntityName) : 
+      endpoints.dagsGetFallback?.(resolvedEntityName);
+
+    // Build query params if team is specified
+    const queryParams = teamName ? { team: teamName } : undefined;
+    const primaryUrl = buildUrlWithParams(primaryEndpoint, queryParams);
+    const fallbackUrl = fallbackEndpoint ? buildUrlWithParams(fallbackEndpoint, queryParams) : undefined;
+
+    console.log(`[READ_ENTITY] Primary URL: ${primaryUrl}, Fallback URL: ${fallbackUrl}`);
+
+    try {
+      console.log('[READ_ENTITY] Trying FastAPI for entity read');
+      const res = await environmentAwareApiRequest('GET', primaryUrl);
+      console.log(`[READ_ENTITY] FastAPI response: ${res.status}`);
+      
+      if (!res.ok) {
+        throw new Error(`FastAPI returned ${res.status}`);
+      }
+      
+      const result = await res.json();
+      console.log('🌐 READ_ENTITY SUCCESS:', result);
+      return normalizeEntity(result);
+    } catch (error) {
+      console.log(`[READ_ENTITY] FastAPI failed (${error}), falling back to Express`);
+      
+      if (fallbackUrl) {
+        const res = await environmentAwareApiRequest('GET', fallbackUrl);
+        console.log(`[READ_ENTITY] Express fallback response: ${res.status}`);
+        
+        if (!res.ok) {
+          throw new Error(`Express fallback returned ${res.status}`);
+        }
+        
+        const result = await res.json();
+        console.log('🌐 READ_ENTITY FALLBACK SUCCESS:', result);
         return normalizeEntity(result);
       } else {
         throw error; // No fallback available, re-throw the original error
