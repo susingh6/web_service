@@ -28,7 +28,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
-import { endpoints, fieldDefinitions } from '@/config';
+import { buildUrl, endpoints, fieldDefinitions } from '@/config';
 import {
   NotificationTimeline,
   InsertNotificationTimeline,
@@ -86,15 +86,15 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
     }
   });
 
-  // Fetch existing notification timelines for this entity
+  // Fetch existing notification timeline names for this entity (only when update tab is active)
   const { data: existingTimelines, isLoading: isLoadingTimelines } = useQuery({
-    queryKey: ['notification-timelines', entity?.id],
+    queryKey: ['notification-timeline-names', entity?.id],
     queryFn: async () => {
       if (!entity?.id) return [];
-      const res = await apiRequest('GET', endpoints.entity.notificationTimelines(entity.id));
+      const res = await apiRequest('GET', buildUrl(endpoints.entity.notificationTimelines, entity.id));
       return await res.json();
     },
-    enabled: !!entity?.id && open
+    enabled: !!entity?.id && open && tabValue === 'update'
   });
 
   // Fetch all tasks for this entity (if it's a DAG)
@@ -114,10 +114,10 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
 
   // Fetch individual notification timeline for editing
   const { data: selectedTimeline, isLoading: isLoadingTimeline } = useQuery({
-    queryKey: ['notification-timeline', selectedTimelineId],
+    queryKey: ['notification-timeline-detail', selectedTimelineId],
     queryFn: async () => {
       if (!selectedTimelineId) return null;
-      const res = await apiRequest('GET', endpoints.notificationTimelines.byId(selectedTimelineId));
+      const res = await apiRequest('GET', buildUrl(endpoints.notificationTimelines.byId, selectedTimelineId));
       return await res.json();
     },
     enabled: !!selectedTimelineId && tabValue === 'update'
@@ -177,7 +177,7 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
   // Mutation to create notification timeline
   const createTimelineMutation = useMutation({
     mutationFn: async (data: InsertNotificationTimeline) => {
-      const res = await apiRequest('POST', endpoints.notificationTimelines.create, data);
+      const res = await apiRequest('POST', buildUrl(endpoints.notificationTimelines.create), data);
       return await res.json();
     },
     onSuccess: (newTimeline) => {
@@ -185,7 +185,8 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
         title: 'Success',
         description: 'Notification timeline created successfully'
       });
-      queryClient.invalidateQueries({ queryKey: ['notification-timelines', entity?.id] });
+      // No cache invalidation since timelines are not cached
+      onSuccess?.();
       handleClose();
     },
     onError: (error: Error) => {
@@ -200,7 +201,7 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
   // Mutation to update notification timeline
   const updateTimelineMutation = useMutation({
     mutationFn: async (data: { id: string; updates: Partial<NotificationTimeline> }) => {
-      const res = await apiRequest('PUT', endpoints.notificationTimelines.update(data.id), data.updates);
+      const res = await apiRequest('PATCH', buildUrl(endpoints.notificationTimelines.update, data.id), data.updates);
       return await res.json();
     },
     onSuccess: (updatedTimeline) => {
@@ -208,7 +209,8 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
         title: 'Success',
         description: 'Notification timeline updated successfully'
       });
-      queryClient.invalidateQueries({ queryKey: ['notification-timelines', entity?.id] });
+      // No cache invalidation since timelines are not cached
+      onSuccess?.();
       handleClose();
     },
     onError: (error: Error) => {
@@ -278,6 +280,16 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
       toast({
         title: 'Error',
         description: 'Please select at least one delivery mechanism (notification channel)',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    // Additional validation for update mode
+    if (tabValue === 'update' && !selectedTimelineId) {
+      toast({
+        title: 'Error',
+        description: 'Please select a timeline to update',
         variant: 'destructive'
       });
       return;
