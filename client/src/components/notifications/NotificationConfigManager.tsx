@@ -45,8 +45,14 @@ export function NotificationConfigManager({ value, onChange, teamName }: Notific
       if (!teamName) return { team_email: [], team_slack: [], team_pagerduty: [] };
       const response = await apiClient.teams.getDetails(teamName);
       const team = await response.json();
+      
+      // Combine team emails with individual member emails
+      const teamEmails = team.team_email || [];
+      const memberEmails = team.members ? team.members.map((member: any) => member.email).filter(Boolean) : [];
+      const allEmails = [...teamEmails, ...memberEmails];
+      
       return {
-        team_email: team.team_email || [],
+        team_email: allEmails,
         team_slack: team.team_slack || [],
         team_pagerduty: team.team_pagerduty || [],
       };
