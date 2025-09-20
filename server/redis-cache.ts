@@ -2248,7 +2248,9 @@ export class RedisCache {
     try {
       // Get fresh entities for this specific team and type from storage
       const allEntities = await storage.getEntities();
-      const teamEntities = allEntities.filter(e => e.teamId === teamId && e.type === entityType);
+      const teamEntities = allEntities
+        .filter(e => e.teamId === teamId && e.type === entityType)
+        .map(entity => structuredClone(entity));
       
       // Update only the specific team+type entries in the segregated Maps
       const teamTypeKey = `${teamId}:${entityType}`;
