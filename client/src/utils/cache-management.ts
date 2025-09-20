@@ -851,18 +851,37 @@ export function useEntityMutation() {
       if (ctx?.previous) queryClient.setQueryData(ctx.key, ctx.previous);
     },
     onSettled: async (_res, _err, vars: any, ctx: any) => {
-      await invalidateEntityCaches(queryClient, {
-        tenant: ctx?.tenant,
-        teamId: ctx?.teamId,
-        entityId: vars?.entityName, // Pass entityName for invalidation
-      });
+      // Comprehensive cache invalidation to handle all cache patterns used throughout the app
+      await Promise.all([
+        // 1. Invalidate structured cache keys
+        invalidateEntityCaches(queryClient, {
+          tenant: ctx?.tenant,
+          teamId: ctx?.teamId,
+          entityId: vars?.entityName,
+        }),
+        
+        // 2. Invalidate direct API path cache keys (used in Summary and other places)
+        queryClient.invalidateQueries({ queryKey: ['/api/v1/entities'] }),
+        queryClient.invalidateQueries({ queryKey: ['/api/entities'] }),
+        
+        // 3. Invalidate tenant-wide cache
+        ctx?.tenant ? queryClient.invalidateQueries({ queryKey: cacheKeys.entitiesByTenant(ctx.tenant) }) : Promise.resolve(),
+        
+        // 4. Invalidate team-specific cache 
+        (ctx?.tenant && ctx?.teamId) ? queryClient.invalidateQueries({ queryKey: cacheKeys.entitiesByTenantAndTeam(ctx.tenant, ctx.teamId) }) : Promise.resolve(),
+        
+        // 5. Invalidate dashboard summary to update metrics
+        queryClient.invalidateQueries({ queryKey: ['/api/dashboard/summary'] }),
+        ctx?.tenant ? queryClient.invalidateQueries({ queryKey: cacheKeys.dashboardSummary(ctx.tenant) }) : Promise.resolve(),
+        (ctx?.tenant && ctx?.teamId) ? queryClient.invalidateQueries({ queryKey: cacheKeys.dashboardSummary(ctx.tenant, ctx.teamId) }) : Promise.resolve(),
+      ]);
     },
   });
 
   const createEntity = async (entityData: any) => createMutation.mutateAsync(entityData);
   const updateEntity = async (entityId: number, entityData: any) => updateMutation.mutateAsync({ entityId, entityData });
   const deleteEntity = async (entityName: string, entityType: 'table' | 'dag', teamId: number, tenantName?: string) =>
-    deleteMutation.mutateAsync({ entityName, entityType, teamId, tenant: tenantName });
+    deleteMutation.mutateAsync({ entityName, entityType, tenant: tenantName, teamId });
 
   return { createEntity, updateEntity, deleteEntity };
 }
