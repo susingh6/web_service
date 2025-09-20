@@ -29,12 +29,6 @@ export function EmailNotificationConfigComponent({ config, onChange, teamName, t
   const [customEmails, setCustomEmails] = useState<string[]>(config?.customEmails || []);
   const [emailError, setEmailError] = useState('');
 
-  console.log('[DEBUG] EmailNotificationConfig received props:', {
-    teamName,
-    teamEmails,
-    teamEmailsLength: teamEmails.length
-  });
-
   useEffect(() => {
     // Load cached data
     setUsers(getUsersFromCache());
@@ -111,22 +105,24 @@ export function EmailNotificationConfigComponent({ config, onChange, teamName, t
           {teamEmails.length > 0 && (
             <div className="space-y-2">
               <Label className="text-xs text-muted-foreground">Team Email Addresses</Label>
-              <Select onValueChange={(email) => {
-                if (!customEmails.includes(email)) {
-                  setCustomEmails([...customEmails, email]);
-                }
-              }}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a team member email" />
-                </SelectTrigger>
-                <SelectContent>
-                  {teamEmails.map((email) => (
-                    <SelectItem key={email} value={email}>
-                      {email}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <select 
+                className="w-full p-2 border border-gray-300 rounded-md"
+                onChange={(e) => {
+                  const email = e.target.value;
+                  if (email && !customEmails.includes(email)) {
+                    setCustomEmails([...customEmails, email]);
+                    e.target.value = ''; // Reset selection
+                  }
+                }}
+                defaultValue=""
+              >
+                <option value="" disabled>Select a team member email</option>
+                {teamEmails.map((email, index) => (
+                  <option key={email} value={email}>
+                    {email}
+                  </option>
+                ))}
+              </select>
             </div>
           )}
           
