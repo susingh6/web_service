@@ -153,23 +153,23 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
   
   // Fetch entity details for pre-population using entity_name
   const { data: entityDetails, isLoading: isLoadingEntityDetails } = useQuery({
-    queryKey: ['entity-details-by-name', entity?.entity_name, entity?.team_name, entity?.entity_type],
+    queryKey: ['entity-details-by-name', entity?.name, entity?.team_name, entity?.type],
     queryFn: async () => {
-      if (!entity?.entity_name || !entity?.team_name || !entity?.entity_type) return null;
+      if (!entity?.name || !entity?.team_name || !entity?.type) return null;
       
       try {
         // Use the new entity_name-based API call
         const detailsData = await entitiesApi.readEntityByName({
-          type: entity.entity_type as 'table' | 'dag',
-          entityName: entity.entity_name,
+          type: entity.type as 'table' | 'dag',
+          entityName: entity.name,
           teamName: entity.team_name,
           entity: entity
         });
         
         console.debug('[EditEntityModal] Raw API response:', { 
-          entityName: entity.entity_name, 
+          entityName: entity.name, 
           teamName: entity.team_name,
-          entityType: entity.entity_type,
+          entityType: entity.type,
           detailsData 
         });
         
@@ -225,7 +225,7 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
         };
       }
     },
-    enabled: !!entity?.entity_name && !!entity?.team_name && !!entity?.entity_type && open,
+    enabled: !!entity?.name && !!entity?.team_name && !!entity?.type && open,
     staleTime: 0,
     refetchOnMount: 'always',
     refetchOnWindowFocus: false,
