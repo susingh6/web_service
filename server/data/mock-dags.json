@@ -44,6 +44,7 @@
     "notification_preferences": ["email", "slack", "pagerduty"],
     "user_name": "sarah.johnson",
     "user_email": "sarah.johnson@example.com",
+    "owner_email": "sarah.johnson@example.com",
     "is_active": true,
     "is_entity_owner": false,
     "currentSla": 95.2,
