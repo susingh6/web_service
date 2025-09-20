@@ -267,9 +267,28 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
       
       console.log('📤 Final entity data to submit:', entityData);
       
-      // Use the entity mutation hook with proper cache invalidation
-      console.log('⏳ Calling createEntity with cache management...');
-      const result = await createEntity(entityData);
+      // Use type-specific endpoints like bulk upload (consistent approach)
+      console.log('⏳ Calling type-specific API endpoint...');
+      const endpoint = entityType === 'table' ? endpoints.tables : endpoints.dags;
+      
+      // Call the type-specific API endpoint directly
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      const sessionId = localStorage.getItem('fastapi_session_id');
+      if (sessionId) headers['X-Session-ID'] = sessionId;
+      
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(entityData),
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to create ${entityType}: ${errorText}`);
+      }
+      
+      const result = await response.json();
       console.log('✅ Entity created successfully:', result);
       
       // Update local caches for dropdowns

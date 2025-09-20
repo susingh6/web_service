@@ -24,6 +24,16 @@ interface ApiConfig {
     };
     entities: string;
     entitiesBulk: string;
+    // Type-specific endpoints for tables and DAGs
+    tables: string;
+    tablesBulk: string;
+    dags: string;
+    dagsBulk: string;
+    // Optional Express fallback endpoints (development only)
+    tablesFallback?: string;
+    tablesBulkFallback?: string;
+    dagsFallback?: string;
+    dagsBulkFallback?: string;
     teams: string;
     tenants: string;
     teamDetails: (teamName: string) => string;
