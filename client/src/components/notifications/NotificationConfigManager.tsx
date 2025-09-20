@@ -51,6 +51,13 @@ export function NotificationConfigManager({ value, onChange, teamName }: Notific
       const memberEmails = team.members ? team.members.map((member: any) => member.email).filter(Boolean) : [];
       const allEmails = [...teamEmails, ...memberEmails];
       
+      console.log('[DEBUG] Team data processing:', {
+        originalTeam: team,
+        teamEmails,
+        memberEmails,
+        allEmails
+      });
+      
       return {
         team_email: allEmails,
         team_slack: team.team_slack || [],

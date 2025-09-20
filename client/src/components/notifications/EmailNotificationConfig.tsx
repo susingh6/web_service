@@ -29,6 +29,12 @@ export function EmailNotificationConfigComponent({ config, onChange, teamName, t
   const [customEmails, setCustomEmails] = useState<string[]>(config?.customEmails || []);
   const [emailError, setEmailError] = useState('');
 
+  console.log('[DEBUG] EmailNotificationConfig received props:', {
+    teamName,
+    teamEmails,
+    teamEmailsLength: teamEmails.length
+  });
+
   useEffect(() => {
     // Load cached data
     setUsers(getUsersFromCache());
