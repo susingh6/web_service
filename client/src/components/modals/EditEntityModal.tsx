@@ -913,11 +913,21 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
             Cancel
           </Button>
           <Button
-            type="submit"
+            type="button"
             variant="contained"
             color="primary"
             disabled={isSubmitting}
             startIcon={isSubmitting && <CircularProgress size={20} color="inherit" />}
+            onClick={async () => {
+              console.log('🔥 BUTTON CLICKED - Calling handleSubmit directly');
+              const formData = getValues();
+              console.log('🔥 FORM DATA:', formData);
+              try {
+                await onSubmit(formData);
+              } catch (error) {
+                console.error('🔥 SUBMIT ERROR:', error);
+              }
+            }}
           >
             {isSubmitting ? 'Saving...' : 'Edit Changes'}
           </Button>
