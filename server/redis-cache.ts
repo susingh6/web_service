@@ -847,8 +847,34 @@ export class RedisCache {
       // thisMonthTrends[tenant.name] = null; (default empty)
     }
     
+    // Create type-segregated Maps for proper cache isolation
+    const entitiesById = new Map<number, Entity>();
+    const entitiesByTeamType = new Map<string, number[]>();
+    const entitiesByName = new Map<string, number>();
+    
+    // Populate the new Maps from entities array
+    entities.forEach(entity => {
+      // Store by ID
+      entitiesById.set(entity.id, entity);
+      
+      // Store by team+type (composite key for type isolation)
+      const teamTypeKey = `${entity.teamId}:${entity.type}`;
+      if (!entitiesByTeamType.has(teamTypeKey)) {
+        entitiesByTeamType.set(teamTypeKey, []);
+      }
+      entitiesByTeamType.get(teamTypeKey)!.push(entity.id);
+      
+      // Store by team+type+name (composite key for lookup isolation)
+      const nameKey = `${entity.teamId}:${entity.type}:${entity.name}`;
+      entitiesByName.set(nameKey, entity.id);
+    });
+
     return {
       entities,
+      // New type-segregated storage for proper cache isolation
+      entitiesById,
+      entitiesByTeamType,
+      entitiesByName,
       teams,
       tenants,
       // Backward compatibility - use last30DayMetrics as default metrics
@@ -1259,6 +1285,10 @@ export class RedisCache {
         if (!this.fallbackData) {
           this.fallbackData = {
             entities: [], teams: [], tenants: [], metrics: {}, complianceTrends: {},
+            // Initialize new type-segregated Maps for proper cache isolation
+            entitiesById: new Map(),
+            entitiesByTeamType: new Map(),
+            entitiesByName: new Map(),
             last30DayMetrics: {}, todayMetrics: {}, yesterdayMetrics: {}, last7DayMetrics: {},
             thisMonthMetrics: {}, todayTrends: {}, yesterdayTrends: {}, last7DayTrends: {},
             last30DayTrends: {}, thisMonthTrends: {}, teamMetrics: {}, teamTrends: {},
@@ -2166,23 +2196,111 @@ export class RedisCache {
     entityType: 'table' | 'dag',
     refreshSummaryCache: boolean = false
   ): Promise<void> {
-    const invalidationKeys = [
-      `entities_team_${teamId}`,
-      `entities_type_${entityType}`,
-      `entities_team_${teamId}_type_${entityType}`
-    ];
+    // Handle Redis cache invalidation
+    if (this.useRedis && this.redis) {
+      const invalidationKeys = [
+        `entities_team_${teamId}`,
+        `entities_type_${entityType}`,
+        `entities_team_${teamId}_type_${entityType}`
+      ];
 
-    // Only refresh summary cache if explicitly requested (not the default)
-    const mainCacheKeys: (keyof typeof CACHE_KEYS)[] = refreshSummaryCache 
-      ? ['ENTITIES', 'TEAMS', 'METRICS'] 
-      : ['ENTITIES']; // Don't refresh metrics/summary by default
+      // Only refresh summary cache if explicitly requested (not the default)
+      const mainCacheKeys: (keyof typeof CACHE_KEYS)[] = refreshSummaryCache 
+        ? ['ENTITIES', 'TEAMS', 'METRICS'] 
+        : ['ENTITIES']; // Don't refresh metrics/summary by default
 
-    await this.invalidateCache({
-      keys: invalidationKeys,
-      patterns: [], // Target specific keys only, no broad patterns
-      mainCacheKeys,
-      refreshAffectedData: true
+      await this.invalidateCache({
+        keys: invalidationKeys,
+        patterns: [], // Target specific keys only, no broad patterns
+        mainCacheKeys,
+        refreshAffectedData: true
+      });
+    } else {
+      // Handle fallback cache with proper type isolation
+      await this.invalidateFallbackCacheByType(teamId, entityType, refreshSummaryCache);
+    }
+  }
+
+  // Type-isolated fallback cache invalidation to prevent cross-contamination
+  private async invalidateFallbackCacheByType(
+    teamId: number, 
+    entityType: 'table' | 'dag',
+    refreshSummaryCache: boolean = false
+  ): Promise<void> {
+    if (!this.fallbackData) return;
+
+    try {
+      // Get fresh entities for this specific team and type from storage
+      const allEntities = await storage.getEntities();
+      const teamEntities = allEntities.filter(e => e.teamId === teamId && e.type === entityType);
+      
+      // Update only the specific team+type entries in the segregated Maps
+      const teamTypeKey = `${teamId}:${entityType}`;
+      
+      // Clear old entries for this team+type combination
+      this.fallbackData.entitiesByTeamType.delete(teamTypeKey);
+      
+      // Remove old name mappings for this team+type
+      const keysToDelete: string[] = [];
+      this.fallbackData.entitiesByName.forEach((entityId, nameKey) => {
+        if (nameKey.startsWith(`${teamId}:${entityType}:`)) {
+          keysToDelete.push(nameKey);
+        }
+      });
+      keysToDelete.forEach(key => this.fallbackData!.entitiesByName.delete(key));
+      
+      // Add fresh entities to the type-segregated Maps
+      const entityIds: number[] = [];
+      teamEntities.forEach(entity => {
+        // Update entities by ID map
+        this.fallbackData!.entitiesById.set(entity.id, entity);
+        
+        // Update team+type index
+        entityIds.push(entity.id);
+        
+        // Update name lookup map with composite key
+        const nameKey = `${entity.teamId}:${entity.type}:${entity.name}`;
+        this.fallbackData!.entitiesByName.set(nameKey, entity.id);
+      });
+      
+      // Update team+type index with fresh entity IDs
+      if (entityIds.length > 0) {
+        this.fallbackData.entitiesByTeamType.set(teamTypeKey, entityIds);
+      }
+      
+      // Update legacy entities array for backward compatibility (rebuild from Maps)
+      this.rebuildLegacyEntitiesArray();
+      
+      console.log(`[CACHE] Invalidated fallback cache for team ${teamId}, type ${entityType} - updated ${teamEntities.length} entities`);
+      
+      if (refreshSummaryCache) {
+        // If summary cache refresh is requested, refresh full cache data
+        const freshData = await this.getCacheRefreshData();
+        this.fallbackData = freshData;
+        console.log(`[CACHE] Full fallback cache refreshed for team ${teamId}, type ${entityType}`);
+      }
+    } catch (error) {
+      console.error(`Failed to invalidate fallback cache for team ${teamId}, type ${entityType}:`, error);
+      // On error, do a full refresh to ensure consistency
+      try {
+        this.fallbackData = await this.getCacheRefreshData();
+        console.log(`[CACHE] Full fallback cache refresh after error for team ${teamId}, type ${entityType}`);
+      } catch (refreshError) {
+        console.error('Failed to refresh fallback cache after invalidation error:', refreshError);
+      }
+    }
+  }
+
+  // Rebuild the legacy entities array from the new type-segregated Maps
+  private rebuildLegacyEntitiesArray(): void {
+    if (!this.fallbackData) return;
+    
+    const entities: Entity[] = [];
+    this.fallbackData.entitiesById.forEach(entity => {
+      entities.push(entity);
     });
+    
+    this.fallbackData.entities = entities;
   }
 
   // Background cache rebuilding for specific entity types

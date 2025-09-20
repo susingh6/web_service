@@ -39,7 +39,12 @@ export interface EntityChange {
 export type PredefinedRange = 'today' | 'yesterday' | 'last7Days' | 'last30Days' | 'thisMonth';
 
 export interface CachedData {
+  // Legacy single entities array for backward compatibility (read-only, deprecated)
   entities: Entity[];
+  // New type-segregated storage for proper cache isolation
+  entitiesById: Map<number, Entity>;
+  entitiesByTeamType: Map<string, number[]>; // Key: `${teamId}:${entityType}`
+  entitiesByName: Map<string, number>; // Key: `${teamId}:${entityType}:${name}`
   teams: Team[];
   tenants: Array<{ id: number; name: string; description?: string }>;
   // Backward compatibility - map to last30DayMetrics
