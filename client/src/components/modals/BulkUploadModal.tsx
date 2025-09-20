@@ -594,6 +594,10 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
             is_entity_owner: entity.is_entity_owner || false,
             // Ensure required fields are included for both table and DAG entities
             owner: entity.owner_email || '',
+            // Add missing required schema fields
+            slaTarget: 95,
+            status: 'Active', 
+            refreshFrequency: 'Daily',
           };
           
           console.log('Creating entity with formatted data:', entityWithType);
