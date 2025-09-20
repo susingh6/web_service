@@ -129,8 +129,10 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   
-  // Determine entity type from the entity
-  const entityType: EntityType = entity?.type === 'dag' ? 'dag' : 'table';
+  // Determine entity type from the entity - use robust inference
+  const entityType: EntityType = entity?.type === 'dag' ? 'dag' : 
+    entity?.type === 'table' ? 'table' :
+    (entity as any)?.dag_name ? 'dag' : 'table';
   
   // State for dynamic options - initialize from cache for instant load
   const [tenantOptions, setTenantOptions] = useState<string[]>(() => getFromCacheGeneric<string[]>('tenants', ['Ad Engineering', 'Data Engineering']));
@@ -152,16 +154,16 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
     [entityType]
   );
   
-  // Fetch entity details for pre-population using entity_name
+  // Fetch entity details for pre-population using entity_name - remove fragile type gating
   const { data: entityDetails, isLoading: isLoadingEntityDetails } = useQuery({
-    queryKey: ['entity-details-by-name', entity?.name, entity?.team_name, entity?.type],
+    queryKey: ['entity-details-by-name', entity?.name, entity?.team_name, entityType],
     queryFn: async () => {
-      if (!entity?.name || !entity?.team_name || !entity?.type) return null;
+      if (!entity?.name || !entity?.team_name) return null;
       
       try {
-        // Use the new entity_name-based API call
+        // Use the new entity_name-based API call with inferred type
         const detailsData = await entitiesApi.readEntityByName({
-          type: entity.type as 'table' | 'dag',
+          type: entityType as 'table' | 'dag',
           entityName: entity.name,
           teamName: entity.team_name,
           entity: entity
@@ -222,7 +224,7 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
         };
       }
     },
-    enabled: !!entity?.name && !!entity?.team_name && !!entity?.type && open,
+    enabled: Boolean(entity?.name && entity?.team_name && open),
     staleTime: 0,
     refetchOnMount: 'always',
     refetchOnWindowFocus: false,
@@ -461,7 +463,10 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
         <DialogContent>
           <Box sx={{ mb: 2 }}>
             <Typography variant="body2" color="text.secondary">
-              Entity Type: <strong>{entity.type.toUpperCase()}</strong>
+              Entity Type: <strong>{entityType.toUpperCase()}</strong>
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem', mt: 1 }}>
+              Entity: {entity?.name} | Team: {entity?.team_name} | Owner: {entity?.is_entity_owner ? 'Yes' : 'No'}
             </Typography>
           </Box>
           
@@ -471,32 +476,51 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
             </Alert>
           )}
           
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Fields marked with an asterisk (*) are mandatory
-          </Typography>
+          {(() => {
+            if (isLoadingEntityDetails) {
+              return (
+                <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
+                  <CircularProgress />
+                  <Typography sx={{ ml: 2 }}>Loading entity details...</Typography>
+                </Box>
+              );
+            }
 
-          {entityType === 'table' ? (
-            /* TABLE FIELDS */
-            <>
-              <Controller
-                name="entity_name"
-                control={control}
-                render={({ field: { onChange, value, onBlur, ref } }) => (
-                  <TextField
-                    value={value}
-                    onChange={onChange}
-                    onBlur={onBlur}
-                    ref={ref}
-                    label={fieldDefinitions.entity_name.label + " *"}
-                    required
-                    fullWidth
-                    margin="normal"
-                    error={!!errors.entity_name}
-                    helperText={errors.entity_name?.message}
-                    placeholder={fieldDefinitions.entity_name.placeholder}
-                  />
-                )}
-              />
+            if (!entityDetails) {
+              return (
+                <Alert severity="warning" sx={{ mb: 2 }}>
+                  Unable to load entity details. Please try again.
+                </Alert>
+              );
+            }
+
+            return (
+              <>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  Fields marked with an asterisk (*) are mandatory
+                </Typography>
+
+                {entityType === 'table' ? (
+                  <>
+                    <Controller
+                      name="entity_name"
+                      control={control}
+                      render={({ field: { onChange, value, onBlur, ref } }) => (
+                        <TextField
+                          value={value}
+                          onChange={onChange}
+                          onBlur={onBlur}
+                          ref={ref}
+                          label={fieldDefinitions.entity_name.label + " *"}
+                          required
+                          fullWidth
+                          margin="normal"
+                          error={!!errors.entity_name}
+                          helperText={errors.entity_name?.message}
+                          placeholder={fieldDefinitions.entity_name.placeholder}
+                        />
+                      )}
+                    />
               
               <Controller
                 name="tenant_name"
@@ -624,10 +648,9 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
               />
               
 
-            </>
-          ) : (
-            /* DAG FIELDS */
-            <>
+                  </>
+                ) : (
+                  <>
               <Controller
                 name="entity_name"
                 control={control}
@@ -971,10 +994,11 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
                       />
                     )}
                   />
-                </>
-              )}
-            </>
-          )}
+                  </>
+                )}
+              </>
+            )
+          })()}
         </DialogContent>
         
         <DialogActions sx={{ px: 3, py: 2 }}>
