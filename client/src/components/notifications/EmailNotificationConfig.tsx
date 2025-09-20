@@ -24,16 +24,59 @@ interface EmailConfigProps {
 
 export function EmailNotificationConfigComponent({ config, onChange, teamName, teamEmails = [] }: EmailConfigProps) {
   const [users, setUsers] = useState<SystemUser[]>([]);
-  const [selectedUsers, setSelectedUsers] = useState<number[]>([]);
   const [customEmailInput, setCustomEmailInput] = useState('');
   const [customEmails, setCustomEmails] = useState<string[]>(config?.customEmails || []);
   const [emailError, setEmailError] = useState('');
   const [selectedDropdownValue, setSelectedDropdownValue] = useState('');
+  const [allTeamsData, setAllTeamsData] = useState<any[]>([]);
+  const [otherTeamEmails, setOtherTeamEmails] = useState<string[]>([]);
 
   useEffect(() => {
     // Load cached data
     setUsers(getUsersFromCache());
   }, []);
+
+  // Fetch all teams data to get emails from other teams
+  useEffect(() => {
+    const fetchAllTeams = async () => {
+      try {
+        const response = await fetch('/api/teams');
+        if (response.ok) {
+          const teams = await response.json();
+          setAllTeamsData(teams);
+          
+          // Extract emails from all teams except current team
+          const otherEmails: string[] = [];
+          teams.forEach((team: any) => {
+            if (team.name !== teamName) {
+              // Add team emails
+              if (team.team_email && Array.isArray(team.team_email)) {
+                otherEmails.push(...team.team_email);
+              }
+              // Add member emails from other teams
+              if (team.members && Array.isArray(team.members)) {
+                team.members.forEach((member: any) => {
+                  if (member.email) {
+                    otherEmails.push(member.email);
+                  }
+                });
+              }
+            }
+          });
+          
+          // Remove duplicates and filter out current team emails
+          const uniqueOtherEmails = Array.from(new Set(otherEmails)).filter(email => 
+            !teamEmails.includes(email)
+          );
+          setOtherTeamEmails(uniqueOtherEmails);
+        }
+      } catch (error) {
+        console.error('Error fetching teams data:', error);
+      }
+    };
+
+    fetchAllTeams();
+  }, [teamName, teamEmails]);
 
   useEffect(() => {
     // Update config with custom emails only (don't auto-add all team emails)
@@ -75,14 +118,6 @@ export function EmailNotificationConfigComponent({ config, onChange, teamName, t
 
 
 
-  const handleUserSelect = (userId: string) => {
-    const userIdNum = parseInt(userId);
-    const updatedUsers = selectedUsers.includes(userIdNum)
-      ? selectedUsers.filter(id => id !== userIdNum)
-      : [...selectedUsers, userIdNum];
-    
-    setSelectedUsers(updatedUsers);
-  };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
@@ -152,49 +187,54 @@ export function EmailNotificationConfigComponent({ config, onChange, teamName, t
         </CardContent>
       </Card>
 
-      {/* Additional Users */}
+      {/* Additional Recipients */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm">Additional Recipients</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {/* User Selection */}
-          <div className="space-y-2">
-            <Label className="text-xs">Additional Users</Label>
-            <Select onValueChange={handleUserSelect}>
-              <SelectTrigger className="h-8">
-                <SelectValue placeholder="Select users..." />
-              </SelectTrigger>
-              <SelectContent>
-                {users.map((user) => (
-                  <SelectItem key={user.id} value={user.id.toString()}>
-                    {user.displayName || user.username} ({user.email})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            
-            {selectedUsers.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {selectedUsers.map((userId) => {
-                  const user = users.find(u => u.id === userId);
-                  return user ? (
-                    <Badge key={userId} variant="outline" className="text-xs">
-                      {user.email}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-auto p-0 ml-1"
-                        onClick={() => setSelectedUsers(selectedUsers.filter(id => id !== userId))}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </Badge>
-                  ) : null;
-                })}
-              </div>
-            )}
-          </div>
+          {/* Other Team Emails and System Users */}
+          {(otherTeamEmails.length > 0 || users.length > 0) && (
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Other Team & System User Emails</Label>
+              <select 
+                className="w-full p-2 border border-gray-300 rounded-md"
+                value=""
+                onChange={(e) => {
+                  const email = e.target.value;
+                  if (email && !customEmails.includes(email)) {
+                    setCustomEmails([...customEmails, email]);
+                  }
+                }}
+              >
+                <option value="" disabled>Select an email address</option>
+                
+                {/* Other team emails */}
+                {otherTeamEmails.length > 0 && (
+                  <optgroup label="Other Teams">
+                    {otherTeamEmails.map((email, index) => (
+                      <option key={`other-team-${index}`} value={email}>
+                        {email}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                
+                {/* System user emails */}
+                {users.length > 0 && (
+                  <optgroup label="System Users">
+                    {users
+                      .filter(user => user.email && !teamEmails.includes(user.email) && !otherTeamEmails.includes(user.email))
+                      .map((user) => (
+                        <option key={user.id} value={user.email}>
+                          {user.email} ({user.displayName || user.username})
+                        </option>
+                      ))}
+                  </optgroup>
+                )}
+              </select>
+            </div>
+          )}
         </CardContent>
       </Card>
 
