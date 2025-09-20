@@ -1131,6 +1131,44 @@ export class MemStorage implements IStorage {
         break;
     }
 
+    // CRITICAL FIX: Also update the user's team assignment field
+    // This ensures notification timeline (using /api/users) stays in sync with admin panel (using /api/teams/{name}/members)
+    switch (action) {
+      case 'add':
+        if (memberId) {
+          const user = await this.getUser(parseInt(memberId));
+          if (user) {
+            // Update user's team assignment
+            const updatedUser = { ...user, team: teamName };
+            this.users.set(user.id, updatedUser);
+          }
+        }
+        break;
+      case 'remove':
+        if (memberId) {
+          let userId: number | undefined;
+          
+          if (typeof memberId === 'string' && isNaN(parseInt(memberId))) {
+            // memberId is a username string - find the user by username
+            const user = Array.from(this.users.values()).find(u => u.username === memberId);
+            userId = user?.id;
+          } else {
+            // memberId is a user ID
+            userId = parseInt(memberId);
+          }
+          
+          if (userId) {
+            const user = await this.getUser(userId);
+            if (user) {
+              // Clear user's team assignment (set to empty string or null)
+              const updatedUser = { ...user, team: '' };
+              this.users.set(user.id, updatedUser);
+            }
+          }
+        }
+        break;
+    }
+
     const updatedTeam: Team = {
       ...team,
       team_members_ids: updatedMembers,
