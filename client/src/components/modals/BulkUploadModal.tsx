@@ -567,16 +567,43 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
       
       for (const entity of validEntities) {
         try {
-          // Add entity type to the entity data based on current tab
+          // Get authenticated user's email
+          const { user } = useAuth(); 
+          const userEmail = user?.email;
+          
+          if (!userEmail) {
+            throw new Error('User email not found. Please log in again.');
+          }
+
+          // Format entity data the same way AddEntityModal does
+          const entityType = tabValue === 'dags' ? 'dag' : 'table';
           const entityWithType = {
             ...entity,
-            type: tabValue === 'dags' ? 'dag' : 'table'
+            user_email: userEmail, // Use authenticated user's email
+            // Map form fields to API fields - use entity_name for both table and DAG
+            name: entity.entity_name,
+            description: entityType === 'dag' ? entity.dag_description : entity.description,
+            type: entityType,
+            teamId: 1, // Will be determined by backend from team_name
+            
+            is_entity_owner: entity.is_entity_owner || false,
+            // Ensure required fields are included for both table and DAG entities
+            slaTarget: entity.slaTarget || 95,
+            status: entity.status || 'Active', 
+            refreshFrequency: entity.refreshFrequency || 'Daily',
+            owner: entity.owner || entity.owner_email || '',
+            ownerEmail: entity.ownerEmail || entity.owner_email || '',
           };
+          
+          console.log('Creating entity with formatted data:', entityWithType);
           
           // Use existing proven createEntity logic - handles everything automatically
           const createdEntity = await createEntity.mutateAsync(entityWithType);
           createdEntities.push(createdEntity);
+          
+          console.log('Successfully created entity:', createdEntity);
         } catch (entityError: any) {
+          console.error('Failed to create entity:', entityError);
           throw new Error(`Failed to create ${entity.entity_name}: ${entityError.message || 'Unknown error'}`);
         }
       }
