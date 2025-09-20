@@ -174,7 +174,51 @@ export const useTaskMutations = () => {
     });
   };
 
-  return { createTask, updateTask, deleteTask, updateTaskPriority };
+  // Update task preference with optimistic updates (AI vs regular monitoring)
+  const updateTaskPreference = async (taskId: number, preference: 'regular' | 'AI', dagId: number) => {
+    return executeWithOptimism({
+      optimisticUpdate: {
+        queryKey: CACHE_PATTERNS.TASKS.BY_DAG(dagId),
+        updater: (old: Task[] | undefined) => {
+          if (!old) return [];
+          return old.map(task => task.id === taskId ? { ...task, task_type: preference } : task);
+        },
+      },
+      mutationFn: async () => {
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        const sessionId = localStorage.getItem('fastapi_session_id');
+        if (sessionId) headers['X-Session-ID'] = sessionId;
+
+        const response = await fetch(`/api/tasks/${taskId}/preference`, {
+          method: 'PUT',
+          headers,
+          body: JSON.stringify({ task_preference: preference }),
+          credentials: 'include',
+        });
+        
+        if (!response.ok) {
+          const text = (await response.text()) || response.statusText;
+          try {
+            const errorData = JSON.parse(text);
+            if (errorData && typeof errorData.message === 'string') {
+              throw new Error(errorData.message);
+            }
+          } catch (parseError) {
+            // If JSON parsing fails, fall back to descriptive message
+          }
+          throw new Error(`Unable to update task preference. Please try again.`);
+        }
+        return response.json();
+      },
+      invalidationScenario: {
+        scenario: 'TASK_PREFERENCE_UPDATED',
+        params: [taskId, dagId, preference],
+      },
+      rollbackKeys: [CACHE_PATTERNS.TASKS.BY_DAG(dagId)],
+    });
+  };
+
+  return { createTask, updateTask, deleteTask, updateTaskPriority, updateTaskPreference };
 };
 
 // Enhanced task fetching with 6-hour caching
@@ -222,6 +266,24 @@ export const useUpdateTaskPriority = () => {
   return useMutation({
     mutationFn: async ({ taskId, priority, dagId }: UpdateTaskPriorityParams) => {
       return await updateTaskPriority(taskId, priority, dagId);
+    },
+    // Loading states and error handling are built into the executeWithOptimism pattern
+  });
+};
+
+// Enhanced task preference update hook (AI vs regular monitoring)
+interface UpdateTaskPreferenceParams {
+  taskId: number;
+  preference: 'regular' | 'AI';
+  dagId: number;
+}
+
+export const useUpdateTaskPreference = () => {
+  const { updateTaskPreference } = useTaskMutations();
+  
+  return useMutation({
+    mutationFn: async ({ taskId, preference, dagId }: UpdateTaskPreferenceParams) => {
+      return await updateTaskPreference(taskId, preference, dagId);
     },
     // Loading states and error handling are built into the executeWithOptimism pattern
   });

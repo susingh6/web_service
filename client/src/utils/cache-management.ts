@@ -387,6 +387,12 @@ export const INVALIDATION_SCENARIOS = {
     ...CACHE_PATTERNS.TASKS.BY_DAG_AND_PRIORITY(dagId, newPriority),
   ],
 
+  TASK_PREFERENCE_UPDATED: (taskId: number, dagId: number, preference: 'regular' | 'AI') => [
+    ...CACHE_PATTERNS.TASKS.BY_DAG(dagId),
+    ...CACHE_PATTERNS.TASKS.DETAILS(taskId),
+    ...CACHE_PATTERNS.TASKS.LIST,
+  ],
+
   // Rollback-specific cache invalidation patterns
   ENTITY_ROLLBACK: (entityId: number, teamId: number, entityType: 'table' | 'dag') => [
     ...CACHE_PATTERNS.ENTITIES.LIST,
