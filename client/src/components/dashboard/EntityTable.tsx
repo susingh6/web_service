@@ -618,7 +618,14 @@ const EntityTable = ({
                                 is_entity_owner: entity.is_entity_owner,
                                 entity
                               });
-                              onEditEntity(entity);
+                              
+                              console.log('[DEBUG] About to call onEditEntity...');
+                              try {
+                                onEditEntity(entity);
+                                console.log('[DEBUG] onEditEntity called successfully');
+                              } catch (error) {
+                                console.error('[DEBUG] Error calling onEditEntity:', error);
+                              }
                             }}>
                               <Edit fontSize="small" />
                             </IconButton>
