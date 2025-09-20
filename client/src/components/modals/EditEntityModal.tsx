@@ -476,32 +476,24 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
             </Alert>
           )}
           
-          {(() => {
-            if (isLoadingEntityDetails) {
-              return (
-                <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
-                  <CircularProgress />
-                  <Typography sx={{ ml: 2 }}>Loading entity details...</Typography>
-                </Box>
-              );
-            }
-
-            if (!entityDetails) {
-              return (
-                <Alert severity="warning" sx={{ mb: 2 }}>
-                  Unable to load entity details. Please try again.
-                </Alert>
-              );
-            }
-
-            return (
-              <>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                  Fields marked with an asterisk (*) are mandatory
-                </Typography>
-
-                {entityType === 'table' ? (
-                  <>
+          {isLoadingEntityDetails ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
+              <CircularProgress />
+              <Typography sx={{ ml: 2 }}>Loading entity details...</Typography>
+            </Box>
+          ) : !entityDetails ? (
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              Unable to load entity details. Please try again.
+            </Alert>
+          ) : (
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Modal is open for {entityType.toUpperCase()} entity: {entity?.name}
+              <br />
+              Owner: {entity?.is_entity_owner ? 'Yes' : 'No'}
+              <br />
+              Entity details loaded successfully. Form fields coming soon...
+            </Typography>
+          )}
                     <Controller
                       name="entity_name"
                       control={control}
@@ -646,11 +638,11 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
                   />
                 )}
               />
-              
+                </>
+              )}
 
-                  </>
-                ) : (
-                  <>
+              {entityType === 'dag' && (
+                <>
               <Controller
                 name="entity_name"
                 control={control}
@@ -994,11 +986,10 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
                       />
                     )}
                   />
-                  </>
-                )}
-              </>
-            )
-          })()}
+                </>
+              )}
+            </>
+          )}
         </DialogContent>
         
         <DialogActions sx={{ px: 3, py: 2 }}>
