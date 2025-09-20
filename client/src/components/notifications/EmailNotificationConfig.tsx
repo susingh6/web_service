@@ -55,11 +55,12 @@ export function EmailNotificationConfigComponent({ config, onChange, teamName, t
               if (team.team_email && Array.isArray(team.team_email)) {
                 otherEmails.push(...team.team_email);
               }
-              // Add member emails from other teams
-              if (team.members && Array.isArray(team.members)) {
-                team.members.forEach((member: any) => {
-                  if (member.email) {
-                    otherEmails.push(member.email);
+              // Add member emails from other teams by looking up usernames in cached users
+              if (team.team_members_ids && Array.isArray(team.team_members_ids)) {
+                team.team_members_ids.forEach((username: string) => {
+                  const user = users.find(u => u.username === username);
+                  if (user && user.email) {
+                    otherEmails.push(user.email);
                   }
                 });
               }
@@ -78,7 +79,7 @@ export function EmailNotificationConfigComponent({ config, onChange, teamName, t
     };
 
     fetchAllTeams();
-  }, [teamName, teamEmails]);
+  }, [teamName, teamEmails, users]);
 
   useEffect(() => {
     // Update config with all selected emails
