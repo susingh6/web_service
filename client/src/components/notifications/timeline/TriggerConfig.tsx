@@ -53,11 +53,20 @@ export const TriggerConfig: React.FC<TriggerConfigProps> = ({
             label="Time (UTC)"
             type="time"
             value={trigger.time || '09:00'}
-            onChange={(e) => onChange({ ...trigger, time: e.target.value })}
+            onChange={(e) => {
+              // Round to nearest 10-minute increment
+              const [hours, minutes] = e.target.value.split(':').map(Number);
+              const roundedMinutes = Math.round(minutes / 10) * 10;
+              const finalMinutes = roundedMinutes === 60 ? 0 : roundedMinutes;
+              const finalHours = roundedMinutes === 60 ? (hours + 1) % 24 : hours;
+              const formattedTime = `${String(finalHours).padStart(2, '0')}:${String(finalMinutes).padStart(2, '0')}`;
+              onChange({ ...trigger, time: formattedTime });
+            }}
             InputLabelProps={{ shrink: true }}
             inputProps={{ step: 600 }} // 10 minute steps
             fullWidth
             margin="normal"
+            helperText="Time will be rounded to nearest 10-minute increment (e.g., 9:34 → 9:30)"
           />
         );
 
