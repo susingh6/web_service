@@ -2608,6 +2608,131 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ));
     }
   });
+
+  // Express fallback routes for deleting entities by name (FastAPI alternatives)
+  app.delete("/api/tables/:name", requireActiveUser, async (req, res) => {
+    try {
+      const tableName = req.params.name;
+      console.log(`[EXPRESS_FALLBACK] DELETE /api/tables/${tableName}`);
+      
+      // Find the table entity by name
+      const allEntities = await redisCache.getAllEntities();
+      const entityToDelete = allEntities.find(e => 
+        e.type === 'table' && 
+        (e.name === tableName || e.table_name === tableName || e.entity_name === tableName)
+      );
+      
+      if (!entityToDelete) {
+        console.log(`[EXPRESS_FALLBACK] Table "${tableName}" not found`);
+        return res.status(404).json({ message: "Table not found" });
+      }
+      
+      console.log(`[EXPRESS_FALLBACK] Found table with ID ${entityToDelete.id}, deleting...`);
+      
+      const success = await redisCache.deleteEntity(entityToDelete.id);
+      if (!success) {
+        return res.status(500).json(createErrorResponse(
+          "Unable to delete table. Please try again or contact your administrator.",
+          "delete_error"
+        ));
+      }
+      
+      // Force WebSocket notification
+      redisCache.forceNotifyClients('entity-updated', {
+        entityId: entityToDelete.id,
+        entityName: entityToDelete.name,
+        entityType: entityToDelete.type,
+        teamName: entityToDelete.team_name || 'Unknown',
+        tenantName: entityToDelete.tenant_name || 'Unknown',
+        type: 'deleted',
+        entity: entityToDelete,
+        timestamp: new Date()
+      });
+      
+      // Cache invalidation
+      await redisCache.invalidateAndRebuildEntityCache(
+        entityToDelete.teamId, 
+        'table',
+        true
+      );
+      
+      await redisCache.invalidateTeamMetricsCache(
+        entityToDelete.tenant_name || 'Data Engineering',
+        entityToDelete.team_name || 'Unknown'
+      );
+      
+      console.log(`[EXPRESS_FALLBACK] Table "${tableName}" deleted successfully`);
+      res.status(200).json({ message: "Table deleted successfully" });
+    } catch (error) {
+      console.error('[EXPRESS_FALLBACK] Error deleting table:', error);
+      res.status(500).json(createErrorResponse(
+        "Unable to delete table. Please try again or contact your administrator.",
+        "delete_error"
+      ));
+    }
+  });
+
+  app.delete("/api/dags/:name", requireActiveUser, async (req, res) => {
+    try {
+      const dagName = req.params.name;
+      console.log(`[EXPRESS_FALLBACK] DELETE /api/dags/${dagName}`);
+      
+      // Find the DAG entity by name
+      const allEntities = await redisCache.getAllEntities();
+      const entityToDelete = allEntities.find(e => 
+        e.type === 'dag' && 
+        (e.name === dagName || e.dag_name === dagName || e.entity_name === dagName)
+      );
+      
+      if (!entityToDelete) {
+        console.log(`[EXPRESS_FALLBACK] DAG "${dagName}" not found`);
+        return res.status(404).json({ message: "DAG not found" });
+      }
+      
+      console.log(`[EXPRESS_FALLBACK] Found DAG with ID ${entityToDelete.id}, deleting...`);
+      
+      const success = await redisCache.deleteEntity(entityToDelete.id);
+      if (!success) {
+        return res.status(500).json(createErrorResponse(
+          "Unable to delete DAG. Please try again or contact your administrator.",
+          "delete_error"
+        ));
+      }
+      
+      // Force WebSocket notification
+      redisCache.forceNotifyClients('entity-updated', {
+        entityId: entityToDelete.id,
+        entityName: entityToDelete.name,
+        entityType: entityToDelete.type,
+        teamName: entityToDelete.team_name || 'Unknown',
+        tenantName: entityToDelete.tenant_name || 'Unknown',
+        type: 'deleted',
+        entity: entityToDelete,
+        timestamp: new Date()
+      });
+      
+      // Cache invalidation
+      await redisCache.invalidateAndRebuildEntityCache(
+        entityToDelete.teamId, 
+        'dag',
+        true
+      );
+      
+      await redisCache.invalidateTeamMetricsCache(
+        entityToDelete.tenant_name || 'Data Engineering',
+        entityToDelete.team_name || 'Unknown'
+      );
+      
+      console.log(`[EXPRESS_FALLBACK] DAG "${dagName}" deleted successfully`);
+      res.status(200).json({ message: "DAG deleted successfully" });
+    } catch (error) {
+      console.error('[EXPRESS_FALLBACK] Error deleting DAG:', error);
+      res.status(500).json(createErrorResponse(
+        "Unable to delete DAG. Please try again or contact your administrator.",
+        "delete_error"
+      ));
+    }
+  });
   
   // Entity History endpoints
   app.get("/api/entities/:id/history", async (req, res) => {
