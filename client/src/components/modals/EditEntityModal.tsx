@@ -916,6 +916,11 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
             color="primary"
             disabled={isSubmitting}
             startIcon={isSubmitting && <CircularProgress size={20} color="inherit" />}
+            onClick={() => {
+              console.log('🔥 BUTTON CLICKED - Form Errors:', errors);
+              console.log('🔥 BUTTON CLICKED - Form Valid:', Object.keys(errors).length === 0);
+              console.log('🔥 BUTTON CLICKED - Is Submitting:', isSubmitting);
+            }}
           >
             {isSubmitting ? 'Saving...' : 'Edit Changes'}
           </Button>
