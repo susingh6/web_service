@@ -5,6 +5,9 @@ export const cacheKeys = {
   entitiesByTenant: (tenant: string) => ['entities', tenant] as const,
   entitiesByTenantAndTeam: (tenant: string, teamId?: number | null) => ['entities', tenant, teamId ?? null] as const,
   entityDetails: (id: number | string, version?: string | number | boolean) => ['entity-details', id, version ?? null] as const,
+  // New entity_name-based cache keys
+  entityDetailsByName: (entityName: string, teamName: string, entityType: string, version?: string | number | boolean) => 
+    ['entity-details-by-name', entityName, teamName, entityType, version ?? null] as const,
   dashboardSummary: (tenant: string, teamId?: number | null, start?: string, end?: string) =>
     ['dashboardSummary', tenant, teamId === undefined ? 'global' : teamId, start ?? null, end ?? null] as const,
   teamMembers: (tenant: string, teamId?: number | null) => ['teamMembers', tenant, teamId ?? null] as const,
@@ -16,9 +19,18 @@ export const cacheKeys = {
 // Invalidation helpers
 export function invalidateEntityCaches(
   queryClient: QueryClient,
-  params: { tenant?: string; teamId?: number | null; entityId?: number | string; startDate?: string; endDate?: string }
+  params: { 
+    tenant?: string; 
+    teamId?: number | null; 
+    entityId?: number | string; 
+    entityName?: string;
+    teamName?: string;
+    entityType?: string;
+    startDate?: string; 
+    endDate?: string;
+  }
 ) {
-  const { tenant, teamId, entityId, startDate, endDate } = params;
+  const { tenant, teamId, entityId, entityName, teamName, entityType, startDate, endDate } = params;
 
   if (tenant) {
     queryClient.invalidateQueries({ queryKey: cacheKeys.entitiesByTenant(tenant) });
@@ -27,10 +39,18 @@ export function invalidateEntityCaches(
     queryClient.invalidateQueries({ queryKey: cacheKeys.dashboardSummary(tenant, teamId, startDate, endDate) });
     queryClient.invalidateQueries({ queryKey: cacheKeys.dashboardSummary(tenant, undefined, startDate, endDate) });
   }
+  
+  // Invalidate id-based cache keys (existing behavior)
   if (entityId !== undefined) {
     // Invalidate specific entity-details and all versioned variants
     queryClient.invalidateQueries({ queryKey: ['entity-details', entityId as any] });
     queryClient.invalidateQueries({ queryKey: cacheKeys.entityDetails(entityId) });
+  }
+  
+  // Invalidate entity_name-based cache keys (NEW)
+  if (entityName && teamName && entityType) {
+    queryClient.invalidateQueries({ queryKey: ['entity-details-by-name', entityName, teamName, entityType] });
+    queryClient.invalidateQueries({ queryKey: cacheKeys.entityDetailsByName(entityName, teamName, entityType) });
   }
 
   // Back-compat invalidations (can be removed once all usages migrate)
@@ -43,7 +63,7 @@ export function invalidateEntityCaches(
   
   // Emit custom event for Redux-based components (like Summary dashboard) to refresh
   window.dispatchEvent(new CustomEvent('dashboard-data-updated', { 
-    detail: { tenant, teamId, entityId, source: 'entity-mutation' } 
+    detail: { tenant, teamId, entityId, entityName, teamName, entityType, source: 'entity-mutation' } 
   }));
 }
 

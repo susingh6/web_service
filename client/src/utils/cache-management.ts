@@ -232,6 +232,8 @@ export const CACHE_PATTERNS = {
     BY_TYPE: (type: string) => [`/api/entities`, { type }],
     BY_TEAM_AND_TYPE: (teamId: number, type: string) => [`/api/entities`, { teamId, type }],
     DETAILS: (entityId: number) => [`/api/entities/${entityId}`],
+    DETAILS_BY_NAME: (entityName: string, teamName: string, entityType: string) => 
+      ['entity-details-by-name', entityName, teamName, entityType],
     HISTORY: (entityId: number) => [`/api/entities/${entityId}/history`],
   },
   
@@ -293,21 +295,23 @@ export const INVALIDATION_SCENARIOS = {
     ...CACHE_PATTERNS.DASHBOARD.SUMMARY(), // Invalidate summary cache for immediate count update
   ],
   
-  TABLE_ENTITY_UPDATED: (entityId: number, teamId: number) => [
+  TABLE_ENTITY_UPDATED: (entityId: number, teamId: number, entityName?: string, teamName?: string) => [
     ...CACHE_PATTERNS.ENTITIES.BY_TEAM(teamId),
     ...CACHE_PATTERNS.ENTITIES.BY_TYPE('table'),
     ...CACHE_PATTERNS.ENTITIES.BY_TEAM_AND_TYPE(teamId, 'table'),
     ...CACHE_PATTERNS.ENTITIES.DETAILS(entityId),
     ...CACHE_PATTERNS.ENTITIES.HISTORY(entityId),
+    ...(entityName && teamName ? CACHE_PATTERNS.ENTITIES.DETAILS_BY_NAME(entityName, teamName, 'table') : []),
     ...CACHE_PATTERNS.DASHBOARD.SUMMARY(), // Invalidate summary cache for immediate count update
   ],
   
-  DAG_ENTITY_UPDATED: (entityId: number, teamId: number) => [
+  DAG_ENTITY_UPDATED: (entityId: number, teamId: number, entityName?: string, teamName?: string) => [
     ...CACHE_PATTERNS.ENTITIES.BY_TEAM(teamId),
     ...CACHE_PATTERNS.ENTITIES.BY_TYPE('dag'),
     ...CACHE_PATTERNS.ENTITIES.BY_TEAM_AND_TYPE(teamId, 'dag'),
     ...CACHE_PATTERNS.ENTITIES.DETAILS(entityId),
     ...CACHE_PATTERNS.ENTITIES.HISTORY(entityId),
+    ...(entityName && teamName ? CACHE_PATTERNS.ENTITIES.DETAILS_BY_NAME(entityName, teamName, 'dag') : []),
     ...CACHE_PATTERNS.DASHBOARD.SUMMARY(), // Invalidate summary cache for immediate count update
   ],
   
