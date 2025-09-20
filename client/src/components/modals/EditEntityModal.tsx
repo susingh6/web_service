@@ -174,10 +174,7 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
         });
         
         // Normalize team_name from various possible API response formats
-        const normalizedTeamName = detailsData.team_name 
-          || detailsData.team?.name
-          || teams.find(t => t.id === (detailsData.teamId || detailsData.team_id))?.name
-          || '';
+        const normalizedTeamName = detailsData.team_name || '';
           
         const normalized = {
           ...detailsData,
@@ -185,11 +182,10 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
         };
         
         console.debug('[EditEntityModal] Normalized entity details:', { 
-          entityName: entity.entity_name, 
+          entityName: entity.name, 
           originalTeamName: detailsData.team_name,
           normalizedTeamName,
-          teamId: detailsData.teamId || detailsData.team_id,
-          team: detailsData.team
+          teamId: detailsData.teamId
         });
         
         return normalized;
