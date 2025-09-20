@@ -202,7 +202,9 @@ const NotificationsManagement = () => {
       return response.json();
     },
     onSuccess: () => {
+      // Invalidate both admin panel and header notification caches
       queryClient.invalidateQueries({ queryKey: ['admin', 'alerts'] });
+      queryClient.invalidateQueries({ queryKey: ['notifications', 'alerts'] });
       toast({ title: 'Success', description: 'Alert created successfully' });
       setAlertDialogOpen(false);
       alertForm.reset();
@@ -260,7 +262,9 @@ const NotificationsManagement = () => {
       return response.json();
     },
     onSuccess: () => {
+      // Invalidate both admin panel and header notification caches
       queryClient.invalidateQueries({ queryKey: ['admin', 'alerts'] });
+      queryClient.invalidateQueries({ queryKey: ['notifications', 'alerts'] });
       toast({ title: 'Success', description: 'Alert deactivated successfully' });
     },
     onError: () => {
