@@ -563,17 +563,18 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
       // ✅ Cache invalidation  
       // ✅ WebSocket broadcasting for real-time collaboration
       // ✅ Error handling and rollback
+      // Get authenticated user's email once (outside the loop)
+      const { user } = useAuth(); 
+      const userEmail = user?.email;
+      
+      if (!userEmail) {
+        throw new Error('User email not found. Please log in again.');
+      }
+
       const createdEntities = [];
       
       for (const entity of validEntities) {
         try {
-          // Get authenticated user's email
-          const { user } = useAuth(); 
-          const userEmail = user?.email;
-          
-          if (!userEmail) {
-            throw new Error('User email not found. Please log in again.');
-          }
 
           // Format entity data the same way AddEntityModal does
           const entityType = tabValue === 'dags' ? 'dag' : 'table';
