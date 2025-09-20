@@ -19,7 +19,6 @@ interface PagerDutyConfigProps {
 
 export function PagerDutyNotificationConfigComponent({ config, onChange, teamPagerDutyKeys = [] }: PagerDutyConfigProps) {
   const [serviceKey, setServiceKey] = useState(config?.serviceKey || '');
-  const [escalationPolicy, setEscalationPolicy] = useState(config?.escalationPolicy || '');
   const [serviceKeyError, setServiceKeyError] = useState('');
   const [isValidating, setIsValidating] = useState(false);
 
@@ -27,10 +26,9 @@ export function PagerDutyNotificationConfigComponent({ config, onChange, teamPag
     const updatedConfig = {
       ...(config || {}),
       serviceKey: serviceKey,
-      escalationPolicy: escalationPolicy,
     };
     onChange(updatedConfig);
-  }, [serviceKey, escalationPolicy, config, onChange]);
+  }, [serviceKey, config, onChange]);
 
   const handleServiceKeyChange = (value: string) => {
     setServiceKey(value);
@@ -73,12 +71,6 @@ export function PagerDutyNotificationConfigComponent({ config, onChange, teamPag
     }
   };
 
-  const escalationPolicies = [
-    { value: 'default', label: 'Default Escalation Policy' },
-    { value: 'critical', label: 'Critical Issues' },
-    { value: 'data-team', label: 'Data Team Escalation' },
-    { value: 'engineering', label: 'Engineering Team' },
-  ];
 
   return (
     <Card>
@@ -147,30 +139,13 @@ export function PagerDutyNotificationConfigComponent({ config, onChange, teamPag
           )}
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="escalation-policy" className="text-sm">
-            Escalation Policy (Optional)
-          </Label>
-          <Select value={escalationPolicy} onValueChange={setEscalationPolicy}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select escalation policy..." />
-            </SelectTrigger>
-            <SelectContent>
-              {escalationPolicies.map((policy) => (
-                <SelectItem key={policy.value} value={policy.value}>
-                  {policy.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
 
         <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
           <h4 className="text-sm font-medium text-orange-900 mb-2">Setup Requirements</h4>
           <ul className="text-sm text-orange-800 space-y-1">
             <li>• Create a service in your PagerDuty account</li>
             <li>• Generate an integration key for the service</li>
-            <li>• Configure escalation policies for proper incident routing</li>
+            <li>• Escalation policies are configured in PagerDuty</li>
             <li>• Test the integration before going live</li>
           </ul>
         </div>
@@ -179,7 +154,6 @@ export function PagerDutyNotificationConfigComponent({ config, onChange, teamPag
           <div className="bg-green-50 border border-green-200 rounded-lg p-3">
             <p className="text-sm text-green-800">
               Incidents will be created in PagerDuty when SLA violations occur
-              {escalationPolicy && ` using the "${escalationPolicies.find(p => p.value === escalationPolicy)?.label}" escalation policy`}
             </p>
           </div>
         )}
