@@ -1,6 +1,6 @@
 /**
  * PagerDuty notification configuration component
- * Follows same pattern as Email/Slack with Team Members and Custom sections
+ * Follows exact same pattern as Email/Slack with React Query and cache invalidation
  */
 
 import { useState, useEffect, useMemo } from 'react';
@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { X, Plus, Users, AlertTriangle, Key } from 'lucide-react';
+import { X, Plus, Users, Key } from 'lucide-react';
 import { PagerDutyNotificationConfig, SystemUser } from '@/lib/notifications/types';
 import { useQuery } from '@tanstack/react-query';
 
@@ -22,8 +22,9 @@ interface PagerDutyConfigProps {
 }
 
 export function PagerDutyNotificationConfigComponent({ config, onChange, teamName, teamPagerDutyKeys = [] }: PagerDutyConfigProps) {
-  // Use React Query for data fetching
+  // Use React Query for data fetching - exact same pattern as Email/Slack
   const { data: users = [], isLoading: usersLoading } = useQuery<SystemUser[]>({ queryKey: ['/api/users'] });
+  const { data: allTeamsData = [], isLoading: teamsLoading } = useQuery<any[]>({ queryKey: ['/api/teams'] });
   
   const [customServiceKeyInput, setCustomServiceKeyInput] = useState('');
   const [customServiceKeys, setCustomServiceKeys] = useState<string[]>([]);
@@ -31,28 +32,22 @@ export function PagerDutyNotificationConfigComponent({ config, onChange, teamNam
   const [serviceKeyError, setServiceKeyError] = useState('');
   const [selectedDropdownValue, setSelectedDropdownValue] = useState('');
   
-  // Get team members' PagerDuty services
+  // Loading state - exact same pattern as Email/Slack
+  const isLoading = usersLoading || teamsLoading;
+  
+  // Get team member PagerDuty services - exact same pattern as Email/Slack
   const teamMemberPagerDutyServices = useMemo(() => {
-    const allServices: string[] = [];
-    
+    const services: string[] = [];
     users.forEach((user: SystemUser) => {
-      if (user.user_pagerduty && Array.isArray(user.user_pagerduty)) {
-        allServices.push(...user.user_pagerduty);
+      if (user.team === teamName && user.user_pagerduty && Array.isArray(user.user_pagerduty)) {
+        services.push(...user.user_pagerduty);
       }
     });
-    
-    // Remove duplicates and sort
-    return Array.from(new Set(allServices)).sort();
-  }, [users]);
-
-  // Combine team PagerDuty keys and individual member services for Team Members section
-  const allTeamPagerDutyOptions = useMemo(() => {
-    const combined = [...teamPagerDutyKeys, ...teamMemberPagerDutyServices];
-    return Array.from(new Set(combined)).sort();
-  }, [teamPagerDutyKeys, teamMemberPagerDutyServices]);
+    return Array.from(new Set([...teamPagerDutyKeys, ...services]));
+  }, [users, teamName, teamPagerDutyKeys]);
 
   useEffect(() => {
-    // Update config with selected services
+    // Update config with selected services - exact same pattern as Email/Slack
     const allSelectedServices = [...selectedTeamPagerDuty, ...customServiceKeys];
     const updatedConfig = {
       ...config,
@@ -93,23 +88,6 @@ export function PagerDutyNotificationConfigComponent({ config, onChange, teamNam
     setCustomServiceKeys(customServiceKeys.filter(key => key !== keyToRemove));
   };
 
-  const handleTeamPagerDutyToggle = (service: string) => {
-    setSelectedTeamPagerDuty(prev => {
-      if (prev.includes(service)) {
-        return prev.filter(s => s !== service);
-      } else {
-        return [...prev, service];
-      }
-    });
-  };
-
-  const handleDropdownSelect = (value: string) => {
-    if (value && !selectedTeamPagerDuty.includes(value)) {
-      setSelectedTeamPagerDuty(prev => [...prev, value]);
-    }
-    setSelectedDropdownValue(''); // Reset dropdown
-  };
-
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       e.preventDefault();
@@ -128,57 +106,62 @@ export function PagerDutyNotificationConfigComponent({ config, onChange, teamNam
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {/* Show team PagerDuty services dropdown if available */}
-          {allTeamPagerDutyOptions.length > 0 && (
+          {/* Show team PagerDuty services dropdown if available - exact same pattern as Email/Slack */}
+          {teamMemberPagerDutyServices.length > 0 && (
             <div className="space-y-2">
               <Label className="text-xs text-muted-foreground">Team PagerDuty Services</Label>
-              <Select value={selectedDropdownValue} onValueChange={handleDropdownSelect}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select team PagerDuty services" />
-                </SelectTrigger>
-                <SelectContent>
-                  {allTeamPagerDutyOptions
-                    .filter(service => !selectedTeamPagerDuty.includes(service))
-                    .map((service) => (
-                    <SelectItem key={service} value={service}>
-                      {service}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <select 
+                className="w-full p-2 border border-gray-300 rounded-md"
+                value={selectedDropdownValue}
+                onChange={(e) => {
+                  const service = e.target.value;
+                  if (service && !selectedTeamPagerDuty.includes(service)) {
+                    setSelectedTeamPagerDuty([...selectedTeamPagerDuty, service]);
+                  }
+                  setSelectedDropdownValue(''); // Reset selection
+                }}
+              >
+                <option value="" disabled>Select a team PagerDuty service</option>
+                {teamMemberPagerDutyServices.map((service, index) => (
+                  <option key={service} value={service}>
+                    {service}
+                  </option>
+                ))}
+              </select>
             </div>
           )}
           
-          {/* Selected team PagerDuty services */}
-          {selectedTeamPagerDuty.length > 0 && (
-            <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground">Selected Team Services</Label>
-              <div className="flex flex-wrap gap-2">
-                {selectedTeamPagerDuty.map((service) => (
-                  <Badge key={service} variant="secondary" className="flex items-center gap-1">
-                    {service}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-4 w-4 p-0 hover:bg-destructive hover:text-destructive-foreground"
-                      onClick={() => handleTeamPagerDutyToggle(service)}
-                      data-testid={`remove-team-pagerduty-${service}`}
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
-                  </Badge>
-                ))}
-              </div>
+          {/* Display selected TEAM PagerDuty services - exact same pattern as Email/Slack */}
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Selected team services</Label>
+            <div className="flex flex-wrap gap-2">
+              {selectedTeamPagerDuty.map((service, index) => (
+                <Badge key={`team-${index}`} variant="secondary" className="text-xs">
+                  {service}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-auto p-0 ml-1"
+                    onClick={() => setSelectedTeamPagerDuty(selectedTeamPagerDuty.filter(s => s !== service))}
+                    data-testid={`remove-team-pagerduty-${service}`}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </Badge>
+              ))}
+              {selectedTeamPagerDuty.length === 0 && (
+                <p className="text-sm text-muted-foreground">No team services selected. Use the dropdown above to select team PagerDuty services.</p>
+              )}
             </div>
-          )}
+          </div>
 
-          {allTeamPagerDutyOptions.length === 0 && !usersLoading && (
+          {teamMemberPagerDutyServices.length === 0 && !isLoading && (
             <p className="text-sm text-muted-foreground">
               No team PagerDuty services configured. Add services in team settings or use custom service keys below.
             </p>
           )}
 
-          {usersLoading && (
+          {isLoading && (
             <p className="text-sm text-muted-foreground">Loading team PagerDuty services...</p>
           )}
         </CardContent>
