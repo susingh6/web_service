@@ -142,19 +142,24 @@ export async function entityRequest(
     return await apiRequest(method, primaryEndpoint, data);
   }
   
-  // In development: Try FastAPI first, fallback to Express if unavailable
+  // In development: Try FastAPI first, fallback to Express on failure
   if (isDevelopment) {
-    const isFastAPIAvailable = await checkFastAPIAvailable();
-    
-    if (isFastAPIAvailable) {
-      console.log('[DEVELOPMENT] Using FastAPI for entity operation');
-      return await apiRequest(method, primaryEndpoint, data);
-    } else {
-      if (!fallbackEndpoint) {
-        throw new Error(`FastAPI unavailable and no Express fallback configured for ${entityType} ${operation} operation`);
+    try {
+      console.log('[DEVELOPMENT] Trying FastAPI for entity operation');
+      const response = await apiRequest(method, primaryEndpoint, data);
+      
+      // If response is 404 or 500+, try Express fallback
+      if (!response.ok && (response.status === 404 || response.status >= 500)) {
+        throw new Error(`FastAPI endpoint returned ${response.status}`);
       }
       
-      console.log('[DEVELOPMENT] FastAPI unavailable, falling back to Express for entity operation');
+      return response;
+    } catch (error) {
+      if (!fallbackEndpoint) {
+        throw new Error(`FastAPI failed and no Express fallback configured for ${entityType} ${operation} operation: ${error}`);
+      }
+      
+      console.log(`[DEVELOPMENT] FastAPI failed (${error}), falling back to Express for entity operation`);
       return await expressApiRequest(method, fallbackEndpoint, data);
     }
   }

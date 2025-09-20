@@ -2104,6 +2104,181 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ));
     }
   });
+
+  // Express fallback endpoints for type-specific entity creation (dev only)
+  // These endpoints map to the unified /api/entities logic but enforce entity type
+  
+  app.post("/api/tables", requireActiveUser, async (req, res) => {
+    try {
+      // Ensure type is set to 'table'
+      const entityData = { ...req.body, type: 'table' };
+      
+      const result = insertEntitySchema.safeParse(entityData);
+      if (!result.success) {
+        return res.status(400).json({ message: "Invalid table data", errors: result.error.format() });
+      }
+      
+      // Use the same logic as /api/entities
+      const payload = { ...result.data } as any;
+      
+      try {
+        if (!payload.teamId && payload.team_name) {
+          const teamByName = await storage.getTeamByName(payload.team_name);
+          if (teamByName) {
+            payload.teamId = teamByName.id;
+            payload.team_name = teamByName.name;
+            const tenants = await storage.getTenants();
+            const tenant = tenants.find(t => t.id === teamByName.tenant_id);
+            if (tenant) payload.tenant_name = payload.tenant_name || tenant.name;
+          }
+        }
+        
+        if (payload.teamId) {
+          const team = await storage.getTeam(payload.teamId);
+          if (team) {
+            payload.team_name = payload.team_name || team.name;
+            const tenants = await storage.getTenants();
+            const tenant = tenants.find(t => t.id === team.tenant_id);
+            if (tenant) payload.tenant_name = payload.tenant_name || tenant.name;
+          }
+        }
+      } catch (_err) {}
+      
+      const entity = await redisCache.createEntity(payload);
+      
+      await redisCache.invalidateCache({
+        keys: ['all_entities', 'entities_summary'],
+        patterns: ['entity_details:*', 'team_entities:*', 'entities_team_*', 'dashboard_summary:*'],
+        mainCacheKeys: ['ENTITIES', 'METRICS'],
+        refreshAffectedData: true
+      });
+      
+      res.removeHeader('ETag');
+      res.removeHeader('Last-Modified');
+      
+      res.status(201).json(entity);
+    } catch (error) {
+      console.error('Error creating table:', error);
+      res.status(500).json(createErrorResponse("Unable to create table", "creation_error"));
+    }
+  });
+
+  app.post("/api/dags", requireActiveUser, async (req, res) => {
+    try {
+      // Ensure type is set to 'dag'
+      const entityData = { ...req.body, type: 'dag' };
+      
+      const result = insertEntitySchema.safeParse(entityData);
+      if (!result.success) {
+        return res.status(400).json({ message: "Invalid DAG data", errors: result.error.format() });
+      }
+      
+      // Use the same logic as /api/entities  
+      const payload = { ...result.data } as any;
+      
+      try {
+        if (!payload.teamId && payload.team_name) {
+          const teamByName = await storage.getTeamByName(payload.team_name);
+          if (teamByName) {
+            payload.teamId = teamByName.id;
+            payload.team_name = teamByName.name;
+            const tenants = await storage.getTenants();
+            const tenant = tenants.find(t => t.id === teamByName.tenant_id);
+            if (tenant) payload.tenant_name = payload.tenant_name || tenant.name;
+          }
+        }
+        
+        if (payload.teamId) {
+          const team = await storage.getTeam(payload.teamId);
+          if (team) {
+            payload.team_name = payload.team_name || team.name;
+            const tenants = await storage.getTenants();
+            const tenant = tenants.find(t => t.id === team.tenant_id);
+            if (tenant) payload.tenant_name = payload.tenant_name || tenant.name;
+          }
+        }
+      } catch (_err) {}
+      
+      const entity = await redisCache.createEntity(payload);
+      
+      await redisCache.invalidateCache({
+        keys: ['all_entities', 'entities_summary'],
+        patterns: ['entity_details:*', 'team_entities:*', 'entities_team_*', 'dashboard_summary:*'],
+        mainCacheKeys: ['ENTITIES', 'METRICS'],
+        refreshAffectedData: true
+      });
+      
+      res.removeHeader('ETag');
+      res.removeHeader('Last-Modified');
+      
+      res.status(201).json(entity);
+    } catch (error) {
+      console.error('Error creating DAG:', error);
+      res.status(500).json(createErrorResponse("Unable to create DAG", "creation_error"));
+    }
+  });
+
+  app.post("/api/tables/bulk", requireActiveUser, async (req, res) => {
+    try {
+      const entities = req.body;
+      if (!Array.isArray(entities)) {
+        return res.status(400).json({ message: "Expected array of table entities" });
+      }
+      
+      const createdEntities = [];
+      for (const entityData of entities) {
+        const entityWithType = { ...entityData, type: 'table' };
+        const result = insertEntitySchema.safeParse(entityWithType);
+        if (result.success) {
+          const entity = await redisCache.createEntity(result.data);
+          createdEntities.push(entity);
+        }
+      }
+      
+      await redisCache.invalidateCache({
+        keys: ['all_entities', 'entities_summary'],
+        patterns: ['entity_details:*', 'team_entities:*', 'entities_team_*', 'dashboard_summary:*'],
+        mainCacheKeys: ['ENTITIES', 'METRICS'],
+        refreshAffectedData: true
+      });
+      
+      res.status(201).json(createdEntities);
+    } catch (error) {
+      console.error('Error creating tables bulk:', error);
+      res.status(500).json(createErrorResponse("Unable to create tables", "bulk_creation_error"));
+    }
+  });
+
+  app.post("/api/dags/bulk", requireActiveUser, async (req, res) => {
+    try {
+      const entities = req.body;
+      if (!Array.isArray(entities)) {
+        return res.status(400).json({ message: "Expected array of DAG entities" });
+      }
+      
+      const createdEntities = [];
+      for (const entityData of entities) {
+        const entityWithType = { ...entityData, type: 'dag' };
+        const result = insertEntitySchema.safeParse(entityWithType);
+        if (result.success) {
+          const entity = await redisCache.createEntity(result.data);
+          createdEntities.push(entity);
+        }
+      }
+      
+      await redisCache.invalidateCache({
+        keys: ['all_entities', 'entities_summary'],
+        patterns: ['entity_details:*', 'team_entities:*', 'entities_team_*', 'dashboard_summary:*'],
+        mainCacheKeys: ['ENTITIES', 'METRICS'],
+        refreshAffectedData: true
+      });
+      
+      res.status(201).json(createdEntities);
+    } catch (error) {
+      console.error('Error creating DAGs bulk:', error);
+      res.status(500).json(createErrorResponse("Unable to create DAGs", "bulk_creation_error"));
+    }
+  });
   
   app.get("/api/entities/:id", async (req, res) => {
     try {
