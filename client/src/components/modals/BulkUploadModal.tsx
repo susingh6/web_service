@@ -599,7 +599,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
           console.log('Creating entity with formatted data:', entityWithType);
           
           // Use existing proven createEntity logic - handles everything automatically
-          const createdEntity = await createEntity.mutateAsync(entityWithType);
+          const createdEntity = await createEntity(entityWithType);
           createdEntities.push(createdEntity);
           
           console.log('Successfully created entity:', createdEntity);
