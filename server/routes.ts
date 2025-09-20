@@ -4465,55 +4465,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Update entity owners (PATCH) - accepts array of emails (comma or array)
-  app.patch('/api/entities/:entityId/owner', async (req: Request, res: Response) => {
-    try {
-      const entityId = parseInt(req.params.entityId);
-      if (isNaN(entityId)) {
-        return res.status(400).json(createErrorResponse('Invalid entity ID', 'validation_error'));
-      }
-
-      const { owner_email, ownerEmail, owners } = req.body || {};
-      // Normalize owners to a comma-separated string stored in ownerEmail/owner_email
-      let emails: string[] = [];
-      if (Array.isArray(owners)) emails = owners;
-      else if (typeof owner_email === 'string') emails = owner_email.split(',');
-      else if (typeof ownerEmail === 'string') emails = ownerEmail.split(',');
-      emails = emails.map((e: string) => e.trim()).filter((e: string) => e.length > 0);
-
-      const updates: any = {};
-      const normalized = emails.join(',');
-      // If empty array, clear owners; otherwise set to comma-separated list
-      updates.owner_email = normalized;
-      updates.ownerEmail = normalized;
-
-      // Update via redis cache helper to persist to Redis and fallback consistently
-      const updated = await redisCache.updateEntityById(entityId, updates);
-      if (!updated) {
-        return res.status(404).json(createErrorResponse('Entity not found', 'not_found'));
-      }
-
-      // Optional: targeted invalidation (entities by team) to refresh any dependent lists
-      await redisCache.invalidateEntityData((updated as any).teamId);
-
-      return res.json({ success: true, owner_email: (updated as any).owner_email || (updated as any).ownerEmail || null });
-    } catch (error) {
-      console.error('Update entity owner error:', error);
-      return res.status(500).json(createErrorResponse('Failed to update owner', 'update_error'));
-    }
-  });
-
-  // FastAPI-style alias
-  app.patch('/api/v1/entities/:entityId/owner', async (req: Request, res: Response) => {
-    try {
-      const { entityId } = req.params;
-      req.url = `/api/entities/${entityId}/owner`;
-      res.redirect(307, req.url);
-    } catch (error) {
-      console.error('Update entity owner v1 alias error:', error);
-      res.status(500).json(createErrorResponse('Failed to update owner', 'update_error'));
-    }
-  });
 
   // Update table owner by entity_name (Express fallback)
   app.patch('/api/tables/:name/owner', requireActiveUser, async (req: Request, res: Response) => {
