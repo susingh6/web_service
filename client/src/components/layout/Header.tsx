@@ -309,7 +309,7 @@ const Header = () => {
                         <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
                           {alert.title}
                         </Typography>
-                        <Box display="flex" align="center" gap={1} mb={0.5}>
+                        <Box display="flex" alignItems="center" gap={1} mb={0.5}>
                           <Chip 
                             label={alert.alertType}
                             size="small"
