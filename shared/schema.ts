@@ -374,6 +374,7 @@ export const insertAlertSchema = createInsertSchema(alerts).omit({
   alertType: z.enum(['system', 'maintenance', 'warning', 'info']),
   severity: z.enum(['low', 'medium', 'high', 'critical']),
   dateKey: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date key must be in YYYY-MM-DD format'),
+  expiresAt: z.coerce.date().nullable().optional(),
 }).refine(data => {
   if (data.expiresAt) {
     const createdAt = new Date();
@@ -393,6 +394,7 @@ export const insertAdminBroadcastMessageSchema = createInsertSchema(adminBroadca
 }).extend({
   deliveryType: z.enum(['immediate', 'login_triggered']),
   dateKey: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date key must be in YYYY-MM-DD format'),
+  expiresAt: z.coerce.date().nullable().optional(),
 }).refine(data => {
   if (data.expiresAt) {
     const createdAt = new Date();
