@@ -163,8 +163,9 @@ export function NotificationConfigManager({ value, onChange, teamName }: Notific
       case 'pagerduty':
         return (
           <PagerDutyNotificationConfigComponent
-            config={notificationSettings.pagerduty as PagerDutyNotificationConfig || { serviceKey: '', escalationPolicy: '' }}
+            config={notificationSettings.pagerduty as PagerDutyNotificationConfig || { serviceKey: '' }}
             onChange={(config) => handleChannelConfigChange('pagerduty', config)}
+            teamName={teamName}
             teamPagerDutyKeys={teamData?.team_pagerduty || []}
           />
         );
