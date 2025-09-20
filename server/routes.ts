@@ -3202,10 +3202,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json(createErrorResponse("Invalid entity ID", "validation_error"));
       }
 
-      // Get tasks from cache using DAG-based lookup (since tasks are associated with DAGs)
-      const tasks = await redisCache.getTasksByDAG(entityId);
+      // Get the entity first to get its name, then fetch tasks by DAG name
+      const entity = await storage.getEntity(entityId);
+      if (!entity || entity.type !== 'dag') {
+        return res.status(404).json(createErrorResponse("DAG entity not found", "not_found"));
+      }
+
+      // Get tasks from cache using DAG name (our task system is organized by DAG names)
+      const tasks = await redisCache.getTasksByDAGName(entity.name);
       
-      console.log(`GET /api/v1/entities/${entityId}/tasks - found ${tasks.length} tasks`);
+      console.log(`GET /api/v1/entities/${entityId}/tasks - found ${tasks.length} tasks for DAG: ${entity.name}`);
       res.json(tasks);
     } catch (error) {
       console.error(`Error fetching tasks for entity ${req.params.entityId}:`, error);
