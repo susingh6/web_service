@@ -2874,6 +2874,99 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ));
     }
   });
+
+  // Express fallback routes for getting entities by name (FastAPI alternatives)
+  app.get("/api/tables/:name", async (req: Request, res: Response) => {
+    try {
+      const tableName = req.params.name;
+      const teamFilter = req.query.team as string | undefined;
+      console.log(`[EXPRESS_FALLBACK] GET /api/tables/${tableName}${teamFilter ? `?team=${teamFilter}` : ''}`);
+      
+      // Find the table entity by name
+      const allEntities = await redisCache.getAllEntities();
+      let matchingEntities = allEntities.filter(e => 
+        e.type === 'table' && 
+        (e.table_name === tableName || e.name === tableName)
+      );
+      
+      // Apply team filter if provided
+      if (teamFilter) {
+        matchingEntities = matchingEntities.filter(e => 
+          e.team_name === teamFilter
+        );
+      }
+      
+      if (matchingEntities.length === 0) {
+        return res.status(404).json(createErrorResponse(
+          `Table "${tableName}" not found${teamFilter ? ` in team "${teamFilter}"` : ''}`,
+          "not_found"
+        ));
+      }
+      
+      if (matchingEntities.length > 1 && !teamFilter) {
+        return res.status(409).json(createErrorResponse(
+          `Multiple tables named "${tableName}" found. Please specify team parameter.`,
+          "ambiguous"
+        ));
+      }
+      
+      const entityToReturn = matchingEntities[0];
+      console.log(`[EXPRESS_FALLBACK] Table "${tableName}" found successfully`);
+      res.status(200).json(entityToReturn);
+    } catch (error) {
+      console.error('[EXPRESS_FALLBACK] Error getting table:', error);
+      res.status(500).json(createErrorResponse(
+        "Unable to retrieve table. Please try again or contact your administrator.",
+        "get_error"
+      ));
+    }
+  });
+
+  app.get("/api/dags/:name", async (req: Request, res: Response) => {
+    try {
+      const dagName = req.params.name;
+      const teamFilter = req.query.team as string | undefined;
+      console.log(`[EXPRESS_FALLBACK] GET /api/dags/${dagName}${teamFilter ? `?team=${teamFilter}` : ''}`);
+      
+      // Find the DAG entity by name
+      const allEntities = await redisCache.getAllEntities();
+      let matchingEntities = allEntities.filter(e => 
+        e.type === 'dag' &&
+        (e.dag_name === dagName || e.name === dagName)
+      );
+      
+      // Apply team filter if provided
+      if (teamFilter) {
+        matchingEntities = matchingEntities.filter(e => 
+          e.team_name === teamFilter
+        );
+      }
+      
+      if (matchingEntities.length === 0) {
+        return res.status(404).json(createErrorResponse(
+          `DAG "${dagName}" not found${teamFilter ? ` in team "${teamFilter}"` : ''}`,
+          "not_found"
+        ));
+      }
+      
+      if (matchingEntities.length > 1 && !teamFilter) {
+        return res.status(409).json(createErrorResponse(
+          `Multiple DAGs named "${dagName}" found. Please specify team parameter.`,
+          "ambiguous"
+        ));
+      }
+      
+      const entityToReturn = matchingEntities[0];
+      console.log(`[EXPRESS_FALLBACK] DAG "${dagName}" found successfully`);
+      res.status(200).json(entityToReturn);
+    } catch (error) {
+      console.error('[EXPRESS_FALLBACK] Error getting DAG:', error);
+      res.status(500).json(createErrorResponse(
+        "Unable to retrieve DAG. Please try again or contact your administrator.",
+        "get_error"
+      ));
+    }
+  });
   
   // Entity History endpoints
   app.get("/api/entities/:id/history", async (req, res) => {
