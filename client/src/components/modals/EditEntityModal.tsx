@@ -344,10 +344,6 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
   }, [entityDetails, reset, open, entityType, isLoadingEntityDetails, isLockedContext, initialTenantName, initialTeamName]);
 
   const onSubmit = async (data: any) => {
-    console.log('🔥 FORM SUBMIT ATTEMPT:', { entity: entity?.name, isOwner: entity?.is_entity_owner, data });
-    console.log('🔥 FORM ERRORS:', errors);
-    console.log('🔥 FORM STATE:', { isSubmitting, isValid: Object.keys(errors).length === 0 });
-    
     if (!entity) return;
 
     try {
@@ -916,11 +912,6 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
             color="primary"
             disabled={isSubmitting}
             startIcon={isSubmitting && <CircularProgress size={20} color="inherit" />}
-            onClick={() => {
-              console.log('🔥 BUTTON CLICKED - Form Errors:', errors);
-              console.log('🔥 BUTTON CLICKED - Form Valid:', Object.keys(errors).length === 0);
-              console.log('🔥 BUTTON CLICKED - Is Submitting:', isSubmitting);
-            }}
           >
             {isSubmitting ? 'Saving...' : 'Edit Changes'}
           </Button>
