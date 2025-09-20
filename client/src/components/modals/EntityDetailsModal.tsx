@@ -176,7 +176,7 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
         // Optimistically reflect owner change for this modal's cache key
         const detailsKey = cacheKeys.entityDetails(entity.id, `ownerSlaSettings-${entity.type}-${teamName}-${entity.name}`);
         const normalized = ownersArray.join(',');
-        queryClient.setQueryData(detailsKey as any, (old: any) => ({
+        queryClient.setQueryData(detailsKey as any, (old: any) => structuredClone({
           ...(old || {}),
           owner: normalized,
           ownerEmail: normalized,
