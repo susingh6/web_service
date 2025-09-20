@@ -172,6 +172,7 @@ const NotificationsManagement = () => {
   // Create alert mutation
   const createAlertMutation = useMutation({
     mutationFn: async (data: AlertFormData) => {
+      const expiresAtDate = new Date(Date.now() + data.expiresInHours * 60 * 60 * 1000);
       const alertData = {
         title: data.title,
         message: data.message,
@@ -179,8 +180,10 @@ const NotificationsManagement = () => {
         severity: data.severity,
         dateKey: new Date().toISOString().split('T')[0],
         isActive: true,
-        expiresAt: new Date(Date.now() + data.expiresInHours * 60 * 60 * 1000).toISOString(),
+        expiresAt: expiresAtDate.toISOString(),
       };
+
+      console.log('Creating alert with data:', alertData);
 
       const response = await fetch(buildUrl('/api/v1/alerts'), {
         method: 'POST',
@@ -191,7 +194,11 @@ const NotificationsManagement = () => {
         body: JSON.stringify(alertData),
       });
 
-      if (!response.ok) throw new Error('Failed to create alert');
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Alert creation failed:', errorData);
+        throw new Error(`Failed to create alert: ${JSON.stringify(errorData)}`);
+      }
       return response.json();
     },
     onSuccess: () => {
