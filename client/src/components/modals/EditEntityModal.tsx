@@ -461,7 +461,13 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
         </IconButton>
       </DialogTitle>
 
-      <form onSubmit={handleSubmit(onSubmit)}>
+      <form 
+        onSubmit={(e) => {
+          console.log('🔥 FORM onSubmit triggered!', e);
+          e.preventDefault();
+          handleSubmit(onSubmit)(e);
+        }}
+      >
         <DialogContent>
           <Box sx={{ mb: 2 }}>
             <Typography variant="body2" color="text.secondary">
