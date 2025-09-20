@@ -8,6 +8,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { AdminRoute } from "@/lib/admin-route";
 import { ProtectedRoute } from "@/lib/protected-route";
 import AppLayout from "./components/layout/AppLayout";
+import BroadcastMessagePopup from "@/components/BroadcastMessagePopup";
 import NotFound from "@/pages/not-found";
 import AuthPage from "@/pages/auth-page";
 import Summary from "@/pages/dashboard/Summary";
@@ -190,6 +191,7 @@ function App() {
           <Router />
         </AppLayout>
         <Toaster />
+        <BroadcastMessagePopup />
       </AuthProvider>
     </QueryClientProvider>
   );

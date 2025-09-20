@@ -239,7 +239,9 @@ const NotificationsManagement = () => {
       return response.json();
     },
     onSuccess: () => {
+      // Invalidate both admin panel and global broadcast message caches
       queryClient.invalidateQueries({ queryKey: ['admin', 'broadcast-messages'] });
+      queryClient.invalidateQueries({ queryKey: ['broadcast-messages'] });
       toast({ title: 'Success', description: 'Admin message created successfully' });
       setMessageDialogOpen(false);
       messageForm.reset();
@@ -285,7 +287,9 @@ const NotificationsManagement = () => {
       return response.json();
     },
     onSuccess: () => {
+      // Invalidate both admin panel and global broadcast message caches
       queryClient.invalidateQueries({ queryKey: ['admin', 'broadcast-messages'] });
+      queryClient.invalidateQueries({ queryKey: ['broadcast-messages'] });
       toast({ title: 'Success', description: 'Admin message deactivated successfully' });
     },
     onError: () => {
