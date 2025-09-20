@@ -244,9 +244,20 @@ export const entitiesApi = {
     return normalizeEntity(result);
   },
   deleteEntity: async ({ type, entityName, entity }: { type: 'table' | 'dag', entityName?: string, entity?: any }) => {
+    console.log(`[DELETE_ENTITY_DEBUG] Input parameters:`, { type, entityName, entity });
+    
     // Defensively resolve entity name with fallbacks
     let resolvedEntityName = entityName;
     if (!resolvedEntityName && entity) {
+      console.log(`[DELETE_ENTITY_DEBUG] Entity object:`, {
+        id: entity.id,
+        name: entity.name,
+        type: entity.type,
+        dag_name: entity.dag_name,
+        table_name: entity.table_name,
+        entity_name: entity.entity_name
+      });
+      
       if (type === 'dag') {
         resolvedEntityName = entity.dag_name || entity.name || entity.entity_name;
       } else {
