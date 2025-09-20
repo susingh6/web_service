@@ -16,6 +16,8 @@ interface CreateEntityPayload extends InsertEntity {}
 
 interface UpdateEntityPayload {
   id: number;
+  type: 'table' | 'dag';
+  entity: any;
   updates: any;
 }
 
@@ -87,7 +89,13 @@ export const createEntity = createAsyncThunk(
 export const updateEntity = createAsyncThunk(
   'entities/updateEntity',
   async (payload: UpdateEntityPayload) => {
-    return await entitiesApi.update(payload);
+    // Use the new entity_name-based update method with FastAPI/Express fallback
+    return await entitiesApi.updateEntity({
+      type: payload.type,
+      entityName: payload.entity.name,
+      entity: payload.entity,
+      updates: payload.updates
+    });
   }
 );
 

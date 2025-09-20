@@ -389,6 +389,8 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
       const result = await dispatch(
         updateEntity({
           id: entity.id,
+          type: entityType,
+          entity: entity,
           updates: entityData,
         })
       ).unwrap();
