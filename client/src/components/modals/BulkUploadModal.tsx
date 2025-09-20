@@ -50,6 +50,7 @@ import {
   DeleteOutline as DeleteOutlineIcon
 } from '@mui/icons-material';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/use-auth';
 import { fetchWithCacheGeneric, getFromCacheGeneric } from '@/lib/cacheUtils';
 import { buildUrl, endpoints } from '@/config/index';
 import { apiRequest } from '@/lib/queryClient';
