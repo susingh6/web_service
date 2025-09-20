@@ -243,32 +243,55 @@ export const entitiesApi = {
     console.log('🌐 API UPDATE SUCCESS:', result);
     return normalizeEntity(result);
   },
-  delete: async (entityName: string, entityType: 'table' | 'dag') => {
-    // Use type-specific endpoints with FastAPI/Express fallback pattern like entity creation
-    const primaryEndpoint = entityType === 'table' ? 
-      endpoints.tablesDelete(entityName) : 
-      endpoints.dagsDelete(entityName);
+  deleteEntity: async ({ type, entityName, entity }: { type: 'table' | 'dag', entityName?: string, entity?: any }) => {
+    // Defensively resolve entity name with fallbacks
+    let resolvedEntityName = entityName;
+    if (!resolvedEntityName && entity) {
+      if (type === 'dag') {
+        resolvedEntityName = entity.dag_name || entity.name || entity.entity_name;
+      } else {
+        resolvedEntityName = entity.table_name || entity.name || entity.entity_name;
+      }
+    }
     
-    const fallbackEndpoint = entityType === 'table' ? 
-      endpoints.tablesDeleteFallback?.(entityName) : 
-      endpoints.dagsDeleteFallback?.(entityName);
+    if (!resolvedEntityName) {
+      throw new Error(`Cannot determine entity name for ${type} deletion`);
+    }
+    
+    console.log(`[DELETE_ENTITY] Deleting ${type}: "${resolvedEntityName}"`);
+    
+    // Use type-specific endpoints with FastAPI/Express fallback pattern
+    const primaryEndpoint = type === 'table' ? 
+      endpoints.tablesDelete(resolvedEntityName) : 
+      endpoints.dagsDelete(resolvedEntityName);
+    
+    const fallbackEndpoint = type === 'table' ? 
+      endpoints.tablesDeleteFallback?.(resolvedEntityName) : 
+      endpoints.dagsDeleteFallback?.(resolvedEntityName);
 
-    console.log(`[ENTITY_REQUEST] DELETE ${entityType} (delete) - Primary: ${primaryEndpoint}, Fallback: ${fallbackEndpoint}`);
+    console.log(`[DELETE_ENTITY] Primary URL: ${primaryEndpoint}, Fallback URL: ${fallbackEndpoint}`);
 
     try {
-      console.log('[DEVELOPMENT] Trying FastAPI for entity deletion');
+      console.log('[DELETE_ENTITY] Trying FastAPI for entity deletion');
       const res = await environmentAwareApiRequest('DELETE', primaryEndpoint);
+      console.log(`[DELETE_ENTITY] FastAPI response: ${res.status}`);
       return res.ok;
     } catch (error) {
-      console.log(`[DEVELOPMENT] FastAPI failed (${error}), falling back to Express for entity deletion`);
+      console.log(`[DELETE_ENTITY] FastAPI failed (${error}), falling back to Express`);
       
       if (fallbackEndpoint) {
         const res = await environmentAwareApiRequest('DELETE', fallbackEndpoint);
+        console.log(`[DELETE_ENTITY] Express fallback response: ${res.status}`);
         return res.ok;
       } else {
         throw error; // No fallback available, re-throw the original error
       }
     }
+  },
+  // Keep legacy delete for backward compatibility but deprecated
+  delete: async (entityName: string, entityType: 'table' | 'dag') => {
+    console.warn('[DEPRECATED] Use deleteEntity instead of delete');
+    return entitiesApi.deleteEntity({ type: entityType, entityName });
   },
 };
 

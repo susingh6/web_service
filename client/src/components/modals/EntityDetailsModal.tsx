@@ -497,35 +497,68 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
   
   const handleConfirmDelete = async () => {
     try {
-      // Use the new entity_name and type-based delete pattern with FastAPI/Express fallback
-      const entityName = entity.type === 'table' ? entity.table_name : entity.dag_name;
       const entityType = entity.type as 'table' | 'dag';
       
-      if (!entityName) {
-        throw new Error(`Missing ${entityType} name for entity ${entity.name}`);
+      console.log(`[DELETE_DEBUG] Starting delete for entity:`, {
+        id: entity.id,
+        name: entity.name,
+        type: entityType,
+        dag_name: entity.dag_name,
+        table_name: entity.table_name
+      });
+      
+      // Optimistically remove from cache before API call
+      const removeFromCache = (old: any[] | undefined) => {
+        if (!old) return [];
+        return old.filter(e => e.id !== entity.id && e.name !== entity.name);
+      };
+      
+      // Update all relevant caches optimistically
+      queryClient.setQueryData(cacheKeys.entities(), removeFromCache);
+      if (entity.teamId) {
+        queryClient.setQueryData(cacheKeys.entitiesByTeam(entity.teamId), removeFromCache);
       }
       
-      await entitiesApi.delete(entityName, entityType);
+      // Call the new deleteEntity function with the actual entity
+      const success = await entitiesApi.deleteEntity({ 
+        type: entityType, 
+        entity: entity 
+      });
+      
+      if (!success) {
+        throw new Error('Delete operation failed');
+      }
       
       toast({
         title: 'Success',
-        description: `${entity.name} has been deleted.`,
+        description: `${entityType === 'dag' ? 'DAG' : 'Table'} "${entity.name}" has been deleted.`,
         variant: 'default',
-      });
-      
-      // Refresh data via normalized invalidation
-      await invalidateEntityCaches(queryClient, {
-        tenant: entity.tenant_name || undefined,
-        teamId: entity.teamId,
-        entityId: entity.id,
       });
       
       setOpenDeleteDialog(false);
       onClose();
+      
+      // Invalidate caches to trigger refetch with updated data
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: cacheKeys.entities() }),
+        entity.teamId ? queryClient.invalidateQueries({ queryKey: cacheKeys.entitiesByTeam(entity.teamId) }) : Promise.resolve(),
+        queryClient.invalidateQueries({ queryKey: ['/api/v1/entities'] }),
+        queryClient.invalidateQueries({ queryKey: ['/api/dashboard/summary'] })
+      ]);
+      
+      console.log(`[DELETE_DEBUG] Delete completed successfully`);
     } catch (error) {
+      console.error('[DELETE_DEBUG] Delete failed:', error);
+      
+      // Revert optimistic updates on failure
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: cacheKeys.entities() }),
+        entity.teamId ? queryClient.invalidateQueries({ queryKey: cacheKeys.entitiesByTeam(entity.teamId) }) : Promise.resolve()
+      ]);
+      
       toast({
         title: 'Error',
-        description: `Failed to delete: ${error}`,
+        description: `Failed to delete ${entityType}. Please try again.`,
         variant: 'destructive',
       });
     }
