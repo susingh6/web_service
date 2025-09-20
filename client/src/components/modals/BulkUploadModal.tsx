@@ -54,8 +54,8 @@ import { fetchWithCacheGeneric, getFromCacheGeneric } from '@/lib/cacheUtils';
 import { buildUrl, endpoints } from '@/config/index';
 import { apiRequest } from '@/lib/queryClient';
 import { fieldDefinitions } from '@/config/schemas';
-import { useEntityMutation } from '@/utils/cache-management';
-import { invalidateEntityCaches } from '@/lib/cacheKeys';
+import { useOptimisticMutation } from '@/utils/cache-management';
+import { invalidateEntityCaches, cacheKeys } from '@/lib/cacheKeys';
 import { useQueryClient } from '@tanstack/react-query';
 
 // Entity types for validation
@@ -114,7 +114,7 @@ interface BulkUploadModalProps {
 const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { createEntity } = useEntityMutation();
+  const { executeWithOptimism } = useOptimisticMutation();
   const [tabValue, setTabValue] = useState('tables');
   const [file, setFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -519,7 +519,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
     }
   };
   
-  // Handle the actual bulk upload process - mirrors AddEntityModal behavior
+  // Handle the actual bulk upload process - Single API call with all-or-nothing semantics
   const handleUpload = async () => {
     if (!file || validationResults.length === 0) {
       toast({
@@ -548,59 +548,31 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
     setIsSubmitting(true);
     
     try {
-      // Use the same entity creation pattern as AddEntityModal
-      // This includes FastAPI/Express fallback, optimistic updates, and cache invalidation
-      const submitPromises = validEntities.map(async (entity) => {
-        try {
-          // Use the standardized entity mutation that includes:
-          // - FastAPI/Express fallback via environmentAwareApiRequest
-          // - Optimistic updates
-          // - Cache invalidation
-          return await createEntity(entity);
-        } catch (error) {
-          console.error('Failed to create entity:', entity.entity_name, error);
-          throw new Error(`Failed to create ${entity.entity_name}: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        }
-      });
+      // Create the bulk payload
+      const bulkPayload = {
+        entities: validEntities,
+        type: tabValue === 'tables' ? 'table' : 'dag'
+      };
       
-      const results = await Promise.allSettled(submitPromises);
+      // Single bulk API call with FastAPI/Express fallback via apiRequest (which handles fallback)
+      const res = await apiRequest('POST', buildUrl(endpoints.entitiesBulk), bulkPayload);
+      const result = await res.json();
       
-      // Count successes and failures
-      const successCount = results.filter(result => result.status === 'fulfilled').length;
-      const failedCount = results.filter(result => result.status === 'rejected').length;
+      // Update upload summary with results
+      const successCount = Array.isArray(result) ? result.length : (result?.created?.length || validEntities.length);
+      const failedCount = 0; // All or nothing - if we get here, all succeeded
       
-      // Get failed entities for detailed error reporting
-      const failedResults = results.filter(result => result.status === 'rejected') as PromiseRejectedResult[];
-      
-      // Update upload summary
       setUploadSummary(prev => ({
         ...prev,
         successCount,
         failedCount
       }));
       
-      // Show appropriate message based on results
-      if (successCount > 0) {
-        toast({
-          title: 'Bulk upload completed',
-          description: failedCount > 0 
-            ? `Successfully created ${successCount} entities. ${failedCount} entities failed.`
-            : `Successfully created ${successCount} entities.`,
-          variant: failedCount > 0 ? 'default' : 'default'
-        });
-      }
-      
-      if (failedCount > 0) {
-        // Show first few errors for debugging
-        const firstErrors = failedResults.slice(0, 3).map(r => r.reason.message).join(', ');
-        console.error('Bulk upload errors:', failedResults.map(r => r.reason));
-        
-        toast({
-          title: `${failedCount} entities failed`,
-          description: `Error examples: ${firstErrors}${failedCount > 3 ? '...' : ''}`,
-          variant: 'destructive'
-        });
-      }
+      // Show success message
+      toast({
+        title: 'Bulk upload successful',
+        description: `Successfully created ${successCount} entities.`,
+      });
       
       // Additional cache invalidation to ensure dashboard updates
       // This ensures summary dashboard reflects new entity counts across all filters
@@ -635,32 +607,38 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
         }
       }));
       
-      // Close modal after short delay only if all succeeded
-      if (failedCount === 0) {
-        setTimeout(() => {
-          // Reset state
-          setFile(null);
-          setParsedEntities([]);
-          setValidationResults([]);
-          setCurrentStep('upload');
-          setUploadSummary({
-            totalCount: 0,
-            validCount: 0,
-            invalidCount: 0,
-            successCount: 0,
-            failedCount: 0
-          });
-          
-          // Close modal
-          onClose();
-        }, 1500);
-      }
+      // Close modal after short delay
+      setTimeout(() => {
+        // Reset state
+        setFile(null);
+        setParsedEntities([]);
+        setValidationResults([]);
+        setCurrentStep('upload');
+        setUploadSummary({
+          totalCount: 0,
+          validCount: 0,
+          invalidCount: 0,
+          successCount: 0,
+          failedCount: 0
+        });
+        
+        // Close modal
+        onClose();
+      }, 1500);
       
     } catch (error) {
       console.error('Error during bulk upload:', error);
+      
+      // Update summary to show all failed
+      setUploadSummary(prev => ({
+        ...prev,
+        successCount: 0,
+        failedCount: validEntities.length
+      }));
+      
       toast({
-        title: 'Bulk upload error',
-        description: 'An unexpected error occurred during bulk upload. Please try again.',
+        title: 'Bulk upload failed',
+        description: error instanceof Error ? error.message : 'All entities failed to upload. Please try again.',
         variant: 'destructive',
       });
     } finally {

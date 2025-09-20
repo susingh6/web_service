@@ -23,6 +23,7 @@ interface ApiConfig {
       azureValidateFallback?: string;
     };
     entities: string;
+    entitiesBulk: string;
     teams: string;
     tenants: string;
     teamDetails: (teamName: string) => string;

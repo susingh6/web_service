@@ -12,6 +12,7 @@ export const prodConfig = {
     
     // Core entities - FastAPI
     entities: '/api/v1/entities',
+    entitiesBulk: '/api/v1/entities/bulk',
     teams: '/api/v1/teams',
     
     // Dashboard - FastAPI
