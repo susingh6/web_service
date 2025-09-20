@@ -139,7 +139,7 @@ const NotificationsManagement = () => {
     defaultValues: {
       message: '',
       deliveryType: 'login_triggered',
-      expiresInDays: 7,
+      expiresInDays: 1,
     }
   });
 
