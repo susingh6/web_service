@@ -2160,6 +2160,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.removeHeader('ETag');
       res.removeHeader('Last-Modified');
       
+      // Force immediate cache refresh for this team's entities
+      if (entity.teamId) {
+        await redisCache.invalidateCache({
+          patterns: [`entities_team_${entity.teamId}:*`],
+          refreshAffectedData: true
+        });
+      }
+      
+      // Force WebSocket notification to all clients for real-time frontend updates
+      redisCache.forceNotifyClients('entity-updated', {
+        entityId: entity.id,
+        entityName: entity.name,
+        entityType: entity.type,
+        teamName: entity.team_name || 'Unknown',
+        tenantName: entity.tenant_name || 'Unknown',
+        type: 'created',
+        entity: entity,
+        timestamp: new Date()
+      });
+      
+      // CRITICAL: Also invalidate team metrics cache to update entity counts immediately
+      await redisCache.invalidateTeamMetricsCache(
+        entity.tenant_name || 'Data Engineering',
+        entity.team_name || 'Unknown'
+      );
+      
       res.status(201).json(entity);
     } catch (error) {
       console.error('Error creating table:', error);
@@ -2215,6 +2241,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.removeHeader('ETag');
       res.removeHeader('Last-Modified');
       
+      // Force immediate cache refresh for this team's entities
+      if (entity.teamId) {
+        await redisCache.invalidateCache({
+          patterns: [`entities_team_${entity.teamId}:*`],
+          refreshAffectedData: true
+        });
+      }
+      
+      // Force WebSocket notification to all clients for real-time frontend updates
+      redisCache.forceNotifyClients('entity-updated', {
+        entityId: entity.id,
+        entityName: entity.name,
+        entityType: entity.type,
+        teamName: entity.team_name || 'Unknown',
+        tenantName: entity.tenant_name || 'Unknown',
+        type: 'created',
+        entity: entity,
+        timestamp: new Date()
+      });
+      
+      // CRITICAL: Also invalidate team metrics cache to update entity counts immediately
+      await redisCache.invalidateTeamMetricsCache(
+        entity.tenant_name || 'Data Engineering',
+        entity.team_name || 'Unknown'
+      );
+      
       res.status(201).json(entity);
     } catch (error) {
       console.error('Error creating DAG:', error);
@@ -2246,6 +2298,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
         refreshAffectedData: true
       });
       
+      // Force immediate cache refresh for affected teams' entities
+      const affectedTeamIds = [...new Set(createdEntities.map(e => e.teamId).filter(Boolean))];
+      for (const teamId of affectedTeamIds) {
+        await redisCache.invalidateCache({
+          patterns: [`entities_team_${teamId}:*`],
+          refreshAffectedData: true
+        });
+      }
+      
+      // WebSocket notifications for all created entities
+      for (const entity of createdEntities) {
+        redisCache.forceNotifyClients('entity-updated', {
+          entityId: entity.id,
+          entityName: entity.name,
+          entityType: entity.type,
+          teamName: entity.team_name || 'Unknown',
+          tenantName: entity.tenant_name || 'Unknown',
+          type: 'created',
+          entity: entity,
+          timestamp: new Date()
+        });
+        
+        // Invalidate team metrics for each entity
+        await redisCache.invalidateTeamMetricsCache(
+          entity.tenant_name || 'Data Engineering',
+          entity.team_name || 'Unknown'
+        );
+      }
+      
       res.status(201).json(createdEntities);
     } catch (error) {
       console.error('Error creating tables bulk:', error);
@@ -2276,6 +2357,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
         mainCacheKeys: ['ENTITIES', 'METRICS'],
         refreshAffectedData: true
       });
+      
+      // Force immediate cache refresh for affected teams' entities
+      const affectedTeamIds = [...new Set(createdEntities.map(e => e.teamId).filter(Boolean))];
+      for (const teamId of affectedTeamIds) {
+        await redisCache.invalidateCache({
+          patterns: [`entities_team_${teamId}:*`],
+          refreshAffectedData: true
+        });
+      }
+      
+      // WebSocket notifications for all created entities
+      for (const entity of createdEntities) {
+        redisCache.forceNotifyClients('entity-updated', {
+          entityId: entity.id,
+          entityName: entity.name,
+          entityType: entity.type,
+          teamName: entity.team_name || 'Unknown',
+          tenantName: entity.tenant_name || 'Unknown',
+          type: 'created',
+          entity: entity,
+          timestamp: new Date()
+        });
+        
+        // Invalidate team metrics for each entity
+        await redisCache.invalidateTeamMetricsCache(
+          entity.tenant_name || 'Data Engineering',
+          entity.team_name || 'Unknown'
+        );
+      }
       
       res.status(201).json(createdEntities);
     } catch (error) {
