@@ -22,7 +22,8 @@ import {
   Dashboard as OverviewIcon,
   ArrowBack as ArrowBackIcon,
   Home as HomeIcon,
-  RestoreFromTrash as RollbackIcon
+  RestoreFromTrash as RollbackIcon,
+  Notifications as NotificationsIcon
 } from '@mui/icons-material';
 import { useQuery } from '@tanstack/react-query';
 import { buildUrl, endpoints } from '@/config';
@@ -37,6 +38,7 @@ import ConflictsManagement from './sections/ConflictsManagement';
 import UsersManagement from './sections/UsersManagement';
 import RolesManagement from './sections/RolesManagement';
 import RollbackManagement from './sections/RollbackManagement';
+import NotificationsManagement from './sections/NotificationsManagement';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -114,6 +116,11 @@ const AdminPage = () => {
       component: <RolesManagement />
     },
     {
+      label: 'Notifications',
+      icon: <NotificationsIcon />,
+      component: <NotificationsManagement />
+    },
+    {
       label: 'Rollback',
       icon: <RollbackIcon />,
       component: <RollbackManagement />
@@ -147,7 +154,7 @@ const AdminPage = () => {
           Admin Panel
         </Typography>
         <Typography variant="body1" color="text.secondary">
-          Manage teams, tenants, users, resolve ownership conflicts, and restore deleted entities
+          Manage teams, tenants, users, notifications, resolve ownership conflicts, and restore deleted entities
         </Typography>
       </Box>
 
