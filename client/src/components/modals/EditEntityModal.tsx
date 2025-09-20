@@ -68,13 +68,13 @@ const baseSchema = yup.object().shape({
     .when('is_entity_owner', {
       is: true,
       then: (schema) => fieldDefinitions.expected_runtime_minutes.validation,
-      otherwise: (schema) => schema.optional()
+      otherwise: (schema) => schema.optional().notRequired()
     }),
   donemarker_location: yup.string()
     .when('is_entity_owner', {
       is: true,
       then: (schema) => fieldDefinitions.donemarker_location.validation,
-      otherwise: (schema) => schema.optional()
+      otherwise: (schema) => schema.optional().notRequired()
     }),
   donemarker_lookback: yup.number().min(0, 'Must be non-negative').optional(),
 });
@@ -88,13 +88,13 @@ const tableSchema = baseSchema.shape({
     .when('is_entity_owner', {
       is: true,
       then: (schema) => fieldDefinitions.table_schedule.validation,
-      otherwise: (schema) => schema.optional()
+      otherwise: (schema) => schema.optional().notRequired()
     }),
   table_dependency: yup.string()
     .when('is_entity_owner', {
       is: true,
       then: (schema) => schema.optional(),
-      otherwise: (schema) => schema.optional()
+      otherwise: (schema) => schema.optional().notRequired()
     }),
 });
 
@@ -106,19 +106,19 @@ const dagSchema = baseSchema.shape({
     .when('is_entity_owner', {
       is: true,
       then: (schema) => fieldDefinitions.dag_schedule.validation,
-      otherwise: (schema) => schema.optional()
+      otherwise: (schema) => schema.optional().notRequired()
     }),
   dag_dependency: yup.string()
     .when('is_entity_owner', {
       is: true,
       then: (schema) => schema.optional(),
-      otherwise: (schema) => schema.optional()
+      otherwise: (schema) => schema.optional().notRequired()
     }),
   server_name: yup.string()
     .when('is_entity_owner', {
       is: true,
       then: (schema) => schema.optional(),
-      otherwise: (schema) => schema.optional()
+      otherwise: (schema) => schema.optional().notRequired()
     }),
 });
 
