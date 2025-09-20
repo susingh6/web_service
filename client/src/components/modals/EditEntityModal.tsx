@@ -36,6 +36,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { Entity } from '@shared/schema';
 import { endpoints, buildUrl } from '@/config';
 import { useQuery } from '@tanstack/react-query';
+import { readEntityByName } from '@/features/sla/api';
 import { fieldDefinitions } from '@/config/schemas';
 
 type EntityType = 'table' | 'dag';
@@ -150,21 +151,22 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
     [entityType]
   );
   
-  // Fetch entity details for pre-population
+  // Fetch entity details for pre-population using entity_name
   const { data: entityDetails, isLoading: isLoadingEntityDetails } = useQuery({
-    queryKey: cacheKeys.entityDetails(entity?.id ?? 'new', entity?.is_active),
+    queryKey: ['entity-details-by-name', entity?.entity_name, entity?.team_name, entity?.entity_type],
     queryFn: async () => {
-      if (!entity?.id) return null;
+      if (!entity?.entity_name || !entity?.team_name || !entity?.entity_type) return null;
       
       try {
-        // First try to get detailed entity data from the API
-        const detailsEndpoint = endpoints.entity.details(entity.id);
-        // Fetching entity details from endpoint
+        // Use the new entity_name-based API call
+        const detailsData = await readEntityByName(entity.entity_name, entity.team_name, entity.entity_type);
         
-        const response = await apiRequest('GET', detailsEndpoint);
-        const detailsData = await response.json();
-        
-        console.debug('[EditEntityModal] Raw API response:', { id: entity.id, detailsData });
+        console.debug('[EditEntityModal] Raw API response:', { 
+          entityName: entity.entity_name, 
+          teamName: entity.team_name,
+          entityType: entity.entity_type,
+          detailsData 
+        });
         
         // Normalize team_name from various possible API response formats
         const normalizedTeamName = detailsData.team_name 
@@ -178,7 +180,7 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
         };
         
         console.debug('[EditEntityModal] Normalized entity details:', { 
-          id: entity.id, 
+          entityName: entity.entity_name, 
           originalTeamName: detailsData.team_name,
           normalizedTeamName,
           teamId: detailsData.teamId || detailsData.team_id,
@@ -218,7 +220,7 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
         };
       }
     },
-    enabled: !!entity?.id && open,
+    enabled: !!entity?.entity_name && !!entity?.team_name && !!entity?.entity_type && open,
     staleTime: 0,
     refetchOnMount: 'always',
     refetchOnWindowFocus: false,
