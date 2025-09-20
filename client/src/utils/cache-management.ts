@@ -647,7 +647,14 @@ export function useTeamMemberMutation() {
           }
           throw new Error('Unable to add team member. Please try again or contact your administrator.');
         }
-        return response.json();
+        const result = await response.json();
+        
+        // CRITICAL: Clear localStorage cache for notification system 
+        // This ensures EmailNotificationConfig shows updated team members immediately
+        localStorage.removeItem('notification_users');
+        localStorage.removeItem('notification_users_time');
+        
+        return result;
       },
       invalidationScenario: {
         scenario: 'TEAM_MEMBER_ADDED',
@@ -694,7 +701,14 @@ export function useTeamMemberMutation() {
           }
           throw new Error('Unable to remove team member. Please try again or contact your administrator.');
         }
-        return response.json();
+        const result = await response.json();
+        
+        // CRITICAL: Clear localStorage cache for notification system 
+        // This ensures EmailNotificationConfig shows updated team members immediately
+        localStorage.removeItem('notification_users');
+        localStorage.removeItem('notification_users_time');
+        
+        return result;
       },
       invalidationScenario: {
         scenario: 'TEAM_MEMBER_REMOVED',
