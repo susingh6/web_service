@@ -463,9 +463,9 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
 
       <form 
         onSubmit={(e) => {
-          console.log('🔥 FORM onSubmit triggered!', e);
           e.preventDefault();
-          handleSubmit(onSubmit)(e);
+          const currentForm = entityType === 'table' ? tableForm : dagForm;
+          currentForm.handleSubmit(onSubmit)(e);
         }}
       >
         <DialogContent>
@@ -913,22 +913,11 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
             Cancel
           </Button>
           <Button
-            type="button"
+            type="submit"
             variant="contained"
             color="primary"
             disabled={isSubmitting}
             startIcon={isSubmitting && <CircularProgress size={20} color="inherit" />}
-            onClick={async () => {
-              console.log('🔥 BUTTON CLICKED - Calling handleSubmit directly');
-              const currentForm = entityType === 'table' ? tableForm : dagForm;
-              const formData = currentForm.getValues();
-              console.log('🔥 FORM DATA:', formData);
-              try {
-                await onSubmit(formData);
-              } catch (error) {
-                console.error('🔥 SUBMIT ERROR:', error);
-              }
-            }}
           >
             {isSubmitting ? 'Saving...' : 'Edit Changes'}
           </Button>
