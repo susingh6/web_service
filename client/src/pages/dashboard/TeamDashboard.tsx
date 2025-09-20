@@ -222,14 +222,7 @@ const TeamDashboard = ({
       queryClient.invalidateQueries({ queryKey: cacheKeys.entitiesByTenantAndTeam(tenantName, team?.id) });
       // Also refresh dashboard summary
       queryClient.invalidateQueries({ queryKey: cacheKeys.dashboardSummary(tenantName, team?.id) });
-      // Also refresh Redux store with team context to get all entities
-      if (team?.id) {
-        dispatch(fetchEntities({ teamId: team.id }));
-      } else {
-        dispatch(fetchEntities({ tenant: tenantName }));
-      }
-      
-      // Force refetch to ensure fresh data after updates
+      // Only refresh specific team entities via React Query, avoid Redux to prevent cross-contamination
       queryClient.refetchQueries({ queryKey: ['entities', 'team', team?.id] });
     },
     onTeamMembersUpdated: (data) => {

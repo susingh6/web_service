@@ -219,10 +219,7 @@ const Summary = () => {
       });
       scheduleNormalizedFlush();
 
-      // Keep Redux-backed views fresh (legacy behavior preserved)
-      if (selectedTenant) {
-        dispatch(fetchEntities({ tenant: selectedTenant.name }));
-      }
+      // Only refresh dashboard summary, NOT all entities to prevent cross-contamination
       if (selectedTenant) {
         dispatch(fetchDashboardSummary({ tenantName: selectedTenant.name }));
       }
