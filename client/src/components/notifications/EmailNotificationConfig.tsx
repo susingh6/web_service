@@ -203,46 +203,96 @@ export function EmailNotificationConfigComponent({ config, onChange, teamName, t
           <CardTitle className="text-sm">Additional Recipients</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {/* Other Team Emails and System Users */}
+          {/* Other Team Emails and System Users - Multi-Select with Slider */}
           {(otherTeamEmails.length > 0 || users.length > 0) && (
             <div className="space-y-2">
               <Label className="text-xs text-muted-foreground">Other Team & System User Emails</Label>
-              <select 
-                className="w-full p-2 border border-gray-300 rounded-md"
-                value=""
-                onChange={(e) => {
-                  const email = e.target.value;
-                  if (email && !selectedOtherEmails.includes(email)) {
-                    setSelectedOtherEmails([...selectedOtherEmails, email]);
-                  }
-                }}
-              >
-                <option value="" disabled>Select an email address</option>
-                
-                {/* Other team emails */}
-                {otherTeamEmails.length > 0 && (
-                  <optgroup label="Other Teams">
-                    {otherTeamEmails.map((email, index) => (
-                      <option key={`other-team-${index}`} value={email}>
-                        {email}
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
-                
-                {/* System user emails */}
-                {users.length > 0 && (
-                  <optgroup label="System Users">
-                    {users
-                      .filter(user => user.email && !teamEmails.includes(user.email) && !otherTeamEmails.includes(user.email))
-                      .map((user) => (
-                        <option key={user.id} value={user.email}>
-                          {user.email} ({user.displayName || user.username})
-                        </option>
+              <div className="border border-gray-300 rounded-md p-2 max-h-48 overflow-y-auto bg-white">
+                <div className="space-y-1">
+                  {/* Other team emails */}
+                  {otherTeamEmails.length > 0 && (
+                    <div>
+                      <div className="text-xs font-medium text-gray-600 mb-1 sticky top-0 bg-white py-1">Other Teams</div>
+                      {otherTeamEmails.map((email, index) => (
+                        <label key={`other-team-${index}`} className="flex items-center space-x-2 p-1 hover:bg-gray-50 cursor-pointer rounded">
+                          <input
+                            type="checkbox"
+                            checked={selectedOtherEmails.includes(email)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedOtherEmails([...selectedOtherEmails, email]);
+                              } else {
+                                setSelectedOtherEmails(selectedOtherEmails.filter(e => e !== email));
+                              }
+                            }}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="text-sm">{email}</span>
+                        </label>
                       ))}
-                  </optgroup>
-                )}
-              </select>
+                    </div>
+                  )}
+                  
+                  {/* System user emails */}
+                  {users.length > 0 && (
+                    <div className={otherTeamEmails.length > 0 ? "mt-3 pt-3 border-t border-gray-200" : ""}>
+                      <div className="text-xs font-medium text-gray-600 mb-1 sticky top-0 bg-white py-1">System Users</div>
+                      {users
+                        .filter(user => user.email && !teamEmails.includes(user.email) && !otherTeamEmails.includes(user.email))
+                        .map((user) => (
+                          <label key={user.id} className="flex items-center space-x-2 p-1 hover:bg-gray-50 cursor-pointer rounded">
+                            <input
+                              type="checkbox"
+                              checked={selectedOtherEmails.includes(user.email)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedOtherEmails([...selectedOtherEmails, user.email]);
+                                } else {
+                                  setSelectedOtherEmails(selectedOtherEmails.filter(e => e !== user.email));
+                                }
+                              }}
+                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span className="text-sm">{user.email}</span>
+                            {(user.displayName || user.username) && (
+                              <span className="text-xs text-gray-500">({user.displayName || user.username})</span>
+                            )}
+                          </label>
+                        ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              {/* Select All / Clear All buttons */}
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const allAvailableEmails = [
+                      ...otherTeamEmails,
+                      ...users
+                        .filter(user => user.email && !teamEmails.includes(user.email) && !otherTeamEmails.includes(user.email))
+                        .map(user => user.email)
+                    ];
+                    setSelectedOtherEmails(Array.from(new Set([...selectedOtherEmails, ...allAvailableEmails])));
+                  }}
+                  className="text-xs"
+                >
+                  Select All
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSelectedOtherEmails([])}
+                  className="text-xs"
+                >
+                  Clear All
+                </Button>
+              </div>
             </div>
           )}
           
