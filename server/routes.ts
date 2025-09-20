@@ -2398,6 +2398,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   app.get("/api/entities/:id", async (req, res) => {
     try {
+      // Add deprecation headers
+      res.set('Deprecation', 'true');
+      res.set('Sunset', new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString()); // 90 days from now
+      res.set('Link', '</api/tables/{name}, </api/dags/{name}>; rel="successor-version"');
+      res.set('Warning', '299 - "This endpoint is deprecated. Use GET /api/tables/{name} or GET /api/dags/{name} instead for entity_name-based access."');
+      
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
         return res.status(400).json({ message: "Invalid entity ID" });
@@ -2417,6 +2423,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get detailed entity information for editing
   app.get("/api/entities/:id/details", async (req, res) => {
     try {
+      // Add deprecation headers
+      res.set('Deprecation', 'true');
+      res.set('Sunset', new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString()); // 90 days from now
+      res.set('Link', '</api/tables/{name}, </api/dags/{name}>; rel="successor-version"');
+      res.set('Warning', '299 - "This endpoint is deprecated. Use GET /api/tables/{name} or GET /api/dags/{name} instead for entity_name-based access."');
+      
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
         return res.status(400).json({ message: "Invalid entity ID" });

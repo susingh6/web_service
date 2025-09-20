@@ -36,7 +36,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { Entity } from '@shared/schema';
 import { endpoints, buildUrl } from '@/config';
 import { useQuery } from '@tanstack/react-query';
-import { readEntityByName } from '@/features/sla/api';
+import { entitiesApi } from '@/features/sla/api';
 import { fieldDefinitions } from '@/config/schemas';
 
 type EntityType = 'table' | 'dag';
@@ -159,7 +159,12 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
       
       try {
         // Use the new entity_name-based API call
-        const detailsData = await readEntityByName(entity.entity_name, entity.team_name, entity.entity_type);
+        const detailsData = await entitiesApi.readEntityByName({
+          type: entity.entity_type as 'table' | 'dag',
+          entityName: entity.entity_name,
+          teamName: entity.team_name,
+          entity: entity
+        });
         
         console.debug('[EditEntityModal] Raw API response:', { 
           entityName: entity.entity_name, 
