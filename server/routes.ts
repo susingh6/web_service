@@ -717,8 +717,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           id: newMessage.id,
           message: newMessage.message,
           deliveryType: newMessage.deliveryType,
-          createdAt: newMessage.createdAt,
-          expiresAt: newMessage.expiresAt
+          createdAt: typeof newMessage.createdAt === 'string' ? new Date(newMessage.createdAt) : newMessage.createdAt,
+          expiresAt: newMessage.expiresAt ? (typeof newMessage.expiresAt === 'string' ? new Date(newMessage.expiresAt) : newMessage.expiresAt) : null
         });
       }
 
