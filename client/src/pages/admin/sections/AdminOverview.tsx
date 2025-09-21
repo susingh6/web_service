@@ -11,7 +11,9 @@ import {
   Groups as TeamsIcon,
   Business as TenantsIcon,
   People as UsersIcon,
-  Warning as ConflictsIcon
+  Warning as ConflictsIcon,
+  Security as RolesIcon,
+  Notifications as NotificationsIcon
 } from '@mui/icons-material';
 import { useQuery } from '@tanstack/react-query';
 import { buildUrl, endpoints } from '@/config';
@@ -143,7 +145,42 @@ const AdminOverview = () => {
     },
   });
 
+  // Fetch roles data
+  const { data: roles = [] } = useQuery({
+    queryKey: ['admin', 'roles'],
+    staleTime: 6 * 60 * 60 * 1000, // Cache for 6 hours
+    gcTime: 6 * 60 * 60 * 1000,    // Keep in memory for 6 hours
+    queryFn: async () => {
+      const response = await fetch(buildUrl('/api/v1/roles'));
+      if (!response.ok) {
+        throw new Error('Failed to fetch roles');
+      }
+      return response.json();
+    },
+  });
+
+  // Fetch broadcast messages data
+  const { data: broadcastMessages = [] } = useQuery({
+    queryKey: ['admin', 'broadcast-messages'],
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    gcTime: 10 * 60 * 1000,   // Keep in memory for 10 minutes
+    queryFn: async () => {
+      try {
+        const response = await fetch(buildUrl('/api/v1/admin/broadcast-messages'));
+        if (!response.ok && response.status !== 404) {
+          throw new Error('Failed to fetch broadcast messages');
+        }
+        return response.status === 404 ? [] : response.json();
+      } catch (error) {
+        console.log('Broadcast messages not available yet');
+        return [];
+      }
+    },
+  });
+
   const pendingConflictsCount = pendingConflicts.filter((c: any) => c.status === 'pending').length;
+  const activeRoles = roles.filter((r: any) => r.is_active).length;
+  const activeBroadcasts = broadcastMessages.filter((m: any) => m.isActive).length;
 
   return (
     <Box sx={{ p: 3 }}>
@@ -155,7 +192,7 @@ const AdminOverview = () => {
       </Typography>
 
       <Grid container spacing={3}>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={12} sm={6} md={4} lg={2}>
           <StatCard
             title="Active Teams"
             value={teams.length}
@@ -165,7 +202,7 @@ const AdminOverview = () => {
           />
         </Grid>
         
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={12} sm={6} md={4} lg={2}>
           <StatCard
             title="Total Users"
             value={users.length}
@@ -175,7 +212,7 @@ const AdminOverview = () => {
           />
         </Grid>
         
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={12} sm={6} md={4} lg={2}>
           <StatCard
             title="Tenants"
             value={tenants.length}
@@ -185,7 +222,27 @@ const AdminOverview = () => {
           />
         </Grid>
         
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={12} sm={6} md={4} lg={2}>
+          <StatCard
+            title="Active Roles"
+            value={`${activeRoles}/${roles.length}`}
+            icon={<RolesIcon />}
+            color={theme.palette.secondary.main}
+            subtitle="Security roles"
+          />
+        </Grid>
+        
+        <Grid item xs={12} sm={6} md={4} lg={2}>
+          <StatCard
+            title="Notifications"
+            value={activeBroadcasts}
+            icon={<NotificationsIcon />}
+            color={theme.palette.warning.main}
+            subtitle="Active broadcasts"
+          />
+        </Grid>
+        
+        <Grid item xs={12} sm={6} md={4} lg={2}>
           <StatCard
             title="Pending Conflicts"
             value={pendingConflictsCount}
@@ -200,12 +257,47 @@ const AdminOverview = () => {
         <Grid item xs={12} md={6}>
           <Card elevation={2}>
             <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Recent Activity
+              <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <RolesIcon />
+                Security Roles Summary
               </Typography>
-              <Typography variant="body2" color="text.secondary">
-                System administration activities will appear here
-              </Typography>
+              {roles.length > 0 ? (
+                <Box>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    Role distribution across the system
+                  </Typography>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Typography variant="body2">System Roles:</Typography>
+                      <Typography variant="body2" fontWeight="bold">
+                        {roles.filter((r: any) => r.is_system_role).length}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Typography variant="body2">Team-specific Roles:</Typography>
+                      <Typography variant="body2" fontWeight="bold">
+                        {roles.filter((r: any) => !r.is_system_role).length}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Typography variant="body2">Active Roles:</Typography>
+                      <Typography variant="body2" fontWeight="bold" color="success.main">
+                        {activeRoles}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Typography variant="body2">Inactive Roles:</Typography>
+                      <Typography variant="body2" fontWeight="bold" color="text.secondary">
+                        {roles.length - activeRoles}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Box>
+              ) : (
+                <Typography variant="body2" color="text.secondary">
+                  Loading roles data...
+                </Typography>
+              )}
             </CardContent>
           </Card>
         </Grid>
@@ -213,12 +305,46 @@ const AdminOverview = () => {
         <Grid item xs={12} md={6}>
           <Card elevation={2}>
             <CardContent>
-              <Typography variant="h6" gutterBottom>
-                System Health
+              <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <NotificationsIcon />
+                System Notifications
               </Typography>
-              <Typography variant="body2" color="text.secondary">
-                All systems operational
-              </Typography>
+              <Box>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  Broadcast message status
+                </Typography>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <Typography variant="body2">Active Broadcasts:</Typography>
+                    <Typography variant="body2" fontWeight="bold" color="warning.main">
+                      {activeBroadcasts}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <Typography variant="body2">Total Messages:</Typography>
+                    <Typography variant="body2" fontWeight="bold">
+                      {broadcastMessages.length}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <Typography variant="body2">Login Triggered:</Typography>
+                    <Typography variant="body2" fontWeight="bold">
+                      {broadcastMessages.filter((m: any) => m.deliveryType === 'login_triggered').length}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <Typography variant="body2">Immediate:</Typography>
+                    <Typography variant="body2" fontWeight="bold">
+                      {broadcastMessages.filter((m: any) => m.deliveryType === 'immediate').length}
+                    </Typography>
+                  </Box>
+                </Box>
+                {broadcastMessages.length === 0 && (
+                  <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                    No system notifications configured
+                  </Typography>
+                )}
+              </Box>
             </CardContent>
           </Card>
         </Grid>
