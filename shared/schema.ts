@@ -223,6 +223,18 @@ export const insertEntitySchema = createInsertSchema(entities).omit({
   updatedAt: true,
 });
 
+// Entity Subscriptions table for notification timeline subscriptions
+export const entitySubscriptions = pgTable("entity_subscriptions", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  notificationTimelineId: text("notification_timeline_id").notNull(),
+  tenantId: integer("tenant_id").notNull(),
+  teamId: integer("team_id").notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 export const insertEntityHistorySchema = createInsertSchema(entityHistory).omit({
   id: true,
 });
@@ -478,3 +490,21 @@ export const updateRoleSchema = insertRoleSchema.partial().extend({
 export type Role = typeof roles.$inferSelect;
 export type InsertRole = z.infer<typeof insertRoleSchema>;
 export type UpdateRole = z.infer<typeof updateRoleSchema>;
+
+// Entity Subscriptions validation schemas
+export const insertEntitySubscriptionSchema = createInsertSchema(entitySubscriptions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const notificationTimelineSchema = createInsertSchema(notificationTimelines).omit({
+  createdAt: true,
+  updatedAt: true,
+});
+
+// Types for subscriptions
+export type EntitySubscription = typeof entitySubscriptions.$inferSelect;
+export type InsertEntitySubscription = z.infer<typeof insertEntitySubscriptionSchema>;
+export type NotificationTimeline = typeof notificationTimelines.$inferSelect;
+export type InsertNotificationTimeline = z.infer<typeof notificationTimelineSchema>;
