@@ -27,12 +27,47 @@ export function EmailNotificationConfigComponent({ config, onChange, teamName, t
   const { data: users = [], isLoading: usersLoading } = useQuery<SystemUser[]>({ queryKey: ['/api/users'] });
   const { data: allTeamsData = [], isLoading: teamsLoading } = useQuery<any[]>({ queryKey: ['/api/teams'] });
   
+  // CRITICAL: Fetch team members for the current team to get individual member emails
+  const { data: teamMembers = [], isLoading: teamMembersLoading, error: teamMembersError } = useQuery({
+    queryKey: [`/api/get_team_members/${teamName}`], // Use CACHE_PATTERNS.TEAMS.MEMBERS pattern
+    queryFn: async () => {
+      if (!teamName) return [];
+      // Use the correct API client method
+      const { apiClient } = await import('@/config/api');
+      const response = await apiClient.teams.getMembers(teamName);
+      return response.json();
+    },
+    enabled: !!teamName,
+    staleTime: 30 * 1000, // 30 seconds
+  });
+  
   const [customEmailInput, setCustomEmailInput] = useState('');
   const [customEmails, setCustomEmails] = useState<string[]>(config?.customEmails || []);
   const [selectedTeamEmails, setSelectedTeamEmails] = useState<string[]>([]);
   const [selectedOtherEmails, setSelectedOtherEmails] = useState<string[]>([]);
   const [emailError, setEmailError] = useState('');
   const [selectedDropdownValue, setSelectedDropdownValue] = useState('');
+  
+  // Loading state
+  const isLoading = usersLoading || teamsLoading || teamMembersLoading;
+  
+  // CRITICAL: Combine team-level emails with individual team member emails
+  const allTeamEmails = useMemo(() => {
+    const emails = [...teamEmails]; // Start with team-level emails
+    
+    // Add individual team member emails
+    teamMembers.forEach((member: any) => {
+      if (member.email && !emails.includes(member.email)) {
+        emails.push(member.email);
+      }
+      // Also check for user_email field (different API responses may use different field names)
+      if (member.user_email && !emails.includes(member.user_email)) {
+        emails.push(member.user_email);
+      }
+    });
+    
+    return emails;
+  }, [teamEmails, teamMembers]);
   
   // Compute other team emails from React Query data
   const otherTeamEmails = useMemo(() => {
@@ -47,17 +82,14 @@ export function EmailNotificationConfigComponent({ config, onChange, teamName, t
     
     // Add ALL user emails not in current team
     users.forEach((user: SystemUser) => {
-      if (user.email && !teamEmails.includes(user.email)) {
+      if (user.email && !allTeamEmails.includes(user.email)) {
         allOtherEmails.push(user.email);
       }
     });
     
     // Remove duplicates
     return Array.from(new Set(allOtherEmails));
-  }, [allTeamsData, users, teamName, teamEmails]);
-
-  // Loading state
-  const isLoading = usersLoading || teamsLoading;
+  }, [allTeamsData, users, teamName, allTeamEmails]);
 
   useEffect(() => {
     // Update config with all selected emails
@@ -120,9 +152,9 @@ export function EmailNotificationConfigComponent({ config, onChange, teamName, t
         </CardHeader>
         <CardContent className="space-y-3">
           {/* Show team emails dropdown if available */}
-          {teamEmails.length > 0 && (
+          {allTeamEmails.length > 0 && (
             <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground">Team Email Addresses</Label>
+              <Label className="text-xs text-muted-foreground">Team Email Addresses (Team + Members)</Label>
               <select 
                 className="w-full p-2 border border-gray-300 rounded-md"
                 value={selectedDropdownValue}
@@ -135,7 +167,7 @@ export function EmailNotificationConfigComponent({ config, onChange, teamName, t
                 }}
               >
                 <option value="" disabled>Select a team member email</option>
-                {teamEmails.map((email, index) => (
+                {allTeamEmails.map((email, index) => (
                   <option key={email} value={email}>
                     {email}
                   </option>
@@ -212,7 +244,7 @@ export function EmailNotificationConfigComponent({ config, onChange, teamName, t
                     <div className={otherTeamEmails.length > 0 ? "mt-3 pt-3 border-t border-gray-200" : ""}>
                       <div className="text-xs font-medium text-gray-600 mb-1 sticky top-0 bg-white py-1">System Users</div>
                       {users
-                        .filter(user => user.email && !teamEmails.includes(user.email) && !otherTeamEmails.includes(user.email))
+                        .filter(user => user.email && !allTeamEmails.includes(user.email) && !otherTeamEmails.includes(user.email))
                         .map((user) => (
                           <label key={user.id} className="flex items-center space-x-2 p-1 hover:bg-gray-50 cursor-pointer rounded">
                             <input
@@ -248,7 +280,7 @@ export function EmailNotificationConfigComponent({ config, onChange, teamName, t
                     const allAvailableEmails = [
                       ...otherTeamEmails,
                       ...users
-                        .filter(user => user.email && !teamEmails.includes(user.email) && !otherTeamEmails.includes(user.email))
+                        .filter(user => user.email && !allTeamEmails.includes(user.email) && !otherTeamEmails.includes(user.email))
                         .map(user => user.email)
                     ];
                     setSelectedOtherEmails(Array.from(new Set([...selectedOtherEmails, ...allAvailableEmails])));

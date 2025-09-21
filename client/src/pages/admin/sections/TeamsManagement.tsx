@@ -899,6 +899,11 @@ const TeamsManagement = () => {
           // Invalidate Team Dashboard members cache keyed by tenant and team id
           await queryClient.invalidateQueries({ queryKey: ['teamMembers', tenantName, teamId] });
           await queryClient.refetchQueries({ queryKey: ['teamMembers', tenantName, teamId] });
+          
+          // CRITICAL: ALSO invalidate the exact cache key pattern used by TeamDashboard component
+          // TeamDashboard uses: ['teamMembers', tenantName, team?.id, team?.name]
+          await queryClient.invalidateQueries({ queryKey: ['teamMembers', tenantName, teamId, teamName] });
+          await queryClient.refetchQueries({ queryKey: ['teamMembers', tenantName, teamId, teamName] });
         } catch (_err) {
           // Swallow errors; real-time WS or next navigation will recover
         }

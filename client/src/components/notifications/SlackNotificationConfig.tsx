@@ -27,6 +27,20 @@ export function SlackNotificationConfigComponent({ config, onChange, teamName, t
   const { data: users = [], isLoading: usersLoading } = useQuery<SystemUser[]>({ queryKey: ['/api/users'] });
   const { data: allTeamsData = [], isLoading: teamsLoading } = useQuery<any[]>({ queryKey: ['/api/teams'] });
   
+  // CRITICAL: Fetch team members for the current team to get individual member Slack handles
+  const { data: teamMembers = [], isLoading: teamMembersLoading } = useQuery({
+    queryKey: [`/api/get_team_members/${teamName}`], // Use CACHE_PATTERNS.TEAMS.MEMBERS pattern
+    queryFn: async () => {
+      if (!teamName) return [];
+      // Use the correct API client method
+      const { apiClient } = await import('@/config/api');
+      const response = await apiClient.teams.getMembers(teamName);
+      return response.json();
+    },
+    enabled: !!teamName,
+    staleTime: 30 * 1000, // 30 seconds
+  });
+  
   const [channelName, setChannelName] = useState(config?.channelName || '');
   const [channelError, setChannelError] = useState('');
   const [isValidating, setIsValidating] = useState(false);
@@ -59,18 +73,35 @@ export function SlackNotificationConfigComponent({ config, onChange, teamName, t
   }, [allTeamsData, users, teamName, teamSlackChannels]);
   
   // Loading state
-  const isLoading = usersLoading || teamsLoading;
+  const isLoading = usersLoading || teamsLoading || teamMembersLoading;
   
-  // Get team member Slack handles
+  // CRITICAL: Get team member Slack handles from dedicated team members endpoint
   const teamMemberSlacks = useMemo(() => {
-    const slacks: string[] = [];
-    users.forEach((user: SystemUser) => {
-      if (user.team === teamName && user.user_slack && Array.isArray(user.user_slack)) {
-        slacks.push(...user.user_slack);
+    const slacks = [...teamSlackChannels]; // Start with team-level Slack channels
+    
+    // Add individual team member Slack handles
+    teamMembers.forEach((member: any) => {
+      // Check for user_slack field (array of Slack handles)
+      if (member.user_slack && Array.isArray(member.user_slack)) {
+        member.user_slack.forEach((slack: string) => {
+          if (slack && !slacks.includes(slack)) {
+            slacks.push(slack);
+          }
+        });
+      }
+      // Also check for slack field (single Slack handle or array)
+      if (member.slack) {
+        const slackHandles = Array.isArray(member.slack) ? member.slack : [member.slack];
+        slackHandles.forEach((slack: string) => {
+          if (slack && !slacks.includes(slack)) {
+            slacks.push(slack);
+          }
+        });
       }
     });
-    return Array.from(new Set([...teamSlackChannels, ...slacks]));
-  }, [users, teamName, teamSlackChannels]);
+    
+    return slacks;
+  }, [teamSlackChannels, teamMembers]);
 
   useEffect(() => {
     // Update config with all selected Slack channels

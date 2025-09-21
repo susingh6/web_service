@@ -261,7 +261,8 @@ const TeamDashboard = ({
     if (!selectedUser) return;
 
     try {
-      await addMember(teamName, selectedUserId, selectedUser);
+      // CRITICAL: Pass tenantName and teamId for proper cache invalidation
+      await addMember(teamName, selectedUserId, selectedUser, tenantName, team?.id);
 
       toast({
         title: 'Success',
@@ -283,7 +284,8 @@ const TeamDashboard = ({
     if (!selectedMemberId) return;
 
     try {
-      await removeMember(teamName, selectedMemberId);
+      // CRITICAL: Pass tenantName and teamId for proper cache invalidation
+      await removeMember(teamName, selectedMemberId, tenantName, team?.id);
 
       toast({
         title: 'Success',

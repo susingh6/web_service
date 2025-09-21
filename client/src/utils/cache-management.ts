@@ -666,6 +666,8 @@ export function useTeamMemberMutation() {
         queryClient.invalidateQueries({ queryKey: ['/api/users'] });
         queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
         queryClient.invalidateQueries({ queryKey: ['team-notification-settings', teamName] });
+        // CRITICAL: Also invalidate notification component team member cache
+        queryClient.invalidateQueries({ queryKey: [`/api/get_team_members/${teamName}`] });
         
         return result;
       },
@@ -721,6 +723,8 @@ export function useTeamMemberMutation() {
         queryClient.invalidateQueries({ queryKey: ['/api/users'] });
         queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
         queryClient.invalidateQueries({ queryKey: ['team-notification-settings', teamName] });
+        // CRITICAL: Also invalidate notification component team member cache
+        queryClient.invalidateQueries({ queryKey: [`/api/get_team_members/${teamName}`] });
         
         return result;
       },
@@ -1356,7 +1360,7 @@ export function useTeamMemberMutationV2() {
   const queryClient = useQueryClient();
 
   const addMemberMutation = useMutation({
-    mutationFn: async ({ teamName, userId, user }: { teamName: string; userId: string; user: any }) => {
+    mutationFn: async ({ teamName, userId, user, tenantName, teamId }: { teamName: string; userId: string; user: any; tenantName?: string; teamId?: number }) => {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       const sessionId = localStorage.getItem('fastapi_session_id');
       if (sessionId) headers['X-Session-ID'] = sessionId;
@@ -1374,18 +1378,33 @@ export function useTeamMemberMutationV2() {
       }
       return response.json();
     },
-    onMutate: async ({ teamName, user }) => {
-      // Optimistic update
-      const key = CACHE_PATTERNS.TEAMS.MEMBERS(teamName);
-      await queryClient.cancelQueries({ queryKey: key });
-      const previous = queryClient.getQueryData<any[]>(key);
-      queryClient.setQueryData<any[]>(key, (old) => old ? [...old, user] : [user]);
-      return { previous, key };
+    onMutate: async ({ teamName, user, tenantName, teamId }) => {
+      // Optimistic update for multiple cache patterns
+      const keys = [
+        CACHE_PATTERNS.TEAMS.MEMBERS(teamName),
+        // CRITICAL: Also update TeamDashboard cache key pattern
+        ...(tenantName && teamId ? [['teamMembers', tenantName, teamId, teamName]] : [])
+      ];
+      
+      const previousData = [];
+      for (const key of keys) {
+        await queryClient.cancelQueries({ queryKey: key });
+        const previous = queryClient.getQueryData<any[]>(key);
+        previousData.push({ key, previous });
+        queryClient.setQueryData<any[]>(key, (old) => old ? [...old, user] : [user]);
+      }
+      
+      return { previousData };
     },
     onError: (_err, _vars, ctx: any) => {
-      if (ctx?.previous) queryClient.setQueryData(ctx.key, ctx.previous);
+      // Rollback all optimistic updates
+      if (ctx?.previousData) {
+        ctx.previousData.forEach(({ key, previous }: any) => {
+          if (previous) queryClient.setQueryData(key, previous);
+        });
+      }
     },
-    onSuccess: async (_result, { teamName }) => {
+    onSuccess: async (_result, { teamName, tenantName, teamId }) => {
       // Modern comprehensive cache invalidation
       const { invalidateAdminCaches } = await import('@/lib/cacheKeys');
       await invalidateAdminCaches(queryClient);
@@ -1393,11 +1412,19 @@ export function useTeamMemberMutationV2() {
       await queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
       await queryClient.invalidateQueries({ queryKey: ['team-notification-settings', teamName] });
       await queryClient.invalidateQueries({ queryKey: ['admin', 'teams'] });
+      // CRITICAL: Also invalidate notification component team member cache
+      await queryClient.invalidateQueries({ queryKey: [`/api/get_team_members/${teamName}`] });
+      
+      // CRITICAL: Invalidate TeamDashboard cache key pattern
+      if (tenantName && teamId) {
+        await queryClient.invalidateQueries({ queryKey: ['teamMembers', tenantName, teamId, teamName] });
+        await queryClient.refetchQueries({ queryKey: ['teamMembers', tenantName, teamId, teamName] });
+      }
     },
   });
 
   const removeMemberMutation = useMutation({
-    mutationFn: async ({ teamName, userId }: { teamName: string; userId: string }) => {
+    mutationFn: async ({ teamName, userId, tenantName, teamId }: { teamName: string; userId: string; tenantName?: string; teamId?: number }) => {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       const sessionId = localStorage.getItem('fastapi_session_id');
       if (sessionId) headers['X-Session-ID'] = sessionId;
@@ -1415,20 +1442,35 @@ export function useTeamMemberMutationV2() {
       }
       return response.json();
     },
-    onMutate: async ({ teamName, userId }) => {
-      // Optimistic update
-      const key = CACHE_PATTERNS.TEAMS.MEMBERS(teamName);
-      await queryClient.cancelQueries({ queryKey: key });
-      const previous = queryClient.getQueryData<any[]>(key);
-      queryClient.setQueryData<any[]>(key, (old) => 
-        old ? old.filter(member => member.id !== parseInt(userId)) : []
-      );
-      return { previous, key };
+    onMutate: async ({ teamName, userId, tenantName, teamId }) => {
+      // Optimistic update for multiple cache patterns
+      const keys = [
+        CACHE_PATTERNS.TEAMS.MEMBERS(teamName),
+        // CRITICAL: Also update TeamDashboard cache key pattern
+        ...(tenantName && teamId ? [['teamMembers', tenantName, teamId, teamName]] : [])
+      ];
+      
+      const previousData = [];
+      for (const key of keys) {
+        await queryClient.cancelQueries({ queryKey: key });
+        const previous = queryClient.getQueryData<any[]>(key);
+        previousData.push({ key, previous });
+        queryClient.setQueryData<any[]>(key, (old) => 
+          old ? old.filter(member => member.id !== parseInt(userId)) : []
+        );
+      }
+      
+      return { previousData };
     },
     onError: (_err, _vars, ctx: any) => {
-      if (ctx?.previous) queryClient.setQueryData(ctx.key, ctx.previous);
+      // Rollback all optimistic updates
+      if (ctx?.previousData) {
+        ctx.previousData.forEach(({ key, previous }: any) => {
+          if (previous) queryClient.setQueryData(key, previous);
+        });
+      }
     },
-    onSuccess: async (_result, { teamName }) => {
+    onSuccess: async (_result, { teamName, tenantName, teamId }) => {
       // Modern comprehensive cache invalidation
       const { invalidateAdminCaches } = await import('@/lib/cacheKeys');
       await invalidateAdminCaches(queryClient);
@@ -1436,13 +1478,21 @@ export function useTeamMemberMutationV2() {
       await queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
       await queryClient.invalidateQueries({ queryKey: ['team-notification-settings', teamName] });
       await queryClient.invalidateQueries({ queryKey: ['admin', 'teams'] });
+      // CRITICAL: Also invalidate notification component team member cache
+      await queryClient.invalidateQueries({ queryKey: [`/api/get_team_members/${teamName}`] });
+      
+      // CRITICAL: Invalidate TeamDashboard cache key pattern
+      if (tenantName && teamId) {
+        await queryClient.invalidateQueries({ queryKey: ['teamMembers', tenantName, teamId, teamName] });
+        await queryClient.refetchQueries({ queryKey: ['teamMembers', tenantName, teamId, teamName] });
+      }
     },
   });
 
-  const addMember = async (teamName: string, userId: string, user: any) =>
-    addMemberMutation.mutateAsync({ teamName, userId, user });
-  const removeMember = async (teamName: string, userId: string) =>
-    removeMemberMutation.mutateAsync({ teamName, userId });
+  const addMember = async (teamName: string, userId: string, user: any, tenantName?: string, teamId?: number) =>
+    addMemberMutation.mutateAsync({ teamName, userId, user, tenantName, teamId });
+  const removeMember = async (teamName: string, userId: string, tenantName?: string, teamId?: number) =>
+    removeMemberMutation.mutateAsync({ teamName, userId, tenantName, teamId });
 
   return { addMember, removeMember };
 }

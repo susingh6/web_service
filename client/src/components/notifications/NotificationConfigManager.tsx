@@ -43,16 +43,18 @@ export function NotificationConfigManager({ value, onChange, teamName }: Notific
     queryKey: ['team-notification-settings', teamName],
     queryFn: async () => {
       if (!teamName) return { team_email: [], team_slack: [], team_pagerduty: [] };
+      
       const response = await apiClient.teams.getDetails(teamName);
+      if (!response.ok) {
+        throw new Error(`API call failed: ${response.status} ${response.statusText}`);
+      }
+      
       const team = await response.json();
       
-      // Combine team emails with individual member emails
-      const teamEmails = team.team_email || [];
-      const memberEmails = team.members ? team.members.map((member: any) => member.email).filter(Boolean) : [];
-      const allEmails = [...teamEmails, ...memberEmails];
-      
+      // CRITICAL: Only pass team-level data, let individual components handle member data
+      // Individual notification components will fetch and combine member data separately
       return {
-        team_email: allEmails,
+        team_email: team.team_email || [],
         team_slack: team.team_slack || [],
         team_pagerduty: team.team_pagerduty || [],
       };

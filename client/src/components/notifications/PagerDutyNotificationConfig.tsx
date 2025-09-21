@@ -26,6 +26,20 @@ export function PagerDutyNotificationConfigComponent({ config, onChange, teamNam
   const { data: users = [], isLoading: usersLoading } = useQuery<SystemUser[]>({ queryKey: ['/api/users'] });
   const { data: allTeamsData = [], isLoading: teamsLoading } = useQuery<any[]>({ queryKey: ['/api/teams'] });
   
+  // CRITICAL: Fetch team members for the current team to get individual member PagerDuty services
+  const { data: teamMembers = [], isLoading: teamMembersLoading } = useQuery({
+    queryKey: [`/api/get_team_members/${teamName}`], // Use CACHE_PATTERNS.TEAMS.MEMBERS pattern
+    queryFn: async () => {
+      if (!teamName) return [];
+      // Use the correct API client method
+      const { apiClient } = await import('@/config/api');
+      const response = await apiClient.teams.getMembers(teamName);
+      return response.json();
+    },
+    enabled: !!teamName,
+    staleTime: 30 * 1000, // 30 seconds
+  });
+  
   const [customServiceKeyInput, setCustomServiceKeyInput] = useState('');
   const [customServiceKeys, setCustomServiceKeys] = useState<string[]>([]);
   const [selectedTeamPagerDuty, setSelectedTeamPagerDuty] = useState<string[]>([]);
@@ -34,18 +48,35 @@ export function PagerDutyNotificationConfigComponent({ config, onChange, teamNam
   const [showServiceKey, setShowServiceKey] = useState(false);
   
   // Loading state - exact same pattern as Email/Slack
-  const isLoading = usersLoading || teamsLoading;
+  const isLoading = usersLoading || teamsLoading || teamMembersLoading;
   
-  // Get team member PagerDuty services - exact same pattern as Email/Slack
+  // CRITICAL: Get team member PagerDuty services from dedicated team members endpoint
   const teamMemberPagerDutyServices = useMemo(() => {
-    const services: string[] = [];
-    users.forEach((user: SystemUser) => {
-      if (user.team === teamName && user.user_pagerduty && Array.isArray(user.user_pagerduty)) {
-        services.push(...user.user_pagerduty);
+    const services = [...teamPagerDutyKeys]; // Start with team-level PagerDuty keys
+    
+    // Add individual team member PagerDuty services
+    teamMembers.forEach((member: any) => {
+      // Check for user_pagerduty field (array of PagerDuty service keys)
+      if (member.user_pagerduty && Array.isArray(member.user_pagerduty)) {
+        member.user_pagerduty.forEach((service: string) => {
+          if (service && !services.includes(service)) {
+            services.push(service);
+          }
+        });
+      }
+      // Also check for pagerduty field (single service key or array)
+      if (member.pagerduty) {
+        const serviceKeys = Array.isArray(member.pagerduty) ? member.pagerduty : [member.pagerduty];
+        serviceKeys.forEach((service: string) => {
+          if (service && !services.includes(service)) {
+            services.push(service);
+          }
+        });
       }
     });
-    return Array.from(new Set([...teamPagerDutyKeys, ...services]));
-  }, [users, teamName, teamPagerDutyKeys]);
+    
+    return services;
+  }, [teamPagerDutyKeys, teamMembers]);
 
   useEffect(() => {
     // Update config with selected services - exact same pattern as Email/Slack
