@@ -1963,6 +1963,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // FastAPI-style alias: Get team details (development fallback)
+  app.get("/api/v1/get_team_details/:teamName", async (req, res) => {
+    try {
+      const { teamName } = req.params;
+      
+      // Use cache key for team details
+      const cacheKey = `team_details_${teamName}`;
+      let teamDetails = await redisCache.get(cacheKey);
+      
+      if (!teamDetails) {
+        const team = await storage.getTeamByName(teamName);
+        
+        if (!team) {
+          return res.status(404).json({ message: "Team not found" });
+        }
+
+        // Get actual team members from storage
+        const members = await storage.getTeamMembers(teamName);
+
+        teamDetails = {
+          ...team,
+          members: members
+        };
+
+        // Cache for 6 hours like other data
+        await redisCache.set(cacheKey, teamDetails, 6 * 60 * 60);
+      }
+
+      res.json(teamDetails);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch team details" });
+    }
+  });
+
   // FastAPI-style alias: Get team members (development fallback)
   app.get("/api/v1/get_team_members/:teamName", async (req, res) => {
     try {
