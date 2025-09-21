@@ -326,7 +326,7 @@ export function setupSimpleAuth(app: Express) {
       
       logAuthenticationEvent("azure-validate", userEmail || 'unknown', req.sessionContext, req.requestId, false);
       
-      // For the test user, simulate admin role
+      // For the test user, ensure it exists in storage first but then process through normal admin cache logic
       if (userEmail === 'azure_test_user@example.com' || displayName === 'Azure Test User') {
         let testUser = await storage.getUserByUsername('azure_test_user');
         if (!testUser) {
@@ -335,30 +335,12 @@ export function setupSimpleAuth(app: Express) {
             password: 'Azure123!',
             email: userEmail || 'azure_test_user@example.com',
             displayName: displayName,
-            team: 'Data Engineering'
+            team: 'Data Engineering',
+            is_active: true
           });
+          console.log('Created azure_test_user for admin cache compatibility');
         }
-        
-        // Log the user into the Express session
-        req.login(testUser, (err) => {
-          if (err) {
-            logAuthenticationEvent("azure-login", testUser.username, undefined, req.requestId, false);
-            return res.status(500).json({ 
-              success: false,
-              message: "Session creation failed"
-            });
-          }
-          
-          logAuthenticationEvent("azure-login", testUser.username, undefined, req.requestId, true);
-          
-          const { password, ...userWithoutPassword } = testUser;
-          return res.json({
-            success: true,
-            user: { ...userWithoutPassword, role: 'admin' },
-            message: "Azure SSO validation successful"
-          });
-        });
-        return; // Important: return here to prevent further execution
+        // Continue to admin cache checking logic below instead of early return
       }
       
       // ENHANCED LOGIC: Check if user exists in admin users cache first
