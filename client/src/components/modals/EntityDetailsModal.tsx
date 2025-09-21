@@ -39,7 +39,6 @@ import {
   Analytics as AnalyticsIcon,
   Save as SaveIcon,
   Cancel as CancelIcon,
-  Restore as RestoreIcon,
   Notifications as NotificationsIcon,
 } from '@mui/icons-material';
 import { format } from 'date-fns';
@@ -116,14 +115,10 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
     setLocalOwnerEmails(null);
   }, [entity?.id, entity?.name]);
   
-  // State for rollback functionality
-  const [rollbackConfirmOpen, setRollbackConfirmOpen] = useState(false);
-  const [selectedRollbackVersion, setSelectedRollbackVersion] = useState<number | null>(null);
-  const [isRollingBack, setIsRollingBack] = useState(false);
   
   const { toast } = useToast();
   const { user } = useAuth();
-  const { updateOwner: updateOwnerMutation, deleteEntity, rollbackEntity } = useEntityMutation();
+  const { updateOwner: updateOwnerMutation, deleteEntity } = useEntityMutation();
   
   // Find team name - do this before early return to avoid hooks order issues
   const teamName = entity ? teams.find(team => team.id === entity.teamId)?.name || 'Unknown Team' : '';
@@ -240,81 +235,6 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
     setOwnerEmailInput('');
   };
 
-  // Handle rollback functionality
-  const handleRollbackClick = (version: number) => {
-    setSelectedRollbackVersion(version);
-    setRollbackConfirmOpen(true);
-  };
-
-  const handleRollbackConfirm = async () => {
-    if (!entity || !teamName || selectedRollbackVersion === null) return;
-    
-    // Get user email from authentication context with proper type checking
-    const getUserEmail = () => {
-      if (!user) return '';
-      
-      // Type guard to check if user has email property
-      if ('email' in user && typeof user.email === 'string') return user.email;
-      
-      // Check for Azure AD properties with type safety
-      const azureUser = user as Record<string, any>;
-      if (typeof azureUser.mail === 'string') return azureUser.mail;
-      if (typeof azureUser.preferredUsername === 'string') return azureUser.preferredUsername;
-      if (typeof azureUser.upn === 'string') return azureUser.upn;
-      
-      return '';
-    };
-    
-    const userEmail = getUserEmail();
-    if (!userEmail) {
-      toast({
-        title: 'Error',
-        description: 'User email not found. Please log in again.',
-        variant: 'destructive',
-      });
-      return;
-    }
-    
-    setIsRollingBack(true);
-    try {
-      const rollbackData = {
-        toVersion: selectedRollbackVersion,
-        user_email: userEmail,
-        reason: `Rollback to version ${selectedRollbackVersion}`,
-        tenant_name: entity.tenant_name || 'Data Engineering',
-        teamId: entity.teamId
-      };
-      
-      // Use modern cache-management approach with automatic cache invalidation
-      await rollbackEntity(entity.name, entity.type as 'table' | 'dag', teamName, rollbackData);
-      
-      toast({
-        title: 'Success',
-        description: `Successfully rolled back to version ${selectedRollbackVersion}.`,
-        variant: 'default',
-      });
-      
-      console.log(`Rollback completed for entity ${entity.name} (${entity.type}) to version ${selectedRollbackVersion}`);
-      
-      // Close the confirmation dialog
-      setRollbackConfirmOpen(false);
-      setSelectedRollbackVersion(null);
-    } catch (error) {
-      console.error('Error rolling back entity:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to rollback entity. Please try again.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsRollingBack(false);
-    }
-  };
-
-  const handleRollbackCancel = () => {
-    setRollbackConfirmOpen(false);
-    setSelectedRollbackVersion(null);
-  };
   
   // Fetch owner and SLA settings (combined API call)
   const { data: ownerSlaSettings, isLoading: ownerSlaLoading } = useQuery({
@@ -879,15 +799,6 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
                         </Typography>
                       }
                     />
-                    <IconButton
-                      size="small"
-                      onClick={() => handleRollbackClick(change.version || index + 1)}
-                      disabled={isRollingBack}
-                      data-testid={`button-rollback-version-${change.version || index + 1}`}
-                      sx={{ ml: 1 }}
-                    >
-                      <RestoreIcon fontSize="small" />
-                    </IconButton>
                   </ListItem>
                 ))}
               </List>
@@ -909,15 +820,6 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
         content={`Are you sure you want to delete "${entity.name}"? This action cannot be undone.`}
       />
       
-      <ConfirmDialog
-        open={rollbackConfirmOpen}
-        onClose={handleRollbackCancel}
-        onConfirm={handleRollbackConfirm}
-        title="Rollback Entity"
-        content={`Are you sure you want to rollback to version ${selectedRollbackVersion}? Any history after this version will be permanently lost and this action cannot be undone.`}
-        confirmText="Rollback"
-        confirmColor="warning"
-      />
     </>
   );
 };
