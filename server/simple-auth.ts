@@ -266,6 +266,10 @@ export function setupSimpleAuth(app: Express) {
 
   // Get current user route
   app.get("/api/user", (req: Request, res: Response) => {
+    console.log('GET /api/user - isAuthenticated:', req.isAuthenticated());
+    console.log('GET /api/user - session user:', req.user);
+    console.log('GET /api/user - session:', req.session);
+    
     if (!req.isAuthenticated()) {
       return res.status(401).json({ message: "Not authenticated" });
     }
