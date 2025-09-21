@@ -194,19 +194,19 @@ const RolesManagement = () => {
 
   // Update role (optimistic), includes Active toggle (soft delete)
   const updateRoleMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: number; data: Partial<Role> }) => {
+    mutationFn: async ({ roleName, data }: { roleName: string; data: Partial<Role> }) => {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      const res = await fetch(buildUrl(endpoints.admin.roles.update, id), { method: 'PUT', headers, body: JSON.stringify(data), credentials: 'include' });
+      const res = await fetch(buildUrl(endpoints.admin.roles.update, roleName), { method: 'PATCH', headers, body: JSON.stringify(data), credentials: 'include' });
       if (!res.ok) {
-        if (isDevelopment) return { id, ...data } as any;
+        if (isDevelopment) return { role_name: roleName, ...data } as any;
         throw new Error('Failed to update role');
       }
       return res.json();
     },
-    onMutate: async ({ id, data }) => {
+    onMutate: async ({ roleName, data }) => {
       await queryClient.cancelQueries({ queryKey: ['admin', 'roles'] });
       const previous = queryClient.getQueryData<Role[]>(['admin', 'roles']);
-      queryClient.setQueryData<Role[]>(['admin', 'roles'], (old) => old ? old.map(r => r.id === id ? { ...r, ...data } as Role : r) : []);
+      queryClient.setQueryData<Role[]>(['admin', 'roles'], (old) => old ? old.map(r => r.role_name === roleName ? { ...r, ...data } as Role : r) : []);
       return { previous };
     },
     onError: (_e, _v, ctx) => { if (ctx?.previous) queryClient.setQueryData(['admin', 'roles'], ctx.previous); },
@@ -221,18 +221,18 @@ const RolesManagement = () => {
 
   // Hard delete (DELETE)
   const deleteRoleMutation = useMutation({
-    mutationFn: async (id: number) => {
-      const res = await fetch(buildUrl(endpoints.admin.roles.update, id), { method: 'DELETE', credentials: 'include' });
+    mutationFn: async (roleName: string) => {
+      const res = await fetch(buildUrl(endpoints.admin.roles.delete, roleName), { method: 'DELETE', credentials: 'include' });
       if (!res.ok) {
         if (isDevelopment) return true;
         throw new Error('Failed to delete role');
       }
       return true;
     },
-    onMutate: async (id: number) => {
+    onMutate: async (roleName: string) => {
       await queryClient.cancelQueries({ queryKey: ['admin', 'roles'] });
       const previous = queryClient.getQueryData<Role[]>(['admin', 'roles']);
-      queryClient.setQueryData<Role[]>(['admin', 'roles'], (old) => old ? old.filter(r => r.id !== id) : []);
+      queryClient.setQueryData<Role[]>(['admin', 'roles'], (old) => old ? old.filter(r => r.role_name !== roleName) : []);
       return { previous };
     },
     onError: (_e, _v, ctx) => { if (ctx?.previous) queryClient.setQueryData(['admin', 'roles'], ctx.previous); },
@@ -278,8 +278,8 @@ const RolesManagement = () => {
     try {
       console.log('Submitting role:', { selectedRole, roleForm });
       if (selectedRole) {
-        console.log('Updating role:', selectedRole.id, roleForm);
-        await updateRoleMutation.mutateAsync({ id: selectedRole.id, data: roleForm });
+        console.log('Updating role:', selectedRole.role_name, roleForm);
+        await updateRoleMutation.mutateAsync({ roleName: selectedRole.role_name, data: roleForm });
       } else {
         console.log('Creating role:', roleForm);
         await createRoleMutation.mutateAsync(roleForm);
@@ -299,8 +299,8 @@ const RolesManagement = () => {
   const handleConfirmDelete = async () => {
     if (!roleToDelete) return;
     try { 
-      console.log('Deleting role:', roleToDelete.id);
-      await deleteRoleMutation.mutateAsync(roleToDelete.id);
+      console.log('Deleting role:', roleToDelete.role_name);
+      await deleteRoleMutation.mutateAsync(roleToDelete.role_name);
     } catch (error: any) {
       console.error('Error deleting role:', error);
       toast({

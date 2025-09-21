@@ -1222,32 +1222,32 @@ export function useAdminMutation() {
   });
 
   const updateRoleMutation = useMutation({
-    mutationFn: async ({ roleId, roleData }: { roleId: number; roleData: any }) => {
+    mutationFn: async ({ roleName, roleData }: { roleName: string; roleData: any }) => {
       const { apiRequest } = await import('@/lib/queryClient');
       const { isDevelopment, endpoints } = await import('@/config');
       // Try FastAPI endpoint first
-      let response = await apiRequest('PATCH', endpoints.admin.roles.update(roleId), roleData);
+      let response = await apiRequest('PATCH', endpoints.admin.roles.update(roleName), roleData);
       
       // Fallback to Express endpoint if FastAPI fails
       if (!response.ok && response.status === 404) {
-        response = await apiRequest('PATCH', `/api/roles/${roleId}`, roleData);
+        response = await apiRequest('PATCH', `/api/roles/${roleName}`, roleData);
       }
       if (!response.ok) {
         if (isDevelopment) {
           // Development fallback: return mock updated role data
-          return { id: roleId, ...roleData };
+          return { role_name: roleName, ...roleData };
         }
         const text = await response.text();
         throw new Error(`Failed to update role: ${text}`);
       }
       return response.json();
     },
-    onMutate: async ({ roleId, roleData }: { roleId: number; roleData: any }) => {
+    onMutate: async ({ roleName, roleData }: { roleName: string; roleData: any }) => {
       // Optimistic update for development
       await queryClient.cancelQueries({ queryKey: ['admin', 'roles'] });
       const previous = queryClient.getQueryData<any[]>(['admin', 'roles']);
       queryClient.setQueryData<any[]>(['admin', 'roles'], (old) => 
-        old ? old.map(r => r.id === roleId ? { ...r, ...roleData } : r) : []
+        old ? old.map(r => r.role_name === roleName ? { ...r, ...roleData } : r) : []
       );
       return { previous };
     },
@@ -1263,10 +1263,10 @@ export function useAdminMutation() {
   });
 
   const deleteRoleMutation = useMutation({
-    mutationFn: async (roleId: number) => {
+    mutationFn: async (roleName: string) => {
       const { apiRequest } = await import('@/lib/queryClient');
-      const { isDevelopment } = await import('@/config');
-      const response = await apiRequest('DELETE', `/api/roles/${roleId}`);
+      const { isDevelopment, endpoints } = await import('@/config');
+      const response = await apiRequest('DELETE', endpoints.admin.roles.delete(roleName));
       if (!response.ok) {
         if (isDevelopment) {
           // Development fallback: return success
@@ -1277,12 +1277,12 @@ export function useAdminMutation() {
       }
       return response.json();
     },
-    onMutate: async (roleId: number) => {
+    onMutate: async (roleName: string) => {
       // Optimistic update for development
       await queryClient.cancelQueries({ queryKey: ['admin', 'roles'] });
       const previous = queryClient.getQueryData<any[]>(['admin', 'roles']);
       queryClient.setQueryData<any[]>(['admin', 'roles'], (old) => 
-        old ? old.filter(r => r.id !== roleId) : []
+        old ? old.filter(r => r.role_name !== roleName) : []
       );
       return { previous };
     },
@@ -1338,8 +1338,8 @@ export function useAdminMutation() {
   const updateTeam = async (teamId: number, teamData: any) => updateTeamMutation.mutateAsync({ teamId, teamData });
   const updateUser = async (userId: number, userData: any) => updateUserMutation.mutateAsync({ userId, userData });
   const createRole = async (roleData: any) => createRoleMutation.mutateAsync(roleData);
-  const updateRole = async (roleId: number, roleData: any) => updateRoleMutation.mutateAsync({ roleId, roleData });
-  const deleteRole = async (roleId: number) => deleteRoleMutation.mutateAsync(roleId);
+  const updateRole = async (roleName: string, roleData: any) => updateRoleMutation.mutateAsync({ roleName, roleData });
+  const deleteRole = async (roleName: string) => deleteRoleMutation.mutateAsync(roleName);
   const adminRollback = async (entity: any) => adminRollbackMutation.mutateAsync(entity);
 
   return {

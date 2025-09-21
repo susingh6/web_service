@@ -474,6 +474,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // PATCH /api/v1/roles/{roleName} - Update role by name
+  app.patch("/api/v1/roles/:roleName", requireActiveUser, async (req, res) => {
+    try {
+      const { roleName } = req.params;
+      const roleData = req.body;
+      
+      console.log(`PATCH /api/v1/roles/${roleName} - updating role:`, roleData);
+      
+      // Get all roles and find the one to update
+      const roles = await storage.getUserRoles();
+      const existingRole = roles.find(r => r.role_name === roleName);
+      
+      if (!existingRole) {
+        return res.status(404).json({ message: `Role '${roleName}' not found` });
+      }
+      
+      // Update the role (mock implementation for development)
+      const updatedRole = { ...existingRole, ...roleData, role_name: roleName };
+      
+      console.log(`Role '${roleName}' updated successfully`);
+      res.json(updatedRole);
+    } catch (error) {
+      console.error(`Error updating role '${req.params.roleName}':`, error);
+      res.status(500).json({ message: "Failed to update role" });
+    }
+  });
+
+  // DELETE /api/v1/roles/{roleName} - Delete role by name
+  app.delete("/api/v1/roles/:roleName", requireActiveUser, async (req, res) => {
+    try {
+      const { roleName } = req.params;
+      
+      console.log(`DELETE /api/v1/roles/${roleName} - deleting role`);
+      
+      // Get all roles and check if role exists
+      const roles = await storage.getUserRoles();
+      const existingRole = roles.find(r => r.role_name === roleName);
+      
+      if (!existingRole) {
+        return res.status(404).json({ message: `Role '${roleName}' not found` });
+      }
+      
+      // Delete the role (mock implementation for development)
+      console.log(`Role '${roleName}' deleted successfully`);
+      res.json({ success: true, message: `Role '${roleName}' deleted` });
+    } catch (error) {
+      console.error(`Error deleting role '${req.params.roleName}':`, error);
+      res.status(500).json({ message: "Failed to delete role" });
+    }
+  });
+
   // Teams endpoints - using cache (includeInactive toggle for admin)
   app.get("/api/teams", async (req, res) => {
     try {

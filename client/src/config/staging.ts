@@ -132,7 +132,8 @@ export const stagingConfig = {
       roles: {
         getAll: '/api/v1/roles',
         create: '/api/v1/roles',
-        update: (roleId: number) => `/api/v1/roles/${roleId}`,
+        update: (roleName: string) => `/api/v1/roles/${roleName}`,
+        delete: (roleName: string) => `/api/v1/roles/${roleName}`,
       },
     },
     
