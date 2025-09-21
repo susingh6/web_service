@@ -194,6 +194,16 @@ const AdminOverview = () => {
       <Grid container spacing={3}>
         <Grid item xs={12} sm={6} md={4} lg={2}>
           <StatCard
+            title="Tenants"
+            value={tenants.length}
+            icon={<TenantsIcon />}
+            color={theme.palette.info.main}
+            subtitle="Organizations"
+          />
+        </Grid>
+        
+        <Grid item xs={12} sm={6} md={4} lg={2}>
+          <StatCard
             title="Active Teams"
             value={teams.length}
             icon={<TeamsIcon />}
@@ -209,16 +219,6 @@ const AdminOverview = () => {
             icon={<UsersIcon />}
             color={theme.palette.success.main}
             subtitle="System-wide"
-          />
-        </Grid>
-        
-        <Grid item xs={12} sm={6} md={4} lg={2}>
-          <StatCard
-            title="Tenants"
-            value={tenants.length}
-            icon={<TenantsIcon />}
-            color={theme.palette.info.main}
-            subtitle="Organizations"
           />
         </Grid>
         
