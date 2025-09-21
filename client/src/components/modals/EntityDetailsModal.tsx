@@ -54,6 +54,7 @@ import { useQuery } from '@tanstack/react-query';
 import { cacheKeys, invalidateEntityCaches } from '@/lib/cacheKeys';
 import { useEntityMutation } from '@/utils/cache-management';
 import { entitiesApi } from '@/features/sla/api';
+import { NotificationTimelinesList } from '@/components/subscriptions/NotificationTimelinesList';
 
 interface EntityDetailsModalProps {
   open: boolean;
@@ -821,6 +822,11 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
             ) : (
               <Typography color="text.secondary">Unable to load current settings</Typography>
             )}
+          </Paper>
+
+          {/* Notification Timelines */}
+          <Paper elevation={0} sx={{ p: 3, mb: 3, borderRadius: 1 }}>
+            <NotificationTimelinesList entity={entity} />
           </Paper>
 
           {/* Recent Settings Changes */}
