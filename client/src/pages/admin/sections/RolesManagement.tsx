@@ -80,32 +80,12 @@ const RolesManagement = () => {
   const { data: roles = [], isLoading } = useQuery<Role[]>({
     queryKey: ['admin', 'roles'],
     queryFn: async () => {
-      const res = await fetch('/api/users/roles');
+      const res = await fetch('/api/roles');
       if (!res.ok) throw new Error('Failed to fetch roles');
-      const backendRoles = await res.json();
+      const roles = await res.json();
       
-      // Transform backend roles to match frontend interface with proper SLA permissions
-      return backendRoles.map((role: any, index: number) => {
-        const permissions = [];
-        if (role.role.includes('admin')) permissions.push('admin', 'manage_users', 'manage_teams', 'manage_tenants');
-        if (role.role.includes('dag')) permissions.push('dag-status-editor', 'dag-sla-editor', 'dag-progress-editor');
-        if (role.role.includes('table')) permissions.push('table-status-editor', 'table-sla-editor', 'table-progress-editor');
-        if (role.role.includes('viewer')) permissions.push('viewer');
-        if (role.role.includes('editor')) permissions.push('viewer');
-        
-        return {
-          id: index + 1,
-          role_name: role.role,
-          description: role.description,
-          role_permissions: permissions.length > 0 ? permissions : ['viewer'],
-          is_system_role: !role.role.includes('pgm') && !role.role.includes('core'),
-          is_active: role.status === 'active',
-          status: role.status || 'active',
-          tenant_name: role.role.includes('pgm') ? 'Data Engineering' : role.role.includes('core') ? 'Data Engineering' : undefined,
-          team_name: role.role.includes('pgm') ? 'PGM' : role.role.includes('core') ? 'Core' : undefined,
-          userCount: Math.floor(Math.random() * 15) + 1, // Mock user count for now
-        };
-      });
+      // No transformation needed - return actual Role objects
+      return roles;
     },
     staleTime: 6 * 60 * 60 * 1000,
     gcTime: 6 * 60 * 60 * 1000,
@@ -237,7 +217,7 @@ const RolesManagement = () => {
   // Hard delete (DELETE)
   const deleteRoleMutation = useMutation({
     mutationFn: async (roleName: string) => {
-      const res = await fetch(buildUrl(endpoints.admin.roles.delete, roleName), { method: 'DELETE', credentials: 'include' });
+      const res = await fetch(`/api/v1/roles/${roleName}`, { method: 'DELETE', credentials: 'include' });
       if (!res.ok) {
         if (isDevelopment) return true;
         throw new Error('Failed to delete role');
@@ -446,10 +426,10 @@ const RolesManagement = () => {
                     </TableCell>
                     <TableCell>
                       <Chip 
-                        label={role.status === 'active' ? 'Active' : role.status === 'inactive' ? 'Inactive' : 'Active'} 
+                        label={role.is_active ? 'Active' : 'Inactive'} 
                         size="small" 
-                        color={role.status === 'active' ? 'success' : role.status === 'inactive' ? 'default' : 'success'}
-                        variant={role.status === 'active' ? 'filled' : role.status === 'inactive' ? 'outlined' : 'filled'}
+                        color={role.is_active ? 'success' : 'default'}
+                        variant={role.is_active ? 'filled' : 'outlined'}
                       />
                     </TableCell>
                     <TableCell>

@@ -474,22 +474,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // GET /api/roles - Get all roles from real storage
+  app.get("/api/roles", async (req, res) => {
+    try {
+      const roles = await storage.getRoles();
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+      res.json(roles);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch roles" });
+    }
+  });
+
   // POST /api/v1/roles - Create new role
-  app.post("/api/v1/roles", requireActiveUser, async (req: express.Request, res: express.Response) => {
+  app.post("/api/v1/roles", requireActiveUser, async (req: Express.Request, res: Express.Response) => {
     try {
       const roleData = req.body;
       
-      console.log('POST /api/roles - creating new role:', roleData);
+      console.log('POST /api/v1/roles - creating new role:', roleData);
       
-      // Create the new role (mock implementation for development)
-      const newRole = {
-        role: roleData.role_name || roleData.role,
-        label: roleData.label || roleData.role_name || roleData.role,
-        description: roleData.description || `Custom role: ${roleData.role_name || roleData.role}`,
-        status: roleData.status || 'active'
-      };
+      // Use real storage to create role
+      const newRole = await storage.createRole(roleData);
       
       console.log('New role created successfully:', newRole);
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
       res.status(201).json(newRole);
     } catch (error) {
       console.error('Error creating role:', error);
@@ -498,25 +505,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // PATCH /api/v1/roles/{roleName} - Update role by name
-  app.patch("/api/v1/roles/:roleName", requireActiveUser, async (req: express.Request, res: express.Response) => {
+  app.patch("/api/v1/roles/:roleName", requireActiveUser, async (req: Express.Request, res: Express.Response) => {
     try {
       const { roleName } = req.params;
       const roleData = req.body;
       
       console.log(`PATCH /api/v1/roles/${roleName} - updating role:`, roleData);
       
-      // Get all roles and find the one to update
-      const roles = await storage.getUserRoles();
-      const existingRole = roles.find(r => r.role === roleName);
+      // Use real storage to update role
+      const updatedRole = await storage.updateRole(roleName, roleData);
       
-      if (!existingRole) {
+      if (!updatedRole) {
         return res.status(404).json({ message: `Role '${roleName}' not found` });
       }
       
-      // Update the role (mock implementation for development)
-      const updatedRole = { ...existingRole, ...roleData, role: roleName };
-      
       console.log(`Role '${roleName}' updated successfully`);
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
       res.json(updatedRole);
     } catch (error) {
       console.error(`Error updating role '${req.params.roleName}':`, error);
@@ -525,22 +529,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // DELETE /api/v1/roles/{roleName} - Delete role by name
-  app.delete("/api/v1/roles/:roleName", requireActiveUser, async (req: express.Request, res: express.Response) => {
+  app.delete("/api/v1/roles/:roleName", requireActiveUser, async (req: Express.Request, res: Express.Response) => {
     try {
       const { roleName } = req.params;
       
       console.log(`DELETE /api/v1/roles/${roleName} - deleting role`);
       
-      // Get all roles and check if role exists
-      const roles = await storage.getUserRoles();
-      const existingRole = roles.find(r => r.role === roleName);
+      // Use real storage to delete role
+      const success = await storage.deleteRole(roleName);
       
-      if (!existingRole) {
+      if (!success) {
         return res.status(404).json({ message: `Role '${roleName}' not found` });
       }
       
-      // Delete the role (mock implementation for development)
-      console.log(`Role '${roleName}' deleted successfully`);
+      console.log(`Role '${roleName}' deleted successfully from storage`);
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
       res.json({ success: true, message: `Role '${roleName}' deleted` });
     } catch (error) {
       console.error(`Error deleting role '${req.params.roleName}':`, error);
