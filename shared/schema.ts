@@ -323,6 +323,7 @@ export interface UserRole {
   role: string;
   label: string;
   description: string;
+  status?: 'active' | 'inactive';
 }
 
 export type Team = typeof teams.$inferSelect;

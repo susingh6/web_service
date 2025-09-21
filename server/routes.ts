@@ -475,7 +475,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // PATCH /api/v1/roles/{roleName} - Update role by name
-  app.patch("/api/v1/roles/:roleName", requireActiveUser, async (req, res) => {
+  app.patch("/api/v1/roles/:roleName", requireActiveUser, async (req: express.Request, res: express.Response) => {
     try {
       const { roleName } = req.params;
       const roleData = req.body;
@@ -484,14 +484,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Get all roles and find the one to update
       const roles = await storage.getUserRoles();
-      const existingRole = roles.find(r => r.role_name === roleName);
+      const existingRole = roles.find(r => r.role === roleName);
       
       if (!existingRole) {
         return res.status(404).json({ message: `Role '${roleName}' not found` });
       }
       
       // Update the role (mock implementation for development)
-      const updatedRole = { ...existingRole, ...roleData, role_name: roleName };
+      const updatedRole = { ...existingRole, ...roleData, role: roleName };
       
       console.log(`Role '${roleName}' updated successfully`);
       res.json(updatedRole);
@@ -502,7 +502,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // DELETE /api/v1/roles/{roleName} - Delete role by name
-  app.delete("/api/v1/roles/:roleName", requireActiveUser, async (req, res) => {
+  app.delete("/api/v1/roles/:roleName", requireActiveUser, async (req: express.Request, res: express.Response) => {
     try {
       const { roleName } = req.params;
       
@@ -510,7 +510,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Get all roles and check if role exists
       const roles = await storage.getUserRoles();
-      const existingRole = roles.find(r => r.role_name === roleName);
+      const existingRole = roles.find(r => r.role === roleName);
       
       if (!existingRole) {
         return res.status(404).json({ message: `Role '${roleName}' not found` });

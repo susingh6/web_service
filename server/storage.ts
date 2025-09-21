@@ -967,32 +967,38 @@ export class MemStorage implements IStorage {
       {
         role: 'admin',
         label: 'Administrator',
-        description: 'System administrators with full access'
+        description: 'System administrators with full access',
+        status: 'active'
       },
       {
         role: 'manager',
         label: 'Team Manager',
-        description: 'Team leads and managers'
+        description: 'Team leads and managers',
+        status: 'active'
       },
       {
         role: 'lead',
         label: 'Technical Lead',
-        description: 'Senior technical staff and project leads'
+        description: 'Senior technical staff and project leads',
+        status: 'active'
       },
       {
         role: 'developer',
         label: 'Developer',
-        description: 'Software developers and engineers'
+        description: 'Software developers and engineers',
+        status: 'active'
       },
       {
         role: 'analyst',
         label: 'Data Analyst',
-        description: 'Data analysts and business intelligence staff'
+        description: 'Data analysts and business intelligence staff',
+        status: 'inactive'
       },
       {
         role: 'ops',
         label: 'Operations',
-        description: 'DevOps and infrastructure team members'
+        description: 'DevOps and infrastructure team members',
+        status: 'active'
       }
     ];
   }

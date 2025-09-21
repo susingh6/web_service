@@ -372,6 +372,7 @@ const RolesManagement = () => {
                   <TableCell>Team</TableCell>
                   <TableCell>Type</TableCell>
                   <TableCell>Permissions</TableCell>
+                  <TableCell>Status</TableCell>
                   <TableCell>Actions</TableCell>
                 </TableRow>
               </TableHead>
@@ -428,6 +429,14 @@ const RolesManagement = () => {
                           color={getRoleColor(role) as any}
                         />
                       </Tooltip>
+                    </TableCell>
+                    <TableCell>
+                      <Chip 
+                        label={role.status === 'active' ? 'Active' : role.status === 'inactive' ? 'Inactive' : 'Active'} 
+                        size="small" 
+                        color={role.status === 'active' ? 'success' : role.status === 'inactive' ? 'default' : 'success'}
+                        variant={role.status === 'active' ? 'filled' : role.status === 'inactive' ? 'outlined' : 'filled'}
+                      />
                     </TableCell>
                     <TableCell>
                       <Box sx={{ display: 'flex', gap: 1 }}>
