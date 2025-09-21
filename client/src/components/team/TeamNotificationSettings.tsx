@@ -23,6 +23,8 @@ import {
 import { Bell, Mail, MessageSquare, AlertTriangle, Plus, X, Save as SaveIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useAppDispatch } from '@/lib/store';
+import { fetchTeams } from '@/features/sla/slices/entitiesSlice';
 import { apiRequest } from '@/lib/queryClient';
 import { Team } from '@shared/schema';
 
@@ -48,6 +50,7 @@ export function TeamNotificationSettings({ team, tenantName, variant = 'default'
   });
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const dispatch = useAppDispatch();
   const isCompact = variant === 'compact';
   const isModal = variant === 'modal';
 
@@ -105,6 +108,9 @@ export function TeamNotificationSettings({ team, tenantName, variant = 'default'
       await queryClient.invalidateQueries({ queryKey: [`/api/get_team_details/${team.name}`] });
       await queryClient.invalidateQueries({ queryKey: [`/api/get_team_members/${team.name}`] });
       
+      // Refresh Redux teams so NotificationSummary reflects new emails immediately
+      dispatch(fetchTeams());
+      
       setHasChanges(false);
       
       // Close modal if in modal variant
@@ -141,7 +147,8 @@ export function TeamNotificationSettings({ team, tenantName, variant = 'default'
   };
 
   const validateSlackHandle = (handle: string) => {
-    return /^[a-zA-Z0-9._-]+$/.test(handle.replace('@', ''));
+    // Allow @user or #channel (letters, numbers, underscore, hyphen, dot)
+    return /^[@#][a-zA-Z0-9._-]+$/.test(handle);
   };
 
   const addValue = (type: 'team_email' | 'team_slack' | 'team_pagerduty') => {
