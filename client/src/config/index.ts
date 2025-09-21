@@ -30,11 +30,14 @@ interface ApiConfig {
     tablesDelete: (entityName: string) => string;
     tablesUpdate: (entityName: string) => string;
     tablesGet: (entityName: string) => string;
+    // Name-scoped owner update endpoints
+    tablesOwnerUpdate?: (entityName: string) => string;
     dags: string;
     dagsBulk: string;
     dagsDelete: (entityName: string) => string;
     dagsUpdate: (entityName: string) => string;
     dagsGet: (entityName: string) => string;
+    dagsOwnerUpdate?: (entityName: string) => string;
     // Optional Express fallback endpoints (development only)
     tablesFallback?: string;
     tablesBulkFallback?: string;
@@ -79,7 +82,7 @@ interface ApiConfig {
       ownerAndSlaSettings: (entityType: string, teamName: string, entityName: string) => string;
       slaStatusHistory: (entityType: string, teamName: string, entityName: string) => string;
       recentSettingsChanges: (entityType: string, teamName: string, entityName: string) => string;
-      updateOwner: (entityId: number) => string;
+      updateOwner?: (entityId: number) => string;
     };
     tasks: {
       byDag: (dagId: number) => string;

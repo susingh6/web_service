@@ -108,6 +108,11 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
   const [selectedOwnerEmails, setSelectedOwnerEmails] = useState<string[]>([]);
   const [localOwnerEmails, setLocalOwnerEmails] = useState<string[] | null>(null);
   
+  // Reset local owner emails when entity changes to prevent cross-entity contamination
+  useEffect(() => {
+    setLocalOwnerEmails(null);
+  }, [entity?.id, entity?.name]);
+  
   // State for rollback functionality
   const [rollbackConfirmOpen, setRollbackConfirmOpen] = useState(false);
   const [selectedRollbackVersion, setSelectedRollbackVersion] = useState<number | null>(null);
@@ -162,8 +167,10 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
         owners: ownersArray,
       } as any;
       
-      // Make PATCH request to update owner using entity_name-based endpoint
-      const updateEndpoint = entity.type === 'table' ? endpoints.tablesOwnerUpdate : endpoints.dagsOwnerUpdate;
+      // Make PATCH request to update owner using entity_name-based endpoint (fallback if owner endpoint undefined)
+      const updateEndpoint = entity.type === 'table'
+        ? (endpoints.tablesOwnerUpdate ?? endpoints.tablesUpdate)
+        : (endpoints.dagsOwnerUpdate ?? endpoints.dagsUpdate);
       const response = await apiRequest('PATCH', buildUrl(updateEndpoint, entity.name), payload);
       
       if (response.ok) {
@@ -173,8 +180,8 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
           variant: 'default',
         });
         
-        // Optimistically reflect owner change for this modal's cache key
-        const detailsKey = cacheKeys.entityDetails(entity.id, `ownerSlaSettings-${entity.type}-${teamName}-${entity.name}`);
+        // Optimistically reflect owner change for this modal's cache key (use name-scoped key)
+        const detailsKey = cacheKeys.entityDetailsByName(entity.name, teamName, entity.type, 'ownerSlaSettings');
         const normalized = ownersArray.join(',');
         queryClient.setQueryData(detailsKey as any, (old: any) => structuredClone({
           ...(old || {}),
@@ -185,15 +192,12 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
         // Immediate local visibility (even if refetch races)
         setLocalOwnerEmails(ownersArray);
         
-        // CRITICAL: Invalidate caches for this specific entity and team only
+        // Invalidate only the specific name-scoped details and the current team's list
         await queryClient.invalidateQueries({ queryKey: detailsKey as any });
         await queryClient.refetchQueries({ queryKey: detailsKey as any });
-        
-        // Invalidate only this team's entities cache to update this team's dashboard
-        await queryClient.invalidateQueries({ queryKey: [`/api/v1/entities?teamId=${entity.teamId}`] });
-        
-        // Invalidate individual entity cache 
-        await queryClient.invalidateQueries({ queryKey: [`/api/entities/${entity.id}`] });
+        if (entity.teamId) {
+          await queryClient.invalidateQueries({ queryKey: [endpoints.entity.byTeam(entity.teamId)] });
+        }
         
         // Reset edit state
         setIsEditingOwner(false);
@@ -314,8 +318,7 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
         queryClient.invalidateQueries({ queryKey: ['recentSettingsChanges', entity?.type, teamName, entity?.name] });
         queryClient.invalidateQueries({ queryKey: ['slaStatusHistory', entity?.type, teamName, entity?.name] });
         
-        // 2. General entity list caches (used throughout the application)
-        queryClient.invalidateQueries({ queryKey: ['/api/entities'] });
+        // 2. Team and type-specific entity caches
         queryClient.invalidateQueries({ queryKey: ['/api/entities', { teamId: entity.teamId }] });
         queryClient.invalidateQueries({ queryKey: ['/api/entities', { type: entity.type }] });
         queryClient.invalidateQueries({ queryKey: ['/api/entities', { teamId: entity.teamId, type: entity.type }] });
@@ -328,7 +331,12 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
         queryClient.invalidateQueries({ queryKey: ['entities', entity.id] });
         
         // 5. Dashboard summary cache (rollback affects overall metrics)
-        queryClient.invalidateQueries({ queryKey: ['/api/dashboard/summary'] });
+        if (entity.tenant_name) {
+          queryClient.invalidateQueries({ queryKey: cacheKeys.dashboardSummary(entity.tenant_name) });
+          if (entity.teamId) {
+            queryClient.invalidateQueries({ queryKey: cacheKeys.dashboardSummary(entity.tenant_name, entity.teamId) });
+          }
+        }
         
         // 6. Team data caches (rollback may affect team-level aggregations)
         queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
@@ -521,10 +529,10 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
         return old.filter(e => e.id !== entity.id && e.name !== entity.name);
       };
       
-      // Update all relevant caches optimistically
-      queryClient.setQueryData(cacheKeys.entities(), removeFromCache);
-      if (entity.teamId) {
-        queryClient.setQueryData(cacheKeys.entitiesByTeam(entity.teamId), removeFromCache);
+      // Update tenant/team caches optimistically (use name-first keys where available)
+      if (entity.tenant_name) {
+        queryClient.setQueryData(cacheKeys.entitiesByTenant(entity.tenant_name), removeFromCache);
+        queryClient.setQueryData(cacheKeys.entitiesByTenantAndTeam(entity.tenant_name, entity.teamId ?? null), removeFromCache);
       }
       
       // Call the new deleteEntity function with the actual entity
@@ -548,10 +556,11 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
       
       // Invalidate caches to trigger refetch with updated data
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: cacheKeys.entities() }),
-        entity.teamId ? queryClient.invalidateQueries({ queryKey: cacheKeys.entitiesByTeam(entity.teamId) }) : Promise.resolve(),
+        entity.tenant_name ? queryClient.invalidateQueries({ queryKey: cacheKeys.entitiesByTenant(entity.tenant_name) }) : Promise.resolve(),
+        entity.tenant_name ? queryClient.invalidateQueries({ queryKey: cacheKeys.entitiesByTenantAndTeam(entity.tenant_name, entity.teamId ?? null) }) : Promise.resolve(),
         queryClient.invalidateQueries({ queryKey: ['/api/v1/entities'] }),
-        queryClient.invalidateQueries({ queryKey: ['/api/dashboard/summary'] })
+        entity.tenant_name ? queryClient.invalidateQueries({ queryKey: cacheKeys.dashboardSummary(entity.tenant_name) }) : Promise.resolve(),
+        (entity.tenant_name && entity.teamId) ? queryClient.invalidateQueries({ queryKey: cacheKeys.dashboardSummary(entity.tenant_name, entity.teamId) }) : Promise.resolve()
       ]);
       
       console.log(`[DELETE_DEBUG] Delete completed successfully`);
@@ -560,13 +569,13 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
       
       // Revert optimistic updates on failure
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: cacheKeys.entities() }),
-        entity.teamId ? queryClient.invalidateQueries({ queryKey: cacheKeys.entitiesByTeam(entity.teamId) }) : Promise.resolve()
+        entity.tenant_name ? queryClient.invalidateQueries({ queryKey: cacheKeys.entitiesByTenant(entity.tenant_name) }) : Promise.resolve(),
+        entity.tenant_name ? queryClient.invalidateQueries({ queryKey: cacheKeys.entitiesByTenantAndTeam(entity.tenant_name, entity.teamId ?? null) }) : Promise.resolve()
       ]);
       
       toast({
         title: 'Error',
-        description: `Failed to delete ${entityType}. Please try again.`,
+        description: `Failed to delete ${entity.type}. Please try again.`,
         variant: 'destructive',
       });
     }

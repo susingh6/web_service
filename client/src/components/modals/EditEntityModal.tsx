@@ -513,8 +513,9 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
                           required
                           fullWidth
                           margin="normal"
+                          disabled={true}
                           error={!!errors.entity_name}
-                          helperText={errors.entity_name?.message}
+                          helperText={errors.entity_name?.message || "Entity name cannot be changed"}
                           placeholder={fieldDefinitions.entity_name.placeholder}
                         />
                       )}

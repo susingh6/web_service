@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { X, Plus, Users, Key } from 'lucide-react';
+import { X, Plus, Users, Key, Eye, EyeOff } from 'lucide-react';
 import { PagerDutyNotificationConfig, SystemUser } from '@/lib/notifications/types';
 import { useQuery } from '@tanstack/react-query';
 
@@ -31,6 +31,7 @@ export function PagerDutyNotificationConfigComponent({ config, onChange, teamNam
   const [selectedTeamPagerDuty, setSelectedTeamPagerDuty] = useState<string[]>([]);
   const [serviceKeyError, setServiceKeyError] = useState('');
   const [selectedDropdownValue, setSelectedDropdownValue] = useState('');
+  const [showServiceKey, setShowServiceKey] = useState(false);
   
   // Loading state - exact same pattern as Email/Slack
   const isLoading = usersLoading || teamsLoading;
@@ -181,9 +182,9 @@ export function PagerDutyNotificationConfigComponent({ config, onChange, teamNam
               Enter custom service key
             </Label>
             <div className="flex gap-2">
-              <div className="flex-1">
+              <div className="flex-1 relative">
                 <Input
-                  type="password"
+                  type={showServiceKey ? "text" : "password"}
                   placeholder="Enter PagerDuty service integration key"
                   value={customServiceKeyInput}
                   onChange={(e) => {
@@ -191,9 +192,23 @@ export function PagerDutyNotificationConfigComponent({ config, onChange, teamNam
                     setServiceKeyError('');
                   }}
                   onKeyPress={handleKeyPress}
-                  className={serviceKeyError ? 'border-red-500' : ''}
+                  className={`pr-10 ${serviceKeyError ? 'border-red-500' : ''}`}
                   data-testid="input-custom-pagerduty-key"
                 />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                  onClick={() => setShowServiceKey(!showServiceKey)}
+                  data-testid="toggle-service-key-visibility"
+                >
+                  {showServiceKey ? (
+                    <EyeOff className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <Eye className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </Button>
               </div>
               <Button 
                 onClick={handleAddCustomServiceKey} 

@@ -113,14 +113,6 @@ const Summary = () => {
   const [teamsLoaded, setTeamsLoaded] = useState(false);
 
   const { list: entities, isLoading: entitiesLoading } = useAppSelector((state) => state.entities);
-
-  // DEBUG: Log Entities Redux State
-  console.log('[DEBUG] Entities Redux State:', {
-    entities: entities?.length || 0,
-    teamsCount: teams?.length || 0,
-    entitiesLoading,
-    entitiesSample: entities?.slice(0, 2)
-  });
   
   const [teamDateRanges, setTeamDateRanges] = useState<Record<string, { startDate: Date; endDate: Date; label: string }>>({});
   const [summaryDateRange, setSummaryDateRange] = useState({
@@ -343,7 +335,8 @@ const Summary = () => {
           endDate
         }));
         
-        // Removed fetchEntities to prevent cross-contamination - React Query handles data refresh
+        // ALSO refresh entities list for Summary dashboard
+        dispatch(fetchEntities({ tenant: selectedTenant.name }));
       }
     };
     
@@ -360,6 +353,7 @@ const Summary = () => {
       // Invalidate tenant lists and summaries
       queryClient.invalidateQueries({ queryKey: ['/api/tenants'] });
       queryClient.invalidateQueries({ queryKey: ['/api/v1/tenants'] });
+      // Invalidate all dashboard summaries when tenants are updated
       queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
       handleDashboardDataUpdate();
     };
@@ -434,7 +428,9 @@ const Summary = () => {
       // Switching to tenant
 
       // Invalidate cached dashboard data to force fresh fetch
-      queryClient.invalidateQueries({ queryKey: ['/api/dashboard/summary'] });
+      if (selectedTenant) {
+        queryClient.invalidateQueries({ queryKey: cacheKeys.dashboardSummary(selectedTenant.name) });
+      }
 
       // The useEffect will handle the API calls when selectedTenant changes
       // No need to make manual API calls here to avoid duplicates

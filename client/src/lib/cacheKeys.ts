@@ -53,13 +53,7 @@ export function invalidateEntityCaches(
     queryClient.invalidateQueries({ queryKey: cacheKeys.entityDetailsByName(entityName, teamName, entityType) });
   }
 
-  // Back-compat invalidations (can be removed once all usages migrate)
-  queryClient.invalidateQueries({ queryKey: ['/api/entities'] });
-  if (entityId !== undefined) queryClient.invalidateQueries({ queryKey: ['/api/entities', entityId] });
-  if (teamId !== undefined && teamId !== null) queryClient.invalidateQueries({ queryKey: ['/api/entities', { teamId }] });
-  queryClient.invalidateQueries({ queryKey: ['/api/dashboard/summary'] });
-  // Broadly invalidate all dashboardSummary queries (tenant/team/date variants)
-  queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
+  // Legacy invalidations removed - using targeted cache keys only
   
   // Emit custom event for Redux-based components (like Summary dashboard) to refresh
   window.dispatchEvent(new CustomEvent('dashboard-data-updated', { 
@@ -70,9 +64,6 @@ export function invalidateEntityCaches(
 export function invalidateTenantCaches(queryClient: QueryClient, tenant: string) {
   queryClient.invalidateQueries({ queryKey: cacheKeys.entitiesByTenant(tenant) });
   queryClient.invalidateQueries({ queryKey: cacheKeys.dashboardSummary(tenant) });
-  // Legacy
-  queryClient.invalidateQueries({ queryKey: ['/api/entities'] });
-  queryClient.invalidateQueries({ queryKey: ['/api/dashboard/summary'] });
 }
 
 export function invalidateAdminCaches(queryClient: QueryClient) {

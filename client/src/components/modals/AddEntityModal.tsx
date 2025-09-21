@@ -78,6 +78,28 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
   // State for validation errors (single declaration)
   const [validationError, setValidationError] = useState<string | null>(null);
   
+  // State to preserve form values when toggling Entity Owner
+  const [preservedFormValues, setPreservedFormValues] = useState<any>(null);
+  
+  // Helper function to get fields that should be preserved (common fields only)
+  const getPreservableFields = (formValues: any) => {
+    const commonFields = [
+      'entity_name', 'tenant_name', 'team_name', 'user_email', 'is_active',
+      // Table-specific fields that should be preserved within table context
+      ...(entityType === 'table' ? ['schema_name', 'table_name', 'table_description', 'owner_entity_reference'] : []),
+      // DAG-specific fields that should be preserved within DAG context  
+      ...(entityType === 'dag' ? ['dag_name', 'dag_description', 'owner_entity_reference'] : [])
+    ];
+    
+    const preservable: any = {};
+    commonFields.forEach(field => {
+      if (formValues[field] !== undefined) {
+        preservable[field] = formValues[field];
+      }
+    });
+    return preservable;
+  };
+  
   // Use the new entity mutation hook with entity-type-specific cache invalidation
   const { createEntity } = useEntityMutation();
   
@@ -162,6 +184,8 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
     handleSubmit,
     reset,
     watch,
+    setValue,
+    getValues,
     formState: { errors, isSubmitting },
   } = useForm({
     // Bypass complex schema validation that's causing TypeScript issues
@@ -172,20 +196,36 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
     },
   });
 
-  // This effect updates the form when entity type changes
+  // This effect updates the form when entity type changes (preserves only common fields)
   useEffect(() => {
-    // Preserve current form values when switching entity type, only update entity-specific defaults
+    // Only reset when entity type actually changes, not on initial render
     const currentValues = watch();
-    reset({
-      ...configDefaultValues.common,
-      ...(entityType === 'table' ? configDefaultValues.table : configDefaultValues.dag),
-      // Preserve the current common field values to avoid losing user input
-      tenant_name: currentValues.tenant_name || configDefaultValues.common.tenant_name,
-      team_name: currentValues.team_name || configDefaultValues.common.team_name,
-      user_email: currentValues.user_email || configDefaultValues.common.user_email,
-      is_active: currentValues.is_active !== undefined ? currentValues.is_active : configDefaultValues.common.is_active,
-    });
+    
+    // Only proceed if we have existing form values (user has started filling the form)
+    if (Object.keys(currentValues).length > 0) {
+      reset({
+        ...configDefaultValues.common,
+        ...(entityType === 'table' ? configDefaultValues.table : configDefaultValues.dag),
+        // Preserve only COMMON fields when switching entity types
+        tenant_name: currentValues.tenant_name || configDefaultValues.common.tenant_name,
+        team_name: currentValues.team_name || configDefaultValues.common.team_name,
+        user_email: currentValues.user_email || configDefaultValues.common.user_email,
+        is_active: currentValues.is_active !== undefined ? currentValues.is_active : configDefaultValues.common.is_active,
+        // Reset entity-specific fields to defaults for the new type
+      });
+    }
   }, [entityType, reset, watch]);
+
+  // Preserve form values when Entity Owner toggle changes
+  useEffect(() => {
+    if (preservedFormValues) {
+      // Restore preserved values after conditional rendering changes
+      Object.keys(preservedFormValues).forEach(key => {
+        setValue(key as any, preservedFormValues[key]);
+      });
+      setPreservedFormValues(null);
+    }
+  }, [isEntityOwner, setValue, preservedFormValues]);
 
   // Prefill tenant/team based on current page context when modal opens
   useEffect(() => {
@@ -541,7 +581,13 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
                 control={
                   <Switch
                     checked={isEntityOwner}
-                    onChange={(e) => setIsEntityOwner(e.target.checked)}
+                    onChange={(e) => {
+                      // Preserve only relevant form values before toggle
+                      const currentValues = getValues();
+                      const preservableValues = getPreservableFields(currentValues);
+                      setPreservedFormValues(preservableValues);
+                      setIsEntityOwner(e.target.checked);
+                    }}
                     color="primary"
                   />
                 }
@@ -872,7 +918,13 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
                 control={
                   <Switch
                     checked={isEntityOwner}
-                    onChange={(e) => setIsEntityOwner(e.target.checked)}
+                    onChange={(e) => {
+                      // Preserve only relevant form values before toggle
+                      const currentValues = getValues();
+                      const preservableValues = getPreservableFields(currentValues);
+                      setPreservedFormValues(preservableValues);
+                      setIsEntityOwner(e.target.checked);
+                    }}
                     color="primary"
                   />
                 }
