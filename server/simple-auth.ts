@@ -401,49 +401,59 @@ export function setupSimpleAuth(app: Express) {
         return;
       } else {
         // NEW USER: Not found in admin cache - create from OAuth token data
-        console.log(`New user: ${userEmail}. Creating from OAuth token data.`);
+        console.log(`New user: ${userEmail}. Creating from OAuth token data using only email and name.`);
         
-        // Check if user has admin role from Azure SSO (for new users)
-        if (userRole !== 'admin') {
+        // For new users, only use email and name from OAuth token
+        if (!userEmail || !displayName) {
           logAuthenticationEvent("azure-validate", userEmail || 'unknown', req.sessionContext, req.requestId, false);
-          return res.status(403).json({ 
+          return res.status(400).json({ 
             success: false,
-            message: "Access denied. Only administrators can access this application.",
-            errorCode: "INSUFFICIENT_PRIVILEGES"
+            message: "OAuth token must contain both email and name for new user creation.",
+            errorCode: "MISSING_OAUTH_DATA"
           });
         }
         
-        // Create new user with OAuth token data
+        // Create new user with only email and name from OAuth token
         const userData = {
-          username: userEmail || azureObjectId,
-          email: userEmail,
-          displayName: displayName,
-          role: userRole,
-          azureObjectId: azureObjectId,
+          username: userEmail, // Use email as username
+          email: userEmail,    // Email from OAuth
+          displayName: displayName, // Name from OAuth
           password: 'azure-sso-user', // Placeholder for Azure users
+          team: 'Data Engineering', // Default team for new users
           is_active: true // New users are active by default
         };
         
         // Create new user in storage
         const newUser = await storage.createUser(userData);
         
+        // Transform to include both session and profile formats
+        const sessionUser = {
+          ...newUser,
+          user_id: newUser.id,
+          user_name: newUser.username,
+          user_email: newUser.email,
+          user_slack: [], // Empty array for new users
+          user_pagerduty: [], // Empty array for new users
+          role: 'admin' // Grant admin role to new OAuth users
+        };
+        
         // Log the user into the Express session
-        req.login(newUser, (err) => {
+        req.login(sessionUser, (err) => {
           if (err) {
-            logAuthenticationEvent("azure-login", newUser.username, undefined, req.requestId, false);
+            logAuthenticationEvent("azure-login", sessionUser.username, undefined, req.requestId, false);
             return res.status(500).json({ 
               success: false,
               message: "Session creation failed"
             });
           }
           
-          logAuthenticationEvent("azure-login", newUser.username, undefined, req.requestId, true);
+          logAuthenticationEvent("azure-login", sessionUser.username, undefined, req.requestId, true);
           
-          const { password, ...userWithoutPassword } = newUser;
+          const { password, ...userWithoutPassword } = sessionUser;
           return res.json({
             success: true,
             user: userWithoutPassword,
-            message: "Azure SSO validation successful - new user created from OAuth token"
+            message: "Azure SSO validation successful - new user created from OAuth email and name"
           });
         });
         return;
