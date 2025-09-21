@@ -447,6 +447,10 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
           {/* Delete section */}
           {tabValue === 'delete' && (
             <Box sx={{ mb: 3 }}>
+              <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 2 }}>
+                Delete Notification Timeline
+              </Typography>
+              
               <Alert severity="warning" sx={{ mb: 3 }}>
                 <Typography variant="body2">
                   <strong>Warning:</strong> Deleting a notification timeline will permanently remove it and all associated subscriptions. This action cannot be undone.
