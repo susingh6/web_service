@@ -440,3 +440,41 @@ export const taskSchema = z.object({
 });
 
 export type TaskPreference = z.infer<typeof taskPreferenceSchema>;
+
+// Roles schema for SLA system role management
+export const roles = pgTable("roles", {
+  id: serial("id").primaryKey(),
+  role_name: text("role_name").notNull().unique(),
+  description: text("description"),
+  is_active: boolean("is_active").notNull().default(true),
+  is_system_role: boolean("is_system_role").notNull().default(false),
+  role_permissions: json("role_permissions").$type<string[]>().notNull().default([]),
+  team_name: text("team_name"),
+  tenant_name: text("tenant_name"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Role validation schemas
+export const insertRoleSchema = createInsertSchema(roles).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  role_name: z.string().min(1, "Role name is required"),
+  description: z.string().optional(),
+  is_active: z.boolean().default(true),
+  is_system_role: z.boolean().default(false),
+  role_permissions: z.array(z.string()).default([]),
+  team_name: z.string().optional(),
+  tenant_name: z.string().optional(),
+});
+
+export const updateRoleSchema = insertRoleSchema.partial().extend({
+  role_name: z.string().min(1, "Role name is required").optional(),
+});
+
+// Role types
+export type Role = typeof roles.$inferSelect;
+export type InsertRole = z.infer<typeof insertRoleSchema>;
+export type UpdateRole = z.infer<typeof updateRoleSchema>;

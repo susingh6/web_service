@@ -9,7 +9,8 @@ import {
   slaTableAudit, type SlaTableAudit, type InsertSlaTableAudit,
   incidents, type Incident, type InsertIncident,
   alerts, type Alert, type InsertAlert,
-  adminBroadcastMessages, type AdminBroadcastMessage, type InsertAdminBroadcastMessage
+  adminBroadcastMessages, type AdminBroadcastMessage, type InsertAdminBroadcastMessage,
+  roles, type Role, type InsertRole
 } from "@shared/schema";
 
 // Tenant interface for tenant management
@@ -34,6 +35,13 @@ export interface IStorage {
   updateUser(id: number, user: Partial<User>): Promise<User | undefined>;
   getUsers(): Promise<User[]>;
   getUserRoles(): Promise<UserRole[]>;
+  
+  // Role operations
+  getRoles(): Promise<Role[]>;
+  getRole(roleName: string): Promise<Role | undefined>;
+  createRole(role: InsertRole): Promise<Role>;
+  updateRole(roleName: string, role: Partial<Role>): Promise<Role | undefined>;
+  deleteRole(roleName: string): Promise<boolean>;
   
   // Team operations
   getTeams(): Promise<Team[]>;
@@ -116,6 +124,8 @@ export class MemStorage implements IStorage {
   private incidents: Map<string, Incident>; // keyed by notification_id
   private alertsData: Map<number, Alert>; // System alerts
   private adminBroadcastMessagesData: Map<number, AdminBroadcastMessage>; // Admin broadcast messages
+  private rolesData: Map<string, Role>; // keyed by role_name
+  private rolesVersion: number; // Version counter for cache invalidation
   
   private userId: number;
   private teamId: number;
@@ -143,6 +153,8 @@ export class MemStorage implements IStorage {
     this.incidents = new Map();
     this.alertsData = new Map();
     this.adminBroadcastMessagesData = new Map();
+    this.rolesData = new Map();
+    this.rolesVersion = 1;
     
     this.userId = 1;
     this.teamId = 1;
@@ -1001,6 +1013,72 @@ export class MemStorage implements IStorage {
         status: 'active'
       }
     ];
+  }
+
+  // Role operations
+  async getRoles(): Promise<Role[]> {
+    await this.ensureInitialized();
+    return Array.from(this.rolesData.values());
+  }
+
+  async getRole(roleName: string): Promise<Role | undefined> {
+    await this.ensureInitialized();
+    return this.rolesData.get(roleName);
+  }
+
+  async createRole(insertRole: InsertRole): Promise<Role> {
+    await this.ensureInitialized();
+    const now = new Date();
+    const role: Role = {
+      id: this.rolesVersion++, // Auto-increment for the database id field
+      role_name: insertRole.role_name,
+      description: insertRole.description || null,
+      is_active: insertRole.is_active ?? true,
+      is_system_role: insertRole.is_system_role ?? false,
+      role_permissions: insertRole.role_permissions || [],
+      team_name: insertRole.team_name || null,
+      tenant_name: insertRole.tenant_name || null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.rolesData.set(insertRole.role_name, role);
+    this.rolesVersion++; // Increment version for cache invalidation
+    return role;
+  }
+
+  async updateRole(roleName: string, updateRole: UpdateRole): Promise<Role | undefined> {
+    await this.ensureInitialized();
+    const existingRole = this.rolesData.get(roleName);
+    if (!existingRole) {
+      return undefined;
+    }
+    
+    const updatedRole: Role = {
+      ...existingRole,
+      ...updateRole,
+      role_name: updateRole.role_name || existingRole.role_name, // Allow role name updates
+      updatedAt: new Date(),
+    };
+    
+    // If role name changed, update the map key
+    if (updateRole.role_name && updateRole.role_name !== roleName) {
+      this.rolesData.delete(roleName);
+      this.rolesData.set(updateRole.role_name, updatedRole);
+    } else {
+      this.rolesData.set(roleName, updatedRole);
+    }
+    
+    this.rolesVersion++; // Increment version for cache invalidation
+    return updatedRole;
+  }
+
+  async deleteRole(roleName: string): Promise<boolean> {
+    await this.ensureInitialized();
+    const success = this.rolesData.delete(roleName);
+    if (success) {
+      this.rolesVersion++; // Increment version for cache invalidation
+    }
+    return success;
   }
   
   // Team operations

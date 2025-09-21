@@ -1214,10 +1214,8 @@ export function useAdminMutation() {
       if (ctx?.previous) queryClient.setQueryData(['admin', 'roles'], ctx.previous);
     },
     onSuccess: async () => {
-      const { isDevelopment } = await import('@/config');
-      if (!isDevelopment) {
-        await queryClient.invalidateQueries({ queryKey: ['admin', 'roles'] });
-      }
+      const { invalidateAdminCaches } = await import('@/lib/cacheKeys');
+      await invalidateAdminCaches(queryClient);
     },
   });
 
@@ -1255,10 +1253,8 @@ export function useAdminMutation() {
       if (ctx?.previous) queryClient.setQueryData(['admin', 'roles'], ctx.previous);
     },
     onSuccess: async () => {
-      const { isDevelopment } = await import('@/config');
-      if (!isDevelopment) {
-        await queryClient.invalidateQueries({ queryKey: ['admin', 'roles'] });
-      }
+      const { invalidateAdminCaches } = await import('@/lib/cacheKeys');
+      await invalidateAdminCaches(queryClient);
     },
   });
 
@@ -1290,10 +1286,8 @@ export function useAdminMutation() {
       if (ctx?.previous) queryClient.setQueryData(['admin', 'roles'], ctx.previous);
     },
     onSuccess: async () => {
-      const { isDevelopment } = await import('@/config');
-      if (!isDevelopment) {
-        await queryClient.invalidateQueries({ queryKey: ['admin', 'roles'] });
-      }
+      const { invalidateAdminCaches } = await import('@/lib/cacheKeys');
+      await invalidateAdminCaches(queryClient);
     },
   });
 
