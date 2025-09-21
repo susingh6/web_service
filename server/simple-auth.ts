@@ -274,9 +274,21 @@ export function setupSimpleAuth(app: Express) {
       return res.status(401).json({ message: "Not authenticated" });
     }
     
-    // Don't send the password back to the client
-    const { password, ...userWithoutPassword } = req.user;
-    res.json(userWithoutPassword);
+    // Transform user data to match ProfileData interface expected by frontend
+    const { password, ...userSession } = req.user;
+    const profileData = {
+      user_id: userSession.id || userSession.user_id,
+      user_name: userSession.username || userSession.user_name || userSession.displayName,
+      user_email: userSession.email || userSession.user_email,
+      user_slack: userSession.user_slack || [],
+      user_pagerduty: userSession.user_pagerduty || [],
+      is_active: userSession.is_active !== undefined ? userSession.is_active : true,
+      // Keep the original fields for backward compatibility
+      ...userSession
+    };
+    
+    console.log('GET /api/user - transformed profile data:', profileData);
+    res.json(profileData);
   });
 
   // Update current user profile route
