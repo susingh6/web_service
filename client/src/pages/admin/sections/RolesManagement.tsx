@@ -84,17 +84,28 @@ const RolesManagement = () => {
       if (!res.ok) throw new Error('Failed to fetch roles');
       const backendRoles = await res.json();
       
-      // Transform backend roles to match frontend interface
-      return backendRoles.map((role: any, index: number) => ({
-        id: index + 1,
-        role_name: role.role,
-        description: role.description,
-        role_permissions: role.label ? [role.label.toLowerCase().replace(/\s+/g, '-')] : [],
-        is_system_role: true,
-        is_active: true,
-        status: role.status || 'active',
-        userCount: Math.floor(Math.random() * 15) + 1, // Mock user count for now
-      }));
+      // Transform backend roles to match frontend interface with proper SLA permissions
+      return backendRoles.map((role: any, index: number) => {
+        const permissions = [];
+        if (role.role.includes('admin')) permissions.push('admin', 'manage_users', 'manage_teams', 'manage_tenants');
+        if (role.role.includes('dag')) permissions.push('dag-status-editor', 'dag-sla-editor', 'dag-progress-editor');
+        if (role.role.includes('table')) permissions.push('table-status-editor', 'table-sla-editor', 'table-progress-editor');
+        if (role.role.includes('viewer')) permissions.push('viewer');
+        if (role.role.includes('editor')) permissions.push('viewer');
+        
+        return {
+          id: index + 1,
+          role_name: role.role,
+          description: role.description,
+          role_permissions: permissions.length > 0 ? permissions : ['viewer'],
+          is_system_role: !role.role.includes('pgm') && !role.role.includes('core'),
+          is_active: role.status === 'active',
+          status: role.status || 'active',
+          tenant_name: role.role.includes('pgm') ? 'Data Engineering' : role.role.includes('core') ? 'Data Engineering' : undefined,
+          team_name: role.role.includes('pgm') ? 'PGM' : role.role.includes('core') ? 'Core' : undefined,
+          userCount: Math.floor(Math.random() * 15) + 1, // Mock user count for now
+        };
+      });
     },
     staleTime: 6 * 60 * 60 * 1000,
     gcTime: 6 * 60 * 60 * 1000,

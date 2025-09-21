@@ -962,42 +962,42 @@ export class MemStorage implements IStorage {
   }
 
   async getUserRoles(): Promise<UserRole[]> {
-    // Return predefined user roles for notification system
+    // Return SLA-specific roles for the SLA Management system
     return [
       {
-        role: 'admin',
-        label: 'Administrator',
-        description: 'System administrators with full access',
+        role: 'sla-admin',
+        label: 'SLA Administrator',
+        description: 'Full administrative access to SLA management system',
         status: 'active'
       },
       {
-        role: 'manager',
-        label: 'Team Manager',
-        description: 'Team leads and managers',
+        role: 'sla-dag-entity-editor',
+        label: 'DAG Entity Editor',
+        description: 'Can edit DAG entities, status, SLA settings, and progress',
         status: 'active'
       },
       {
-        role: 'lead',
-        label: 'Technical Lead',
-        description: 'Senior technical staff and project leads',
+        role: 'sla-table-entity-editor',
+        label: 'Table Entity Editor',
+        description: 'Can edit table entities, status, SLA settings, and progress',
         status: 'active'
       },
       {
-        role: 'developer',
-        label: 'Developer',
-        description: 'Software developers and engineers',
+        role: 'sla-viewer',
+        label: 'SLA Viewer',
+        description: 'Read-only access to SLA dashboard and entity information',
         status: 'active'
       },
       {
-        role: 'analyst',
-        label: 'Data Analyst',
-        description: 'Data analysts and business intelligence staff',
-        status: 'inactive'
+        role: 'sla-pgm-dag-entity-editor',
+        label: 'PGM DAG Entity Editor',
+        description: 'Team-specific DAG editor role for PGM team in Data Engineering',
+        status: 'active'
       },
       {
-        role: 'ops',
-        label: 'Operations',
-        description: 'DevOps and infrastructure team members',
+        role: 'sla-core-table-editor',
+        label: 'Core Table Editor',
+        description: 'Team-specific table editor role for Core team',
         status: 'active'
       }
     ];
