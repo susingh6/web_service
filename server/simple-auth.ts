@@ -361,10 +361,21 @@ export function setupSimpleAuth(app: Express) {
         // EXISTING USER: User found in admin cache - use their existing details
         console.log(`Existing admin user found: ${userEmail}. Using cached admin details.`);
         
-        // Create session with existing admin user details (but update display name if provided)
+        // Transform admin cache data to Express.User session format
         const sessionUser = {
-          ...existingAdminUser,
-          displayName: displayName || existingAdminUser.displayName,
+          id: existingAdminUser.user_id,
+          username: existingAdminUser.user_name,
+          email: existingAdminUser.user_email,
+          displayName: displayName || existingAdminUser.user_name,
+          team: 'Data Engineering', // Default team
+          password: 'azure-sso-user', // Placeholder for Azure users
+          // Add the admin cache fields to maintain compatibility
+          user_id: existingAdminUser.user_id,
+          user_name: existingAdminUser.user_name,
+          user_email: existingAdminUser.user_email,
+          user_slack: existingAdminUser.user_slack,
+          user_pagerduty: existingAdminUser.user_pagerduty,
+          is_active: existingAdminUser.is_active,
           role: 'admin' // Ensure admin role for existing users
         };
         
