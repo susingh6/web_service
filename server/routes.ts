@@ -411,6 +411,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         is_active: updatedUser.is_active
       };
 
+      // CRITICAL: Invalidate profile cache for this user so profile page shows updated data
+      await redisCache.invalidateCache({
+        keys: [`profile_${updatedUser.id}`, `profile_${updatedUser.email}`],
+        refreshAffectedData: true
+      });
+
       res.json(transformedUser);
     } catch (error) {
       console.error('User update error:', error);
