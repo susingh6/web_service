@@ -877,6 +877,81 @@ export class MemStorage implements IStorage {
       };
       this.entities.set(id, fullEntity);
     });
+
+    // Initialize existing SLA roles into storage
+    const slaRoles = [
+      {
+        role_name: 'sla-admin',
+        description: 'Full administrative access to SLA management system',
+        is_active: true,
+        is_system_role: true,
+        role_permissions: ['admin', 'manage_users', 'manage_teams', 'manage_tenants', 'resolve_conflicts', 'view_all_entities', 'manage_system_settings'],
+        tenant_name: null,
+        team_name: null,
+      },
+      {
+        role_name: 'sla-dag-entity-editor',
+        description: 'Can edit DAG entities, status, SLA settings, and progress',
+        is_active: true,
+        is_system_role: true,
+        role_permissions: ['dag-status-editor', 'dag-sla-editor', 'dag-progress-editor', 'view_entities', 'edit_own_entities'],
+        tenant_name: null,
+        team_name: null,
+      },
+      {
+        role_name: 'sla-table-entity-editor',
+        description: 'Can edit table entities, status, SLA settings, and progress',
+        is_active: true,
+        is_system_role: true,
+        role_permissions: ['table-status-editor', 'table-sla-editor', 'table-progress-editor', 'view_entities', 'edit_own_entities'],
+        tenant_name: null,
+        team_name: null,
+      },
+      {
+        role_name: 'sla-viewer',
+        description: 'Read-only access to SLA dashboard and entity information',
+        is_active: true,
+        is_system_role: true,
+        role_permissions: ['viewer', 'view_entities'],
+        tenant_name: null,
+        team_name: null,
+      },
+      {
+        role_name: 'sla-pgm-dag-entity-editor',
+        description: 'Team-specific DAG editor role for PGM team in Data Engineering',
+        is_active: true,
+        is_system_role: false,
+        role_permissions: ['dag-status-editor', 'dag-sla-editor', 'dag-progress-editor', 'view_entities', 'edit_own_entities', 'view_team_entities'],
+        tenant_name: 'Data Engineering',
+        team_name: 'PGM',
+      },
+      {
+        role_name: 'sla-core-table-editor',
+        description: 'Team-specific table editor role for Core team',
+        is_active: true,
+        is_system_role: false,
+        role_permissions: ['table-status-editor', 'table-sla-editor', 'table-progress-editor', 'view_entities', 'edit_own_entities', 'view_team_entities'],
+        tenant_name: 'Data Engineering',
+        team_name: 'Core',
+      }
+    ];
+
+    // Add roles to storage
+    slaRoles.forEach((roleData, index) => {
+      const role: Role = {
+        id: index + 1,
+        role_name: roleData.role_name,
+        description: roleData.description,
+        is_active: roleData.is_active,
+        is_system_role: roleData.is_system_role,
+        role_permissions: roleData.role_permissions,
+        tenant_name: roleData.tenant_name,
+        team_name: roleData.team_name,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      this.rolesData.set(roleData.role_name, role);
+    });
   }
   
   // User operations
