@@ -203,7 +203,7 @@ const RolesManagement = () => {
     onSuccess: () => { toast({ title: 'Role Created', description: 'New role has been created.' }); },
     onSettled: async () => {
       await invalidateAdminCaches(queryClient);
-      // Always invalidate to ensure changes persist (even in development)
+      // Always invalidate to ensure changes persist
       await queryClient.invalidateQueries({ queryKey: ['admin', 'roles'] });
     }
   });
@@ -229,9 +229,8 @@ const RolesManagement = () => {
     onSuccess: () => { toast({ title: 'Role Updated', description: 'Role has been updated.' }); },
     onSettled: async () => {
       await invalidateAdminCaches(queryClient);
-      if (!isDevelopment) {
-        await queryClient.invalidateQueries({ queryKey: ['admin', 'roles'] });
-      }
+      // Always invalidate to ensure changes persist
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'roles'] });
     }
   });
 
@@ -255,9 +254,8 @@ const RolesManagement = () => {
     onSuccess: () => { toast({ title: 'Role Deleted', description: 'Role removed.' }); },
     onSettled: async () => {
       await invalidateAdminCaches(queryClient);
-      if (!isDevelopment) {
-        await queryClient.invalidateQueries({ queryKey: ['admin', 'roles'] });
-      }
+      // Always invalidate to ensure changes persist
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'roles'] });
     }
   });
 
