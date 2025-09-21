@@ -96,6 +96,11 @@ export function TeamNotificationSettings({ team, tenantName, variant = 'default'
       queryClient.invalidateQueries({ queryKey: ['admin', 'teams'] });
       queryClient.invalidateQueries({ queryKey: ['teamMembers', tenantName, team.id] });
       
+      // CRITICAL: Invalidate team details cache so notification dropdowns refresh immediately
+      queryClient.invalidateQueries({ queryKey: [`/api/v1/get_team_details/${team.name}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/get_team_details/${team.name}`] });
+      queryClient.invalidateQueries({ queryKey: ['team-notification-settings', team.name] });
+      
       setHasChanges(false);
       
       // Close modal if in modal variant
