@@ -4,6 +4,7 @@ hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
 
 [nix]
 channel = "stable-24_05"
+packages = ["redis"]
 
 [deployment]
 deploymentTarget = "autoscale"
@@ -14,6 +15,10 @@ build = ["npm", "run", "build"]
 localPort = 5000
 externalPort = 80
 exposeLocalhost = true
+
+[[ports]]
+localPort = 6379
+externalPort = 9000
 
 [[ports]]
 localPort = 34469
@@ -58,6 +63,10 @@ externalPort = 8008
 [[ports]]
 localPort = 43221
 externalPort = 6000
+
+[[ports]]
+localPort = 44377
+externalPort = 8099
 
 [[ports]]
 localPort = 46353

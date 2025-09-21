@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { Button, CircularProgress, Badge, Tooltip } from '@mui/material';
-import { Bell, BellOff, People } from '@mui/icons-material';
+import { Notifications as Bell, NotificationsOff as BellOff, People } from '@mui/icons-material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/hooks/use-auth';
 
 interface SubscribeButtonProps {
   notificationTimelineId: string;
