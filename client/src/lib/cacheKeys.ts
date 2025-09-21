@@ -76,6 +76,9 @@ export function invalidateAdminCaches(queryClient: QueryClient) {
   queryClient.invalidateQueries({ queryKey: ['admin', 'teams'] });
   queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
   queryClient.invalidateQueries({ queryKey: ['admin', 'roles'] });
+  queryClient.invalidateQueries({ queryKey: ['admin', 'alerts'] });
+  queryClient.invalidateQueries({ queryKey: ['notifications', 'alerts'] });
+  queryClient.invalidateQueries({ queryKey: ['admin', 'broadcast-messages'] });
 }
 
 

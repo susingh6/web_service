@@ -1369,12 +1369,9 @@ export function useAdminMutation() {
       return response.json();
     },
     onSuccess: async () => {
-      // Invalidate both admin panel and header notification caches
-      await queryClient.invalidateQueries({ queryKey: ['admin', 'alerts'] });
-      await queryClient.invalidateQueries({ queryKey: ['notifications', 'alerts'] });
-      // Force immediate refetch of alerts
-      await queryClient.refetchQueries({ queryKey: ['admin', 'alerts'] });
-      await queryClient.refetchQueries({ queryKey: ['notifications', 'alerts'] });
+      // Use the centralized admin cache invalidation system
+      const { invalidateAdminCaches } = await import('@/lib/cacheKeys');
+      await invalidateAdminCaches(queryClient);
     },
   });
 
@@ -1391,12 +1388,9 @@ export function useAdminMutation() {
       return response.json();
     },
     onSuccess: async () => {
-      // Invalidate both admin panel and header notification caches
-      await queryClient.invalidateQueries({ queryKey: ['admin', 'alerts'] });
-      await queryClient.invalidateQueries({ queryKey: ['notifications', 'alerts'] });
-      // Force immediate refetch of alerts
-      await queryClient.refetchQueries({ queryKey: ['admin', 'alerts'] });
-      await queryClient.refetchQueries({ queryKey: ['notifications', 'alerts'] });
+      // Use the centralized admin cache invalidation system
+      const { invalidateAdminCaches } = await import('@/lib/cacheKeys');
+      await invalidateAdminCaches(queryClient);
     },
   });
 
