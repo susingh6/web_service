@@ -122,6 +122,7 @@ const NotificationsManagement = () => {
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { createAlert, deleteAlert } = useAdminMutation();
   const deferredSearchQuery = useDeferredValue(searchQuery);
 
   // React Hook Form for alerts
@@ -178,9 +179,9 @@ const NotificationsManagement = () => {
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
-  // Create alert mutation
-  const createAlertMutation = useMutation({
-    mutationFn: async (data: AlertFormData) => {
+  // Create alert wrapper function
+  const createAlertMutation = {
+    mutateAsync: async (data: AlertFormData) => {
       const expiresAtDate = new Date(Date.now() + data.expiresInHours * 60 * 60 * 1000);
       const alertData = {
         title: data.title,
@@ -194,39 +195,23 @@ const NotificationsManagement = () => {
 
       console.log('Creating alert with data:', alertData);
 
-      const response = await fetch(buildUrl(endpoints.admin.alerts.create), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Session-ID': localStorage.getItem('fastapi_session_id') || '',
-        },
-        body: JSON.stringify(alertData),
-        credentials: 'include',
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Alert creation failed:', errorData);
-        throw new Error(`Failed to create alert: ${errorData.message || 'Unknown error'}`);
+      try {
+        const result = await createAlert(alertData);
+        toast({ title: 'Success', description: 'Alert created successfully' });
+        setAlertDialogOpen(false);
+        alertForm.reset();
+        return result;
+      } catch (error: any) {
+        toast({ 
+          title: 'Error', 
+          description: error.message || 'Failed to create alert', 
+          variant: 'destructive' 
+        });
+        throw error;
       }
-      return response.json();
     },
-    onSuccess: () => {
-      // Invalidate both admin panel and header notification caches
-      queryClient.invalidateQueries({ queryKey: ['admin', 'alerts'] });
-      queryClient.invalidateQueries({ queryKey: ['notifications', 'alerts'] });
-      toast({ title: 'Success', description: 'Alert created successfully' });
-      setAlertDialogOpen(false);
-      alertForm.reset();
-    },
-    onError: (error: any) => {
-      toast({ 
-        title: 'Error', 
-        description: error.message || 'Failed to create alert', 
-        variant: 'destructive' 
-      });
-    }
-  });
+    isPending: false
+  };
 
   // Create admin message mutation
   const createMessageMutation = useMutation({
@@ -273,36 +258,24 @@ const NotificationsManagement = () => {
     }
   });
 
-  // Deactivate alert mutation
-  const deactivateAlertMutation = useMutation({
-    mutationFn: async (alertId: number) => {
-      const response = await fetch(buildUrl(endpoints.admin.alerts.delete(alertId)), {
-        method: 'DELETE',
-        headers: {
-          'X-Session-ID': localStorage.getItem('fastapi_session_id') || '',
-        },
-        credentials: 'include',
-      });
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(`Failed to deactivate alert: ${errorData.message || 'Unknown error'}`);
+  // Deactivate alert wrapper function
+  const deactivateAlertMutation = {
+    mutateAsync: async (alertId: number) => {
+      try {
+        const result = await deleteAlert(alertId);
+        toast({ title: 'Success', description: 'Alert deactivated successfully' });
+        return result;
+      } catch (error: any) {
+        toast({ 
+          title: 'Error', 
+          description: error.message || 'Failed to deactivate alert', 
+          variant: 'destructive' 
+        });
+        throw error;
       }
-      return response.json();
     },
-    onSuccess: () => {
-      // Invalidate both admin panel and header notification caches
-      queryClient.invalidateQueries({ queryKey: ['admin', 'alerts'] });
-      queryClient.invalidateQueries({ queryKey: ['notifications', 'alerts'] });
-      toast({ title: 'Success', description: 'Alert deactivated successfully' });
-    },
-    onError: (error: any) => {
-      toast({ 
-        title: 'Error', 
-        description: error.message || 'Failed to deactivate alert', 
-        variant: 'destructive' 
-      });
-    }
-  });
+    isPending: false
+  };
 
   // Deactivate admin message mutation
   const deactivateMessageMutation = useMutation({
@@ -357,7 +330,7 @@ const NotificationsManagement = () => {
   }, [adminMessages, deferredSearchQuery]);
 
   const handleCreateAlert = (data: AlertFormData) => {
-    createAlertMutation.mutate(data);
+    createAlertMutation.mutateAsync(data);
   };
 
   const handleCreateMessage = (data: AdminMessageFormData) => {

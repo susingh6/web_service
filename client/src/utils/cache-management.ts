@@ -1502,10 +1502,57 @@ export function useTeamMemberMutationV2() {
     },
   });
 
+  // ALERT MANAGEMENT
+  const createAlertMutation = useMutation({
+    mutationFn: async (alertData: any) => {
+      const { apiRequest } = await import('@/lib/queryClient');
+      const { endpoints } = await import('@/config');
+      
+      const response = await apiRequest('POST', endpoints.admin.alerts.create, alertData);
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`Failed to create alert: ${text}`);
+      }
+      return response.json();
+    },
+    onSuccess: async () => {
+      // Invalidate both admin panel and header notification caches
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'alerts'] });
+      await queryClient.invalidateQueries({ queryKey: ['notifications', 'alerts'] });
+      // Force immediate refetch of alerts
+      await queryClient.refetchQueries({ queryKey: ['admin', 'alerts'] });
+      await queryClient.refetchQueries({ queryKey: ['notifications', 'alerts'] });
+    },
+  });
+
+  const deleteAlertMutation = useMutation({
+    mutationFn: async (alertId: number) => {
+      const { apiRequest } = await import('@/lib/queryClient');
+      const { endpoints } = await import('@/config');
+      
+      const response = await apiRequest('DELETE', endpoints.admin.alerts.delete(alertId));
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`Failed to delete alert: ${text}`);
+      }
+      return response.json();
+    },
+    onSuccess: async () => {
+      // Invalidate both admin panel and header notification caches
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'alerts'] });
+      await queryClient.invalidateQueries({ queryKey: ['notifications', 'alerts'] });
+      // Force immediate refetch of alerts
+      await queryClient.refetchQueries({ queryKey: ['admin', 'alerts'] });
+      await queryClient.refetchQueries({ queryKey: ['notifications', 'alerts'] });
+    },
+  });
+
   const addMember = async (teamName: string, userId: string, user: any, tenantName?: string, teamId?: number) =>
     addMemberMutation.mutateAsync({ teamName, userId, user, tenantName, teamId });
   const removeMember = async (teamName: string, userId: string, tenantName?: string, teamId?: number) =>
     removeMemberMutation.mutateAsync({ teamName, userId, tenantName, teamId });
+  const createAlert = async (alertData: any) => createAlertMutation.mutateAsync(alertData);
+  const deleteAlert = async (alertId: number) => deleteAlertMutation.mutateAsync(alertId);
 
-  return { addMember, removeMember };
+  return { addMember, removeMember, createAlert, deleteAlert };
 }
