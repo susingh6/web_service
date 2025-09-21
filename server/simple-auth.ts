@@ -360,22 +360,24 @@ export function setupSimpleAuth(app: Express) {
       if (existingAdminUser) {
         // EXISTING USER: User found in admin cache - use their existing details
         console.log(`Existing admin user found: ${userEmail}. Using cached admin details.`);
+        console.log('Admin cache data structure:', JSON.stringify(existingAdminUser, null, 2));
         
         // Transform admin cache data to Express.User session format
+        // Handle different possible field name formats from admin cache
         const sessionUser = {
-          id: existingAdminUser.user_id,
-          username: existingAdminUser.user_name,
-          email: existingAdminUser.user_email,
-          displayName: displayName || existingAdminUser.user_name,
+          id: existingAdminUser.user_id || existingAdminUser.id,
+          username: existingAdminUser.user_name || existingAdminUser.username || userEmail,
+          email: existingAdminUser.user_email || existingAdminUser.email || userEmail,
+          displayName: displayName || existingAdminUser.user_name || existingAdminUser.username || existingAdminUser.displayName,
           team: 'Data Engineering', // Default team
           password: 'azure-sso-user', // Placeholder for Azure users
           // Add the admin cache fields to maintain compatibility
-          user_id: existingAdminUser.user_id,
-          user_name: existingAdminUser.user_name,
-          user_email: existingAdminUser.user_email,
-          user_slack: existingAdminUser.user_slack,
-          user_pagerduty: existingAdminUser.user_pagerduty,
-          is_active: existingAdminUser.is_active,
+          user_id: existingAdminUser.user_id || existingAdminUser.id,
+          user_name: existingAdminUser.user_name || existingAdminUser.username || userEmail,
+          user_email: existingAdminUser.user_email || existingAdminUser.email || userEmail,
+          user_slack: existingAdminUser.user_slack || existingAdminUser.slack || [],
+          user_pagerduty: existingAdminUser.user_pagerduty || existingAdminUser.pagerduty || [],
+          is_active: existingAdminUser.is_active !== undefined ? existingAdminUser.is_active : true,
           role: 'admin' // Ensure admin role for existing users
         };
         
