@@ -274,8 +274,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         user_id: user.id,
         user_name: user.username,
         user_email: user.email,
-        user_slack: user.displayName ? [user.displayName.toLowerCase().replaceAll(' ', '.')] : [],
-        user_pagerduty: user.email ? [user.email] : [],
+        user_slack: user.user_slack || [],
+        user_pagerduty: user.user_pagerduty || [],
         is_active: user.is_active !== undefined ? user.is_active : true // Use actual status or default to active
       }));
       res.json(transformedUsers);
