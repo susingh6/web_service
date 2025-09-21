@@ -116,6 +116,9 @@ const ProfilePage = () => {
         console.log('Profile update: Admin users cache data:', { hasData: !!adminUsers, count: adminUsers?.length });
         console.log('Profile update: Matching email:', currentUser.user_email);
         
+        // Invalidate admin users cache to ensure fresh data on next load
+        queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+
         cacheManager.setOptimisticData(['admin', 'users'], (old: any[] | undefined) => {
           if (!old || old.length === 0) {
             console.log('Profile update: Admin users cache is empty, skipping optimistic update');
@@ -123,14 +126,20 @@ const ProfilePage = () => {
           }
           
           const updated = old.map(user => {
-            if (user.email === currentUser.user_email || user.user_email === currentUser.user_email) {
+            // Use multiple matching criteria: user_id (most stable), then email fallbacks
+            if (user.user_id === currentUser.user_id || 
+                user.email === currentUser.user_email || 
+                user.user_email === currentUser.user_email) {
               console.log('Profile update: Found matching user, updating:', user.email || user.user_email);
               return { 
                 ...user, 
                 user_name: userData.user_name,
                 username: userData.user_name, // Admin uses both fields
+                user_email: userData.user_email, // Include updated email
+                email: userData.user_email, // Some components may use this field
                 user_slack: userData.user_slack,
                 user_pagerduty: userData.user_pagerduty,
+                is_active: userData.is_active !== undefined ? userData.is_active : user.is_active, // Preserve is_active
               };
             }
             return user;
