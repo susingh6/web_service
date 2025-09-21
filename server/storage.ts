@@ -5,6 +5,7 @@ import {
   entityHistory, type EntityHistory, type InsertEntityHistory,
   issues, type Issue, type InsertIssue,
   notificationTimelines, type NotificationTimeline, type InsertNotificationTimeline,
+  entitySubscriptions, type EntitySubscription, type InsertEntitySubscription,
   slaDagAudit, type SlaDagAudit, type InsertSlaDagAudit,
   slaTableAudit, type SlaTableAudit, type InsertSlaTableAudit,
   incidents, type Incident, type InsertIncident,
@@ -108,6 +109,13 @@ export interface IStorage {
   updateAdminBroadcastMessage(id: number, message: Partial<AdminBroadcastMessage>): Promise<AdminBroadcastMessage | undefined>;
   deleteAdminBroadcastMessage(id: number): Promise<boolean>;
   deactivateAdminBroadcastMessage(id: number): Promise<boolean>; // Add deactivate method
+  
+  // Entity subscription operations
+  subscribeToNotificationTimeline(subscription: InsertEntitySubscription): Promise<EntitySubscription>;
+  unsubscribeFromNotificationTimeline(userId: number, notificationTimelineId: string): Promise<boolean>;
+  getUserSubscriptions(userId: number): Promise<EntitySubscription[]>;
+  getTimelineSubscriptions(notificationTimelineId: string): Promise<EntitySubscription[]>;
+  getSubscriptionCount(notificationTimelineId: string): Promise<number>;
 }
 
 // In-memory storage implementation
@@ -126,6 +134,7 @@ export class MemStorage implements IStorage {
   private adminBroadcastMessagesData: Map<number, AdminBroadcastMessage>; // Admin broadcast messages
   private rolesData: Map<string, Role>; // keyed by role_name
   private rolesVersion: number; // Version counter for cache invalidation
+  private entitySubscriptionsData: Map<number, EntitySubscription>; // Entity subscriptions
   
   private userId: number;
   private teamId: number;
@@ -137,6 +146,7 @@ export class MemStorage implements IStorage {
   private tableAuditId: number;
   private alertId: number;
   private adminBroadcastMessageId: number;
+  private subscriptionId: number;
   
   private initializationPromise: Promise<void>;
 
@@ -155,6 +165,7 @@ export class MemStorage implements IStorage {
     this.adminBroadcastMessagesData = new Map();
     this.rolesData = new Map();
     this.rolesVersion = 1;
+    this.entitySubscriptionsData = new Map();
     
     this.userId = 1;
     this.teamId = 1;
@@ -166,6 +177,7 @@ export class MemStorage implements IStorage {
     this.tableAuditId = 1;
     this.alertId = 1;
     this.adminBroadcastMessageId = 1;
+    this.subscriptionId = 1;
     
     // Initialize with some demo data
     this.initializationPromise = this.initDemoData().catch(err => {
@@ -2326,6 +2338,101 @@ export class MemStorage implements IStorage {
 
     this.adminBroadcastMessagesData.set(id, deactivatedMessage);
     return true;
+  }
+
+  // Entity subscription operations
+  async subscribeToNotificationTimeline(subscription: InsertEntitySubscription): Promise<EntitySubscription> {
+    await this.ensureInitialized();
+    
+    // Check if subscription already exists
+    const existingSubscription = Array.from(this.entitySubscriptionsData.values()).find(
+      sub => sub.userId === subscription.userId && 
+             sub.notificationTimelineId === subscription.notificationTimelineId
+    );
+    
+    if (existingSubscription) {
+      // If exists but inactive, reactivate it
+      if (!existingSubscription.isActive) {
+        const updatedSubscription = { ...existingSubscription, isActive: true, updatedAt: new Date() };
+        this.entitySubscriptionsData.set(existingSubscription.id, updatedSubscription);
+        return updatedSubscription;
+      }
+      return existingSubscription;
+    }
+
+    const newSubscription: EntitySubscription = {
+      id: this.subscriptionId++,
+      ...subscription,
+      isActive: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    this.entitySubscriptionsData.set(newSubscription.id, newSubscription);
+    return newSubscription;
+  }
+
+  async unsubscribeFromNotificationTimeline(userId: number, notificationTimelineId: string): Promise<boolean> {
+    await this.ensureInitialized();
+    
+    const subscription = Array.from(this.entitySubscriptionsData.values()).find(
+      sub => sub.userId === userId && 
+             sub.notificationTimelineId === notificationTimelineId &&
+             sub.isActive
+    );
+    
+    if (!subscription) {
+      return false;
+    }
+
+    // Deactivate subscription instead of deleting
+    const updatedSubscription = { ...subscription, isActive: false, updatedAt: new Date() };
+    this.entitySubscriptionsData.set(subscription.id, updatedSubscription);
+    return true;
+  }
+
+  async getUserSubscriptions(userId: number): Promise<EntitySubscription[]> {
+    await this.ensureInitialized();
+    
+    return Array.from(this.entitySubscriptionsData.values()).filter(
+      sub => sub.userId === userId && sub.isActive
+    );
+  }
+
+  async getTimelineSubscriptions(notificationTimelineId: string): Promise<EntitySubscription[]> {
+    await this.ensureInitialized();
+    
+    return Array.from(this.entitySubscriptionsData.values()).filter(
+      sub => sub.notificationTimelineId === notificationTimelineId && sub.isActive
+    );
+  }
+
+  async getSubscriptionCount(notificationTimelineId: string): Promise<number> {
+    await this.ensureInitialized();
+    
+    return Array.from(this.entitySubscriptionsData.values()).filter(
+      sub => sub.notificationTimelineId === notificationTimelineId && sub.isActive
+    ).length;
+  }
+
+  // Override deleteNotificationTimeline to handle cascading delete of subscriptions
+  async deleteNotificationTimeline(id: string): Promise<boolean> {
+    await this.ensureInitialized();
+    
+    const exists = this.notificationTimelines.has(id);
+    if (exists) {
+      // Delete the timeline
+      this.notificationTimelines.delete(id);
+      
+      // Cascade delete: deactivate all subscriptions for this timeline
+      for (const [subId, subscription] of this.entitySubscriptionsData.entries()) {
+        if (subscription.notificationTimelineId === id && subscription.isActive) {
+          const deactivatedSubscription = { ...subscription, isActive: false, updatedAt: new Date() };
+          this.entitySubscriptionsData.set(subId, deactivatedSubscription);
+        }
+      }
+    }
+    return exists;
   }
 }
 
