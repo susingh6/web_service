@@ -1355,6 +1355,10 @@ export function useAdminMutation() {
   const deleteRole = async (roleName: string) => deleteRoleMutation.mutateAsync(roleName);
   const adminRollback = async (entity: any) => adminRollbackMutation.mutateAsync(entity);
 
+  // Alert management functions will be added below
+  const createAlert = async (alertData: any) => createAlertMutation.mutateAsync(alertData);
+  const deleteAlert = async (alertId: number) => deleteAlertMutation.mutateAsync(alertId);
+
   return {
     createTenant,
     updateTenant,
@@ -1365,6 +1369,8 @@ export function useAdminMutation() {
     updateRole,
     deleteRole,
     adminRollback,
+    createAlert,
+    deleteAlert,
   };
 }
 
@@ -1551,8 +1557,6 @@ export function useTeamMemberMutationV2() {
     addMemberMutation.mutateAsync({ teamName, userId, user, tenantName, teamId });
   const removeMember = async (teamName: string, userId: string, tenantName?: string, teamId?: number) =>
     removeMemberMutation.mutateAsync({ teamName, userId, tenantName, teamId });
-  const createAlert = async (alertData: any) => createAlertMutation.mutateAsync(alertData);
-  const deleteAlert = async (alertId: number) => deleteAlertMutation.mutateAsync(alertId);
 
-  return { addMember, removeMember, createAlert, deleteAlert };
+  return { addMember, removeMember };
 }
