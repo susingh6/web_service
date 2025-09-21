@@ -474,6 +474,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // POST /api/v1/roles - Create new role
+  app.post("/api/v1/roles", requireActiveUser, async (req: express.Request, res: express.Response) => {
+    try {
+      const roleData = req.body;
+      
+      console.log('POST /api/roles - creating new role:', roleData);
+      
+      // Create the new role (mock implementation for development)
+      const newRole = {
+        role: roleData.role_name || roleData.role,
+        label: roleData.label || roleData.role_name || roleData.role,
+        description: roleData.description || `Custom role: ${roleData.role_name || roleData.role}`,
+        status: roleData.status || 'active'
+      };
+      
+      console.log('New role created successfully:', newRole);
+      res.status(201).json(newRole);
+    } catch (error) {
+      console.error('Error creating role:', error);
+      res.status(500).json({ message: "Failed to create role" });
+    }
+  });
+
   // PATCH /api/v1/roles/{roleName} - Update role by name
   app.patch("/api/v1/roles/:roleName", requireActiveUser, async (req: express.Request, res: express.Response) => {
     try {

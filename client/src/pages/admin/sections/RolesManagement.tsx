@@ -80,16 +80,21 @@ const RolesManagement = () => {
   const { data: roles = [], isLoading } = useQuery<Role[]>({
     queryKey: ['admin', 'roles'],
     queryFn: async () => {
-      const mock: Role[] = [
-        // System roles don't have team_name and tenant_name
-        { id: 1, role_name: 'sla-admin', description: 'Admin role', role_permissions: ['admin'], is_system_role: true, is_active: true, userCount: 3 },
-        { id: 2, role_name: 'sla-dag-entity-editor', description: 'DAG Entity Editor role', role_permissions: ['dag-status-editor', 'dag-sla-editor', 'dag-progress-editor', 'viewer'], is_system_role: true, is_active: true, userCount: 12 },
-        { id: 3, role_name: 'sla-table-entity-editor', description: 'Table Entity Editor role', role_permissions: ['table-status-editor', 'table-sla-editor', 'table-progress-editor', 'viewer'], is_system_role: true, is_active: true, userCount: 10 },
-        { id: 4, role_name: 'sla-viewer', description: 'Viewer role', role_permissions: ['viewer'], is_system_role: true, is_active: true, userCount: 8 },
-        // Non-system role example for Data Engineering / PGM
-        { id: 5, role_name: 'sla-pgm-dag-entity-editor', description: 'PGM DAG Entity Editor', tenant_name: 'Data Engineering', team_name: 'PGM', role_permissions: ['dag-status-editor', 'dag-sla-editor', 'dag-progress-editor', 'viewer'], is_system_role: false, is_active: true, userCount: 2 },
-      ];
-      return mock;
+      const res = await fetch('/api/users/roles');
+      if (!res.ok) throw new Error('Failed to fetch roles');
+      const backendRoles = await res.json();
+      
+      // Transform backend roles to match frontend interface
+      return backendRoles.map((role: any, index: number) => ({
+        id: index + 1,
+        role_name: role.role,
+        description: role.description,
+        role_permissions: role.label ? [role.label.toLowerCase().replace(/\s+/g, '-')] : [],
+        is_system_role: true,
+        is_active: true,
+        status: role.status || 'active',
+        userCount: Math.floor(Math.random() * 15) + 1, // Mock user count for now
+      }));
     },
     staleTime: 6 * 60 * 60 * 1000,
     gcTime: 6 * 60 * 60 * 1000,

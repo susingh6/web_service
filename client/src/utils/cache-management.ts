@@ -1182,7 +1182,7 @@ export function useAdminMutation() {
     mutationFn: async (roleData: any) => {
       const { apiRequest } = await import('@/lib/queryClient');
       const { isDevelopment } = await import('@/config');
-      const response = await apiRequest('POST', '/api/roles', roleData);
+      const response = await apiRequest('POST', '/api/v1/roles', roleData);
       if (!response.ok) {
         if (isDevelopment) {
           // Development fallback: return mock role data
