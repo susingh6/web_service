@@ -53,9 +53,6 @@ export const NotificationTimelinesList: React.FC<NotificationTimelinesListProps>
   if (isLoading) {
     return (
       <Box>
-        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-          Notification Timelines
-        </Typography>
         {[1, 2, 3].map((i) => (
           <Box key={i} sx={{ mb: 2 }}>
             <Skeleton variant="text" width="60%" height={24} />
@@ -107,13 +104,6 @@ export const NotificationTimelinesList: React.FC<NotificationTimelinesListProps>
 
   return (
     <Box>
-      <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-        Notification Timelines
-        <Typography variant="body2" color="text.secondary" component="span" sx={{ ml: 1 }}>
-          ({timelines.length} configured)
-        </Typography>
-      </Typography>
-      
       <Box sx={{ maxHeight, overflowY: 'auto' }}>
         <List disablePadding>
           {timelines.map((timeline, index) => (

@@ -40,6 +40,7 @@ import {
   Save as SaveIcon,
   Cancel as CancelIcon,
   Restore as RestoreIcon,
+  Notifications as NotificationsIcon,
 } from '@mui/icons-material';
 import { format } from 'date-fns';
 import { Entity, Issue } from '@shared/schema';
@@ -826,6 +827,12 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
 
           {/* Notification Timelines */}
           <Paper elevation={0} sx={{ p: 3, mb: 3, borderRadius: 1 }}>
+            <Box display="flex" alignItems="center" mb={2}>
+              <NotificationsIcon sx={{ mr: 1, color: 'primary.main' }} />
+              <Typography variant="h6" fontWeight={600}>
+                Notification Timelines
+              </Typography>
+            </Box>
             <NotificationTimelinesList entity={entity} />
           </Paper>
 
