@@ -520,7 +520,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // POST /api/v1/roles - Create new role
-  app.post("/api/v1/roles", requireActiveUser, async (req: Express.Request, res: Express.Response) => {
+  app.post("/api/v1/roles", requireActiveUser, async (req: Request, res: Response) => {
     try {
       const roleData = req.body;
       
@@ -539,7 +539,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // PATCH /api/v1/roles/{roleName} - Update role by name
-  app.patch("/api/v1/roles/:roleName", requireActiveUser, async (req: Express.Request, res: Express.Response) => {
+  app.patch("/api/v1/roles/:roleName", requireActiveUser, async (req: Request, res: Response) => {
     try {
       const { roleName } = req.params;
       const roleData = req.body;
@@ -563,7 +563,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // DELETE /api/v1/roles/{roleName} - Delete role by name
-  app.delete("/api/v1/roles/:roleName", requireActiveUser, async (req: Express.Request, res: Express.Response) => {
+  app.delete("/api/v1/roles/:roleName", requireActiveUser, async (req: Request, res: Response) => {
     try {
       const { roleName } = req.params;
       
@@ -643,7 +643,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // POST /api/v1/alerts - Create system alert
-  app.post("/api/v1/alerts", requireActiveUser, async (req, res) => {
+  app.post("/api/v1/alerts", requireActiveUser, async (req: Request, res: Response) => {
     try {
       console.log('Creating alert with data:', req.body);
       
@@ -660,13 +660,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ 
         success: false,
         message: "Failed to create alert",
-        error: error.message 
+        error: error instanceof Error ? error.message : 'Unknown error'
       });
     }
   });
 
   // DELETE /api/v1/alerts/:id - Deactivate alert
-  app.delete("/api/v1/alerts/:id", requireActiveUser, async (req, res) => {
+  app.delete("/api/v1/alerts/:id", requireActiveUser, async (req: Request, res: Response) => {
     try {
       const alertId = parseInt(req.params.id);
       console.log('Deactivating alert:', alertId);
@@ -688,13 +688,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ 
         success: false,
         message: "Failed to deactivate alert",
-        error: error.message 
+        error: error instanceof Error ? error.message : 'Unknown error'
       });
     }
   });
 
   // GET /api/v1/admin/broadcast-messages - Get admin broadcast messages
-  app.get("/api/v1/admin/broadcast-messages", requireActiveUser, async (req, res) => {
+  app.get("/api/v1/admin/broadcast-messages", requireActiveUser, async (req: Request, res: Response) => {
     try {
       const messages = await storage.getAdminBroadcastMessages();
       res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
@@ -706,15 +706,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // POST /api/v1/admin/broadcast-messages - Create admin broadcast message
-  app.post("/api/v1/admin/broadcast-messages", requireActiveUser, async (req, res) => {
+  app.post("/api/v1/admin/broadcast-messages", requireActiveUser, async (req: Request, res: Response) => {
     try {
       console.log('Creating broadcast message with data:', req.body);
       
       // Use storage to create broadcast message
       const newMessage = await storage.createAdminBroadcastMessage(req.body);
 
-      // Broadcast to connected clients if delivery type is immediate or both
-      if (newMessage.deliveryType === 'immediate' || newMessage.deliveryType === 'both') {
+      // Broadcast to connected clients if delivery type is immediate or login_triggered
+      if (newMessage.deliveryType === 'immediate' || newMessage.deliveryType === 'login_triggered') {
         await redisCache.broadcastAdminMessage({
           id: newMessage.id,
           message: newMessage.message,
@@ -734,13 +734,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ 
         success: false,
         message: "Failed to create broadcast message",
-        error: error.message 
+        error: error instanceof Error ? error.message : 'Unknown error'
       });
     }
   });
 
   // DELETE /api/v1/admin/broadcast-messages/:id - Deactivate broadcast message
-  app.delete("/api/v1/admin/broadcast-messages/:id", requireActiveUser, async (req, res) => {
+  app.delete("/api/v1/admin/broadcast-messages/:id", requireActiveUser, async (req: Request, res: Response) => {
     try {
       const messageId = parseInt(req.params.id);
       console.log('Deactivating broadcast message:', messageId);
@@ -762,7 +762,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ 
         success: false,
         message: "Failed to deactivate broadcast message",
-        error: error.message 
+        error: error instanceof Error ? error.message : 'Unknown error'
       });
     }
   });
