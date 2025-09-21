@@ -3900,6 +3900,195 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // FastAPI-style owner update by entity name for tables
+  app.patch('/api/v1/tables/:entityName/owner', async (req: Request, res: Response) => {
+    try {
+      const { entityName } = req.params;
+      
+      // Find entity by name and type with case-insensitive matching
+      const entities = await redisCache.getAllEntities();
+      const entity = entities.find(e => 
+        (e.name?.toLowerCase() === entityName.toLowerCase() || 
+         (e as any).entity_name?.toLowerCase() === entityName.toLowerCase()) && 
+        e.type === 'table'
+      );
+      
+      if (!entity) {
+        return res.status(404).json(createErrorResponse('Table not found', 'not_found'));
+      }
+
+      const { owner_email, ownerEmail, owners } = req.body || {};
+      // Normalize owners to a comma-separated string stored in ownerEmail/owner_email
+      let emails: string[] = [];
+      if (Array.isArray(owners)) emails = owners;
+      else if (typeof owner_email === 'string') emails = owner_email.split(',');
+      else if (typeof ownerEmail === 'string') emails = ownerEmail.split(',');
+      emails = emails.map((e: string) => e.trim()).filter((e: string) => e.length > 0);
+
+      const updates: any = {};
+      const normalized = emails.join(',');
+      updates.owner_email = normalized;
+      updates.ownerEmail = normalized;
+
+      // Update via redis cache helper
+      const updated = await redisCache.updateEntityById(entity.id, updates);
+      if (!updated) {
+        return res.status(404).json(createErrorResponse('Failed to update table', 'update_error'));
+      }
+
+      // Invalidate caches
+      await redisCache.invalidateEntityData((updated as any).teamId);
+
+      return res.json({ success: true, owner_email: (updated as any).owner_email || (updated as any).ownerEmail || null });
+    } catch (error) {
+      console.error('Update table owner error:', error);
+      return res.status(500).json(createErrorResponse('Failed to update owner', 'update_error'));
+    }
+  });
+
+  // FastAPI-style owner update by entity name for DAGs
+  app.patch('/api/v1/dags/:entityName/owner', async (req: Request, res: Response) => {
+    try {
+      const { entityName } = req.params;
+      
+      // Find entity by name and type with case-insensitive matching
+      const entities = await redisCache.getAllEntities();
+      const entity = entities.find(e => 
+        (e.name?.toLowerCase() === entityName.toLowerCase() || 
+         (e as any).entity_name?.toLowerCase() === entityName.toLowerCase()) && 
+        e.type === 'dag'
+      );
+      
+      if (!entity) {
+        return res.status(404).json(createErrorResponse('DAG not found', 'not_found'));
+      }
+
+      const { owner_email, ownerEmail, owners } = req.body || {};
+      // Normalize owners to a comma-separated string stored in ownerEmail/owner_email
+      let emails: string[] = [];
+      if (Array.isArray(owners)) emails = owners;
+      else if (typeof owner_email === 'string') emails = owner_email.split(',');
+      else if (typeof ownerEmail === 'string') emails = ownerEmail.split(',');
+      emails = emails.map((e: string) => e.trim()).filter((e: string) => e.length > 0);
+
+      const updates: any = {};
+      const normalized = emails.join(',');
+      updates.owner_email = normalized;
+      updates.ownerEmail = normalized;
+
+      // Update via redis cache helper
+      const updated = await redisCache.updateEntityById(entity.id, updates);
+      if (!updated) {
+        return res.status(404).json(createErrorResponse('Failed to update DAG', 'update_error'));
+      }
+
+      // Invalidate caches
+      await redisCache.invalidateEntityData((updated as any).teamId);
+
+      return res.json({ success: true, owner_email: (updated as any).owner_email || (updated as any).ownerEmail || null });
+    } catch (error) {
+      console.error('Update DAG owner error:', error);
+      return res.status(500).json(createErrorResponse('Failed to update owner', 'update_error'));
+    }
+  });
+
+  // Development-only fallback routes for owner updates (non-versioned)
+  if (isDevelopment) {
+    // Fallback owner update by entity name for tables (Express fallback when FastAPI unavailable)
+    app.patch('/api/tables/:entityName/owner', async (req: Request, res: Response) => {
+      try {
+        const { entityName } = req.params;
+        
+        // Find entity by name and type with case-insensitive matching
+        const entities = await redisCache.getAllEntities();
+        const entity = entities.find(e => 
+          (e.name?.toLowerCase() === entityName.toLowerCase() || 
+           (e as any).entity_name?.toLowerCase() === entityName.toLowerCase()) && 
+          e.type === 'table'
+        );
+        
+        if (!entity) {
+          return res.status(404).json(createErrorResponse('Table not found', 'not_found'));
+        }
+
+        const { owner_email, ownerEmail, owners } = req.body || {};
+        // Normalize owners to a comma-separated string stored in ownerEmail/owner_email
+        let emails: string[] = [];
+        if (Array.isArray(owners)) emails = owners;
+        else if (typeof owner_email === 'string') emails = owner_email.split(',');
+        else if (typeof ownerEmail === 'string') emails = ownerEmail.split(',');
+        emails = emails.map((e: string) => e.trim()).filter((e: string) => e.length > 0);
+
+        const updates: any = {};
+        const normalized = emails.join(',');
+        updates.owner_email = normalized;
+        updates.ownerEmail = normalized;
+
+        // Update via redis cache helper
+        const updated = await redisCache.updateEntityById(entity.id, updates);
+        if (!updated) {
+          return res.status(404).json(createErrorResponse('Failed to update table', 'update_error'));
+        }
+
+        // Invalidate caches
+        await redisCache.invalidateEntityData((updated as any).teamId);
+
+        console.log('EXPRESS FALLBACK: Table owner update successful for', entityName);
+        return res.json({ success: true, owner_email: (updated as any).owner_email || (updated as any).ownerEmail || null });
+      } catch (error) {
+        console.error('Update table owner fallback error:', error);
+        return res.status(500).json(createErrorResponse('Failed to update owner', 'update_error'));
+      }
+    });
+
+    // Fallback owner update by entity name for DAGs (Express fallback when FastAPI unavailable)
+    app.patch('/api/dags/:entityName/owner', async (req: Request, res: Response) => {
+      try {
+        const { entityName } = req.params;
+        
+        // Find entity by name and type with case-insensitive matching
+        const entities = await redisCache.getAllEntities();
+        const entity = entities.find(e => 
+          (e.name?.toLowerCase() === entityName.toLowerCase() || 
+           (e as any).entity_name?.toLowerCase() === entityName.toLowerCase()) && 
+          e.type === 'dag'
+        );
+        
+        if (!entity) {
+          return res.status(404).json(createErrorResponse('DAG not found', 'not_found'));
+        }
+
+        const { owner_email, ownerEmail, owners } = req.body || {};
+        // Normalize owners to a comma-separated string stored in ownerEmail/owner_email
+        let emails: string[] = [];
+        if (Array.isArray(owners)) emails = owners;
+        else if (typeof owner_email === 'string') emails = owner_email.split(',');
+        else if (typeof ownerEmail === 'string') emails = ownerEmail.split(',');
+        emails = emails.map((e: string) => e.trim()).filter((e: string) => e.length > 0);
+
+        const updates: any = {};
+        const normalized = emails.join(',');
+        updates.owner_email = normalized;
+        updates.ownerEmail = normalized;
+
+        // Update via redis cache helper
+        const updated = await redisCache.updateEntityById(entity.id, updates);
+        if (!updated) {
+          return res.status(404).json(createErrorResponse('Failed to update DAG', 'update_error'));
+        }
+
+        // Invalidate caches
+        await redisCache.invalidateEntityData((updated as any).teamId);
+
+        console.log('EXPRESS FALLBACK: DAG owner update successful for', entityName);
+        return res.json({ success: true, owner_email: (updated as any).owner_email || (updated as any).ownerEmail || null });
+      } catch (error) {
+        console.error('Update DAG owner fallback error:', error);
+        return res.status(500).json(createErrorResponse('Failed to update owner', 'update_error'));
+      }
+    });
+  }
+
   // SLA status 30 days endpoint for entity details modal
   app.get('/api/teams/:teamName/:entityType/:entityName/sla_status_30days', async (req: Request, res: Response) => {
     try {
