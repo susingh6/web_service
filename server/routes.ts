@@ -551,6 +551,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // GET /api/v1/alerts - System alerts endpoint for notification bell
+  app.get("/api/v1/alerts", async (req, res) => {
+    try {
+      // Mock alert data for system notifications
+      const now = new Date();
+      const mockAlerts = [
+        {
+          id: 1,
+          title: "System Maintenance Scheduled",
+          message: "Scheduled maintenance window on Sunday 3:00 AM - 6:00 AM EST. Some features may be temporarily unavailable.",
+          alertType: "maintenance",
+          severity: "medium",
+          dateKey: new Date().toISOString().split('T')[0],
+          isActive: true,
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
+          createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
+          updatedAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+        },
+        {
+          id: 2,
+          title: "New Role Management Features",
+          message: "Enhanced role management system is now available in the admin panel. Check out the new role creation and permissions management features.",
+          alertType: "info",
+          severity: "low",
+          dateKey: new Date().toISOString().split('T')[0],
+          isActive: true,
+          expiresAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), // 3 days from now
+          createdAt: new Date(Date.now() - 30 * 60 * 1000), // 30 minutes ago
+          updatedAt: new Date(Date.now() - 30 * 60 * 1000),
+        },
+        {
+          id: 3,
+          title: "Performance Monitoring Alert",
+          message: "Higher than usual response times detected on entity operations. Engineering team is investigating. No action required from users.",
+          alertType: "warning",
+          severity: "high",
+          dateKey: new Date().toISOString().split('T')[0],
+          isActive: true,
+          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 1 day from now
+          createdAt: new Date(Date.now() - 45 * 60 * 1000), // 45 minutes ago
+          updatedAt: new Date(Date.now() - 15 * 60 * 1000), // Updated 15 minutes ago
+        }
+      ];
+
+      // Filter only active alerts that haven't expired
+      const activeAlerts = mockAlerts.filter(alert => 
+        alert.isActive && (!alert.expiresAt || new Date(alert.expiresAt) > now)
+      );
+
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+      res.json(activeAlerts);
+    } catch (error) {
+      console.error('Failed to fetch alerts:', error);
+      res.status(500).json({ message: "Failed to fetch system alerts" });
+    }
+  });
+
   // Teams endpoints - using cache (includeInactive toggle for admin)
   app.get("/api/teams", async (req, res) => {
     try {
