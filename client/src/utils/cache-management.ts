@@ -833,6 +833,94 @@ export function useEntityMutation() {
     },
   });
 
+  // UPDATE OWNER (specialized owner-only update)
+  const updateOwnerMutation = useMutation({
+    mutationFn: async ({ entityName, entityType, ownerData }: { entityName: string; entityType: 'table' | 'dag'; ownerData: any }) => {
+      // Use the name-based owner update endpoints
+      const { apiRequest } = await import('@/lib/queryClient');
+      const { buildUrl, endpoints } = await import('@/config');
+      const updateEndpoint = entityType === 'table'
+        ? (endpoints.tablesOwnerUpdate ?? endpoints.tablesUpdate)
+        : (endpoints.dagsOwnerUpdate ?? endpoints.dagsUpdate);
+      
+      const response = await apiRequest('PATCH', buildUrl(updateEndpoint, entityName), ownerData);
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`Failed to update owner: ${text}`);
+      }
+      return response.json();
+    },
+    onMutate: async ({ entityName, entityType, ownerData }: { entityName: string; entityType: 'table' | 'dag'; ownerData: any }) => {
+      const effectiveTenant = ownerData.tenant_name || 'Data Engineering';
+      const key = cacheKeys.entitiesByTenantAndTeam(effectiveTenant, ownerData.teamId);
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<any[]>(key);
+      
+      // Optimistically update owner in cache
+      const normalizedOwner = Array.isArray(ownerData.owners) ? ownerData.owners.join(',') : ownerData.owners;
+      queryClient.setQueryData<any[]>(key, (old) => {
+        if (!old) return [] as any[];
+        return old.map(e => 
+          (e.entity_name === entityName || e.name === entityName) 
+            ? { 
+                ...e, 
+                owner: normalizedOwner,
+                ownerEmail: normalizedOwner,
+                owner_email: normalizedOwner
+              } 
+            : e
+        );
+      });
+      
+      return { previous, key, tenant: effectiveTenant, teamId: ownerData.teamId };
+    },
+    onError: (_err, _vars, ctx: any) => {
+      if (ctx?.previous) queryClient.setQueryData(ctx.key, ctx.previous);
+    },
+    onSettled: async (_res, _err, vars) => {
+      await invalidateEntityCaches(queryClient, {
+        tenant: vars?.ownerData?.tenant_name,
+        teamId: vars?.ownerData?.teamId,
+        entityName: vars?.entityName,
+        entityType: vars?.entityType
+      });
+    },
+  });
+
+  // ROLLBACK ENTITY (specialized rollback operation with modern cache invalidation)
+  const rollbackEntityMutation = useMutation({
+    mutationFn: async ({ entityName, entityType, teamName, rollbackData }: { entityName: string; entityType: 'table' | 'dag'; teamName: string; rollbackData: any }) => {
+      // Use the rollback endpoint with name-based URL
+      const { apiRequest } = await import('@/lib/queryClient');
+      const { buildUrl } = await import('@/config');
+      
+      const response = await apiRequest('POST', buildUrl(`/api/teams/${teamName}/${entityType}/${entityName}/rollback`), rollbackData);
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`Failed to rollback entity: ${text}`);
+      }
+      return response.json();
+    },
+    onMutate: async ({ entityName, entityType, rollbackData }: { entityName: string; entityType: 'table' | 'dag'; teamName: string; rollbackData: any }) => {
+      // For rollback, we don't do optimistic updates since we don't know what the rolled-back state will be
+      // We'll let the cache invalidation handle the refresh after the API call succeeds
+      return { entityName, entityType, rollbackData };
+    },
+    onSuccess: async (_result, vars) => {
+      // Use modern cache invalidation approach instead of 15+ manual invalidations
+      await invalidateEntityCaches(queryClient, {
+        tenant: vars.rollbackData.tenant_name,
+        teamId: vars.rollbackData.teamId,
+        entityName: vars.entityName,
+        entityType: vars.entityType,
+        teamName: vars.teamName
+      });
+    },
+    onError: (_err, _vars, _ctx) => {
+      // No optimistic updates to revert for rollback
+    },
+  });
+
   // DELETE
   const deleteMutation = useMutation({
     mutationFn: async ({ entityName, entityType, tenant, teamId }: { entityName: string; entityType: 'table' | 'dag'; tenant?: string; teamId: number }) => {
@@ -884,8 +972,12 @@ export function useEntityMutation() {
   const createEntity = async (entityData: any) => createMutation.mutateAsync(entityData);
   const updateEntity = async (entityName: string, entityType: 'table' | 'dag', entityData: any) =>
     updateMutation.mutateAsync({ entityName, entityType, entityData });
+  const updateOwner = async (entityName: string, entityType: 'table' | 'dag', ownerData: any) =>
+    updateOwnerMutation.mutateAsync({ entityName, entityType, ownerData });
+  const rollbackEntity = async (entityName: string, entityType: 'table' | 'dag', teamName: string, rollbackData: any) =>
+    rollbackEntityMutation.mutateAsync({ entityName, entityType, teamName, rollbackData });
   const deleteEntity = async (entityName: string, entityType: 'table' | 'dag', teamId: number, tenantName?: string) =>
     deleteMutation.mutateAsync({ entityName, entityType, tenant: tenantName, teamId });
 
-  return { createEntity, updateEntity, deleteEntity };
+  return { createEntity, updateEntity, updateOwner, rollbackEntity, deleteEntity };
 }

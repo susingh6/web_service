@@ -52,6 +52,7 @@ import { queryClient, apiRequest } from '@/lib/queryClient';
 import { buildUrl, endpoints } from '@/config';
 import { useQuery } from '@tanstack/react-query';
 import { cacheKeys, invalidateEntityCaches } from '@/lib/cacheKeys';
+import { useEntityMutation } from '@/utils/cache-management';
 import { entitiesApi } from '@/features/sla/api';
 
 interface EntityDetailsModalProps {
@@ -120,11 +121,12 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
   
   const { toast } = useToast();
   const { user } = useAuth();
+  const { updateOwner: updateOwnerMutation, deleteEntity, rollbackEntity } = useEntityMutation();
   
   // Find team name - do this before early return to avoid hooks order issues
   const teamName = entity ? teams.find(team => team.id === entity.teamId)?.name || 'Unknown Team' : '';
   
-  // Update owner functionality
+  // Update owner functionality using modern cache-management approach
   const updateOwner = async () => {
     if (!entity || !teamName) return;
     
@@ -160,57 +162,35 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
         ? selectedOwnerEmails
         : ownerEmailInput.split(',').map(e => e.trim()).filter(e => e.length > 0);
 
-      const payload = {
+      const ownerData = {
         user_email: userEmail,
         team_name: teamName,
         tenant_name: entity.tenant_name || 'Data Engineering',
         owners: ownersArray,
-      } as any;
+        teamId: entity.teamId, // Add teamId for cache invalidation
+      };
       
-      // Make PATCH request to update owner using entity_name-based endpoint (fallback if owner endpoint undefined)
-      const updateEndpoint = entity.type === 'table'
-        ? (endpoints.tablesOwnerUpdate ?? endpoints.tablesUpdate)
-        : (endpoints.dagsOwnerUpdate ?? endpoints.dagsUpdate);
-      const response = await apiRequest('PATCH', buildUrl(updateEndpoint, entity.name), payload);
+      // Use modern cache-management approach with automatic cache invalidation
+      await updateOwnerMutation(entity.name, entity.type as 'table' | 'dag', ownerData);
       
-      if (response.ok) {
-        toast({
-          title: 'Success',
-          description: 'Owner updated successfully.',
-          variant: 'default',
-        });
-        
-        // Optimistically reflect owner change for this modal's cache key (use name-scoped key)
-        const detailsKey = cacheKeys.entityDetailsByName(entity.name, teamName, entity.type, 'ownerSlaSettings');
-        const normalized = ownersArray.join(',');
-        queryClient.setQueryData(detailsKey as any, (old: any) => structuredClone({
-          ...(old || {}),
-          owner: normalized,
-          ownerEmail: normalized,
-          owner_email: normalized,
-        }));
-        // Immediate local visibility (even if refetch races)
-        setLocalOwnerEmails(ownersArray);
-        
-        // Invalidate only the specific name-scoped details and the current team's list
-        await queryClient.invalidateQueries({ queryKey: detailsKey as any });
-        await queryClient.refetchQueries({ queryKey: detailsKey as any });
-        if (entity.teamId) {
-          await queryClient.invalidateQueries({ queryKey: [endpoints.entity.byTeam(entity.teamId)] });
-        }
-        
-        // Reset edit state
-        setIsEditingOwner(false);
-        setOwnerEmailInput('');
-        setSelectedOwnerEmails([]);
-      } else {
-        throw new Error('Failed to update owner');
-      }
+      toast({
+        title: 'Success',
+        description: 'Owner updated successfully.',
+        variant: 'default',
+      });
+      
+      // Update local state for immediate UI feedback
+      setLocalOwnerEmails(ownersArray);
+      
+      // Reset edit state
+      setIsEditingOwner(false);
+      setOwnerEmailInput('');
+      setSelectedOwnerEmails([]);
     } catch (error) {
       console.error('Error updating owner:', error);
       toast({
         title: 'Error',
-        description: 'Failed to update owner. Please try again.',
+        description: `Failed to update owner: ${error}`,
         variant: 'destructive',
       });
     } finally {
@@ -295,60 +275,28 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
     
     setIsRollingBack(true);
     try {
-      const payload = {
+      const rollbackData = {
         toVersion: selectedRollbackVersion,
         user_email: userEmail,
-        reason: `Rollback to version ${selectedRollbackVersion}`
+        reason: `Rollback to version ${selectedRollbackVersion}`,
+        tenant_name: entity.tenant_name || 'Data Engineering',
+        teamId: entity.teamId
       };
       
-      // Make POST request to rollback endpoint
-      const response = await apiRequest('POST', buildUrl(`/api/teams/${teamName}/${entity.type}/${entity.name}/rollback`), payload);
+      // Use modern cache-management approach with automatic cache invalidation
+      await rollbackEntity(entity.name, entity.type as 'table' | 'dag', teamName, rollbackData);
       
-      if (response.ok) {
-        toast({
-          title: 'Success',
-          description: `Successfully rolled back to version ${selectedRollbackVersion}.`,
-          variant: 'default',
-        });
-        
-        // Comprehensive cache invalidation after rollback to ensure all entity data is refreshed
-        
-        // 1. Entity-specific modal data (current implementation)
-        queryClient.invalidateQueries({ queryKey: ['ownerSlaSettings', entity?.type, teamName, entity?.name] });
-        queryClient.invalidateQueries({ queryKey: ['recentSettingsChanges', entity?.type, teamName, entity?.name] });
-        queryClient.invalidateQueries({ queryKey: ['slaStatusHistory', entity?.type, teamName, entity?.name] });
-        
-        // 2. Team and type-specific entity caches
-        queryClient.invalidateQueries({ queryKey: ['/api/entities', { teamId: entity.teamId }] });
-        queryClient.invalidateQueries({ queryKey: ['/api/entities', { type: entity.type }] });
-        queryClient.invalidateQueries({ queryKey: ['/api/entities', { teamId: entity.teamId, type: entity.type }] });
-        
-        // 3. Specific entity detail and history caches
-        queryClient.invalidateQueries({ queryKey: [`/api/entities/${entity.id}`] });
-        queryClient.invalidateQueries({ queryKey: [`/api/entities/${entity.id}/history`] });
-        
-        // 4. WebSocket real-time entity caches (used by useRealTimeEntities)
-        queryClient.invalidateQueries({ queryKey: ['entities', entity.id] });
-        
-        // 5. Dashboard summary cache (rollback affects overall metrics)
-        if (entity.tenant_name) {
-          queryClient.invalidateQueries({ queryKey: cacheKeys.dashboardSummary(entity.tenant_name) });
-          if (entity.teamId) {
-            queryClient.invalidateQueries({ queryKey: cacheKeys.dashboardSummary(entity.tenant_name, entity.teamId) });
-          }
-        }
-        
-        // 6. Team data caches (rollback may affect team-level aggregations)
-        queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
-        
-        console.log(`Cache invalidated after rollback for entity ${entity.name} (${entity.type}) to version ${selectedRollbackVersion}`);
-        
-        // Close the confirmation dialog
-        setRollbackConfirmOpen(false);
-        setSelectedRollbackVersion(null);
-      } else {
-        throw new Error('Failed to rollback entity');
-      }
+      toast({
+        title: 'Success',
+        description: `Successfully rolled back to version ${selectedRollbackVersion}.`,
+        variant: 'default',
+      });
+      
+      console.log(`Rollback completed for entity ${entity.name} (${entity.type}) to version ${selectedRollbackVersion}`);
+      
+      // Close the confirmation dialog
+      setRollbackConfirmOpen(false);
+      setSelectedRollbackVersion(null);
     } catch (error) {
       console.error('Error rolling back entity:', error);
       toast({
@@ -523,27 +471,8 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
         table_name: entity.table_name
       });
       
-      // Optimistically remove from cache before API call
-      const removeFromCache = (old: any[] | undefined) => {
-        if (!old) return [];
-        return old.filter(e => e.id !== entity.id && e.name !== entity.name);
-      };
-      
-      // Update tenant/team caches optimistically (use name-first keys where available)
-      if (entity.tenant_name) {
-        queryClient.setQueryData(cacheKeys.entitiesByTenant(entity.tenant_name), removeFromCache);
-        queryClient.setQueryData(cacheKeys.entitiesByTenantAndTeam(entity.tenant_name, entity.teamId ?? null), removeFromCache);
-      }
-      
-      // Call the new deleteEntity function with the actual entity
-      const success = await entitiesApi.deleteEntity({ 
-        type: entityType, 
-        entity: entity 
-      });
-      
-      if (!success) {
-        throw new Error('Delete operation failed');
-      }
+      // Use modern cache-management approach with automatic cache invalidation
+      await deleteEntity(entity.name, entityType, entity.teamId ?? 1, entity.tenant_name || undefined);
       
       toast({
         title: 'Success',
@@ -554,28 +483,13 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
       setOpenDeleteDialog(false);
       onClose();
       
-      // Invalidate caches to trigger refetch with updated data
-      await Promise.all([
-        entity.tenant_name ? queryClient.invalidateQueries({ queryKey: cacheKeys.entitiesByTenant(entity.tenant_name) }) : Promise.resolve(),
-        entity.tenant_name ? queryClient.invalidateQueries({ queryKey: cacheKeys.entitiesByTenantAndTeam(entity.tenant_name, entity.teamId ?? null) }) : Promise.resolve(),
-        queryClient.invalidateQueries({ queryKey: ['/api/v1/entities'] }),
-        entity.tenant_name ? queryClient.invalidateQueries({ queryKey: cacheKeys.dashboardSummary(entity.tenant_name) }) : Promise.resolve(),
-        (entity.tenant_name && entity.teamId) ? queryClient.invalidateQueries({ queryKey: cacheKeys.dashboardSummary(entity.tenant_name, entity.teamId) }) : Promise.resolve()
-      ]);
-      
       console.log(`[DELETE_DEBUG] Delete completed successfully`);
     } catch (error) {
       console.error('[DELETE_DEBUG] Delete failed:', error);
       
-      // Revert optimistic updates on failure
-      await Promise.all([
-        entity.tenant_name ? queryClient.invalidateQueries({ queryKey: cacheKeys.entitiesByTenant(entity.tenant_name) }) : Promise.resolve(),
-        entity.tenant_name ? queryClient.invalidateQueries({ queryKey: cacheKeys.entitiesByTenantAndTeam(entity.tenant_name, entity.teamId ?? null) }) : Promise.resolve()
-      ]);
-      
       toast({
         title: 'Error',
-        description: `Failed to delete ${entity.type}. Please try again.`,
+        description: `Failed to delete ${entity.type}: ${error}`,
         variant: 'destructive',
       });
     }
