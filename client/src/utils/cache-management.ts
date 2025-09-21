@@ -1224,7 +1224,8 @@ export function useAdminMutation() {
       const { apiRequest } = await import('@/lib/queryClient');
       const { isDevelopment, endpoints } = await import('@/config');
       // Try FastAPI endpoint first
-      let response = await apiRequest('PATCH', endpoints.admin.roles.update(roleName), roleData);
+      // Note: Role updates by name aren't supported in current config, using fallback
+      let response = await apiRequest('PATCH', `/api/roles/${roleName}`, roleData);
       
       // Fallback to Express endpoint if FastAPI fails
       if (!response.ok && response.status === 404) {
@@ -1262,7 +1263,8 @@ export function useAdminMutation() {
     mutationFn: async (roleName: string) => {
       const { apiRequest } = await import('@/lib/queryClient');
       const { isDevelopment, endpoints } = await import('@/config');
-      const response = await apiRequest('DELETE', endpoints.admin.roles.delete(roleName));
+      // Note: Role deletes not supported in current config, using fallback
+      const response = await apiRequest('DELETE', `/api/roles/${roleName}`);
       if (!response.ok) {
         if (isDevelopment) {
           // Development fallback: return success
