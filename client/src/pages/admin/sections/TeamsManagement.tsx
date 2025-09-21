@@ -194,12 +194,12 @@ const TeamFormDialog = ({ open, onClose, team, tenants, activeTenants, onSubmit 
           {/* Basic Info Tab */}
           {activeTab === 0 && (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 3 }}>
-              <TextField
-                fullWidth
-                label="Team Name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                required
+          <TextField
+            fullWidth
+            label="Team Name"
+            value={formData.name}
+            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+            required
                 data-testid="input-team-name"
               />
               
@@ -214,43 +214,43 @@ const TeamFormDialog = ({ open, onClose, team, tenants, activeTenants, onSubmit 
                   data-testid="input-tenant-locked"
                 />
               ) : (
-                <FormControl fullWidth required>
-                  <InputLabel>Tenant</InputLabel>
-                  <Select
-                    value={formData.tenant_id}
-                    onChange={(e) => setFormData({ ...formData, tenant_id: e.target.value })}
-                    label="Tenant"
+          <FormControl fullWidth required>
+            <InputLabel>Tenant</InputLabel>
+            <Select
+              value={formData.tenant_id}
+              onChange={(e) => setFormData({ ...formData, tenant_id: e.target.value })}
+              label="Tenant"
                     data-testid="select-tenant"
-                  >
+            >
                     {activeTenants.map((tenant) => (
-                      <MenuItem key={tenant.id} value={tenant.id}>
-                        {tenant.name}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
+                <MenuItem key={tenant.id} value={tenant.id}>
+                  {tenant.name}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
               )}
-              
-              <TextField
-                fullWidth
-                multiline
-                rows={3}
-                label="Description"
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+          
+          <TextField
+            fullWidth
+            multiline
+            rows={3}
+            label="Description"
+            value={formData.description}
+            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 data-testid="input-team-description"
-              />
-              
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={formData.isActive}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, isActive: e.target.checked })}
+          />
+          
+          <FormControlLabel
+            control={
+              <Switch
+                checked={formData.isActive}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, isActive: e.target.checked })}
                     data-testid="switch-team-active"
-                  />
-                }
-                label="Active Team"
               />
+            }
+            label="Active Team"
+          />
             </Box>
           )}
           

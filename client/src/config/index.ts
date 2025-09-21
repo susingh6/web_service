@@ -57,7 +57,7 @@ interface ApiConfig {
       getAll: string;
       getTeamMembers: (teamName: string) => string;
     };
-    profile?: {
+    profile: {
       getCurrent: string;
       updateCurrent: string;
     };
@@ -146,7 +146,8 @@ interface ApiConfig {
       roles: {
         getAll: string;
         create: string;
-        update: (roleId: number) => string;
+        update: (roleName: string) => string;
+        delete?: (roleName: string) => string;
       };
     };
     audit: {

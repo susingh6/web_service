@@ -45,8 +45,8 @@ const AppLayout = ({ children }: AppLayoutProps) => {
           }
         });
         
-        // Refresh Redux store to ensure consistency
-        dispatch(fetchEntities());
+        // Refresh Redux store to ensure consistency  
+        dispatch(fetchEntities({ tenant: 'Data Engineering' }));
         dispatch(fetchDashboardSummary({ tenantName: 'Data Engineering' }));
       }
     }

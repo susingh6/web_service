@@ -950,8 +950,8 @@ export function useEntityMutation() {
       await Promise.all([
         // 1. Invalidate structured cache keys
         invalidateEntityCaches(queryClient, {
-          tenant: ctx?.tenant,
-          teamId: ctx?.teamId,
+        tenant: ctx?.tenant,
+        teamId: ctx?.teamId,
           entityId: vars?.entityName,
         }),
         
@@ -1166,14 +1166,31 @@ export function useAdminMutation() {
     onError: (_err, _vars, ctx: any) => {
       if (ctx?.previous) queryClient.setQueryData(['admin', 'users'], ctx.previous);
     },
-    onSuccess: async (result, { userData }) => {
+    onSuccess: async (result, { userId, userData }) => {
       // Invalidate team member caches when user status changes
       if (userData.is_active !== undefined) {
         await queryClient.invalidateQueries({ queryKey: ['teamMembers'] });
         await queryClient.invalidateQueries({ queryKey: ['/api/v1/get_team_members'] });
       }
+      
+      // CRITICAL: Invalidate profile cache for the updated user so profile page reflects admin changes
+      await queryClient.invalidateQueries({ queryKey: ['profile', 'current'] });
+      await queryClient.invalidateQueries({ queryKey: ['profile', userId] });
+      await queryClient.invalidateQueries({ queryKey: ['profile', result?.user_email] });
+      await queryClient.invalidateQueries({ queryKey: ['profile', result?.email] });
+      
       const { invalidateAdminCaches } = await import('@/lib/cacheKeys');
       await invalidateAdminCaches(queryClient);
+      
+      // Emit custom event to notify profile page and other components to refresh
+      window.dispatchEvent(new CustomEvent('user-profile-updated', { 
+        detail: { 
+          userId, 
+          userData: result || userData, 
+          source: 'admin-panel',
+          timestamp: Date.now()
+        } 
+      }));
     },
   });
 

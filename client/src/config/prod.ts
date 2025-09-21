@@ -90,6 +90,10 @@ export const prodConfig = {
       conversationSummaries: (dagId: number) => `/api/v1/agent/conversations/summaries/${dagId}`,
       fullConversation: (conversationId: string) => `/api/v1/agent/conversations/${conversationId}`,
       sendMessage: (dagId: number) => `/api/v1/agent/conversations/${dagId}/send`,
+      chatWithIncident: (dagId: number) => `/api/v1/agent/chat/incident/${dagId}`,
+      chat: (dagId: number) => `/api/v1/agent/chat/${dagId}`,
+      loadHistory: (dagId: number) => `/api/v1/agent/history/${dagId}`,
+      saveConversation: (dagId: number) => `/api/v1/agent/save/${dagId}`,
     },
 
     // Missing properties from dev config
@@ -100,6 +104,12 @@ export const prodConfig = {
     users: {
       getAll: '/api/v1/get_user',
       getTeamMembers: (teamName: string) => `/api/v1/get_team_members/${teamName}`,
+    },
+
+    // Profile endpoints - Session-based user profile management
+    profile: {
+      getCurrent: '/api/v1/auth/user',
+      updateCurrent: '/api/v1/auth/user/profile',
     },
 
     admin: {

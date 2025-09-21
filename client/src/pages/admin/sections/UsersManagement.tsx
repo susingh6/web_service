@@ -351,6 +351,12 @@ const UsersManagement = () => {
 
   const createUserMutation = useMutation({
     mutationFn: createUser,
+    onSuccess: () => {
+      toast({
+        title: 'Success',
+        description: 'User created successfully',
+      });
+    },
   });
 
   // Update user mutation with optimistic updates following FastAPI pattern
@@ -452,6 +458,12 @@ const UsersManagement = () => {
 
   const updateUserMutation = useMutation({
     mutationFn: ({ userId, userData }: { userId: number; userData: any }) => updateUser(userId, userData),
+    onSuccess: () => {
+      toast({
+        title: 'Success',
+        description: 'User updated successfully',
+      });
+    },
   });
 
   const handleCreateUser = () => {
@@ -467,11 +479,8 @@ const UsersManagement = () => {
   const handleSubmitUser = async (userData: any) => {
     try {
       if (selectedUser) {
-        await updateUserAdmin(selectedUser.user_id, userData);
-        toast({
-          title: 'Success',
-          description: 'User updated successfully',
-        });
+        // Use the local updateUserMutation for consistency with optimistic updates
+        await updateUserMutation.mutateAsync({ userId: selectedUser.user_id, userData });
         setDialogOpen(false);
       } else {
         await createUserMutation.mutateAsync(userData);

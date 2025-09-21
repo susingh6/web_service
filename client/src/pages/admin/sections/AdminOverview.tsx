@@ -1,6 +1,6 @@
 import { 
   Box, 
-  Grid, 
+  Grid,
   Card, 
   CardContent, 
   Typography, 
@@ -15,8 +15,9 @@ import {
   Security as RolesIcon,
   Notifications as NotificationsIcon
 } from '@mui/icons-material';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { buildUrl, endpoints } from '@/config';
+import { useEffect } from 'react';
 
 interface StatCardProps {
   title: string;
@@ -57,6 +58,7 @@ const StatCard = ({ title, value, icon, color, subtitle }: StatCardProps) => {
 
 const AdminOverview = () => {
   const theme = useTheme();
+  const queryClient = useQueryClient();
 
   // Fetch overview data
   const { data: teams = [] } = useQuery({
@@ -181,6 +183,44 @@ const AdminOverview = () => {
   const pendingConflictsCount = pendingConflicts.filter((c: any) => c.status === 'pending').length;
   const activeRoles = roles.filter((r: any) => r.is_active).length;
   const activeBroadcasts = broadcastMessages.filter((m: any) => m.isActive).length;
+  
+  // Filter for active users and tenants only
+  const activeUsers = users.filter((u: any) => u.is_active !== false);
+  const activeTenants = tenants.filter((t: any) => t.isActive !== false);
+
+  // Listen for user and tenant updates to refresh overview counts
+  useEffect(() => {
+    const handleUserProfileUpdate = () => {
+      // Refresh users data when any user is updated
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+    };
+    
+    const handleDashboardUpdate = (event: any) => {
+      const detail = event?.detail || {};
+      // Refresh tenants and teams data when admin updates occur
+      if (detail.source === 'tenant-status-update' || detail.tenantId) {
+        queryClient.invalidateQueries({ queryKey: ['/api/tenants'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
+      }
+    };
+    
+    const handleTeamsRefresh = () => {
+      // Refresh teams data when teams are updated
+      queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/tenants'] }); // Teams affect tenant counts
+    };
+    
+    // Listen for various update events
+    window.addEventListener('user-profile-updated', handleUserProfileUpdate);
+    window.addEventListener('dashboard-data-updated', handleDashboardUpdate);
+    window.addEventListener('refresh-teams-data', handleTeamsRefresh);
+    
+    return () => {
+      window.removeEventListener('user-profile-updated', handleUserProfileUpdate);
+      window.removeEventListener('dashboard-data-updated', handleDashboardUpdate);
+      window.removeEventListener('refresh-teams-data', handleTeamsRefresh);
+    };
+  }, [queryClient]);
 
   return (
     <Box sx={{ p: 3 }}>
@@ -192,17 +232,17 @@ const AdminOverview = () => {
       </Typography>
 
       <Grid container spacing={3}>
-        <Grid item xs={12} sm={6} md={4} lg={2}>
+        <Grid size={{ xs: 12, sm: 6, md: 4, lg: 2 }}>
           <StatCard
-            title="Tenants"
-            value={tenants.length}
+            title="Active Tenants"
+            value={activeTenants.length}
             icon={<TenantsIcon />}
             color={theme.palette.info.main}
             subtitle="Organizations"
           />
         </Grid>
         
-        <Grid item xs={12} sm={6} md={4} lg={2}>
+        <Grid size={{ xs: 12, sm: 6, md: 4, lg: 2 }}>
           <StatCard
             title="Active Teams"
             value={teams.length}
@@ -212,17 +252,17 @@ const AdminOverview = () => {
           />
         </Grid>
         
-        <Grid item xs={12} sm={6} md={4} lg={2}>
+        <Grid size={{ xs: 12, sm: 6, md: 4, lg: 2 }}>
           <StatCard
-            title="Total Users"
-            value={users.length}
+            title="Active Users"
+            value={activeUsers.length}
             icon={<UsersIcon />}
             color={theme.palette.success.main}
             subtitle="System-wide"
           />
         </Grid>
         
-        <Grid item xs={12} sm={6} md={4} lg={2}>
+        <Grid size={{ xs: 12, sm: 6, md: 4, lg: 2 }}>
           <StatCard
             title="Active Roles"
             value={`${activeRoles}/${roles.length}`}
@@ -232,7 +272,7 @@ const AdminOverview = () => {
           />
         </Grid>
         
-        <Grid item xs={12} sm={6} md={4} lg={2}>
+        <Grid size={{ xs: 12, sm: 6, md: 4, lg: 2 }}>
           <StatCard
             title="Notifications"
             value={activeBroadcasts}
@@ -242,7 +282,7 @@ const AdminOverview = () => {
           />
         </Grid>
         
-        <Grid item xs={12} sm={6} md={4} lg={2}>
+        <Grid size={{ xs: 12, sm: 6, md: 4, lg: 2 }}>
           <StatCard
             title="Pending Conflicts"
             value={pendingConflictsCount}
@@ -254,7 +294,7 @@ const AdminOverview = () => {
       </Grid>
 
       <Grid container spacing={3} sx={{ mt: 2 }}>
-        <Grid item xs={12} md={6}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <Card elevation={2}>
             <CardContent>
               <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -302,7 +342,7 @@ const AdminOverview = () => {
           </Card>
         </Grid>
         
-        <Grid item xs={12} md={6}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <Card elevation={2}>
             <CardContent>
               <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>

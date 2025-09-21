@@ -24,7 +24,8 @@ import {
   MoreVert,
   Refresh
 } from '@mui/icons-material';
-import { Entity, Task } from '@/features/sla/types';
+import { Task } from '@/features/sla/types';
+import { Entity } from '@shared/schema';
 import { format } from 'date-fns';
 import { normalizeStatus, getStatusColor, STANDARD_STATUSES } from '@/utils/status-normalization';
 import { useGetDagTasks, useUpdateTaskPriority } from '@/features/sla/taskService.enhanced';
@@ -80,36 +81,18 @@ const DagDetailView: React.FC<DagDetailViewProps> = ({ entity, onBack }) => {
     'unknown': <MoreVert color="disabled" />
   };
 
-  // Load tasks for this DAG
+  // Group tasks by priority using React Query data
   useEffect(() => {
-    const fetchTasks = async () => {
-      try {
-        setLoading(true);
-        const taskData = await getTasksForDag(entity.id);
-        setTasks(taskData);
-        
-        // Group tasks by priority
-        const grouped: GroupedTasks = { normal: [], high: [] };
-        taskData.forEach(task => {
-          if (task.priority === 'high') {
-            grouped.high.push(task);
-          } else {
-            grouped.normal.push(task);
-          }
-        });
-        setGroupedTasks(grouped);
-        
-        setError(null);
-      } catch (err) {
-        setError('Failed to load tasks. Please try again.');
-        console.error('Error loading tasks:', err);
-      } finally {
-        setLoading(false);
+    const grouped: GroupedTasks = { normal: [], high: [] };
+    tasks.forEach((task: any) => {
+      if (task.priority === 'high') {
+        grouped.high.push(task);
+      } else {
+        grouped.normal.push(task);
       }
-    };
-    
-    fetchTasks();
-  }, [entity.id]);
+    });
+    setGroupedTasks(grouped);
+  }, [tasks]);
 
   // Handle moving a task between priority zones
   const handlePriorityChange = async (taskId: number, newPriority: 'normal' | 'high') => {
@@ -118,78 +101,16 @@ const DagDetailView: React.FC<DagDetailViewProps> = ({ entity, onBack }) => {
       const task = tasks.find(t => t.id === taskId);
       if (!task || task.priority === newPriority) return;
       
-      // Optimistically update UI
-      const updatedTasks = tasks.map(t => 
-        t.id === taskId ? { ...t, priority: newPriority } : t
-      );
-      setTasks(updatedTasks);
-      
-      // Update groupings
-      const grouped: GroupedTasks = { normal: [], high: [] };
-      updatedTasks.forEach(task => {
-        if (task.priority === 'high') {
-          grouped.high.push(task);
-        } else {
-          grouped.normal.push(task);
-        }
-      });
-      setGroupedTasks(grouped);
-      
-      // Call the API to update the task
-      await updateTaskPriority(taskId, newPriority);
+      // Call the API to update the task using React Query mutation
+      updateTaskPriority({ dagId: entity.id, taskId, priority: newPriority });
     } catch (err) {
-      setError('Failed to update task priority. Please try again.');
       console.error('Error updating task priority:', err);
-      
-      // Revert the optimistic update
-      const fetchTasks = async () => {
-        try {
-          const taskData = await getTasksForDag(entity.id);
-          setTasks(taskData);
-          
-          // Group tasks by priority
-          const grouped: GroupedTasks = { normal: [], high: [] };
-          taskData.forEach(task => {
-            if (task.priority === 'high') {
-              grouped.high.push(task);
-            } else {
-              grouped.normal.push(task);
-            }
-          });
-          setGroupedTasks(grouped);
-        } catch (err) {
-          console.error('Error reloading tasks:', err);
-        }
-      };
-      
-      fetchTasks();
     }
   };
 
-  const refreshTasks = async () => {
-    try {
-      setLoading(true);
-      const taskData = await getTasksForDag(entity.id);
-      setTasks(taskData);
-      
-      // Group tasks by priority
-      const grouped: GroupedTasks = { normal: [], high: [] };
-      taskData.forEach(task => {
-        if (task.priority === 'high') {
-          grouped.high.push(task);
-        } else {
-          grouped.normal.push(task);
-        }
-      });
-      setGroupedTasks(grouped);
-      
-      setError(null);
-    } catch (err) {
-      setError('Failed to refresh tasks. Please try again.');
-      console.error('Error refreshing tasks:', err);
-    } finally {
-      setLoading(false);
-    }
+  const refreshTasks = () => {
+    // React Query will handle the refresh automatically
+    window.location.reload();
   };
 
   return (

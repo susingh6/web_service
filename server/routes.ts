@@ -417,6 +417,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         refreshAffectedData: true
       });
 
+      // CRITICAL: If this is the currently logged-in user, update their session data
+      // This ensures /api/user endpoint returns fresh data immediately
+      if (req.isAuthenticated && req.isAuthenticated() && req.user && req.user.id === userId) {
+        console.log('Admin updated currently logged-in user, refreshing session...');
+        req.login(updatedUser, (loginErr) => {
+          if (loginErr) {
+            console.error('Failed to update session after admin update:', loginErr);
+          } else {
+            console.log('Session refreshed successfully for user:', updatedUser.id);
+          }
+        });
+      }
+
       res.json(transformedUser);
     } catch (error) {
       console.error('User update error:', error);
@@ -463,6 +476,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         user_pagerduty: updatedUser.user_pagerduty || [],
         is_active: updatedUser.is_active
       };
+
+      // CRITICAL: If this is the currently logged-in user, update their session data
+      // This ensures /api/user endpoint returns fresh data immediately
+      if (req.isAuthenticated && req.isAuthenticated() && req.user && req.user.id === userId) {
+        console.log('Admin updated currently logged-in user (Express fallback), refreshing session...');
+        req.login(updatedUser, (loginErr) => {
+          if (loginErr) {
+            console.error('Failed to update session after admin update:', loginErr);
+          } else {
+            console.log('Session refreshed successfully for user:', updatedUser.id);
+          }
+        });
+      }
 
       res.json(transformedUser);
     } catch (error) {
@@ -1676,7 +1702,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.removeHeader('ETag');
       res.removeHeader('Last-Modified');
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-
+      
       // Use cache key for team members
       const cacheKey = `team_members_${teamName}`;
       let members = await redisCache.get(cacheKey);

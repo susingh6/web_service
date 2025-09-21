@@ -78,6 +78,38 @@ const ProfilePage = () => {
     }
   }, [profileData]);
 
+  // Listen for admin panel user updates and refresh profile data
+  useEffect(() => {
+    const handleUserProfileUpdate = (event: any) => {
+      const detail = event?.detail || {};
+      console.log('Profile page: Received user profile update event:', detail);
+      
+      // Check if this update is for the current user
+      if (detail.source === 'admin-panel' && profileData) {
+        const isCurrentUser = 
+          detail.userId === profileData.user_id ||
+          detail.userData?.user_email === profileData.user_email ||
+          detail.userData?.email === profileData.user_email;
+          
+        if (isCurrentUser) {
+          console.log('Profile page: Refreshing profile data due to admin update');
+          // Invalidate and refetch profile data
+          queryClient.invalidateQueries({ queryKey: ['profile', 'current'] });
+          queryClient.refetchQueries({ queryKey: ['profile', 'current'] });
+          
+          toast({
+            title: "Profile Updated",
+            description: "Your profile was updated by an administrator.",
+            variant: "default",
+          });
+        }
+      }
+    };
+    
+    window.addEventListener('user-profile-updated', handleUserProfileUpdate);
+    return () => window.removeEventListener('user-profile-updated', handleUserProfileUpdate);
+    }, [profileData, queryClient, toast]);
+  
   // Update profile mutation with optimistic updates
   const updateProfile = async (userData: any) => {
     try {

@@ -102,6 +102,11 @@ declare global {
       email: string | null;
       displayName: string | null;
       team: string | null;
+      role: string | null;
+      azureObjectId: string | null;
+      user_slack: string[] | null;
+      user_pagerduty: string[] | null;
+      is_active: boolean | null;
     }
   }
 }
@@ -277,14 +282,20 @@ export function setupSimpleAuth(app: Express) {
     // Transform user data to match ProfileData interface expected by frontend
     const { password, ...userSession } = req.user;
     const profileData = {
-      user_id: userSession.id || userSession.user_id,
-      user_name: userSession.username || userSession.user_name || userSession.displayName,
-      user_email: userSession.email || userSession.user_email,
+      user_id: userSession.id,
+      user_name: userSession.username || userSession.displayName,
+      user_email: userSession.email,
       user_slack: userSession.user_slack || [],
       user_pagerduty: userSession.user_pagerduty || [],
       is_active: userSession.is_active !== undefined ? userSession.is_active : true,
-      // Keep the original fields for backward compatibility
-      ...userSession
+      // Keep the original fields for backward compatibility (but don't override the above)
+      id: userSession.id,
+      username: userSession.username,
+      email: userSession.email,
+      displayName: userSession.displayName,
+      team: userSession.team,
+      role: userSession.role,
+      azureObjectId: userSession.azureObjectId
     };
     
     console.log('GET /api/user - transformed profile data:', profileData);
@@ -303,8 +314,8 @@ export function setupSimpleAuth(app: Express) {
       
       // Update the user in storage
       const updatedUser = await storage.updateUser(currentUser.id, {
-        user_name: updateData.user_name,
-        user_email: updateData.user_email,
+        username: updateData.user_name,
+        email: updateData.user_email,
         user_slack: updateData.user_slack,
         user_pagerduty: updateData.user_pagerduty,
       });
@@ -366,7 +377,6 @@ export function setupSimpleAuth(app: Express) {
         const adminUsers = await storage.getUsers();
         existingAdminUser = adminUsers.find(user => 
           user.email === userEmail || 
-          user.user_email === userEmail ||
           user.username === userEmail
         );
       } catch (error) {
@@ -381,20 +391,17 @@ export function setupSimpleAuth(app: Express) {
         // Transform admin cache data to Express.User session format
         // Handle different possible field name formats from admin cache
         const sessionUser = {
-          id: existingAdminUser.user_id || existingAdminUser.id,
-          username: existingAdminUser.user_name || existingAdminUser.username || userEmail,
-          email: existingAdminUser.user_email || existingAdminUser.email || userEmail,
-          displayName: displayName || existingAdminUser.user_name || existingAdminUser.username || existingAdminUser.displayName,
-          team: 'Data Engineering', // Default team
+          id: existingAdminUser.id,
+          username: existingAdminUser.username || userEmail,
+          email: existingAdminUser.email || userEmail,
+          displayName: displayName || existingAdminUser.displayName || existingAdminUser.username,
+          team: existingAdminUser.team || 'Data Engineering', // Default team
           password: 'azure-sso-user', // Placeholder for Azure users
-          // Add the admin cache fields to maintain compatibility
-          user_id: existingAdminUser.user_id || existingAdminUser.id,
-          user_name: existingAdminUser.user_name || existingAdminUser.username || userEmail,
-          user_email: existingAdminUser.user_email || existingAdminUser.email || userEmail,
-          user_slack: existingAdminUser.user_slack || existingAdminUser.slack || [],
-          user_pagerduty: existingAdminUser.user_pagerduty || existingAdminUser.pagerduty || [],
-          is_active: existingAdminUser.is_active !== undefined ? existingAdminUser.is_active : true,
-          role: 'admin' // Ensure admin role for existing users
+          role: existingAdminUser.role || 'admin', // Ensure admin role for existing users
+          azureObjectId: azureObjectId,
+          user_slack: existingAdminUser.user_slack || [],
+          user_pagerduty: existingAdminUser.user_pagerduty || [],
+          is_active: existingAdminUser.is_active !== undefined ? existingAdminUser.is_active : true
         };
         
         // Log the user into the Express session
