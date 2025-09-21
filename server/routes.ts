@@ -640,6 +640,131 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // POST /api/v1/alerts - Create system alert
+  app.post("/api/v1/alerts", requireActiveUser, async (req, res) => {
+    try {
+      console.log('Creating alert with data:', req.body);
+      
+      // Use storage to create alert
+      const newAlert = await storage.createAlert(req.body);
+
+      res.status(201).json({
+        success: true,
+        message: "Alert created successfully",
+        alert: newAlert
+      });
+    } catch (error) {
+      console.error('Failed to create alert:', error);
+      res.status(500).json({ 
+        success: false,
+        message: "Failed to create alert",
+        error: error.message 
+      });
+    }
+  });
+
+  // DELETE /api/v1/alerts/:id - Deactivate alert
+  app.delete("/api/v1/alerts/:id", requireActiveUser, async (req, res) => {
+    try {
+      const alertId = parseInt(req.params.id);
+      console.log('Deactivating alert:', alertId);
+      
+      const success = await storage.deactivateAlert(alertId);
+      if (!success) {
+        return res.status(404).json({ 
+          success: false,
+          message: "Alert not found" 
+        });
+      }
+
+      res.json({
+        success: true,
+        message: "Alert deactivated successfully"
+      });
+    } catch (error) {
+      console.error('Failed to deactivate alert:', error);
+      res.status(500).json({ 
+        success: false,
+        message: "Failed to deactivate alert",
+        error: error.message 
+      });
+    }
+  });
+
+  // GET /api/v1/admin/broadcast-messages - Get admin broadcast messages
+  app.get("/api/v1/admin/broadcast-messages", requireActiveUser, async (req, res) => {
+    try {
+      const messages = await storage.getAdminBroadcastMessages();
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+      res.json(messages);
+    } catch (error) {
+      console.error('Failed to fetch broadcast messages:', error);
+      res.status(500).json({ message: "Failed to fetch broadcast messages" });
+    }
+  });
+
+  // POST /api/v1/admin/broadcast-messages - Create admin broadcast message
+  app.post("/api/v1/admin/broadcast-messages", requireActiveUser, async (req, res) => {
+    try {
+      console.log('Creating broadcast message with data:', req.body);
+      
+      // Use storage to create broadcast message
+      const newMessage = await storage.createAdminBroadcastMessage(req.body);
+
+      // Broadcast to connected clients if delivery type is immediate or both
+      if (newMessage.deliveryType === 'immediate' || newMessage.deliveryType === 'both') {
+        await redisCache.broadcastAdminMessage({
+          id: newMessage.id,
+          message: newMessage.message,
+          deliveryType: newMessage.deliveryType,
+          createdAt: newMessage.createdAt,
+          expiresAt: newMessage.expiresAt
+        });
+      }
+
+      res.status(201).json({
+        success: true,
+        message: "Broadcast message created successfully",
+        broadcastMessage: newMessage
+      });
+    } catch (error) {
+      console.error('Failed to create broadcast message:', error);
+      res.status(500).json({ 
+        success: false,
+        message: "Failed to create broadcast message",
+        error: error.message 
+      });
+    }
+  });
+
+  // DELETE /api/v1/admin/broadcast-messages/:id - Deactivate broadcast message
+  app.delete("/api/v1/admin/broadcast-messages/:id", requireActiveUser, async (req, res) => {
+    try {
+      const messageId = parseInt(req.params.id);
+      console.log('Deactivating broadcast message:', messageId);
+      
+      const success = await storage.deactivateAdminBroadcastMessage(messageId);
+      if (!success) {
+        return res.status(404).json({ 
+          success: false,
+          message: "Broadcast message not found" 
+        });
+      }
+
+      res.json({
+        success: true,
+        message: "Broadcast message deactivated successfully"
+      });
+    } catch (error) {
+      console.error('Failed to deactivate broadcast message:', error);
+      res.status(500).json({ 
+        success: false,
+        message: "Failed to deactivate broadcast message",
+        error: error.message 
+      });
+    }
+  });
+
   // Teams endpoints - using cache (includeInactive toggle for admin)
   app.get("/api/teams", async (req, res) => {
     try {

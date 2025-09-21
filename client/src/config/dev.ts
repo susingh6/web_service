@@ -182,6 +182,16 @@ export const devConfig = {
         update: (roleName: string) => `/api/v1/roles/${roleName}`,
         delete: (roleName: string) => `/api/v1/roles/${roleName}`,
       },
+      alerts: {
+        getAll: '/api/v1/alerts',
+        create: '/api/v1/alerts',
+        delete: (alertId: number) => `/api/v1/alerts/${alertId}`,
+      },
+      broadcastMessages: {
+        getAll: '/api/v1/admin/broadcast-messages',
+        create: '/api/v1/admin/broadcast-messages',
+        delete: (messageId: number) => `/api/v1/admin/broadcast-messages/${messageId}`,
+      },
     },
     
     // Audit and rollback endpoints - FastAPI with Express fallbacks

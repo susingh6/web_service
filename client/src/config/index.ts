@@ -149,6 +149,16 @@ interface ApiConfig {
         update: (roleName: string) => string;
         delete?: (roleName: string) => string;
       };
+      alerts: {
+        getAll: string;
+        create: string;
+        delete: (alertId: number) => string;
+      };
+      broadcastMessages: {
+        getAll: string;
+        create: string;
+        delete: (messageId: number) => string;
+      };
     };
     audit: {
       getDeletedEntitiesByName: (entityName: string) => string;

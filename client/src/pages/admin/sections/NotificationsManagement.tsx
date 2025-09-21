@@ -45,6 +45,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { useForm, Controller } from 'react-hook-form';
 import { buildUrl, endpoints } from '@/config';
+import { useAdminMutation } from '@/utils/cache-management';
 
 interface Alert {
   id: number;
@@ -147,8 +148,12 @@ const NotificationsManagement = () => {
   const { data: alerts = [], isLoading: alertsLoading } = useQuery<Alert[]>({
     queryKey: ['admin', 'alerts'],
     queryFn: async () => {
-      const response = await fetch(buildUrl('/api/v1/alerts'), {
-        headers: { 'Cache-Control': 'no-cache' }
+      const response = await fetch(buildUrl(endpoints.admin.alerts.getAll), {
+        headers: { 
+          'Cache-Control': 'no-cache',
+          'X-Session-ID': localStorage.getItem('fastapi_session_id') || '',
+        },
+        credentials: 'include'
       });
       if (!response.ok) throw new Error('Failed to fetch alerts');
       return response.json();
@@ -160,8 +165,12 @@ const NotificationsManagement = () => {
   const { data: adminMessages = [], isLoading: messagesLoading } = useQuery<AdminBroadcastMessage[]>({
     queryKey: ['admin', 'broadcast-messages'],
     queryFn: async () => {
-      const response = await fetch(buildUrl('/api/v1/admin/broadcast-messages'), {
-        headers: { 'Cache-Control': 'no-cache' }
+      const response = await fetch(buildUrl(endpoints.admin.broadcastMessages.getAll), {
+        headers: { 
+          'Cache-Control': 'no-cache',
+          'X-Session-ID': localStorage.getItem('fastapi_session_id') || '',
+        },
+        credentials: 'include'
       });
       if (!response.ok) throw new Error('Failed to fetch admin messages');
       return response.json();
@@ -185,19 +194,20 @@ const NotificationsManagement = () => {
 
       console.log('Creating alert with data:', alertData);
 
-      const response = await fetch(buildUrl('/api/v1/alerts'), {
+      const response = await fetch(buildUrl(endpoints.admin.alerts.create), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'X-Session-ID': localStorage.getItem('fastapi_session_id') || '',
         },
         body: JSON.stringify(alertData),
+        credentials: 'include',
       });
 
       if (!response.ok) {
         const errorData = await response.json();
         console.error('Alert creation failed:', errorData);
-        throw new Error(`Failed to create alert: ${JSON.stringify(errorData)}`);
+        throw new Error(`Failed to create alert: ${errorData.message || 'Unknown error'}`);
       }
       return response.json();
     },
@@ -209,8 +219,12 @@ const NotificationsManagement = () => {
       setAlertDialogOpen(false);
       alertForm.reset();
     },
-    onError: () => {
-      toast({ title: 'Error', description: 'Failed to create alert', variant: 'destructive' });
+    onError: (error: any) => {
+      toast({ 
+        title: 'Error', 
+        description: error.message || 'Failed to create alert', 
+        variant: 'destructive' 
+      });
     }
   });
 
@@ -226,16 +240,20 @@ const NotificationsManagement = () => {
         expiresAt: new Date(Date.now() + data.expiresInDays * 24 * 60 * 60 * 1000).toISOString(),
       };
 
-      const response = await fetch(buildUrl('/api/v1/admin/broadcast-messages'), {
+      const response = await fetch(buildUrl(endpoints.admin.broadcastMessages.create), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'X-Session-ID': localStorage.getItem('fastapi_session_id') || '',
         },
         body: JSON.stringify(messageData),
+        credentials: 'include',
       });
 
-      if (!response.ok) throw new Error('Failed to create admin message');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`Failed to create admin message: ${errorData.message || 'Unknown error'}`);
+      }
       return response.json();
     },
     onSuccess: () => {
@@ -246,21 +264,29 @@ const NotificationsManagement = () => {
       setMessageDialogOpen(false);
       messageForm.reset();
     },
-    onError: () => {
-      toast({ title: 'Error', description: 'Failed to create admin message', variant: 'destructive' });
+    onError: (error: any) => {
+      toast({ 
+        title: 'Error', 
+        description: error.message || 'Failed to create admin message', 
+        variant: 'destructive' 
+      });
     }
   });
 
   // Deactivate alert mutation
   const deactivateAlertMutation = useMutation({
     mutationFn: async (alertId: number) => {
-      const response = await fetch(buildUrl(`/api/v1/alerts/${alertId}`), {
+      const response = await fetch(buildUrl(endpoints.admin.alerts.delete(alertId)), {
         method: 'DELETE',
         headers: {
           'X-Session-ID': localStorage.getItem('fastapi_session_id') || '',
         },
+        credentials: 'include',
       });
-      if (!response.ok) throw new Error('Failed to deactivate alert');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`Failed to deactivate alert: ${errorData.message || 'Unknown error'}`);
+      }
       return response.json();
     },
     onSuccess: () => {
@@ -269,21 +295,29 @@ const NotificationsManagement = () => {
       queryClient.invalidateQueries({ queryKey: ['notifications', 'alerts'] });
       toast({ title: 'Success', description: 'Alert deactivated successfully' });
     },
-    onError: () => {
-      toast({ title: 'Error', description: 'Failed to deactivate alert', variant: 'destructive' });
+    onError: (error: any) => {
+      toast({ 
+        title: 'Error', 
+        description: error.message || 'Failed to deactivate alert', 
+        variant: 'destructive' 
+      });
     }
   });
 
   // Deactivate admin message mutation
   const deactivateMessageMutation = useMutation({
     mutationFn: async (messageId: number) => {
-      const response = await fetch(buildUrl(`/api/v1/admin/broadcast-messages/${messageId}`), {
+      const response = await fetch(buildUrl(endpoints.admin.broadcastMessages.delete(messageId)), {
         method: 'DELETE',
         headers: {
           'X-Session-ID': localStorage.getItem('fastapi_session_id') || '',
         },
+        credentials: 'include',
       });
-      if (!response.ok) throw new Error('Failed to deactivate admin message');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`Failed to deactivate admin message: ${errorData.message || 'Unknown error'}`);
+      }
       return response.json();
     },
     onSuccess: () => {
@@ -292,8 +326,12 @@ const NotificationsManagement = () => {
       queryClient.invalidateQueries({ queryKey: ['broadcast-messages'] });
       toast({ title: 'Success', description: 'Admin message deactivated successfully' });
     },
-    onError: () => {
-      toast({ title: 'Error', description: 'Failed to deactivate admin message', variant: 'destructive' });
+    onError: (error: any) => {
+      toast({ 
+        title: 'Error', 
+        description: error.message || 'Failed to deactivate admin message', 
+        variant: 'destructive' 
+      });
     }
   });
 
