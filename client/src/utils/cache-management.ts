@@ -793,40 +793,32 @@ export function useEntityMutation() {
 
   // UPDATE
   const updateMutation = useMutation({
-    mutationFn: async ({ entityId, entityData }: { entityId: number; entityData: any }) => {
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      const sessionId = localStorage.getItem('fastapi_session_id');
-      if (sessionId) headers['X-Session-ID'] = sessionId;
-      const response = await fetch(`/api/entities/${entityId}`, {
-        method: 'PUT',
-        headers,
-        body: JSON.stringify(entityData),
-        credentials: 'include',
+    mutationFn: async ({ entityName, entityType, entityData }: { entityName: string; entityType: 'table' | 'dag'; entityData: any }) => {
+      // Use the name-based updateEntity function with FastAPI/Express fallback
+      return await entitiesApi.updateEntity({
+        type: entityType,
+        entityName: entityName,
+        entity: { name: entityName, type: entityType, ...entityData },
+        updates: entityData
       });
-      if (!response.ok) {
-        const text = (await response.text()) || response.statusText;
-        // Try to parse as JSON to extract a specific error message
-        try {
-          const errorData = JSON.parse(text);
-          if (errorData && typeof errorData.message === 'string') {
-            throw new Error(errorData.message);
-          }
-        } catch (parseError) {
-          // If JSON parsing fails, fall back to descriptive message
-        }
-        throw new Error('Unable to update entity. Please try again or contact your administrator.');
-      }
-      return response.json();
     },
-    onMutate: async ({ entityId, entityData }) => {
-      const key = cacheKeys.entitiesByTenantAndTeam(entityData.tenant_name, entityData.teamId);
+    onMutate: async ({ entityName, entityType, entityData }: { entityName: string; entityType: 'table' | 'dag'; entityData: any }) => {
+      const effectiveTenant = entityData.tenant_name || 'Data Engineering';
+      const key = cacheKeys.entitiesByTenantAndTeam(effectiveTenant, entityData.teamId);
       await queryClient.cancelQueries({ queryKey: key });
       const previous = queryClient.getQueryData<any[]>(key);
+      
+      // Optimistically update the entity in cache
       queryClient.setQueryData<any[]>(key, (old) => {
         if (!old) return [] as any[];
-        return old.map(e => e.id === entityId ? { ...e, ...entityData } : e);
+        return old.map(e => 
+          (e.entity_name === entityName || e.name === entityName) 
+            ? { ...e, ...entityData } 
+            : e
+        );
       });
-      return { previous, key };
+      
+      return { previous, key, tenant: effectiveTenant, teamId: entityData.teamId };
     },
     onError: (_err, _vars, ctx: any) => {
       if (ctx?.previous) queryClient.setQueryData(ctx.key, ctx.previous);
@@ -835,7 +827,8 @@ export function useEntityMutation() {
       await invalidateEntityCaches(queryClient, {
         tenant: vars?.entityData?.tenant_name,
         teamId: vars?.entityData?.teamId,
-        entityId: vars?.entityId,
+        entityName: vars?.entityName,
+        entityType: vars?.entityType
       });
     },
   });
@@ -889,7 +882,8 @@ export function useEntityMutation() {
   });
 
   const createEntity = async (entityData: any) => createMutation.mutateAsync(entityData);
-  const updateEntity = async (entityId: number, entityData: any) => updateMutation.mutateAsync({ entityId, entityData });
+  const updateEntity = async (entityName: string, entityType: 'table' | 'dag', entityData: any) =>
+    updateMutation.mutateAsync({ entityName, entityType, entityData });
   const deleteEntity = async (entityName: string, entityType: 'table' | 'dag', teamId: number, tenantName?: string) =>
     deleteMutation.mutateAsync({ entityName, entityType, tenant: tenantName, teamId });
 

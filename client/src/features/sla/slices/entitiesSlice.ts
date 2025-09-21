@@ -79,33 +79,6 @@ export const fetchTeams = createAsyncThunk(
   }
 );
 
-export const createEntity = createAsyncThunk(
-  'entities/createEntity',
-  async (entity: CreateEntityPayload) => {
-    return await entitiesApi.create(entity);
-  }
-);
-
-export const updateEntity = createAsyncThunk(
-  'entities/updateEntity',
-  async (payload: UpdateEntityPayload) => {
-    // Use the new entity_name-based update method with FastAPI/Express fallback
-    return await entitiesApi.updateEntity({
-      type: payload.type,
-      entityName: payload.entity.name,
-      entity: payload.entity,
-      updates: payload.updates
-    });
-  }
-);
-
-export const deleteEntity = createAsyncThunk(
-  'entities/deleteEntity',
-  async ({ entity, type }: { entity: any; type: 'table' | 'dag' }) => {
-    await entitiesApi.deleteEntity({ type, entity });
-    return entity.id;
-  }
-);
 
 const entitiesSlice = createSlice({
   name: 'entities',
@@ -197,90 +170,6 @@ const entitiesSlice = createSlice({
       .addCase(fetchTeams.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.error.message || 'Failed to fetch teams';
-      })
-      
-      // createEntity
-      .addCase(createEntity.pending, (state) => {
-        state.isLoading = true;
-        state.error = null;
-      })
-      .addCase(createEntity.fulfilled, (state, action) => {
-        state.isLoading = false;
-        const newEntity = action.payload;
-        
-        // Add to main tenant list
-        state.list.push(newEntity);
-        
-        // Add to team bucket if entity has teamId
-        if (newEntity.teamId && state.teamLists[newEntity.teamId]) {
-          state.teamLists[newEntity.teamId].push(newEntity);
-        }
-      })
-      .addCase(createEntity.rejected, (state, action) => {
-        state.isLoading = false;
-        state.error = action.error.message || 'Failed to create entity';
-      })
-      
-      // updateEntity
-      .addCase(updateEntity.pending, (state) => {
-        state.isLoading = true;
-        state.error = null;
-      })
-      .addCase(updateEntity.fulfilled, (state, action) => {
-        state.isLoading = false;
-        const updatedEntity = action.payload;
-        
-        // Use deep cloning to prevent nested reference sharing
-        const mainIndex = state.list.findIndex((entity: Entity) => entity.id === updatedEntity.id);
-        if (mainIndex !== -1) {
-          state.list[mainIndex] = structuredClone(updatedEntity);
-        }
-        
-        // Update in all team lists where this entity exists with separate deep clones
-        Object.keys(state.teamLists).forEach(teamIdStr => {
-          const teamId = parseInt(teamIdStr);
-          const teamIndex = state.teamLists[teamId].findIndex((entity: Entity) => entity.id === updatedEntity.id);
-          if (teamIndex !== -1) {
-            state.teamLists[teamId][teamIndex] = structuredClone(updatedEntity);
-          }
-        });
-        
-        // Update selected entity if it matches with deep clone
-        if (state.selectedEntity && state.selectedEntity.id === updatedEntity.id) {
-          state.selectedEntity = structuredClone(updatedEntity);
-        }
-      })
-      .addCase(updateEntity.rejected, (state, action) => {
-        state.isLoading = false;
-        state.error = action.error.message || 'Failed to update entity';
-      })
-      
-      // deleteEntity
-      .addCase(deleteEntity.pending, (state) => {
-        state.isLoading = true;
-        state.error = null;
-      })
-      .addCase(deleteEntity.fulfilled, (state, action) => {
-        state.isLoading = false;
-        const deletedId = action.payload;
-        
-        // Remove from main tenant list
-        state.list = state.list.filter((entity: Entity) => entity.id !== deletedId);
-        
-        // Remove from all team lists
-        Object.keys(state.teamLists).forEach(teamIdStr => {
-          const teamId = parseInt(teamIdStr);
-          state.teamLists[teamId] = state.teamLists[teamId].filter((entity: Entity) => entity.id !== deletedId);
-        });
-        
-        // Clear selected entity if it was deleted
-        if (state.selectedEntity && state.selectedEntity.id === deletedId) {
-          state.selectedEntity = null;
-        }
-      })
-      .addCase(deleteEntity.rejected, (state, action) => {
-        state.isLoading = false;
-        state.error = action.error.message || 'Failed to delete entity';
       });
   },
 });

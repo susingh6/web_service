@@ -27,10 +27,8 @@ import {
 import { Close as CloseIcon } from '@mui/icons-material';
 import { validateTenant, validateTeam, validateDag } from '@/lib/validationUtils';
 import { fetchWithCacheGeneric, getFromCacheGeneric } from '@/lib/cacheUtils';
-import { useAppDispatch } from '@/lib/store';
-import { updateEntity, fetchEntities } from '@/features/sla/slices/entitiesSlice';
+import { useEntityMutation } from '@/utils/cache-management';
 import { queryClient, apiRequest } from '@/lib/queryClient';
-import { cacheKeys, invalidateEntityCaches } from '@/lib/cacheKeys';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 import { Entity } from '@shared/schema';
@@ -123,7 +121,7 @@ const dagSchema = baseSchema.shape({
 });
 
 const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, initialTeamName }: EditEntityModalProps) => {
-  const dispatch = useAppDispatch();
+  const { updateEntity } = useEntityMutation();
   const { toast } = useToast();
   const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -384,32 +382,12 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
         ...data,
       };
 
-      console.log('🚀 ENTITY UPDATE START:', { entityId: entity.id, entityData });
+      console.log('🚀 ENTITY UPDATE START:', { entityName: entity.name, entityType, entityData });
 
-      const result = await dispatch(
-        updateEntity({
-          id: entity.id,
-          type: entityType,
-          entity: entity,
-          updates: entityData,
-        })
-      ).unwrap();
+      // Use modern cache-management approach with automatic cache invalidation
+      const result = await updateEntity(entity.name, entityType, entityData);
 
       console.log('✅ ENTITY UPDATE SUCCESS:', result);
-
-      await invalidateEntityCaches(queryClient, {
-        tenant: entity.tenant_name || undefined,
-        teamId: entity.teamId,
-        entityId: entity.id,
-      });
-      // Also invalidate entity-details keys to refresh any open detail views
-      queryClient.invalidateQueries({ queryKey: ['entity-details', entity.id] });
-
-      // Force refresh Redux state first (so UI reflects change immediately)
-      if (entity.teamId) {
-        dispatch(fetchEntities({ teamId: entity.teamId }));
-      }
-      dispatch(fetchEntities({ tenant: entity.tenant_name || 'Data Engineering' }));
 
       toast({
         title: 'Success',

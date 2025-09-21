@@ -11,8 +11,7 @@ export const store = configureStore({
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
       serializableCheck: {
-        // Ignore date objects in actions
-        ignoredActions: ['entities/updateEntity', 'entities/addEntity'],
+        // Ignore date objects in Redux state
         ignoredPaths: ['entities.list'],
       },
     }),
