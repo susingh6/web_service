@@ -474,8 +474,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // GET /api/roles - Get all roles from real storage
-  app.get("/api/roles", async (req, res) => {
+  // GET /api/v1/roles - Get all roles from real storage
+  app.get("/api/v1/roles", async (req, res) => {
     try {
       const roles = await storage.getRoles();
       res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');

@@ -80,7 +80,7 @@ const RolesManagement = () => {
   const { data: roles = [], isLoading } = useQuery<Role[]>({
     queryKey: ['admin', 'roles'],
     queryFn: async () => {
-      const res = await fetch('/api/roles');
+      const res = await fetch('/api/v1/roles');
       if (!res.ok) throw new Error('Failed to fetch roles');
       const roles = await res.json();
       
