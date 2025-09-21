@@ -71,6 +71,10 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
   const [availableRegularTasks, setAvailableRegularTasks] = useState<string[]>([]);
   const [enabledChannels, setEnabledChannels] = useState<string[]>([]);
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({});
+  
+  // Delete functionality state
+  const [selectedDeleteTimelineId, setSelectedDeleteTimelineId] = useState<string>('');
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   const {
     control,
@@ -94,7 +98,7 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
       const res = await apiRequest('GET', buildUrl(endpoints.entity.notificationTimelines, entity.id));
       return await res.json();
     },
-    enabled: !!entity?.id && open && tabValue === 'update'
+    enabled: !!entity?.id && open && (tabValue === 'update' || tabValue === 'delete')
   });
 
   // Fetch all tasks for this entity (if it's a DAG)
@@ -221,6 +225,49 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
       });
     }
   });
+
+  // Mutation to delete notification timeline
+  const deleteTimelineMutation = useMutation({
+    mutationFn: async (timelineId: string) => {
+      const res = await apiRequest('DELETE', buildUrl(endpoints.notificationTimelines.delete, timelineId));
+      return res;
+    },
+    onSuccess: () => {
+      toast({
+        title: 'Success',
+        description: 'Notification timeline deleted successfully'
+      });
+      // Invalidate queries to refresh the timeline list
+      queryClient.invalidateQueries({ queryKey: ['notification-timeline-names'] });
+      onSuccess?.();
+      handleClose();
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to delete notification timeline',
+        variant: 'destructive'
+      });
+    }
+  });
+
+  const handleDeleteTimeline = () => {
+    if (!selectedDeleteTimelineId) {
+      toast({
+        title: 'Error',
+        description: 'Please select a timeline to delete',
+        variant: 'destructive'
+      });
+      return;
+    }
+    setDeleteConfirmOpen(true);
+  };
+
+  const handleConfirmDelete = () => {
+    deleteTimelineMutation.mutate(selectedDeleteTimelineId);
+    setDeleteConfirmOpen(false);
+    setSelectedDeleteTimelineId('');
+  };
 
   const handleAddTrigger = (triggerType: NotificationTriggerType) => {
     // Check if this trigger type already exists
@@ -351,6 +398,7 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
           <Tabs value={tabValue} onChange={(e, newValue) => setTabValue(newValue)}>
             <Tab label="ADD NEW" value="add" />
             <Tab label="UPDATE EXISTING" value="update" />
+            <Tab label="DELETE" value="delete" sx={{ color: 'error.main' }} />
           </Tabs>
         </Box>
       </DialogTitle>
@@ -396,7 +444,83 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
             </Box>
           )}
 
-          {/* Form fields - always visible in both tabs */}
+          {/* Delete section */}
+          {tabValue === 'delete' && (
+            <Box sx={{ mb: 3 }}>
+              <Alert severity="warning" sx={{ mb: 3 }}>
+                <Typography variant="body2">
+                  <strong>Warning:</strong> Deleting a notification timeline will permanently remove it and all associated subscriptions. This action cannot be undone.
+                </Typography>
+              </Alert>
+              
+              <FormControl fullWidth required>
+                <FormLabel sx={{ mb: 1, color: 'error.main', fontWeight: 600 }}>
+                  Select Timeline to Delete
+                </FormLabel>
+                <Select
+                  value={selectedDeleteTimelineId}
+                  onChange={(e) => setSelectedDeleteTimelineId(e.target.value)}
+                  displayEmpty
+                  error
+                >
+                  <MenuItem value="" disabled>
+                    Select notification timeline to delete
+                  </MenuItem>
+                  {existingTimelines?.map((timeline: NotificationTimeline) => (
+                    <MenuItem key={timeline.id} value={timeline.id}>
+                      {timeline.name.toUpperCase()} 
+                      {timeline.isActive ? ' (Active)' : ' (Inactive)'}
+                    </MenuItem>
+                  ))}
+                </Select>
+                {isLoadingTimelines && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
+                    <CircularProgress size={16} sx={{ mr: 1 }} />
+                    <Typography variant="body2" color="text.secondary">
+                      Loading timelines...
+                    </Typography>
+                  </Box>
+                )}
+              </FormControl>
+
+              {selectedDeleteTimelineId && (
+                <Box sx={{ mt: 2, p: 2, border: 1, borderColor: 'error.main', borderRadius: 1, bgcolor: 'error.light', color: 'error.contrastText' }}>
+                  <Typography variant="body2" fontWeight={600}>
+                    Timeline Preview
+                  </Typography>
+                  {(() => {
+                    const timeline = existingTimelines?.find((t: NotificationTimeline) => t.id === selectedDeleteTimelineId);
+                    if (!timeline) return null;
+                    
+                    return (
+                      <Box sx={{ mt: 1 }}>
+                        <Typography variant="body2">
+                          <strong>Name:</strong> {timeline.name}
+                        </Typography>
+                        {timeline.description && (
+                          <Typography variant="body2">
+                            <strong>Description:</strong> {timeline.description}
+                          </Typography>
+                        )}
+                        <Typography variant="body2">
+                          <strong>Status:</strong> {timeline.isActive ? 'Active' : 'Inactive'}
+                        </Typography>
+                        <Typography variant="body2">
+                          <strong>Triggers:</strong> {timeline.triggers?.length || 0} configured
+                        </Typography>
+                        <Typography variant="body2">
+                          <strong>Channels:</strong> {timeline.channels?.join(', ') || 'None'}
+                        </Typography>
+                      </Box>
+                    );
+                  })()}
+                </Box>
+              )}
+            </Box>
+          )}
+
+          {/* Form fields - visible only in add and update tabs */}
+          {(tabValue === 'add' || tabValue === 'update') && (
           <Stack spacing={3}>
             {/* Basic Information Section */}
             <Box>
@@ -546,25 +670,75 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
               />
             </Box>
           </Stack>
+          )}
         </DialogContent>
 
         <DialogActions sx={{ px: 3, pb: 3 }}>
-          <Button onClick={handleClose} disabled={createTimelineMutation.isPending}>
+          <Button onClick={handleClose} disabled={createTimelineMutation.isPending || deleteTimelineMutation.isPending}>
             Cancel
           </Button>
-          <Button
-            type="submit"
-            variant="contained"
-            disabled={createTimelineMutation.isPending || updateTimelineMutation.isPending}
-            startIcon={(createTimelineMutation.isPending || updateTimelineMutation.isPending) ? <CircularProgress size={20} /> : null}
-          >
-            {tabValue === 'add' 
-              ? (createTimelineMutation.isPending ? 'Creating...' : 'Create Timeline')
-              : (updateTimelineMutation.isPending ? 'Updating...' : 'Update Timeline')
-            }
-          </Button>
+          
+          {tabValue === 'delete' ? (
+            <Button
+              onClick={handleDeleteTimeline}
+              variant="contained"
+              color="error"
+              disabled={deleteTimelineMutation.isPending || !selectedDeleteTimelineId}
+              startIcon={deleteTimelineMutation.isPending ? <CircularProgress size={20} /> : null}
+            >
+              {deleteTimelineMutation.isPending ? 'Deleting...' : 'Delete Timeline'}
+            </Button>
+          ) : (
+            <Button
+              type="submit"
+              variant="contained"
+              disabled={createTimelineMutation.isPending || updateTimelineMutation.isPending}
+              startIcon={(createTimelineMutation.isPending || updateTimelineMutation.isPending) ? <CircularProgress size={20} /> : null}
+            >
+              {tabValue === 'add' 
+                ? (createTimelineMutation.isPending ? 'Creating...' : 'Create Timeline')
+                : (updateTimelineMutation.isPending ? 'Updating...' : 'Update Timeline')
+              }
+            </Button>
+          )}
         </DialogActions>
       </form>
+      
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        open={deleteConfirmOpen}
+        onClose={() => setDeleteConfirmOpen(false)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>
+          <Typography variant="h6" fontWeight={600} color="error">
+            Confirm Delete
+          </Typography>
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body1">
+            Are you sure you want to delete the notification timeline "{existingTimelines?.find((t: NotificationTimeline) => t.id === selectedDeleteTimelineId)?.name}"?
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            This action will permanently remove the timeline and all associated subscriptions. This cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteConfirmOpen(false)} disabled={deleteTimelineMutation.isPending}>
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleConfirmDelete} 
+            color="error" 
+            variant="contained"
+            disabled={deleteTimelineMutation.isPending}
+            startIcon={deleteTimelineMutation.isPending ? <CircularProgress size={20} /> : null}
+          >
+            {deleteTimelineMutation.isPending ? 'Deleting...' : 'Delete'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Dialog>
   );
 };
