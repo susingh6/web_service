@@ -85,21 +85,25 @@ export function TeamNotificationSettings({ team, tenantName, variant = 'default'
       const response = await apiRequest('PUT', `/api/v1/teams/${team.id}`, data);
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       toast({
         title: 'Success',
         description: 'Team notification settings updated successfully',
       });
 
-      // Invalidate relevant caches
-      queryClient.invalidateQueries({ queryKey: ['teams'] });
-      queryClient.invalidateQueries({ queryKey: ['admin', 'teams'] });
-      queryClient.invalidateQueries({ queryKey: ['teamMembers', tenantName, team.id] });
+      // Use centralized cache management system
+      const { invalidateAdminCaches } = await import('@/lib/cacheKeys');
+      await invalidateAdminCaches(queryClient);
+      
+      // Invalidate team-specific caches following centralized pattern
+      await queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
+      await queryClient.invalidateQueries({ queryKey: ['team-notification-settings', team.name] });
+      await queryClient.invalidateQueries({ queryKey: ['teamMembers', tenantName, team.id] });
       
       // CRITICAL: Invalidate team details cache so notification dropdowns refresh immediately
-      queryClient.invalidateQueries({ queryKey: [`/api/v1/get_team_details/${team.name}`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/get_team_details/${team.name}`] });
-      queryClient.invalidateQueries({ queryKey: ['team-notification-settings', team.name] });
+      await queryClient.invalidateQueries({ queryKey: [`/api/v1/get_team_details/${team.name}`] });
+      await queryClient.invalidateQueries({ queryKey: [`/api/get_team_details/${team.name}`] });
+      await queryClient.invalidateQueries({ queryKey: [`/api/get_team_members/${team.name}`] });
       
       setHasChanges(false);
       
