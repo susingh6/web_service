@@ -123,6 +123,13 @@ export const devConfig = {
       delete: (id: string) => `/api/v1/notification-timelines/${id}`,
     },
     
+    // Entity Subscriptions - FastAPI
+    subscriptions: {
+      create: '/api/v1/subscriptions',
+      delete: '/api/v1/subscriptions',
+      getByEntity: (entityId: number) => `/api/v1/subscriptions?entityId=${entityId}`,
+    },
+    
     // Debug endpoints - FastAPI
     debug: {
       teams: '/api/v1/debug/teams',
