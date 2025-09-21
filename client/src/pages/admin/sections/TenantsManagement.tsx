@@ -30,7 +30,8 @@ import {
   Business as BusinessIcon,
   Groups as TeamsIcon
 } from '@mui/icons-material';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useAdminMutation } from '@/utils/cache-management';
 import { cacheKeys, invalidateAdminCaches } from '@/lib/cacheKeys';
 import { useToast } from '@/hooks/use-toast';
 import { buildUrl, endpoints } from '@/config';
@@ -141,6 +142,7 @@ const TenantsManagement = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { createTenant, updateTenant } = useAdminMutation();
   const deferredSearchQuery = useDeferredValue(searchQuery);
 
   // Fetch ALL tenants for admin (not just active ones)
@@ -171,90 +173,36 @@ const TenantsManagement = () => {
     });
   }, [tenants, deferredSearchQuery]);
 
-  // Create tenant with React Query onMutate/onError/onSettled
-  const createTenantMutation = useMutation({
-    mutationFn: async (tenantData: any) => {
-      return await tenantsApi.create(tenantData);
-    },
-    onMutate: async (tenantData: any) => {
-      await queryClient.cancelQueries({ queryKey: ['admin', 'tenants'] });
-      const previous = queryClient.getQueryData<any[]>(['admin', 'tenants']);
-      const optimisticId = Date.now();
-      const optimisticTenant = {
-        ...tenantData,
-        id: optimisticId,
-        createdAt: new Date().toISOString(),
-        teamsCount: 0,
-        isActive: tenantData.isActive ?? true,
-      };
-      queryClient.setQueryData<any[]>(['admin', 'tenants'], (old) => old ? [...old, optimisticTenant] : [optimisticTenant]);
-      return { previous, optimisticId };
-    },
-    onError: (_err, _vars, ctx) => {
-      if (ctx?.previous) {
-        queryClient.setQueryData(['admin', 'tenants'], ctx.previous);
-      }
-      toast({ title: 'Creation Failed', description: 'Failed to create tenant. Please try again.', variant: 'destructive' });
-    },
-    onSuccess: (result, _vars, ctx) => {
-      if (result && ctx?.optimisticId) {
-        queryClient.setQueryData<any[]>(['admin', 'tenants'], (old) => {
-          if (!old) return [result];
-          return old.map(t => t.id === ctx.optimisticId ? result : t);
-        });
-      }
+  // Modern cache-managed tenant creation
+  const handleCreateTenant = async (tenantData: any) => {
+    try {
+      await createTenant(tenantData);
       toast({ title: 'Tenant Created', description: 'New tenant has been successfully created.' });
-    },
-    onSettled: async () => {
-      await invalidateAdminCaches(queryClient);
-    },
-  });
+      setDialogOpen(false);
+    } catch (error: any) {
+      toast({ title: 'Creation Failed', description: 'Failed to create tenant. Please try again.', variant: 'destructive' });
+    }
+  };
 
-  const updateTenantMutation = useMutation({
-    mutationFn: async ({ tenantId, tenantData }: { tenantId: number; tenantData: any }) => {
-      return await tenantsApi.update(tenantId, tenantData);
-    },
-    onError: (_err, _vars, _ctx) => {
-      toast({ title: 'Update Failed', description: 'Failed to update tenant. Please try again.', variant: 'destructive' });
-    },
-    onSuccess: async (_res, { tenantId, tenantData }, _ctx) => {
+  // Modern cache-managed tenant update
+  const handleUpdateTenant = async (tenantId: number, tenantData: any) => {
+    try {
+      await updateTenant(tenantId, tenantData);
       toast({ title: 'Tenant Updated', description: 'Tenant has been successfully updated.' });
+      setDialogOpen(false);
 
-      // If tenant name changed, proactively refresh dashboards and filters
+      // If tenant name changed, emit global event so Summary/Team dashboards can refetch immediately
       if (tenantData?.name) {
-        try {
-          // Invalidate tenant lists used by Summary filters
-          await queryClient.invalidateQueries({ queryKey: ['/api/tenants'] });
-          await queryClient.invalidateQueries({ queryKey: ['/api/v1/tenants'] });
-          // Broadly invalidate dashboard summaries to avoid stale tenant-keyed cache
-          await queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
-          // Emit global event so Summary/Team dashboards can refetch immediately
-          window.dispatchEvent(new CustomEvent('admin-tenants-updated', {
-            detail: { tenantId, newName: tenantData.name }
-          }));
-        } catch {}
+        window.dispatchEvent(new CustomEvent('admin-tenants-updated', {
+          detail: { tenantId, newName: tenantData.name }
+        }));
       }
-    },
-    onSettled: async () => {
-      // CRITICAL: Invalidate the exact query key used by this component first
-      await queryClient.invalidateQueries({ queryKey: ['admin', 'tenants'] });
-      
-      // Then invalidate other tenant-related caches
-      await queryClient.invalidateQueries({ queryKey: ['/api/tenants'] });
-      await queryClient.invalidateQueries({ queryKey: ['/api/v1/tenants'] });
-      await invalidateAdminCaches(queryClient);
-      
-      // Invalidate team caches since tenant status changes can cascade to teams
-      await queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
-      await queryClient.invalidateQueries({ queryKey: ['/api/v1/teams'] });
-      await queryClient.invalidateQueries({ queryKey: ['admin', 'teams'] });
-      
-      // Also refresh Redux teams data to reflect cascade changes
-      window.dispatchEvent(new CustomEvent('refresh-teams-data'));
-    },
-  });
+    } catch (error: any) {
+      toast({ title: 'Update Failed', description: 'Failed to update tenant. Please try again.', variant: 'destructive' });
+    }
+  };
 
-  const handleCreateTenant = () => {
+  const handleCreateTenantDialog = () => {
     setSelectedTenant(null);
     setDialogOpen(true);
   };
@@ -264,11 +212,11 @@ const TenantsManagement = () => {
     setDialogOpen(true);
   };
 
-  const handleSubmitTenant = (tenantData: any) => {
+  const handleSubmitTenant = async (tenantData: any) => {
     if (selectedTenant) {
-      updateTenantMutation.mutate({ tenantId: selectedTenant.id, tenantData });
+      await handleUpdateTenant(selectedTenant.id, tenantData);
     } else {
-      createTenantMutation.mutate(tenantData);
+      await handleCreateTenant(tenantData);
     }
   };
 
@@ -286,7 +234,7 @@ const TenantsManagement = () => {
         <Button
           variant="contained"
           startIcon={<AddIcon />}
-          onClick={handleCreateTenant}
+          onClick={handleCreateTenantDialog}
         >
           New Tenant
         </Button>

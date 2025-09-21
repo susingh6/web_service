@@ -32,7 +32,8 @@ import {
 import TextField from '@mui/material/TextField';
 import InputAdornment from '@mui/material/InputAdornment';
 import { useDeferredValue, useMemo, useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
+import { useAdminMutation } from '@/utils/cache-management';
 import { buildUrl, endpoints, isDevelopment } from '@/config';
 import { useToast } from '@/hooks/use-toast';
 import { invalidateAdminCaches } from '@/lib/cacheKeys';
@@ -54,6 +55,7 @@ interface Role {
 const RolesManagement = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const deferredSearchQuery = useDeferredValue(searchQuery);
+  const { createRole, updateRole, deleteRole } = useAdminMutation();
 
   // Preload tenants (active) and teams for dropdowns
   const { data: tenants = [] } = useQuery({
@@ -79,6 +81,7 @@ const RolesManagement = () => {
     queryKey: ['admin', 'roles'],
     queryFn: async () => {
       const mock: Role[] = [
+        // System roles don't have team_name and tenant_name
         { id: 1, role_name: 'sla-admin', description: 'Admin role', role_permissions: ['admin'], is_system_role: true, is_active: true, userCount: 3 },
         { id: 2, role_name: 'sla-dag-entity-editor', description: 'DAG Entity Editor role', role_permissions: ['dag-status-editor', 'dag-sla-editor', 'dag-progress-editor', 'viewer'], is_system_role: true, is_active: true, userCount: 12 },
         { id: 3, role_name: 'sla-table-entity-editor', description: 'Table Entity Editor role', role_permissions: ['table-status-editor', 'table-sla-editor', 'table-progress-editor', 'viewer'], is_system_role: true, is_active: true, userCount: 10 },
@@ -184,10 +187,8 @@ const RolesManagement = () => {
     onSuccess: () => { toast({ title: 'Role Created', description: 'New role has been created.' }); },
     onSettled: async () => {
       await invalidateAdminCaches(queryClient);
-      // In development, keep optimistic cache; in prod, refetch from API
-      if (!isDevelopment) {
-        await queryClient.invalidateQueries({ queryKey: ['admin', 'roles'] });
-      }
+      // Always invalidate to ensure changes persist (even in development)
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'roles'] });
     }
   });
 
@@ -250,33 +251,64 @@ const RolesManagement = () => {
     setDialogOpen(true);
   };
   const handleEdit = (role: Role) => {
-    setSelectedRole(role);
-    setRoleForm({
-      role_name: role.role_name,
-      description: role.description,
-      role_permissions: role.role_permissions,
-      is_active: role.is_active,
-      is_system_role: role.is_system_role,
-      team_name: role.team_name || '',
-      tenant_name: role.tenant_name || ''
-    });
-    setDialogOpen(true);
+    try {
+      console.log('Editing role:', role);
+      setSelectedRole(role);
+      setRoleForm({
+        role_name: role.role_name || '',
+        description: role.description || '',
+        role_permissions: role.role_permissions || [],
+        is_active: role.is_active ?? true,
+        is_system_role: role.is_system_role ?? false,
+        // System roles don't have team_name and tenant_name
+        team_name: role.is_system_role ? '' : (role.team_name || ''),
+        tenant_name: role.is_system_role ? '' : (role.tenant_name || '')
+      });
+      setDialogOpen(true);
+    } catch (error) {
+      console.error('Error in handleEdit:', error, 'Role:', role);
+      toast({
+        title: 'Error',
+        description: 'Failed to open role editor. Please try again.',
+        variant: 'destructive'
+      });
+    }
   };
   const handleSubmit = async () => {
     try {
+      console.log('Submitting role:', { selectedRole, roleForm });
       if (selectedRole) {
+        console.log('Updating role:', selectedRole.id, roleForm);
         await updateRoleMutation.mutateAsync({ id: selectedRole.id, data: roleForm });
       } else {
+        console.log('Creating role:', roleForm);
         await createRoleMutation.mutateAsync(roleForm);
       }
       setDialogOpen(false);
       setSelectedRole(null);
-    } catch (e) { /* toast handled in mutations */ }
+    } catch (error: any) {
+      console.error('Error in handleSubmit:', error);
+      toast({
+        title: 'Error',
+        description: error?.message || 'Failed to save role. Please try again.',
+        variant: 'destructive'
+      });
+    }
   };
   const handleAskDelete = (role: Role) => { setRoleToDelete(role); setDeleteOpen(true); };
   const handleConfirmDelete = async () => {
     if (!roleToDelete) return;
-    try { await deleteRoleMutation.mutateAsync(roleToDelete.id); } finally {
+    try { 
+      console.log('Deleting role:', roleToDelete.id);
+      await deleteRoleMutation.mutateAsync(roleToDelete.id);
+    } catch (error: any) {
+      console.error('Error deleting role:', error);
+      toast({
+        title: 'Error',
+        description: error?.message || 'Failed to delete role. Please try again.',
+        variant: 'destructive'
+      });
+    } finally {
       setDeleteOpen(false);
       setRoleToDelete(null);
     }

@@ -981,3 +981,468 @@ export function useEntityMutation() {
 
   return { createEntity, updateEntity, updateOwner, rollbackEntity, deleteEntity };
 }
+
+// Admin Management Hook - Modern cache-management for admin operations
+export function useAdminMutation() {
+  const queryClient = useQueryClient();
+
+  // TENANT MANAGEMENT
+  const createTenantMutation = useMutation({
+    mutationFn: async (tenantData: any) => {
+      const { apiRequest } = await import('@/lib/queryClient');
+      const { isDevelopment, endpoints } = await import('@/config');
+      // Try FastAPI endpoint first, then admin endpoint
+      let response = await apiRequest('POST', endpoints.admin.tenants.create, tenantData);
+      if (!response.ok && response.status === 404) {
+        response = await apiRequest('POST', '/api/admin/tenants', tenantData);
+      }
+      if (!response.ok) {
+        if (isDevelopment) {
+          // Development fallback: return mock tenant data
+          return { id: Date.now(), ...tenantData, isActive: tenantData.isActive ?? true };
+        }
+        const text = await response.text();
+        throw new Error(`Failed to create tenant: ${text}`);
+      }
+      return response.json();
+    },
+    onSuccess: async () => {
+      const { invalidateAdminCaches } = await import('@/lib/cacheKeys');
+      await invalidateAdminCaches(queryClient);
+    },
+  });
+
+  const updateTenantMutation = useMutation({
+    mutationFn: async ({ tenantId, tenantData }: { tenantId: number; tenantData: any }) => {
+      const { apiRequest } = await import('@/lib/queryClient');
+      const { isDevelopment, endpoints } = await import('@/config');
+      
+      // Try FastAPI endpoint first (from config)
+      let response = await apiRequest('PATCH', endpoints.admin.tenants.update(tenantId), tenantData);
+      
+      // Fallback to Express endpoint if FastAPI fails
+      if (!response.ok && response.status === 404) {
+        response = await apiRequest('PATCH', `/api/tenants/${tenantId}`, tenantData);
+      }
+      if (!response.ok) {
+        if (isDevelopment) {
+          // Development fallback: return mock updated tenant data
+          return { id: tenantId, ...tenantData };
+        }
+        const text = await response.text();
+        throw new Error(`Failed to update tenant: ${text}`);
+      }
+      return response.json();
+    },
+    onSuccess: async (result, { tenantData }) => {
+      const { invalidateAdminCaches } = await import('@/lib/cacheKeys');
+      await invalidateAdminCaches(queryClient);
+      
+      // Invalidate team caches since tenant status changes can cascade to teams
+      await queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/v1/teams'] });
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'teams'] });
+      
+      // CRITICAL: Invalidate main dashboard caches when tenant status changes
+      await queryClient.invalidateQueries({ queryKey: ['/api/tenants'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/v1/tenants'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/tenants', 'active'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/dashboard/summary'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/v1/dashboard/summary'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/entities'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/v1/entities'] });
+      
+      // Emit custom event for Redux-based components (like Summary dashboard) to refresh
+      window.dispatchEvent(new CustomEvent('dashboard-data-updated', { 
+        detail: { 
+          tenantId: result?.id, 
+          tenantData, 
+          source: 'tenant-status-update' 
+        } 
+      }));
+    },
+  });
+
+  // TEAM MANAGEMENT
+  const createTeamMutation = useMutation({
+    mutationFn: async (teamData: any) => {
+      const { apiRequest } = await import('@/lib/queryClient');
+      const { isDevelopment, endpoints } = await import('@/config');
+      // Try FastAPI endpoint first, then Express fallback
+      let response = await apiRequest('POST', endpoints.admin.teams.create, teamData);
+      if (!response.ok && response.status === 404) {
+        response = await apiRequest('POST', '/api/teams', teamData);
+      }
+      if (!response.ok) {
+        if (isDevelopment) {
+          // Development fallback: return mock team data
+          return { id: Date.now(), ...teamData, isActive: teamData.isActive ?? true };
+        }
+        const text = await response.text();
+        throw new Error(`Failed to create team: ${text}`);
+      }
+      return response.json();
+    },
+    onSuccess: async () => {
+      const { invalidateAdminCaches } = await import('@/lib/cacheKeys');
+      await invalidateAdminCaches(queryClient);
+    },
+  });
+
+  const updateTeamMutation = useMutation({
+    mutationFn: async ({ teamId, teamData }: { teamId: number; teamData: any }) => {
+      const { apiRequest } = await import('@/lib/queryClient');
+      const { isDevelopment, endpoints } = await import('@/config');
+      
+      // Try FastAPI endpoint first (from config)
+      let response = await apiRequest('PATCH', endpoints.admin.teams.update(teamId), teamData);
+      
+      // Fallback to Express endpoint if FastAPI fails
+      if (!response.ok && response.status === 404) {
+        response = await apiRequest('PATCH', `/api/teams/${teamId}`, teamData);
+      }
+      if (!response.ok) {
+        if (isDevelopment) {
+          // Development fallback: return mock updated team data
+          return { id: teamId, ...teamData };
+        }
+        const text = await response.text();
+        throw new Error(`Failed to update team: ${text}`);
+      }
+      return response.json();
+    },
+    onSuccess: async () => {
+      const { invalidateAdminCaches } = await import('@/lib/cacheKeys');
+      await invalidateAdminCaches(queryClient);
+      // Comprehensive cache invalidation for team updates
+      await queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'teams'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/dashboard/summary'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/v1/dashboard/summary'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/v1/get_team_members'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/team_members'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/v1/tenants'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/tenants'] });
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'tenants'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/tenants', 'active'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/v1/team_performance'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/analytics/teams'] });
+    },
+  });
+
+  // USER MANAGEMENT - Use direct API call approach for simplicity
+  const updateUserMutation = useMutation({
+    mutationFn: async ({ userId, userData }: { userId: number; userData: any }) => {
+      const { apiRequest } = await import('@/lib/queryClient');
+      const { endpoints } = await import('@/config');
+      
+      // Try FastAPI endpoint first (from config)
+      let response = await apiRequest('PATCH', endpoints.admin.users.update(userId), userData);
+      
+      // Fallback to Express endpoint if FastAPI fails
+      if (!response.ok && response.status === 404) {
+        response = await apiRequest('PATCH', `/api/users/${userId}`, userData);
+      }
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`Failed to update user: ${text}`);
+      }
+      return response.json();
+    },
+    onMutate: async ({ userId, userData }) => {
+      // Optimistic update
+      await queryClient.cancelQueries({ queryKey: ['admin', 'users'] });
+      const previous = queryClient.getQueryData<any[]>(['admin', 'users']);
+      queryClient.setQueryData<any[]>(['admin', 'users'], (old) => {
+        if (!old) return old;
+        return old.map(user => user.id === userId ? { ...user, ...userData } : user);
+      });
+      return { previous };
+    },
+    onError: (_err, _vars, ctx: any) => {
+      if (ctx?.previous) queryClient.setQueryData(['admin', 'users'], ctx.previous);
+    },
+    onSuccess: async (result, { userData }) => {
+      // Invalidate team member caches when user status changes
+      if (userData.is_active !== undefined) {
+        await queryClient.invalidateQueries({ queryKey: ['teamMembers'] });
+        await queryClient.invalidateQueries({ queryKey: ['/api/v1/get_team_members'] });
+      }
+      const { invalidateAdminCaches } = await import('@/lib/cacheKeys');
+      await invalidateAdminCaches(queryClient);
+    },
+  });
+
+  // ROLE MANAGEMENT
+  const createRoleMutation = useMutation({
+    mutationFn: async (roleData: any) => {
+      const { apiRequest } = await import('@/lib/queryClient');
+      const { isDevelopment } = await import('@/config');
+      const response = await apiRequest('POST', '/api/roles', roleData);
+      if (!response.ok) {
+        if (isDevelopment) {
+          // Development fallback: return mock role data
+          return { id: Date.now(), ...roleData };
+        }
+        const text = await response.text();
+        throw new Error(`Failed to create role: ${text}`);
+      }
+      return response.json();
+    },
+    onMutate: async (roleData: any) => {
+      // Optimistic update for development
+      await queryClient.cancelQueries({ queryKey: ['admin', 'roles'] });
+      const previous = queryClient.getQueryData<any[]>(['admin', 'roles']);
+      const optimistic = {
+        id: Date.now(),
+        role_name: roleData.role_name || 'new-role',
+        description: roleData.description || '',
+        role_permissions: roleData.role_permissions || [],
+        is_system_role: !!roleData.is_system_role,
+        is_active: roleData.is_active ?? true,
+        tenant_name: roleData.tenant_name,
+        team_name: roleData.team_name,
+      };
+      queryClient.setQueryData<any[]>(['admin', 'roles'], (old) => old ? [...old, optimistic] : [optimistic]);
+      return { previous };
+    },
+    onError: (_err, _vars, ctx: any) => {
+      if (ctx?.previous) queryClient.setQueryData(['admin', 'roles'], ctx.previous);
+    },
+    onSuccess: async () => {
+      const { isDevelopment } = await import('@/config');
+      if (!isDevelopment) {
+        await queryClient.invalidateQueries({ queryKey: ['admin', 'roles'] });
+      }
+    },
+  });
+
+  const updateRoleMutation = useMutation({
+    mutationFn: async ({ roleId, roleData }: { roleId: number; roleData: any }) => {
+      const { apiRequest } = await import('@/lib/queryClient');
+      const { isDevelopment, endpoints } = await import('@/config');
+      // Try FastAPI endpoint first
+      let response = await apiRequest('PATCH', endpoints.admin.roles.update(roleId), roleData);
+      
+      // Fallback to Express endpoint if FastAPI fails
+      if (!response.ok && response.status === 404) {
+        response = await apiRequest('PATCH', `/api/roles/${roleId}`, roleData);
+      }
+      if (!response.ok) {
+        if (isDevelopment) {
+          // Development fallback: return mock updated role data
+          return { id: roleId, ...roleData };
+        }
+        const text = await response.text();
+        throw new Error(`Failed to update role: ${text}`);
+      }
+      return response.json();
+    },
+    onMutate: async ({ roleId, roleData }: { roleId: number; roleData: any }) => {
+      // Optimistic update for development
+      await queryClient.cancelQueries({ queryKey: ['admin', 'roles'] });
+      const previous = queryClient.getQueryData<any[]>(['admin', 'roles']);
+      queryClient.setQueryData<any[]>(['admin', 'roles'], (old) => 
+        old ? old.map(r => r.id === roleId ? { ...r, ...roleData } : r) : []
+      );
+      return { previous };
+    },
+    onError: (_err, _vars, ctx: any) => {
+      if (ctx?.previous) queryClient.setQueryData(['admin', 'roles'], ctx.previous);
+    },
+    onSuccess: async () => {
+      const { isDevelopment } = await import('@/config');
+      if (!isDevelopment) {
+        await queryClient.invalidateQueries({ queryKey: ['admin', 'roles'] });
+      }
+    },
+  });
+
+  const deleteRoleMutation = useMutation({
+    mutationFn: async (roleId: number) => {
+      const { apiRequest } = await import('@/lib/queryClient');
+      const { isDevelopment } = await import('@/config');
+      const response = await apiRequest('DELETE', `/api/roles/${roleId}`);
+      if (!response.ok) {
+        if (isDevelopment) {
+          // Development fallback: return success
+          return true;
+        }
+        const text = await response.text();
+        throw new Error(`Failed to delete role: ${text}`);
+      }
+      return response.json();
+    },
+    onMutate: async (roleId: number) => {
+      // Optimistic update for development
+      await queryClient.cancelQueries({ queryKey: ['admin', 'roles'] });
+      const previous = queryClient.getQueryData<any[]>(['admin', 'roles']);
+      queryClient.setQueryData<any[]>(['admin', 'roles'], (old) => 
+        old ? old.filter(r => r.id !== roleId) : []
+      );
+      return { previous };
+    },
+    onError: (_err, _vars, ctx: any) => {
+      if (ctx?.previous) queryClient.setQueryData(['admin', 'roles'], ctx.previous);
+    },
+    onSuccess: async () => {
+      const { isDevelopment } = await import('@/config');
+      if (!isDevelopment) {
+        await queryClient.invalidateQueries({ queryKey: ['admin', 'roles'] });
+      }
+    },
+  });
+
+  // ADMIN ROLLBACK MANAGEMENT
+  const adminRollbackMutation = useMutation({
+    mutationFn: async (entity: any) => {
+      const { rollbackApi } = await import('@/features/sla/api');
+      return await rollbackApi.performRollback({
+        entity_id: entity.entity_id,
+        entity_name: entity.entity_name,
+        entity_type: entity.entity_type,
+        tenant_id: entity.tenant_id,
+        team_id: entity.team_id
+      });
+    },
+    onSuccess: async (result, entity) => {
+      // Use modern cache invalidation approach
+      await invalidateEntityCaches(queryClient, {
+        tenant: entity.tenant_name,
+        teamId: parseInt(entity.team_id),
+        entityId: entity.entity_id
+      });
+      const { invalidateAdminCaches } = await import('@/lib/cacheKeys');
+      await invalidateAdminCaches(queryClient);
+      
+      // Emit custom event for other components to refresh
+      window.dispatchEvent(new CustomEvent('dashboard-data-updated', { 
+        detail: { 
+          tenant: entity.tenant_name, 
+          teamId: parseInt(entity.team_id), 
+          entityId: entity.entity_id,
+          source: 'admin-rollback' 
+        } 
+      }));
+    },
+  });
+
+  // Return all admin functions
+  const createTenant = async (tenantData: any) => createTenantMutation.mutateAsync(tenantData);
+  const updateTenant = async (tenantId: number, tenantData: any) => updateTenantMutation.mutateAsync({ tenantId, tenantData });
+  const createTeam = async (teamData: any) => createTeamMutation.mutateAsync(teamData);
+  const updateTeam = async (teamId: number, teamData: any) => updateTeamMutation.mutateAsync({ teamId, teamData });
+  const updateUser = async (userId: number, userData: any) => updateUserMutation.mutateAsync({ userId, userData });
+  const createRole = async (roleData: any) => createRoleMutation.mutateAsync(roleData);
+  const updateRole = async (roleId: number, roleData: any) => updateRoleMutation.mutateAsync({ roleId, roleData });
+  const deleteRole = async (roleId: number) => deleteRoleMutation.mutateAsync(roleId);
+  const adminRollback = async (entity: any) => adminRollbackMutation.mutateAsync(entity);
+
+  return {
+    createTenant,
+    updateTenant,
+    createTeam,
+    updateTeam,
+    updateUser,
+    createRole,
+    updateRole,
+    deleteRole,
+    adminRollback,
+  };
+}
+
+// Enhanced Team Member Management Hook - Remove redundant cache invalidations
+export function useTeamMemberMutationV2() {
+  const queryClient = useQueryClient();
+
+  const addMemberMutation = useMutation({
+    mutationFn: async ({ teamName, userId, user }: { teamName: string; userId: string; user: any }) => {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      const sessionId = localStorage.getItem('fastapi_session_id');
+      if (sessionId) headers['X-Session-ID'] = sessionId;
+      
+      const response = await fetch(`/api/teams/${teamName}/members`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ action: 'add', memberId: userId }),
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`Failed to add team member: ${text}`);
+      }
+      return response.json();
+    },
+    onMutate: async ({ teamName, user }) => {
+      // Optimistic update
+      const key = CACHE_PATTERNS.TEAMS.MEMBERS(teamName);
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<any[]>(key);
+      queryClient.setQueryData<any[]>(key, (old) => old ? [...old, user] : [user]);
+      return { previous, key };
+    },
+    onError: (_err, _vars, ctx: any) => {
+      if (ctx?.previous) queryClient.setQueryData(ctx.key, ctx.previous);
+    },
+    onSuccess: async (_result, { teamName }) => {
+      // Modern comprehensive cache invalidation
+      const { invalidateAdminCaches } = await import('@/lib/cacheKeys');
+      await invalidateAdminCaches(queryClient);
+      await queryClient.invalidateQueries({ queryKey: ['/api/users'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
+      await queryClient.invalidateQueries({ queryKey: ['team-notification-settings', teamName] });
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'teams'] });
+    },
+  });
+
+  const removeMemberMutation = useMutation({
+    mutationFn: async ({ teamName, userId }: { teamName: string; userId: string }) => {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      const sessionId = localStorage.getItem('fastapi_session_id');
+      if (sessionId) headers['X-Session-ID'] = sessionId;
+      
+      const response = await fetch(`/api/teams/${teamName}/members`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ action: 'remove', memberId: userId }),
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`Failed to remove team member: ${text}`);
+      }
+      return response.json();
+    },
+    onMutate: async ({ teamName, userId }) => {
+      // Optimistic update
+      const key = CACHE_PATTERNS.TEAMS.MEMBERS(teamName);
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<any[]>(key);
+      queryClient.setQueryData<any[]>(key, (old) => 
+        old ? old.filter(member => member.id !== parseInt(userId)) : []
+      );
+      return { previous, key };
+    },
+    onError: (_err, _vars, ctx: any) => {
+      if (ctx?.previous) queryClient.setQueryData(ctx.key, ctx.previous);
+    },
+    onSuccess: async (_result, { teamName }) => {
+      // Modern comprehensive cache invalidation
+      const { invalidateAdminCaches } = await import('@/lib/cacheKeys');
+      await invalidateAdminCaches(queryClient);
+      await queryClient.invalidateQueries({ queryKey: ['/api/users'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
+      await queryClient.invalidateQueries({ queryKey: ['team-notification-settings', teamName] });
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'teams'] });
+    },
+  });
+
+  const addMember = async (teamName: string, userId: string, user: any) =>
+    addMemberMutation.mutateAsync({ teamName, userId, user });
+  const removeMember = async (teamName: string, userId: string) =>
+    removeMemberMutation.mutateAsync({ teamName, userId });
+
+  return { addMember, removeMember };
+}

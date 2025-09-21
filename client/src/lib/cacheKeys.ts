@@ -70,6 +70,12 @@ export function invalidateAdminCaches(queryClient: QueryClient) {
   queryClient.invalidateQueries({ queryKey: cacheKeys.adminTeams() });
   queryClient.invalidateQueries({ queryKey: cacheKeys.adminTenants() });
   queryClient.invalidateQueries({ queryKey: cacheKeys.activeTenants() });
+  
+  // CRITICAL: Invalidate the specific admin panel cache keys
+  queryClient.invalidateQueries({ queryKey: ['admin', 'tenants'] });
+  queryClient.invalidateQueries({ queryKey: ['admin', 'teams'] });
+  queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+  queryClient.invalidateQueries({ queryKey: ['admin', 'roles'] });
 }
 
 

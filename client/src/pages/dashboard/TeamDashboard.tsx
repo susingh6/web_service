@@ -22,7 +22,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { teamMemberSchema } from '@shared/schema';
 import { useToast } from '@/hooks/use-toast';
 import { z } from 'zod';
-import { useTeamMemberMutation } from '@/utils/cache-management';
+import { useTeamMemberMutationV2 } from '@/utils/cache-management';
 import { useRealTimeEntities } from '@/hooks/useRealTimeEntities';
 import { useQueryClient } from '@tanstack/react-query';
 import { TeamNotificationSettings } from '@/components/team/TeamNotificationSettings';
@@ -68,7 +68,7 @@ const TeamDashboard = ({
   const queryClient = useQueryClient();
 
   const [tabValue, setTabValue] = useState(0);
-  const { addMember, removeMember } = useTeamMemberMutation();
+  const { addMember, removeMember } = useTeamMemberMutationV2();
   const [chartFilter, setChartFilter] = useState('All');
   const [entitiesChartFilter, setEntitiesChartFilter] = useState('All');
   const [teamDateRange, setTeamDateRange] = useState({
@@ -268,15 +268,6 @@ const TeamDashboard = ({
         description: 'Team member added successfully',
       });
 
-      // Ensure React Query cache is invalidated and refetched immediately (team members)
-      await queryClient.invalidateQueries({ queryKey: cacheKeys.teamMembers(tenantName, team?.id) });
-      await queryClient.refetchQueries({ queryKey: cacheKeys.teamMembers(tenantName, team?.id) });
-
-      // Also invalidate admin portals so the Members count updates live
-      await invalidateAdminCaches(queryClient);
-      await queryClient.invalidateQueries({ queryKey: ['admin', 'teams'] });
-      await queryClient.refetchQueries({ queryKey: ['admin', 'teams'] });
-
       setAddMemberDialogOpen(false);
       setSelectedUserId('');
     } catch (error) {
@@ -298,15 +289,6 @@ const TeamDashboard = ({
         title: 'Success',
         description: 'Team member removed successfully',
       });
-
-      // Ensure React Query cache is invalidated and refetched immediately (team members)
-      await queryClient.invalidateQueries({ queryKey: cacheKeys.teamMembers(tenantName, team?.id) });
-      await queryClient.refetchQueries({ queryKey: cacheKeys.teamMembers(tenantName, team?.id) });
-
-      // Also invalidate admin portals so the Members count updates live
-      await invalidateAdminCaches(queryClient);
-      await queryClient.invalidateQueries({ queryKey: ['admin', 'teams'] });
-      await queryClient.refetchQueries({ queryKey: ['admin', 'teams'] });
 
       setRemoveMemberDialogOpen(false);
       setSelectedMemberId('');

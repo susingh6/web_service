@@ -39,6 +39,7 @@ import {
   AccountTree as DagIcon
 } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useAdminMutation } from '@/utils/cache-management';
 import { useToast } from '@/hooks/use-toast';
 import { tenantsApi, teamsApi, rollbackApi } from '@/features/sla/api';
 import { cacheKeys, invalidateAdminCaches, invalidateEntityCaches } from '@/lib/cacheKeys';
@@ -70,12 +71,13 @@ const RollbackManagement = () => {
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { adminRollback } = useAdminMutation();
 
   // WebSocket integration for real-time audit updates
   const sessionId = localStorage.getItem('fastapi_session_id');
   const { sendMessage } = useWebSocket({
     sessionId: sessionId || undefined,
-    onAuditUpdated: async (data) => {
+    onMessage: async (data: any) => {
       console.log('📡 Received audit update via WebSocket:', data);
       // Invalidate audit search results to refresh data
       await queryClient.invalidateQueries({ queryKey: ['admin', 'audit'] });
@@ -330,9 +332,27 @@ const RollbackManagement = () => {
     });
   };
 
-  // Handle rollback action using mutation
-  const handleRollback = (entity: DeletedEntity) => {
-    rollbackMutation.mutate(entity);
+  // Modern cache-managed rollback
+  const handleRollbackEntity = async (entity: DeletedEntity) => {
+    try {
+      console.log('🔄 Initiating rollback for entity:', entity);
+      await adminRollback(entity);
+      
+      toast({
+        title: 'Rollback Successful',
+        description: `Entity "${entity.entity_name}" has been successfully restored.`,
+      });
+      
+      // Remove the rolled back entity from search results
+      setSearchResults(prev => prev.filter(e => e.entity_id !== entity.entity_id));
+    } catch (error: any) {
+      console.error('❌ Rollback failed:', error);
+      toast({
+        title: 'Rollback Failed',
+        description: `Failed to rollback entity "${entity.entity_name}". ${error.message || 'Please try again.'}`,
+        variant: 'destructive',
+      });
+    }
   };
 
   // Update isSearching state based on mutation status
@@ -518,7 +538,7 @@ const RollbackManagement = () => {
                     disabled={!selectedTenant || teamTenantSearchMutation.isPending || availableTeams.length === 0}
                     data-testid="select-team"
                   >
-                    {availableTeams.map((team) => (
+                    {availableTeams.map((team: any) => (
                       <MenuItem key={team.id} value={team.id}>
                         {team.name}
                       </MenuItem>
@@ -649,7 +669,7 @@ const RollbackManagement = () => {
                                   color="primary"
                                   size="small"
                                   startIcon={<RestoreIcon />}
-                                  onClick={() => handleRollback(entity)}
+                                  onClick={() => handleRollbackEntity(entity)}
                                   disabled={rollbackMutation.isPending}
                                   data-testid={`button-rollback-${entity.id}`}
                                 >

@@ -41,6 +41,7 @@ import {
   Clear as ClearIcon
 } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useAdminMutation } from '@/utils/cache-management';
 import { cacheKeys, invalidateAdminCaches } from '@/lib/cacheKeys';
 import { useToast } from '@/hooks/use-toast';
 import { useWebSocket } from '@/hooks/useWebSocket';
@@ -493,6 +494,7 @@ const TeamsManagement = () => {
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { createTeam: createTeamAdmin, updateTeam: updateTeamAdmin } = useAdminMutation();
   
   // Debounce search query for better performance
   const deferredSearchQuery = useDeferredValue(searchQuery);
@@ -636,52 +638,16 @@ const TeamsManagement = () => {
     setPage(0);
   }, [deferredSearchQuery]);
 
-  // Create team mutation with optimistic updates following FastAPI pattern
-  const createTeamMutation = useMutation({
-    mutationFn: async (teamData: any) => {
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      const sessionId = localStorage.getItem('fastapi_session_id');
-      if (sessionId) headers['X-Session-ID'] = sessionId;
-      const response = await fetch(buildUrl(endpoints.admin.teams.create), {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(teamData),
-        credentials: 'include',
-      });
-      if (!response.ok) throw new Error('Failed to create team');
-      return response.json();
-    },
-    onMutate: async (teamData: any) => {
-      await queryClient.cancelQueries({ queryKey: ['admin', 'teams'] });
-      const previous = queryClient.getQueryData<any[]>(['admin', 'teams']);
-      const optimisticId = Date.now();
-      const optimisticTeam = { ...teamData, id: optimisticId };
-      queryClient.setQueryData<any[]>(['admin', 'teams'], (old) => old ? [...old, optimisticTeam] : [optimisticTeam]);
-      return { previous, optimisticId };
-    },
-    onError: (_err, _vars, ctx) => {
-      if (ctx?.previous) queryClient.setQueryData(['admin', 'teams'], ctx.previous);
-      toast({ title: 'Creation Failed', description: 'Failed to create team. Please try again.', variant: 'destructive' });
-    },
-    onSuccess: (result, _vars, ctx) => {
-      if (result && ctx?.optimisticId) {
-        queryClient.setQueryData<any[]>(['admin', 'teams'], (old) => {
-          if (!old) return [result];
-          return old.map(t => t.id === ctx.optimisticId ? result : t);
-        });
-      }
+  // Modern cache-managed team creation
+  const handleCreateTeamModern = async (teamData: any) => {
+    try {
+      await createTeamAdmin(teamData);
       toast({ title: 'Team Created', description: 'New team has been successfully created.' });
-    },
-    onSettled: async () => {
-      await invalidateAdminCaches(queryClient);
-      await queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
-      // Invalidate all tenant-related caches to reflect team count changes
-      await queryClient.invalidateQueries({ queryKey: ['/api/v1/tenants'] });
-      await queryClient.invalidateQueries({ queryKey: ['/api/tenants'] });
-      await queryClient.invalidateQueries({ queryKey: ['admin', 'tenants'] });
-      await queryClient.invalidateQueries({ queryKey: ['/api/tenants', 'active'] });
-    },
-  });
+      setDialogOpen(false);
+    } catch (error: any) {
+      toast({ title: 'Creation Failed', description: 'Failed to create team. Please try again.', variant: 'destructive' });
+    }
+  };
 
   // Enhanced update team function with detailed error handling and fallback endpoints
   const updateTeam = async (teamId: number, updateData: any) => {
@@ -750,12 +716,58 @@ const TeamsManagement = () => {
     return result;
   };
 
+  // Modern cache-managed team update
+  const handleUpdateTeamModern = async (teamId: number, teamData: any) => {
+    try {
+      await updateTeamAdmin(teamId, teamData);
+      
+      // Success message with context
+      const successMessage = teamData.hasOwnProperty('team_members_ids') 
+        ? 'Team and member assignments have been successfully updated.'
+        : teamData.hasOwnProperty('isActive')
+        ? `Team has been ${teamData.isActive ? 'activated' : 'deactivated'}.`
+        : 'Team has been successfully updated.';
+      
+      toast({ 
+        title: 'Team Updated', 
+        description: successMessage 
+      });
+      
+      setDialogOpen(false);
+    } catch (error: any) {
+      console.error('🔥 Team update error:', error);
+      
+      // Create specific error message based on error details
+      let errorTitle = 'Update Failed';
+      let errorMessage = 'Failed to update team. Please try again.';
+      
+      if (error.status === 400) {
+        errorTitle = 'Invalid Team Data';
+        errorMessage = error.details?.message || error.message || 'The team data provided is invalid. Please check all fields and try again.';
+      } else if (error.status === 404) {
+        errorTitle = 'Team Not Found';
+        errorMessage = 'The team you are trying to update no longer exists.';
+      } else if (error.status === 403) {
+        errorTitle = 'Access Denied';
+        errorMessage = 'You do not have permission to update this team.';
+      } else if (error.status === 500) {
+        errorTitle = 'Server Error';
+        errorMessage = 'A server error occurred while updating the team. Please try again later.';
+      } else if (error.message && error.message !== 'Failed to update team') {
+        errorMessage = error.message;
+      }
+      
+      toast({ 
+        title: errorTitle, 
+        description: errorMessage, 
+        variant: 'destructive' 
+      });
+    }
+  };
+
   // Handle status toggle
-  const handleStatusToggle = (teamId: number, isActive: boolean) => {
-    updateTeamMutation.mutate({
-      teamId,
-      teamData: { isActive }
-    });
+  const handleStatusToggle = async (teamId: number, isActive: boolean) => {
+    await handleUpdateTeamModern(teamId, { isActive });
   };
 
   // remove legacy updateTeamFunction (use updateTeamMutation instead)
@@ -1006,10 +1018,10 @@ const TeamsManagement = () => {
     try {
       if (selectedTeam) {
         console.log('📝 Submitting team update:', { teamId: selectedTeam.id, teamData });
-        await updateTeamMutation.mutateAsync({ teamId: selectedTeam.id, teamData });
+        await handleUpdateTeamModern(selectedTeam.id, teamData);
       } else {
         console.log('📝 Submitting team creation:', { teamData });
-        await createTeamMutation.mutateAsync(teamData);
+        await handleCreateTeamModern(teamData);
       }
     } catch (error: any) {
       // Enhanced error logging with full error details

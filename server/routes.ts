@@ -2,11 +2,11 @@ import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
-import { redisCache, CACHE_KEYS } from "./redis-cache";
-import { insertEntitySchema, insertTeamSchema, updateTeamSchema, insertEntityHistorySchema, insertIssueSchema, insertUserSchema, insertNotificationTimelineSchema, adminUserSchema, Entity, InsertNotificationTimeline, insertIncidentSchema, insertAlertSchema, insertAdminBroadcastMessageSchema, Task } from "@shared/schema";
+import { redisCache } from "./redis-cache";
+import { insertEntitySchema, insertTeamSchema, updateTeamSchema, insertEntityHistorySchema, insertIssueSchema, insertUserSchema, insertNotificationTimelineSchema, adminUserSchema, Entity, InsertNotificationTimeline } from "@shared/schema";
 import { z } from "zod";
 import { logAuthenticationEvent, structuredLogger } from "./middleware/structured-logging";
-import { checkActiveUserForWrites, requireActiveUser } from "./middleware/check-active-user";
+import { requireActiveUser } from "./middleware/check-active-user";
 
 // Zod validation schema for rollback requests
 const rollbackRequestSchema = z.object({
@@ -27,93 +27,6 @@ const rollbackRequestSchema = z.object({
 
 type RollbackRequest = z.infer<typeof rollbackRequestSchema>;
 
-// FastAPI configuration for tasks
-const FASTAPI_BASE_URL = process.env.FASTAPI_BASE_URL || 'http://localhost:8080';
-const USE_FASTAPI = process.env.ENABLE_FASTAPI_INTEGRATION === 'true';
-
-// Service account credentials for authentication
-const SERVICE_CLIENT_ID = process.env.SERVICE_CLIENT_ID;
-const SERVICE_CLIENT_SECRET = process.env.SERVICE_CLIENT_SECRET;
-
-// Service session management for tasks
-interface ServiceSession {
-  sessionId: string;
-  loginTime: Date;
-  expiresAt: Date;
-  isValid: boolean;
-}
-
-let serviceSession: ServiceSession | null = null;
-
-// Service account authentication function
-async function authenticateServiceAccount(): Promise<string | null> {
-  try {
-    if (!SERVICE_CLIENT_ID || !SERVICE_CLIENT_SECRET) {
-      console.warn('[Tasks API] SERVICE_CLIENT_ID and SERVICE_CLIENT_SECRET environment variables are required for FastAPI authentication');
-      return null;
-    }
-
-    // Create basic auth header for service account
-    const credentials = Buffer.from(`${SERVICE_CLIENT_ID}:${SERVICE_CLIENT_SECRET}`).toString('base64');
-    
-    console.log('[Tasks API] Authenticating service account with FastAPI');
-    const response = await fetch(`${FASTAPI_BASE_URL}/api/v1/auth/login`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Basic ${credentials}`,
-        'Content-Type': 'application/json'
-      }
-    });
-    
-    if (!response.ok) {
-      console.error(`[Tasks API] Service account authentication failed: ${response.status} ${response.statusText}`);
-      return null;
-    }
-    
-    const sessionData = await response.json();
-    const sessionId = sessionData.session?.session_id;
-    
-    if (!sessionId) {
-      console.error('[Tasks API] No session ID received from FastAPI authentication');
-      return null;
-    }
-    
-    // Store service session with expiration
-    const loginTime = new Date();
-    const expiresAt = new Date(loginTime.getTime() + (23 * 60 * 60 * 1000)); // 23 hours (before 24h expiry)
-    
-    serviceSession = {
-      sessionId,
-      loginTime,
-      expiresAt,
-      isValid: true
-    };
-    
-    console.log(`[Tasks API] Service account authenticated successfully, session expires at: ${expiresAt.toISOString()}`);
-    return sessionId;
-    
-  } catch (error) {
-    console.error('[Tasks API] Service account authentication error:', error);
-    return null;
-  }
-}
-
-// Get valid service session ID (with automatic refresh)
-async function getServiceSessionId(): Promise<string | null> {
-  const now = new Date();
-  
-  // Check if we have a valid session that's not near expiry
-  if (serviceSession && serviceSession.isValid && serviceSession.expiresAt > now) {
-    return serviceSession.sessionId;
-  }
-  
-  // Session is missing, invalid, or near expiry - authenticate
-  console.log('[Tasks API] Service session missing or expired, re-authenticating...');
-  serviceSession = null; // Clear existing session
-  
-  return await authenticateServiceAccount();
-}
-
 // Tenant validation schemas (not defined in shared/schema.ts)
 const adminTenantSchema = z.object({
   name: z.string().min(1, "Tenant name is required"),
@@ -130,28 +43,6 @@ const updateTenantSchema = z.object({
 
 const updateUserSchema = adminUserSchema.partial().refine(data => Object.keys(data).length > 0, {
   message: "At least one field must be provided for update"
-});
-
-// Incident validation schemas
-const incidentRegistrationSchema = z.object({
-  notification_id: z.string().min(1, "Notification ID is required"),
-  dag_name: z.string().min(1, "DAG name is required"),
-  task_name: z.string().min(1, "Task name is required"),
-  error_summary: z.string().min(1, "Error summary is required"),
-  logs_url: z.string().url("Valid logs URL required").optional(),
-  rag_analysis: z.string().optional(),
-  user_email: z.string().email("Valid email required").optional(),
-  team_name: z.string().optional(),
-});
-
-const agentChatSchema = z.object({
-  message: z.string().min(1, "Message is required"),
-  incident_context: z.object({
-    notification_id: z.string(),
-    task_name: z.string(),
-    error_summary: z.string(),
-    logs_url: z.string().optional(),
-  }).optional(),
 });
 
 // Helper function to create audit log entries for rollback operations
@@ -302,7 +193,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       '/logout', 
       '/register',
       '/user',
-      '/user/profile', // Session-based profile management
       '/auth/azure/validate',
       '/dev/create-test-user'
     ];
@@ -312,10 +202,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       '/debug/teams',
       '/teams',
       '/entities',
-      '/tables',        // Express fallback for tables
-      '/tables/bulk',   // Express fallback for tables bulk
-      '/dags',          // Express fallback for dags
-      '/dags/bulk',     // Express fallback for dags bulk
       '/dashboard/summary',
       '/users',
       '/tenants',
@@ -375,11 +261,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const users = await storage.getUsers();
       res.json(users);
     } catch (error) {
-      console.error('Error fetching users:', error);
-      res.status(500).json(createErrorResponse(
-        "Unable to retrieve user list. Please try again or contact your administrator.",
-        "fetch_error"
-      ));
+      res.status(500).json({ message: "Failed to fetch users" });
     }
   });
 
@@ -392,22 +274,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         user_id: user.id,
         user_name: user.username,
         user_email: user.email,
-        user_slack: user.user_slack || [], // Use actual Slack data, not fake data from displayName
-        user_pagerduty: user.user_pagerduty || [], // Use actual PagerDuty data, not fake data from email
+        user_slack: user.displayName ? [user.displayName.toLowerCase().replaceAll(' ', '.')] : [],
+        user_pagerduty: user.email ? [user.email] : [],
         is_active: user.is_active !== undefined ? user.is_active : true // Use actual status or default to active
       }));
       res.json(transformedUsers);
     } catch (error) {
-      console.error('Error fetching users from fallback:', error);
-      res.status(500).json(createErrorResponse(
-        "Unable to retrieve user list from backup system. Please try again or contact your administrator.",
-        "fallback_error"
-      ));
+      res.status(500).json({ message: "Failed to fetch users from FastAPI fallback" });
     }
   });
 
   // FastAPI fallback route for creating new users
-  app.post("/api/v1/users", requireActiveUser, async (req, res) => {
+  app.post("/api/v1/users", requireActiveUser, async (req: Request, res: Response) => {
     try {
       // Validate request body with admin user schema
       const validationResult = adminUserSchema.safeParse(req.body);
@@ -442,15 +320,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json(transformedUser);
     } catch (error) {
       console.error('User creation error:', error);
-      res.status(500).json(createErrorResponse(
-        "Unable to create new user account. Please check the information and try again.",
-        "creation_error"
-      ));
+      res.status(500).json(createErrorResponse("Failed to create user", "creation_error"));
     }
   });
 
   // FastAPI fallback route for updating users
-  app.put("/api/v1/users/:userId", requireActiveUser, async (req, res) => {
+  app.put("/api/v1/users/:userId", requireActiveUser, async (req: Request, res: Response) => {
     try {
       const userId = parseInt(req.params.userId);
       if (isNaN(userId)) {
@@ -464,12 +339,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const updateData = validationResult.data;
-      
-      // Get current user data BEFORE update to compare is_active status
-      const currentUser = await storage.getUser(userId);
-      if (!currentUser) {
-        return res.status(404).json(createErrorResponse("User not found", "not_found"));
-      }
       
       // Transform admin panel fields to internal schema fields
       const internalUpdateData: any = {};
@@ -485,42 +354,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json(createErrorResponse("User not found", "not_found"));
       }
 
-      // Check if is_active status actually changed and send WebSocket notification
-      if (updateData.is_active !== undefined && currentUser.is_active !== updatedUser.is_active) {
-        const statusText = updatedUser.is_active ? 'active' : 'inactive';
-        const actionText = updatedUser.is_active ? 'activated' : 'deactivated';
-        
-        const notificationData = {
-          type: 'user_status_changed',
-          status: statusText,
-          message: `Your account has been ${actionText} by an administrator`,
-          user_email: updatedUser.email,
-          is_active: updatedUser.is_active
-        };
-        
-        // Send targeted WebSocket notification to the specific user
-        const notificationSent = redisCache.sendUserNotification(
-          updatedUser.id, 
-          'user_status_changed', 
-          notificationData
-        );
-        
-        console.log(`User status notification: User ${updatedUser.username} (ID: ${updatedUser.id}) ${actionText}, notification ${notificationSent ? 'sent' : 'queued'}`);
+      // Transform response to match admin panel format
+      const transformedUser = {
+        user_id: updatedUser.id,
+        user_name: updatedUser.username,
+        user_email: updatedUser.email,
+        user_slack: updatedUser.user_slack || [],
+        user_pagerduty: updatedUser.user_pagerduty || [],
+        is_active: updatedUser.is_active
+      };
+
+      res.json(transformedUser);
+    } catch (error) {
+      console.error('User update error:', error);
+      res.status(500).json(createErrorResponse("Failed to update user", "update_error"));
+    }
+  });
+
+  // PATCH endpoint for user updates (FastAPI)
+  app.patch("/api/v1/users/:userId", requireActiveUser, async (req: Request, res: Response) => {
+    try {
+      const userId = parseInt(req.params.userId);
+      if (isNaN(userId)) {
+        return res.status(400).json(createErrorResponse("Invalid user ID", "validation_error"));
       }
 
-      // CRITICAL FIX: Invalidate ALL team member caches when user status changes
-      if (updateData.is_active !== undefined) {
-        // Invalidate all team member caches since user can be in any team
-        const allTeams = await redisCache.getAllTeams();
-        for (const team of allTeams) {
-          await redisCache.invalidateTeamData(team.name, {
-            action: 'user_status_update',
-            memberId: String(updatedUser.id),
-            memberName: updatedUser.username,
-            tenantName: 'Data Engineering'
-          });
-        }
-        console.log(`Cache invalidation: User ${updatedUser.username} status changed to ${updatedUser.is_active}, invalidated ${allTeams.length} team caches`);
+      // Validate request body
+      const validationResult = updateUserSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json(createValidationErrorResponse(validationResult.error));
+      }
+
+      const updateData = validationResult.data;
+      
+      // Transform admin panel fields to internal schema fields
+      const internalUpdateData: any = {};
+      if (updateData.user_name) internalUpdateData.username = updateData.user_name;
+      if (updateData.user_email) internalUpdateData.email = updateData.user_email;
+      if (updateData.user_slack) internalUpdateData.user_slack = updateData.user_slack;
+      if (updateData.user_pagerduty) internalUpdateData.user_pagerduty = updateData.user_pagerduty;
+      if (updateData.is_active !== undefined) internalUpdateData.is_active = updateData.is_active;
+
+      // Update user
+      const updatedUser = await storage.updateUser(userId, internalUpdateData);
+      if (!updatedUser) {
+        return res.status(404).json(createErrorResponse("User not found", "not_found"));
       }
 
       // Transform response to match admin panel format
@@ -536,10 +414,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(transformedUser);
     } catch (error) {
       console.error('User update error:', error);
-      res.status(500).json(createErrorResponse(
-        "Unable to update user information. Please try again or contact your administrator.",
-        "update_error"
-      ));
+      res.status(500).json(createErrorResponse("Failed to update user", "update_error"));
+    }
+  });
+
+  // PATCH endpoint for user updates (Express fallback)
+  app.patch("/api/users/:userId", requireActiveUser, async (req: Request, res: Response) => {
+    try {
+      const userId = parseInt(req.params.userId);
+      if (isNaN(userId)) {
+        return res.status(400).json(createErrorResponse("Invalid user ID", "validation_error"));
+      }
+
+      // Validate request body
+      const validationResult = updateUserSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json(createValidationErrorResponse(validationResult.error));
+      }
+
+      const updateData = validationResult.data;
+      
+      // Transform admin panel fields to internal schema fields
+      const internalUpdateData: any = {};
+      if (updateData.user_name) internalUpdateData.username = updateData.user_name;
+      if (updateData.user_email) internalUpdateData.email = updateData.user_email;
+      if (updateData.user_slack) internalUpdateData.user_slack = updateData.user_slack;
+      if (updateData.user_pagerduty) internalUpdateData.user_pagerduty = updateData.user_pagerduty;
+      if (updateData.is_active !== undefined) internalUpdateData.is_active = updateData.is_active;
+
+      // Update user
+      const updatedUser = await storage.updateUser(userId, internalUpdateData);
+      if (!updatedUser) {
+        return res.status(404).json(createErrorResponse("User not found", "not_found"));
+      }
+
+      // Transform response to match admin panel format
+      const transformedUser = {
+        user_id: updatedUser.id,
+        user_name: updatedUser.username,
+        user_email: updatedUser.email,
+        user_slack: updatedUser.user_slack || [],
+        user_pagerduty: updatedUser.user_pagerduty || [],
+        is_active: updatedUser.is_active
+      };
+
+      res.json(transformedUser);
+    } catch (error) {
+      console.error('User update error:', error);
+      res.status(500).json(createErrorResponse("Failed to update user", "update_error"));
     }
   });
 
@@ -548,166 +470,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const roles = await storage.getUserRoles();
       res.json(roles);
     } catch (error) {
-      console.error('Error fetching user roles:', error);
-      res.status(500).json(createErrorResponse(
-        "Unable to retrieve user roles. Please try again or contact your administrator.",
-        "fetch_error"
-      ));
-    }
-  });
-
-  // Profile endpoints - Session-based current user management
-  // NOTE: Profile endpoints intentionally use Express-only (not FastAPI) for session-based authentication
-  app.get("/api/user/profile", isAuthenticated, async (req, res) => {
-    try {
-      if (!req.user) {
-        return res.status(401).json(createErrorResponse("No user session found", "unauthorized"));
-      }
-
-      // Get current user data from session
-      const currentUser = req.user as any;
-      
-      // IMPORTANT: Cross-reference with admin user database to get full SLA user details
-      // (Slack/PagerDuty info that may have been set up previously)
-      let profileData;
-      
-      try {
-        // Search by email only - if match found, use admin details
-        let existingUser;
-        
-        if (currentUser.email) {
-          const allUsers = await storage.getUsers();
-          existingUser = allUsers.find(user => user.email === currentUser.email);
-        }
-        
-        if (existingUser) {
-          // User exists in SLA database - use their full admin record (includes Slack/PagerDuty)
-          profileData = {
-            user_id: existingUser.id,
-            user_name: existingUser.username,
-            user_email: existingUser.email || currentUser.email, // Email from OAuth is authoritative
-            user_slack: existingUser.user_slack || null,
-            user_pagerduty: existingUser.user_pagerduty || null,
-            is_active: existingUser.is_active ?? true
-          };
-        } else {
-          // New user - fall back to session data (only name/email from OAuth)
-          profileData = {
-            user_id: currentUser.id,
-            user_name: currentUser.username,
-            user_email: currentUser.email || '',
-            user_slack: null, // New users don't have Slack/PagerDuty yet
-            user_pagerduty: null,
-            is_active: true
-          };
-        }
-      } catch (dbError) {
-        console.warn('Failed to fetch existing user data, falling back to session:', dbError);
-        // Fall back to session data if database lookup fails
-        profileData = {
-          user_id: currentUser.id,
-          user_name: currentUser.username,
-          user_email: currentUser.email || '',
-          user_slack: currentUser.user_slack || null,
-          user_pagerduty: currentUser.user_pagerduty || null,
-          is_active: currentUser.is_active ?? true
-        };
-      }
-
-      res.json(profileData);
-    } catch (error) {
-      console.error('Profile fetch error:', error);
-      res.status(500).json(createErrorResponse("Failed to fetch profile"));
-    }
-  });
-
-  app.put("/api/user/profile", requireActiveUser, async (req, res) => {
-    try {
-      if (!req.user) {
-        return res.status(401).json(createErrorResponse("No user session found", "unauthorized"));
-      }
-
-      const currentUser = req.user as any;
-      
-      // IMPORTANT: Cross-reference with admin database by email (same logic as fetch)
-      let targetUser;
-      if (currentUser.email) {
-        const allUsers = await storage.getUsers();
-        targetUser = allUsers.find(user => user.email === currentUser.email);
-      }
-      
-      if (!targetUser) {
-        return res.status(404).json(createErrorResponse("User not found in admin database", "not_found"));
-      }
-      
-      const userId = targetUser.id;
-
-      // Validate request body using admin user schema (but exclude is_active for profile updates)
-      const profileUpdateSchema = adminUserSchema.omit({ is_active: true });
-      const validationResult = profileUpdateSchema.safeParse(req.body);
-      
-      if (!validationResult.success) {
-        return res.status(400).json(createValidationErrorResponse(validationResult.error, "Invalid profile data"));
-      }
-
-      const updateData = validationResult.data;
-      
-      // Check if username is being changed and if it already exists (excluding current user)
-      if (updateData.user_name && updateData.user_name !== targetUser.username) {
-        const existingUser = await storage.getUserByUsername(updateData.user_name);
-        if (existingUser && existingUser.id !== userId) {
-          return res.status(409).json(createErrorResponse("Username already exists", "duplicate_username"));
-        }
-      }
-
-      // Transform admin panel fields to internal schema fields
-      const internalUpdateData: any = {};
-      if (updateData.user_name) internalUpdateData.username = updateData.user_name;
-      if (updateData.user_email) internalUpdateData.email = updateData.user_email;
-      if (updateData.user_slack) internalUpdateData.user_slack = updateData.user_slack;
-      if (updateData.user_pagerduty) internalUpdateData.user_pagerduty = updateData.user_pagerduty;
-
-      // Update user
-      const updatedUser = await storage.updateUser(userId, internalUpdateData);
-      if (!updatedUser) {
-        return res.status(404).json(createErrorResponse("User not found", "not_found"));
-      }
-
-      // Invalidate user-related caches with error handling
-      try {
-        await redisCache.invalidateUserData();
-      } catch (cacheError) {
-        console.warn('Failed to invalidate user data cache:', cacheError);
-        // Cache invalidation failure should not break profile update
-      }
-      
-      // IMPORTANT: Invalidate admin users cache so admin panel reflects profile changes
-      try {
-        await redisCache.invalidateCache({
-          keys: ['admin_users'],
-          patterns: ['admin_*', 'users_*'],
-          mainCacheKeys: ['ENTITIES'],
-          refreshAffectedData: true
-        });
-      } catch (cacheError) {
-        console.warn('Failed to invalidate admin users cache:', cacheError);
-        // Cache invalidation failure should not break profile update
-      }
-
-      // Transform response to match admin panel format
-      const profileData = {
-        user_id: updatedUser.id,
-        user_name: updatedUser.username,
-        user_email: updatedUser.email || '',
-        user_slack: updatedUser.user_slack || null,
-        user_pagerduty: updatedUser.user_pagerduty || null,
-        is_active: updatedUser.is_active ?? true
-      };
-
-      res.json(profileData);
-    } catch (error) {
-      console.error('Profile update error:', error);
-      res.status(500).json(createErrorResponse("Failed to update profile"));
+      res.status(500).json({ message: "Failed to fetch user roles" });
     }
   });
 
@@ -806,7 +569,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // FastAPI fallback route for creating new tenants
-  app.post("/api/v1/tenants", requireActiveUser, async (req, res) => {
+  app.post("/api/v1/tenants", requireActiveUser, async (req: Request, res: Response) => {
     try {
       // Validate request body
       const validationResult = adminTenantSchema.safeParse(req.body);
@@ -830,7 +593,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // FastAPI fallback route for updating tenants
-  app.put("/api/v1/tenants/:tenantId", requireActiveUser, async (req, res) => {
+  app.put("/api/v1/tenants/:tenantId", requireActiveUser, async (req: Request, res: Response) => {
     try {
       const tenantId = parseInt(req.params.tenantId);
       if (isNaN(tenantId)) {
@@ -868,6 +631,110 @@ export async function registerRoutes(app: Express): Promise<Server> {
           'team_metrics:*',
           'team_trends:*',
           'dashboard_summary:*'
+        ],
+        // Rebuild TEAMS and METRICS so summaries for the new tenant name are immediately available
+        mainCacheKeys: ['TEAMS', 'METRICS'],
+        refreshAffectedData: true
+      });
+
+      res.json(updatedTenant);
+    } catch (error) {
+      console.error('Tenant update error:', error);
+      res.status(500).json(createErrorResponse("Failed to update tenant", "update_error"));
+    }
+  });
+
+  // PATCH endpoint for tenant updates (FastAPI)
+  app.patch("/api/v1/tenants/:tenantId", requireActiveUser, async (req: Request, res: Response) => {
+    try {
+      const tenantId = parseInt(req.params.tenantId);
+      if (isNaN(tenantId)) {
+        return res.status(400).json(createErrorResponse("Invalid tenant ID", "validation_error"));
+      }
+
+      // Validate request body
+      const validationResult = updateTenantSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json(createValidationErrorResponse(validationResult.error));
+      }
+
+      const updateData = validationResult.data;
+
+      // Update tenant (may cascade to teams if tenant becomes inactive)
+      const updatedTenant = await storage.updateTenant(tenantId, updateData);
+      if (!updatedTenant) {
+        return res.status(404).json(createErrorResponse("Tenant not found", "not_found"));
+      }
+
+      // If tenant name changed, propagate to entities so fallback metrics filter by new name
+      const beforeTenants = await redisCache.getAllTenants();
+      const beforeTenant = beforeTenants.find((t: any) => t.id === tenantId);
+      if (updateData.name && beforeTenant && updateData.name !== beforeTenant.name) {
+        await storage.updateEntitiesTenantName(tenantId, updateData.name);
+      }
+
+      // Invalidate both tenant and team caches since tenant status/name changes can affect teams
+      await redisCache.invalidateTenants();
+      await redisCache.invalidateCache({
+        keys: ['all_tenants', 'tenants_summary'],
+        patterns: [
+          'tenant_details:*',
+          'tenant_teams:*',
+          'tenant_metrics:*',
+          'dashboard_summary:*',
+          'entities:*'
+        ],
+        // Rebuild TEAMS and METRICS so summaries for the new tenant name are immediately available
+        mainCacheKeys: ['TEAMS', 'METRICS'],
+        refreshAffectedData: true
+      });
+
+      res.json(updatedTenant);
+    } catch (error) {
+      console.error('Tenant update error:', error);
+      res.status(500).json(createErrorResponse("Failed to update tenant", "update_error"));
+    }
+  });
+
+  // PATCH endpoint for tenant updates (Express fallback)
+  app.patch("/api/tenants/:tenantId", requireActiveUser, async (req: Request, res: Response) => {
+    try {
+      const tenantId = parseInt(req.params.tenantId);
+      if (isNaN(tenantId)) {
+        return res.status(400).json(createErrorResponse("Invalid tenant ID", "validation_error"));
+      }
+
+      // Validate request body
+      const validationResult = updateTenantSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json(createValidationErrorResponse(validationResult.error));
+      }
+
+      const updateData = validationResult.data;
+
+      // Update tenant (may cascade to teams if tenant becomes inactive)
+      const updatedTenant = await storage.updateTenant(tenantId, updateData);
+      if (!updatedTenant) {
+        return res.status(404).json(createErrorResponse("Tenant not found", "not_found"));
+      }
+
+      // If tenant name changed, propagate to entities so fallback metrics filter by new name
+      const beforeTenants = await redisCache.getAllTenants();
+      const beforeTenant = beforeTenants.find((t: any) => t.id === tenantId);
+      if (updateData.name && beforeTenant && updateData.name !== beforeTenant.name) {
+        await storage.updateEntitiesTenantName(tenantId, updateData.name);
+      }
+
+      // Invalidate both tenant and team caches since tenant status/name changes can affect teams
+      await redisCache.invalidateTenants();
+      await redisCache.invalidateCache({
+        keys: ['all_tenants', 'tenants_summary'],
+        patterns: [
+          'tenant_details:*',
+          'tenant_teams:*',
+          'tenant_metrics:*',
+          'dashboard_summary:*',
+          'entities:*'
         ],
         // Rebuild TEAMS and METRICS so summaries for the new tenant name are immediately available
         mainCacheKeys: ['TEAMS', 'METRICS'],
@@ -920,7 +787,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // FastAPI fallback route for creating new teams
-  app.post("/api/v1/teams", requireActiveUser, async (req, res) => {
+  app.post("/api/v1/teams", requireActiveUser, async (req: Request, res: Response) => {
     try {
       // Validate request body
       const validationResult = insertTeamSchema.safeParse(req.body);
@@ -958,7 +825,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // FastAPI fallback route for updating teams
-  app.put("/api/v1/teams/:teamId", requireActiveUser, async (req, res) => {
+  app.put("/api/v1/teams/:teamId", requireActiveUser, async (req: Request, res: Response) => {
     try {
       const teamId = parseInt(req.params.teamId);
       if (isNaN(teamId)) {
@@ -980,10 +847,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json(createErrorResponse("Team not found", "not_found"));
       }
 
-      // If team name changed, propagate to entities and users so fallback metrics (and Redis keys) match new name
+      // If team name changed, propagate to entities so fallback metrics (and Redis keys) match new name
       if (updateData.name && beforeTeam && updateData.name !== beforeTeam.name) {
         await storage.updateEntitiesTeamName(teamId, updateData.name);
-        await storage.updateUsersTeamName(beforeTeam.name, updateData.name);
         // Invalidate team members/details caches for both old and new names
         await redisCache.invalidateTeamData(beforeTeam.name);
         await redisCache.invalidateTeamData(updateData.name);
@@ -1018,7 +884,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Express fallback route for updating teams (for frontend fallback mechanism)
-  app.put("/api/teams/:teamId", requireActiveUser, async (req, res) => {
+  app.put("/api/teams/:teamId", requireActiveUser, async (req: Request, res: Response) => {
     try {
       const teamId = parseInt(req.params.teamId);
       if (isNaN(teamId)) {
@@ -1040,10 +906,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json(createErrorResponse("Team not found", "not_found"));
       }
 
-      // If team name changed, propagate to entities and users so fallback metrics (and Redis keys) match new name
+      // If team name changed, propagate to entities so fallback metrics (and Redis keys) match new name
       if (updateData.name && beforeTeam2 && updateData.name !== beforeTeam2.name) {
         await storage.updateEntitiesTeamName(teamId, updateData.name);
-        await storage.updateUsersTeamName(beforeTeam2.name, updateData.name);
         await redisCache.invalidateTeamData(beforeTeam2.name);
         await redisCache.invalidateTeamData(updateData.name);
         await redisCache.invalidateTeamMetricsCache(beforeTeam2.tenant_id ? String(beforeTeam2.tenant_id) : 'UnknownTenant', beforeTeam2.name);
@@ -1116,11 +981,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         entities = await storage.getEntities();
         
         if (tenant) {
-          // Filter for Summary Dashboard: only active entity owners for the tenant
+          // Filter for Summary Dashboard: only active entity owners for the tenant AND belonging to active teams
+          const teams = await redisCache.getAllTeams();
+          const activeTeamIds = new Set<number>(teams.filter((t: any) => (t as any).isActive !== false).map((t: any) => t.id));
           entities = entities.filter(entity => 
             entity.tenant_name === tenant && 
             entity.is_entity_owner === true && 
-            entity.is_active !== false
+            entity.is_active !== false &&
+            activeTeamIds.has((entity as any).teamId as number)
           );
           console.log(`GET /api/v1/entities - Parameters: tenant=${tenant} - status: 200`);
         } else {
@@ -1136,7 +1004,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // FastAPI fallback route for updating entities
-  app.put("/api/v1/entities/:entityId", requireActiveUser, async (req, res) => {
+  app.put("/api/v1/entities/:entityId", requireActiveUser, async (req: Request, res: Response) => {
     try {
       const entityId = parseInt(req.params.entityId);
       if (isNaN(entityId)) {
@@ -1210,222 +1078,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(updatedEntity);
     } catch (error) {
       console.error('Entity update error:', error);
-      res.status(500).json(createErrorResponse(
-        "Unable to update entity information. Please try again or contact your administrator.",
-        "update_error"
-      ));
-    }
-  });
-
-  // ========================================
-  // INCIDENT MANAGEMENT ROUTES - AI AGENT INTEGRATION
-  // ========================================
-
-  // Incident registration endpoint - External webhook for job failures
-  app.post("/api/v1/incidents/register", async (req, res) => {
-    try {
-      structuredLogger.info('INCIDENT_REGISTRATION_REQUEST', req.sessionContext, req.requestId, {
-        logger: 'app.incident.register',
-        body_preview: { notification_id: req.body?.notification_id, dag_name: req.body?.dag_name }
-      });
-
-      // Validate request body
-      const result = incidentRegistrationSchema.safeParse(req.body);
-      if (!result.success) {
-        return res.status(400).json(createValidationErrorResponse(result.error));
-      }
-
-      const { notification_id, dag_name, task_name, error_summary, logs_url, rag_analysis, user_email, team_name } = result.data;
-
-      // Find the corresponding DAG entity
-      const dagEntity = await storage.getEntityByName(dag_name, team_name);
-      if (!dagEntity || dagEntity.type !== 'dag') {
-        structuredLogger.warn('INCIDENT_DAG_NOT_FOUND', req.sessionContext, req.requestId, {
-          logger: 'app.incident.register',
-          dag_name,
-          team_name
-        });
-        return res.status(404).json(createErrorResponse("DAG entity not found", "not_found"));
-      }
-
-      // Create incident record
-      const incident = await storage.createIncident({
-        id: notification_id,
-        dagId: dagEntity.id,
-        dagName: dag_name,
-        taskName: `${dag_name} + ${task_name}`, // Format as specified
-        dateKey: new Date().toISOString().split('T')[0], // YYYY-MM-DD format
-        summary: error_summary,
-        logsUrl: logs_url || null,
-        ragAnalysis: rag_analysis || null,
-        userEmail: user_email || null,
-        teamName: team_name || dagEntity.team_name || null,
-      });
-
-      // Generate agent chat URL for external systems
-      const agent_chat_url = `${req.protocol}://${req.get('host')}/incident/${notification_id}`;
-
-      structuredLogger.info('INCIDENT_REGISTERED_SUCCESS', req.sessionContext, req.requestId, {
-        logger: 'app.incident.register',
-        notification_id,
-        dag_id: dagEntity.id,
-        agent_chat_url
-      });
-
-      res.json({
-        message: "Incident registered successfully",
-        notification_id,
-        agent_chat_url,
-        dag_id: dagEntity.id,
-        timestamp: new Date().toISOString()
-      });
-    } catch (error) {
-      structuredLogger.error('INCIDENT_REGISTRATION_ERROR', req.sessionContext, req.requestId, {
-        logger: 'app.incident.register',
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
-      res.status(500).json(createErrorResponse("Failed to register incident", "server_error"));
-    }
-  });
-
-  // Get incident by notification ID
-  app.get("/api/v1/incidents/:notificationId", async (req, res) => {
-    try {
-      const { notificationId } = req.params;
-
-      const incident = await storage.getIncident(notificationId);
-      if (!incident) {
-        return res.status(404).json(createErrorResponse("Incident not found", "not_found"));
-      }
-
-      // Get DAG entity details for context
-      const dagEntity = await storage.getEntity(incident.dagId);
-      if (!dagEntity) {
-        return res.status(404).json(createErrorResponse("Associated DAG entity not found", "not_found"));
-      }
-
-      structuredLogger.info('INCIDENT_RETRIEVED', req.sessionContext, req.requestId, {
-        logger: 'app.incident.retrieve',
-        notification_id: notificationId,
-        dag_id: incident.dagId
-      });
-
-      res.json({
-        incident,
-        dagEntity,
-        timestamp: new Date().toISOString()
-      });
-    } catch (error) {
-      structuredLogger.error('INCIDENT_RETRIEVAL_ERROR', req.sessionContext, req.requestId, {
-        logger: 'app.incident.retrieve',
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
-      res.status(500).json(createErrorResponse("Failed to retrieve incident", "server_error"));
-    }
-  });
-
-  // Resolve incident to DAG ID (for redirect flow)
-  app.get("/api/v1/incidents/:notificationId/resolve", async (req, res) => {
-    try {
-      const { notificationId } = req.params;
-
-      const incident = await storage.getIncident(notificationId);
-      if (!incident) {
-        return res.status(404).json(createErrorResponse("Incident not found", "not_found"));
-      }
-
-      const dagEntity = await storage.getEntity(incident.dagId);
-      if (!dagEntity) {
-        return res.status(404).json(createErrorResponse("Associated DAG entity not found", "not_found"));
-      }
-
-      structuredLogger.info('INCIDENT_RESOLVED_TO_DAG', req.sessionContext, req.requestId, {
-        logger: 'app.incident.resolve',
-        notification_id: notificationId,
-        dag_id: incident.dagId,
-        dag_name: dagEntity.dag_name
-      });
-
-      res.json({
-        dagId: incident.dagId,
-        dagEntity,
-        incidentContext: {
-          notification_id: notificationId,
-          task_name: incident.taskName,
-          error_summary: incident.summary,
-          logs_url: incident.logsUrl,
-          date_key: incident.dateKey,
-        },
-        timestamp: new Date().toISOString()
-      });
-    } catch (error) {
-      structuredLogger.error('INCIDENT_RESOLUTION_ERROR', req.sessionContext, req.requestId, {
-        logger: 'app.incident.resolve',
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
-      res.status(500).json(createErrorResponse("Failed to resolve incident", "server_error"));
-    }
-  });
-
-  // Enhanced agent chat endpoint with incident context and OAuth claims
-  app.post("/api/v1/agent/dags/:dagId/chat", async (req, res) => {
-    try {
-      const dagId = parseInt(req.params.dagId);
-      if (isNaN(dagId)) {
-        return res.status(400).json(createErrorResponse("Invalid DAG ID", "validation_error"));
-      }
-
-      // Validate request body
-      const result = agentChatSchema.safeParse(req.body);
-      if (!result.success) {
-        return res.status(400).json(createValidationErrorResponse(result.error));
-      }
-
-      const { message, incident_context } = result.data;
-
-      // Get DAG entity
-      const dagEntity = await storage.getEntity(dagId);
-      if (!dagEntity || dagEntity.type !== 'dag') {
-        return res.status(404).json(createErrorResponse("DAG entity not found", "not_found"));
-      }
-
-      // Prepare OAuth claims context for FastAPI call
-      const oauthClaims = {
-        user_id: req.user?.id || null,
-        email: req.user?.email || req.user?.username || null,
-        session_id: req.sessionID || 'unknown',
-        roles: (req.user as any)?.role || 'user',
-        session_type: 'local',
-      };
-
-      structuredLogger.info('AGENT_CHAT_REQUEST', req.sessionContext, req.requestId, {
-        logger: 'app.agent.chat',
-        dag_id: dagId,
-        dag_name: dagEntity.dag_name,
-        has_incident_context: !!incident_context,
-        oauth_claims: oauthClaims
-      });
-
-      // TODO: Make actual FastAPI call here with OAuth claims
-      // For now, return mock response following the expected structure
-      const mockResponse = {
-        conversation_id: `conv_${Date.now()}`,
-        agent_response: incident_context
-          ? `I see there's an issue with the ${incident_context.task_name} task. Let me analyze the error: "${incident_context.error_summary}". Based on the context, this appears to be a ${dagEntity.dag_name} DAG failure. What specific aspect would you like me to investigate?`
-          : `Hello! I'm here to help you with the ${dagEntity.dag_name} DAG. What would you like to know about?`,
-        status: 'complete',
-        incident_context,
-        oauth_claims: oauthClaims,
-        timestamp: new Date().toISOString()
-      };
-
-      res.json(mockResponse);
-    } catch (error) {
-      structuredLogger.error('AGENT_CHAT_ERROR', req.sessionContext, req.requestId, {
-        logger: 'app.agent.chat',
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
-      res.status(500).json(createErrorResponse("Failed to process agent chat", "server_error"));
+      res.status(500).json(createErrorResponse("Failed to update entity", "update_error"));
     }
   });
 
@@ -1674,7 +1327,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.post("/api/teams", requireActiveUser, async (req, res) => {
+  app.post("/api/teams", requireActiveUser, async (req: Request, res: Response) => {
     try {
       const result = insertTeamSchema.safeParse(req.body);
       
@@ -1724,6 +1377,122 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // PATCH endpoint for team updates (FastAPI)
+  app.patch("/api/v1/teams/:teamId", requireActiveUser, async (req: Request, res: Response) => {
+    try {
+      const teamId = parseInt(req.params.teamId);
+      if (isNaN(teamId)) {
+        return res.status(400).json(createErrorResponse("Invalid team ID", "validation_error"));
+      }
+
+      // Validate request body
+      const validationResult = updateTeamSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json(createValidationErrorResponse(validationResult.error));
+      }
+
+      const updateData = validationResult.data;
+
+      // Update team
+      const beforeTeam = await storage.getTeam(teamId);
+      const updatedTeam = await storage.updateTeam(teamId, updateData);
+      if (!updatedTeam) {
+        return res.status(404).json(createErrorResponse("Team not found", "not_found"));
+      }
+
+      // If team name changed, propagate to entities and users so fallback metrics (and Redis keys) match new name
+      if (updateData.name && beforeTeam && updateData.name !== beforeTeam.name) {
+        await storage.updateEntitiesTeamName(teamId, updateData.name);
+        await storage.updateUsersTeamName(beforeTeam.name, updateData.name);
+        await redisCache.invalidateTeamData(beforeTeam.name);
+        await redisCache.invalidateTeamData(updateData.name);
+        await redisCache.invalidateTeamMetricsCache(beforeTeam.tenant_id ? String(beforeTeam.tenant_id) : 'UnknownTenant', beforeTeam.name);
+        await redisCache.invalidateTeamMetricsCache(beforeTeam.tenant_id ? String(beforeTeam.tenant_id) : 'UnknownTenant', updateData.name);
+      }
+
+      // Invalidate all team-related caches
+      await redisCache.invalidateCache({
+        keys: ['all_teams', 'teams_summary', 'all_tenants'],
+        patterns: [
+          'team_details:*',
+          'team_entities:*',
+          'team_metrics:*',
+          'team_trends:*',
+          'dashboard_summary:*',
+          'entities:*'
+        ],
+        mainCacheKeys: ['TEAMS', 'TENANTS'],
+        refreshAffectedData: true
+      });
+
+      // Explicitly invalidate tenants cache to ensure team count updates
+      await redisCache.invalidateTenants();
+
+      res.json(updatedTeam);
+    } catch (error) {
+      console.error('Team update error:', error);
+      res.status(500).json(createErrorResponse("Failed to update team", "update_error"));
+    }
+  });
+
+  // PATCH endpoint for team updates (Express fallback)
+  app.patch("/api/teams/:teamId", requireActiveUser, async (req: Request, res: Response) => {
+    try {
+      const teamId = parseInt(req.params.teamId);
+      if (isNaN(teamId)) {
+        return res.status(400).json(createErrorResponse("Invalid team ID", "validation_error"));
+      }
+
+      // Validate request body
+      const validationResult = updateTeamSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json(createValidationErrorResponse(validationResult.error));
+      }
+
+      const updateData = validationResult.data;
+
+      // Update team
+      const beforeTeam2 = await storage.getTeam(teamId);
+      const updatedTeam = await storage.updateTeam(teamId, updateData);
+      if (!updatedTeam) {
+        return res.status(404).json(createErrorResponse("Team not found", "not_found"));
+      }
+
+      // If team name changed, propagate to entities and users so fallback metrics (and Redis keys) match new name
+      if (updateData.name && beforeTeam2 && updateData.name !== beforeTeam2.name) {
+        await storage.updateEntitiesTeamName(teamId, updateData.name);
+        await storage.updateUsersTeamName(beforeTeam2.name, updateData.name);
+        await redisCache.invalidateTeamData(beforeTeam2.name);
+        await redisCache.invalidateTeamData(updateData.name);
+        await redisCache.invalidateTeamMetricsCache(beforeTeam2.tenant_id ? String(beforeTeam2.tenant_id) : 'UnknownTenant', beforeTeam2.name);
+        await redisCache.invalidateTeamMetricsCache(beforeTeam2.tenant_id ? String(beforeTeam2.tenant_id) : 'UnknownTenant', updateData.name);
+      }
+
+      // Invalidate all team-related caches
+      await redisCache.invalidateCache({
+        keys: ['all_teams', 'teams_summary', 'all_tenants'],
+        patterns: [
+          'team_details:*',
+          'team_entities:*',
+          'team_metrics:*',
+          'team_trends:*',
+          'dashboard_summary:*',
+          'entities:*'
+        ],
+        mainCacheKeys: ['TEAMS', 'TENANTS'],
+        refreshAffectedData: true
+      });
+
+      // Explicitly invalidate tenants cache to ensure team count updates
+      await redisCache.invalidateTenants();
+
+      res.json(updatedTeam);
+    } catch (error) {
+      console.error('Team update error:', error);
+      res.status(500).json(createErrorResponse("Failed to update team", "update_error"));
+    }
+  });
+
   // Get team details by team name with member information
   app.get("/api/get_team_details/:teamName", async (req, res) => {
     try {
@@ -1763,6 +1532,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { teamName } = req.params;
       
+      // Prevent HTTP 304s so members refresh immediately after renames/updates
+      res.removeHeader('ETag');
+      res.removeHeader('Last-Modified');
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+
       // Use cache key for team members
       const cacheKey = `team_members_${teamName}`;
       let members = await redisCache.get(cacheKey);
@@ -1774,14 +1548,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await redisCache.set(cacheKey, members, 6 * 60 * 60);
       }
 
-      // Add cache-busting headers to prevent 304 responses after team renames
-      const version = Date.now();
-      res.set({
-        'ETag': `W/"team_members_${teamName}:${version}"`,
-        'Last-Modified': new Date().toUTCString(),
-        'Cache-Control': 'no-cache'
-      });
-
       res.json(members);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch team members" });
@@ -1792,6 +1558,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/v1/get_team_members/:teamName", async (req, res) => {
     try {
       const { teamName } = req.params;
+      // Prevent HTTP 304s so members refresh immediately after renames/updates
+      res.removeHeader('ETag');
+      res.removeHeader('Last-Modified');
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       const cacheKey = `team_members_${teamName}`;
       let members = await redisCache.get(cacheKey);
 
@@ -1800,51 +1570,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await redisCache.set(cacheKey, members, 6 * 60 * 60);
       }
 
-      // Add cache-busting headers to prevent 304 responses after team renames
-      const version = Date.now();
-      res.set({
-        'ETag': `W/"team_members_${teamName}:${version}"`,
-        'Last-Modified': new Date().toUTCString(),
-        'Cache-Control': 'no-cache'
-      });
-
       res.json(members);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch team members" });
-    }
-  });
-
-  // FastAPI-style alias: Get team details with members (development fallback)
-  app.get("/api/v1/get_team_details/:teamName", async (req, res) => {
-    try {
-      const { teamName } = req.params;
-      
-      // Use cache key for team details
-      const cacheKey = `team_details_${teamName}`;
-      let teamDetails = await redisCache.get(cacheKey);
-      
-      if (!teamDetails) {
-        const team = await storage.getTeamByName(teamName);
-        
-        if (!team) {
-          return res.status(404).json({ message: "Team not found" });
-        }
-
-        // Get actual team members from storage
-        const members = await storage.getTeamMembers(teamName);
-
-        teamDetails = {
-          ...team,
-          members: members
-        };
-
-        // Cache for 6 hours like other data
-        await redisCache.set(cacheKey, teamDetails, 6 * 60 * 60);
-      }
-
-      res.json(teamDetails);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to fetch team details" });
     }
   });
 
@@ -1883,7 +1611,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Team member management endpoints
-  app.post("/api/teams/:teamName/members", requireActiveUser, async (req, res) => {
+  app.post("/api/teams/:teamName/members", requireActiveUser, async (req: Request, res: Response) => {
     try {
       const { teamName } = req.params;
       
@@ -2117,7 +1845,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.post("/api/entities", requireActiveUser, async (req, res) => {
+  app.post("/api/entities", requireActiveUser, async (req: Request, res: Response) => {
     try {
       const result = insertEntitySchema.safeParse(req.body);
       
@@ -2188,309 +1916,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.status(201).json(entity);
     } catch (error) {
-      console.error('Error creating entity:', error);
-      res.status(500).json(createErrorResponse(
-        "Unable to create new entity. Please check the information and try again.",
-        "creation_error"
-      ));
-    }
-  });
-
-  // Express fallback endpoints for type-specific entity creation (dev only)
-  // These endpoints map to the unified /api/entities logic but enforce entity type
-  
-  app.post("/api/tables", requireActiveUser, async (req, res) => {
-    try {
-      // Ensure type is set to 'table'
-      const entityData = { ...req.body, type: 'table' };
-      
-      const result = insertEntitySchema.safeParse(entityData);
-      if (!result.success) {
-        console.error('Entity validation failed:', result.error.format());
-        console.error('Entity data received:', JSON.stringify(entityData, null, 2));
-        return res.status(400).json({ message: "Invalid table data", errors: result.error.format() });
-      }
-      
-      // Use the same logic as /api/entities
-      const payload = { ...result.data } as any;
-      
-      try {
-        if (!payload.teamId && payload.team_name) {
-          const teamByName = await storage.getTeamByName(payload.team_name);
-          if (teamByName) {
-            payload.teamId = teamByName.id;
-            payload.team_name = teamByName.name;
-            const tenants = await storage.getTenants();
-            const tenant = tenants.find(t => t.id === teamByName.tenant_id);
-            if (tenant) payload.tenant_name = payload.tenant_name || tenant.name;
-          }
-        }
-        
-        if (payload.teamId) {
-          const team = await storage.getTeam(payload.teamId);
-          if (team) {
-            payload.team_name = payload.team_name || team.name;
-            const tenants = await storage.getTenants();
-            const tenant = tenants.find(t => t.id === team.tenant_id);
-            if (tenant) payload.tenant_name = payload.tenant_name || tenant.name;
-          }
-        }
-      } catch (_err) {}
-      
-      const entity = await redisCache.createEntity(payload);
-      
-      await redisCache.invalidateCache({
-        keys: ['all_entities', 'entities_summary'],
-        patterns: ['entity_details:*', 'team_entities:*', 'entities_team_*', 'dashboard_summary:*'],
-        mainCacheKeys: ['ENTITIES', 'METRICS'],
-        refreshAffectedData: true
-      });
-      
-      res.removeHeader('ETag');
-      res.removeHeader('Last-Modified');
-      
-      // Force immediate cache refresh for this team's entities
-      if (entity.teamId) {
-        await redisCache.invalidateCache({
-          patterns: [`entities_team_${entity.teamId}:*`],
-          refreshAffectedData: true
-        });
-      }
-      
-      // Force WebSocket notification to all clients for real-time frontend updates
-      redisCache.forceNotifyClients('entity-updated', {
-        entityId: entity.id,
-        entityName: entity.name,
-        entityType: entity.type,
-        teamName: entity.team_name || 'Unknown',
-        tenantName: entity.tenant_name || 'Unknown',
-        type: 'created',
-        entity: entity,
-        timestamp: new Date()
-      });
-      
-      // CRITICAL: Also invalidate team metrics cache to update entity counts immediately
-      await redisCache.invalidateTeamMetricsCache(
-        entity.tenant_name || 'Data Engineering',
-        entity.team_name || 'Unknown'
-      );
-      
-      res.status(201).json(entity);
-    } catch (error) {
-      console.error('Error creating table:', error);
-      res.status(500).json(createErrorResponse("Unable to create table", "creation_error"));
-    }
-  });
-
-  app.post("/api/dags", requireActiveUser, async (req, res) => {
-    try {
-      // Ensure type is set to 'dag'
-      const entityData = { ...req.body, type: 'dag' };
-      
-      const result = insertEntitySchema.safeParse(entityData);
-      if (!result.success) {
-        return res.status(400).json({ message: "Invalid DAG data", errors: result.error.format() });
-      }
-      
-      // Use the same logic as /api/entities  
-      const payload = { ...result.data } as any;
-      
-      try {
-        if (!payload.teamId && payload.team_name) {
-          const teamByName = await storage.getTeamByName(payload.team_name);
-          if (teamByName) {
-            payload.teamId = teamByName.id;
-            payload.team_name = teamByName.name;
-            const tenants = await storage.getTenants();
-            const tenant = tenants.find(t => t.id === teamByName.tenant_id);
-            if (tenant) payload.tenant_name = payload.tenant_name || tenant.name;
-          }
-        }
-        
-        if (payload.teamId) {
-          const team = await storage.getTeam(payload.teamId);
-          if (team) {
-            payload.team_name = payload.team_name || team.name;
-            const tenants = await storage.getTenants();
-            const tenant = tenants.find(t => t.id === team.tenant_id);
-            if (tenant) payload.tenant_name = payload.tenant_name || tenant.name;
-          }
-        }
-      } catch (_err) {}
-      
-      const entity = await redisCache.createEntity(payload);
-      
-      await redisCache.invalidateCache({
-        keys: ['all_entities', 'entities_summary'],
-        patterns: ['entity_details:*', 'team_entities:*', 'entities_team_*', 'dashboard_summary:*'],
-        mainCacheKeys: ['ENTITIES', 'METRICS'],
-        refreshAffectedData: true
-      });
-      
-      res.removeHeader('ETag');
-      res.removeHeader('Last-Modified');
-      
-      // Force immediate cache refresh for this team's entities
-      if (entity.teamId) {
-        await redisCache.invalidateCache({
-          patterns: [`entities_team_${entity.teamId}:*`],
-          refreshAffectedData: true
-        });
-      }
-      
-      // Force WebSocket notification to all clients for real-time frontend updates
-      redisCache.forceNotifyClients('entity-updated', {
-        entityId: entity.id,
-        entityName: entity.name,
-        entityType: entity.type,
-        teamName: entity.team_name || 'Unknown',
-        tenantName: entity.tenant_name || 'Unknown',
-        type: 'created',
-        entity: entity,
-        timestamp: new Date()
-      });
-      
-      // CRITICAL: Also invalidate team metrics cache to update entity counts immediately
-      await redisCache.invalidateTeamMetricsCache(
-        entity.tenant_name || 'Data Engineering',
-        entity.team_name || 'Unknown'
-      );
-      
-      res.status(201).json(entity);
-    } catch (error) {
-      console.error('Error creating DAG:', error);
-      res.status(500).json(createErrorResponse("Unable to create DAG", "creation_error"));
-    }
-  });
-
-  app.post("/api/tables/bulk", requireActiveUser, async (req, res) => {
-    try {
-      const entities = req.body;
-      if (!Array.isArray(entities)) {
-        return res.status(400).json({ message: "Expected array of table entities" });
-      }
-      
-      const createdEntities = [];
-      for (const entityData of entities) {
-        const entityWithType = { ...entityData, type: 'table' };
-        const result = insertEntitySchema.safeParse(entityWithType);
-        if (result.success) {
-          const entity = await redisCache.createEntity(result.data);
-          createdEntities.push(entity);
-        }
-      }
-      
-      await redisCache.invalidateCache({
-        keys: ['all_entities', 'entities_summary'],
-        patterns: ['entity_details:*', 'team_entities:*', 'entities_team_*', 'dashboard_summary:*'],
-        mainCacheKeys: ['ENTITIES', 'METRICS'],
-        refreshAffectedData: true
-      });
-      
-      // Force immediate cache refresh for affected teams' entities
-      const affectedTeamIds = [...new Set(createdEntities.map(e => e.teamId).filter(Boolean))];
-      for (const teamId of affectedTeamIds) {
-        await redisCache.invalidateCache({
-          patterns: [`entities_team_${teamId}:*`],
-          refreshAffectedData: true
-        });
-      }
-      
-      // WebSocket notifications for all created entities
-      for (const entity of createdEntities) {
-        redisCache.forceNotifyClients('entity-updated', {
-          entityId: entity.id,
-          entityName: entity.name,
-          entityType: entity.type,
-          teamName: entity.team_name || 'Unknown',
-          tenantName: entity.tenant_name || 'Unknown',
-          type: 'created',
-          entity: entity,
-          timestamp: new Date()
-        });
-        
-        // Invalidate team metrics for each entity
-        await redisCache.invalidateTeamMetricsCache(
-          entity.tenant_name || 'Data Engineering',
-          entity.team_name || 'Unknown'
-        );
-      }
-      
-      res.status(201).json(createdEntities);
-    } catch (error) {
-      console.error('Error creating tables bulk:', error);
-      res.status(500).json(createErrorResponse("Unable to create tables", "bulk_creation_error"));
-    }
-  });
-
-  app.post("/api/dags/bulk", requireActiveUser, async (req, res) => {
-    try {
-      const entities = req.body;
-      if (!Array.isArray(entities)) {
-        return res.status(400).json({ message: "Expected array of DAG entities" });
-      }
-      
-      const createdEntities = [];
-      for (const entityData of entities) {
-        const entityWithType = { ...entityData, type: 'dag' };
-        const result = insertEntitySchema.safeParse(entityWithType);
-        if (result.success) {
-          const entity = await redisCache.createEntity(result.data);
-          createdEntities.push(entity);
-        }
-      }
-      
-      await redisCache.invalidateCache({
-        keys: ['all_entities', 'entities_summary'],
-        patterns: ['entity_details:*', 'team_entities:*', 'entities_team_*', 'dashboard_summary:*'],
-        mainCacheKeys: ['ENTITIES', 'METRICS'],
-        refreshAffectedData: true
-      });
-      
-      // Force immediate cache refresh for affected teams' entities
-      const affectedTeamIds = [...new Set(createdEntities.map(e => e.teamId).filter(Boolean))];
-      for (const teamId of affectedTeamIds) {
-        await redisCache.invalidateCache({
-          patterns: [`entities_team_${teamId}:*`],
-          refreshAffectedData: true
-        });
-      }
-      
-      // WebSocket notifications for all created entities
-      for (const entity of createdEntities) {
-        redisCache.forceNotifyClients('entity-updated', {
-          entityId: entity.id,
-          entityName: entity.name,
-          entityType: entity.type,
-          teamName: entity.team_name || 'Unknown',
-          tenantName: entity.tenant_name || 'Unknown',
-          type: 'created',
-          entity: entity,
-          timestamp: new Date()
-        });
-        
-        // Invalidate team metrics for each entity
-        await redisCache.invalidateTeamMetricsCache(
-          entity.tenant_name || 'Data Engineering',
-          entity.team_name || 'Unknown'
-        );
-      }
-      
-      res.status(201).json(createdEntities);
-    } catch (error) {
-      console.error('Error creating DAGs bulk:', error);
-      res.status(500).json(createErrorResponse("Unable to create DAGs", "bulk_creation_error"));
+      res.status(500).json({ message: "Failed to create entity" });
     }
   });
   
   app.get("/api/entities/:id", async (req, res) => {
     try {
-      // Add deprecation headers
-      res.set('Deprecation', 'true');
-      res.set('Sunset', new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString()); // 90 days from now
-      res.set('Link', '</api/tables/{name}, </api/dags/{name}>; rel="successor-version"');
-      res.set('Warning', '299 - "This endpoint is deprecated. Use GET /api/tables/{name} or GET /api/dags/{name} instead for entity_name-based access."');
-      
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
         return res.status(400).json({ message: "Invalid entity ID" });
@@ -2510,12 +1941,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get detailed entity information for editing
   app.get("/api/entities/:id/details", async (req, res) => {
     try {
-      // Add deprecation headers
-      res.set('Deprecation', 'true');
-      res.set('Sunset', new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString()); // 90 days from now
-      res.set('Link', '</api/tables/{name}, </api/dags/{name}>; rel="successor-version"');
-      res.set('Warning', '299 - "This endpoint is deprecated. Use GET /api/tables/{name} or GET /api/dags/{name} instead for entity_name-based access."');
-      
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
         return res.status(400).json({ message: "Invalid entity ID" });
@@ -2564,7 +1989,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.put("/api/entities/:id", requireActiveUser, async (req, res) => {
+  app.put("/api/entities/:id", requireActiveUser, async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -2636,15 +2061,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json(updatedEntity);
     } catch (error) {
-      console.error('Error updating entity:', error);
-      res.status(500).json(createErrorResponse(
-        "Unable to update entity information. Please try again or contact your administrator.",
-        "update_error"
-      ));
+      res.status(500).json({ message: "Failed to update entity" });
     }
   });
   
-  app.delete("/api/entities/:id", requireActiveUser, async (req, res) => {
+  app.delete("/api/entities/:id", requireActiveUser, async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -2666,10 +2087,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const success = await redisCache.deleteEntity(id);
       if (!success) {
-        return res.status(500).json(createErrorResponse(
-          "Unable to delete entity. Please try again or contact your administrator.",
-          "delete_error"
-        ));
+        return res.status(500).json({ message: "Failed to delete entity" });
       }
       
       // Force WebSocket notification to all clients for real-time frontend updates
@@ -2700,370 +2118,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.status(204).end();
     } catch (error) {
-      console.error('Error deleting entity:', error);
-      res.status(500).json(createErrorResponse(
-        "Unable to delete entity. Please try again or contact your administrator.",
-        "delete_error"
-      ));
-    }
-  });
-
-  // Express fallback routes for deleting entities by name (FastAPI alternatives)
-  app.delete("/api/tables/:name", requireActiveUser, async (req: Request, res: Response) => {
-    try {
-      const tableName = req.params.name;
-      console.log(`[EXPRESS_FALLBACK] DELETE /api/tables/${tableName}`);
-      
-      // Find the table entity by name
-      const allEntities = await redisCache.getAllEntities();
-      const entityToDelete = allEntities.find(e => 
-        e.type === 'table' && 
-        (e.name === tableName || e.table_name === tableName)
-      );
-      
-      if (!entityToDelete) {
-        console.log(`[EXPRESS_FALLBACK] Table "${tableName}" not found`);
-        return res.status(404).json({ message: "Table not found" });
-      }
-      
-      console.log(`[EXPRESS_FALLBACK] Found table with ID ${entityToDelete.id}, deleting...`);
-      
-      const success = await redisCache.deleteEntity(entityToDelete.id);
-      if (!success) {
-        return res.status(500).json(createErrorResponse(
-          "Unable to delete table. Please try again or contact your administrator.",
-          "delete_error"
-        ));
-      }
-      
-      // Force WebSocket notification
-      redisCache.forceNotifyClients('entity-updated', {
-        entityId: entityToDelete.id,
-        entityName: entityToDelete.name,
-        entityType: entityToDelete.type,
-        teamName: entityToDelete.team_name || 'Unknown',
-        tenantName: entityToDelete.tenant_name || 'Unknown',
-        type: 'deleted',
-        entity: entityToDelete,
-        timestamp: new Date()
-      });
-      
-      // Cache invalidation
-      await redisCache.invalidateAndRebuildEntityCache(
-        entityToDelete.teamId, 
-        'table',
-        true
-      );
-      
-      await redisCache.invalidateTeamMetricsCache(
-        entityToDelete.tenant_name || 'Data Engineering',
-        entityToDelete.team_name || 'Unknown'
-      );
-      
-      console.log(`[EXPRESS_FALLBACK] Table "${tableName}" deleted successfully`);
-      res.status(200).json({ message: "Table deleted successfully" });
-    } catch (error) {
-      console.error('[EXPRESS_FALLBACK] Error deleting table:', error);
-      res.status(500).json(createErrorResponse(
-        "Unable to delete table. Please try again or contact your administrator.",
-        "delete_error"
-      ));
-    }
-  });
-
-  app.delete("/api/dags/:name", requireActiveUser, async (req: Request, res: Response) => {
-    try {
-      const dagName = req.params.name;
-      console.log(`[EXPRESS_FALLBACK] DELETE /api/dags/${dagName}`);
-      
-      // Find the DAG entity by name
-      const allEntities = await redisCache.getAllEntities();
-      const entityToDelete = allEntities.find(e => 
-        e.type === 'dag' && 
-        (e.name === dagName || e.dag_name === dagName)
-      );
-      
-      if (!entityToDelete) {
-        console.log(`[EXPRESS_FALLBACK] DAG "${dagName}" not found`);
-        return res.status(404).json({ message: "DAG not found" });
-      }
-      
-      console.log(`[EXPRESS_FALLBACK] Found DAG with ID ${entityToDelete.id}, deleting...`);
-      
-      const success = await redisCache.deleteEntity(entityToDelete.id);
-      if (!success) {
-        return res.status(500).json(createErrorResponse(
-          "Unable to delete DAG. Please try again or contact your administrator.",
-          "delete_error"
-        ));
-      }
-      
-      // Force WebSocket notification
-      redisCache.forceNotifyClients('entity-updated', {
-        entityId: entityToDelete.id,
-        entityName: entityToDelete.name,
-        entityType: entityToDelete.type,
-        teamName: entityToDelete.team_name || 'Unknown',
-        tenantName: entityToDelete.tenant_name || 'Unknown',
-        type: 'deleted',
-        entity: entityToDelete,
-        timestamp: new Date()
-      });
-      
-      // Cache invalidation
-      await redisCache.invalidateAndRebuildEntityCache(
-        entityToDelete.teamId, 
-        'dag',
-        true
-      );
-      
-      await redisCache.invalidateTeamMetricsCache(
-        entityToDelete.tenant_name || 'Data Engineering',
-        entityToDelete.team_name || 'Unknown'
-      );
-      
-      console.log(`[EXPRESS_FALLBACK] DAG "${dagName}" deleted successfully`);
-      res.status(200).json({ message: "DAG deleted successfully" });
-    } catch (error) {
-      console.error('[EXPRESS_FALLBACK] Error deleting DAG:', error);
-      res.status(500).json(createErrorResponse(
-        "Unable to delete DAG. Please try again or contact your administrator.",
-        "delete_error"
-      ));
-    }
-  });
-
-  // Express fallback routes for updating entities by name (FastAPI alternatives)
-  app.patch("/api/tables/:name", requireActiveUser, async (req: Request, res: Response) => {
-    try {
-      const tableName = req.params.name;
-      console.log(`[EXPRESS_FALLBACK] PATCH /api/tables/${tableName}`);
-      
-      // Find the table entity by name
-      const allEntities = await redisCache.getAllEntities();
-      const entityToUpdate = allEntities.find(e => 
-        e.type === 'table' && 
-        (e.table_name === tableName || e.name === tableName)
-      );
-      
-      if (!entityToUpdate) {
-        return res.status(404).json(createErrorResponse(
-          `Table "${tableName}" not found`,
-          "not_found"
-        ));
-      }
-      
-      // Validate the updates using the appropriate schema
-      const validationResult = insertEntitySchema.partial().safeParse(req.body);
-      if (!validationResult.success) {
-        return res.status(400).json(createValidationErrorResponse(validationResult.error));
-      }
-      
-      // Update the entity
-      const updatedEntity = await storage.updateEntity(entityToUpdate.id, validationResult.data);
-      
-      if (!updatedEntity) {
-        return res.status(500).json(createErrorResponse(
-          "Unable to update table. Please try again or contact your administrator.",
-          "update_error"
-        ));
-      }
-      
-      // Force WebSocket notification
-      redisCache.forceNotifyClients('entity-updated', {
-        entityId: updatedEntity.id,
-        entityName: updatedEntity.name,
-        entityType: updatedEntity.type,
-        teamName: updatedEntity.team_name || 'Unknown',
-        tenantName: updatedEntity.tenant_name || 'Unknown',
-        type: 'updated',
-        entity: updatedEntity,
-        timestamp: new Date()
-      });
-      
-      // Cache invalidation
-      await redisCache.invalidateAndRebuildEntityCache(
-        updatedEntity.teamId, 
-        'table',
-        true
-      );
-      
-      await redisCache.invalidateTeamMetricsCache(
-        updatedEntity.tenant_name || 'Data Engineering',
-        updatedEntity.team_name || 'Unknown'
-      );
-      
-      console.log(`[EXPRESS_FALLBACK] Table "${tableName}" updated successfully`);
-      res.status(200).json(updatedEntity);
-    } catch (error) {
-      console.error('[EXPRESS_FALLBACK] Error updating table:', error);
-      res.status(500).json(createErrorResponse(
-        "Unable to update table. Please try again or contact your administrator.",
-        "update_error"
-      ));
-    }
-  });
-
-  app.patch("/api/dags/:name", requireActiveUser, async (req: Request, res: Response) => {
-    try {
-      const dagName = req.params.name;
-      console.log(`[EXPRESS_FALLBACK] PATCH /api/dags/${dagName}`);
-      
-      // Find the DAG entity by name
-      const allEntities = await redisCache.getAllEntities();
-      const entityToUpdate = allEntities.find(e => 
-        e.type === 'dag' &&
-        (e.dag_name === dagName || e.name === dagName)
-      );
-      
-      if (!entityToUpdate) {
-        return res.status(404).json(createErrorResponse(
-          `DAG "${dagName}" not found`,
-          "not_found"
-        ));
-      }
-      
-      // Validate the updates using the appropriate schema
-      const validationResult = insertEntitySchema.partial().safeParse(req.body);
-      if (!validationResult.success) {
-        return res.status(400).json(createValidationErrorResponse(validationResult.error));
-      }
-      
-      // Update the entity
-      const updatedEntity = await storage.updateEntity(entityToUpdate.id, validationResult.data);
-      
-      if (!updatedEntity) {
-        return res.status(500).json(createErrorResponse(
-          "Unable to update DAG. Please try again or contact your administrator.",
-          "update_error"
-        ));
-      }
-      
-      // Force WebSocket notification
-      redisCache.forceNotifyClients('entity-updated', {
-        entityId: updatedEntity.id,
-        entityName: updatedEntity.name,
-        entityType: updatedEntity.type,
-        teamName: updatedEntity.team_name || 'Unknown',
-        tenantName: updatedEntity.tenant_name || 'Unknown',
-        type: 'updated',
-        entity: updatedEntity,
-        timestamp: new Date()
-      });
-      
-      // Cache invalidation
-      await redisCache.invalidateAndRebuildEntityCache(
-        updatedEntity.teamId, 
-        'dag',
-        true
-      );
-      
-      await redisCache.invalidateTeamMetricsCache(
-        updatedEntity.tenant_name || 'Data Engineering',
-        updatedEntity.team_name || 'Unknown'
-      );
-      
-      console.log(`[EXPRESS_FALLBACK] DAG "${dagName}" updated successfully`);
-      res.status(200).json(updatedEntity);
-    } catch (error) {
-      console.error('[EXPRESS_FALLBACK] Error updating DAG:', error);
-      res.status(500).json(createErrorResponse(
-        "Unable to update DAG. Please try again or contact your administrator.",
-        "update_error"
-      ));
-    }
-  });
-
-  // Express fallback routes for getting entities by name (FastAPI alternatives)
-  app.get("/api/tables/:name", async (req: Request, res: Response) => {
-    try {
-      const tableName = req.params.name;
-      const teamFilter = req.query.team as string | undefined;
-      console.log(`[EXPRESS_FALLBACK] GET /api/tables/${tableName}${teamFilter ? `?team=${teamFilter}` : ''}`);
-      
-      // Find the table entity by name
-      const allEntities = await redisCache.getAllEntities();
-      let matchingEntities = allEntities.filter(e => 
-        e.type === 'table' && 
-        (e.table_name === tableName || e.name === tableName)
-      );
-      
-      // Apply team filter if provided
-      if (teamFilter) {
-        matchingEntities = matchingEntities.filter(e => 
-          e.team_name === teamFilter
-        );
-      }
-      
-      if (matchingEntities.length === 0) {
-        return res.status(404).json(createErrorResponse(
-          `Table "${tableName}" not found${teamFilter ? ` in team "${teamFilter}"` : ''}`,
-          "not_found"
-        ));
-      }
-      
-      if (matchingEntities.length > 1 && !teamFilter) {
-        return res.status(409).json(createErrorResponse(
-          `Multiple tables named "${tableName}" found. Please specify team parameter.`,
-          "ambiguous"
-        ));
-      }
-      
-      const entityToReturn = matchingEntities[0];
-      console.log(`[EXPRESS_FALLBACK] Table "${tableName}" found successfully`);
-      res.status(200).json(entityToReturn);
-    } catch (error) {
-      console.error('[EXPRESS_FALLBACK] Error getting table:', error);
-      res.status(500).json(createErrorResponse(
-        "Unable to retrieve table. Please try again or contact your administrator.",
-        "get_error"
-      ));
-    }
-  });
-
-  app.get("/api/dags/:name", async (req: Request, res: Response) => {
-    try {
-      const dagName = req.params.name;
-      const teamFilter = req.query.team as string | undefined;
-      console.log(`[EXPRESS_FALLBACK] GET /api/dags/${dagName}${teamFilter ? `?team=${teamFilter}` : ''}`);
-      
-      // Find the DAG entity by name
-      const allEntities = await redisCache.getAllEntities();
-      let matchingEntities = allEntities.filter(e => 
-        e.type === 'dag' &&
-        (e.dag_name === dagName || e.name === dagName)
-      );
-      
-      // Apply team filter if provided
-      if (teamFilter) {
-        matchingEntities = matchingEntities.filter(e => 
-          e.team_name === teamFilter
-        );
-      }
-      
-      if (matchingEntities.length === 0) {
-        return res.status(404).json(createErrorResponse(
-          `DAG "${dagName}" not found${teamFilter ? ` in team "${teamFilter}"` : ''}`,
-          "not_found"
-        ));
-      }
-      
-      if (matchingEntities.length > 1 && !teamFilter) {
-        return res.status(409).json(createErrorResponse(
-          `Multiple DAGs named "${dagName}" found. Please specify team parameter.`,
-          "ambiguous"
-        ));
-      }
-      
-      const entityToReturn = matchingEntities[0];
-      console.log(`[EXPRESS_FALLBACK] DAG "${dagName}" found successfully`);
-      res.status(200).json(entityToReturn);
-    } catch (error) {
-      console.error('[EXPRESS_FALLBACK] Error getting DAG:', error);
-      res.status(500).json(createErrorResponse(
-        "Unable to retrieve DAG. Please try again or contact your administrator.",
-        "get_error"
-      ));
+      res.status(500).json({ message: "Failed to delete entity" });
     }
   });
   
@@ -3082,7 +2137,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.post("/api/entities/:id/history", requireActiveUser, async (req, res) => {
+  app.post("/api/entities/:id/history", async (req, res) => {
     try {
       const entityId = parseInt(req.params.id);
       if (isNaN(entityId)) {
@@ -3118,7 +2173,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.post("/api/entities/:id/issues", requireActiveUser, async (req, res) => {
+  app.post("/api/entities/:id/issues", async (req, res) => {
     try {
       const entityId = parseInt(req.params.id);
       if (isNaN(entityId)) {
@@ -3139,7 +2194,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.put("/api/issues/:id/resolve", requireActiveUser, async (req, res) => {
+  app.put("/api/issues/:id/resolve", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -3189,33 +2244,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching tasks:", error);
       res.status(500).json({ message: "Failed to fetch tasks" });
-    }
-  });
-
-  // FastAPI fallback - Get all tasks for an entity using cache system
-  app.get("/api/v1/entities/:entityId/tasks", async (req: Request, res: Response) => {
-    try {
-      console.log("EXPRESS_FASTAPI_FALLBACK_DEV", req.sessionID);
-      
-      const entityId = parseInt(req.params.entityId);
-      if (isNaN(entityId)) {
-        return res.status(400).json(createErrorResponse("Invalid entity ID", "validation_error"));
-      }
-
-      // Get the entity first to get its name, then fetch tasks by DAG name
-      const entity = await storage.getEntity(entityId);
-      if (!entity || entity.type !== 'dag') {
-        return res.status(404).json(createErrorResponse("DAG entity not found", "not_found"));
-      }
-
-      // Get tasks from cache using DAG name (our task system is organized by DAG names)
-      const tasks = await redisCache.getTasksByDAGName(entity.name);
-      
-      console.log(`GET /api/v1/entities/${entityId}/tasks - found ${tasks.length} tasks for DAG: ${entity.name}`);
-      res.json(tasks);
-    } catch (error) {
-      console.error(`Error fetching tasks for entity ${req.params.entityId}:`, error);
-      res.status(500).json(createErrorResponse("Failed to fetch entity tasks", "server_error"));
     }
   });
 
@@ -3409,7 +2437,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create notification timeline
-  app.post("/api/notification-timelines", requireActiveUser, async (req: Request, res: Response) => {
+  app.post("/api/notification-timelines", isAuthenticated, async (req: Request, res: Response) => {
     try {
       const validatedData = insertNotificationTimelineSchema.parse(req.body);
       const timeline = await storage.createNotificationTimeline(validatedData);
@@ -3436,7 +2464,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update notification timeline
-  app.put("/api/notification-timelines/:id", requireActiveUser, async (req: Request, res: Response) => {
+  app.put("/api/notification-timelines/:id", isAuthenticated, async (req: Request, res: Response) => {
     try {
       const timelineId = req.params.id;
       
@@ -3468,7 +2496,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Delete notification timeline
-  app.delete("/api/notification-timelines/:id", requireActiveUser, async (req: Request, res: Response) => {
+  app.delete("/api/notification-timelines/:id", isAuthenticated, async (req: Request, res: Response) => {
     try {
       const timelineId = req.params.id;
       const deleted = await storage.deleteNotificationTimeline(timelineId);
@@ -3484,392 +2512,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // ============================================
-  // COMPREHENSIVE TASK MANAGEMENT ENDPOINTS
-  // ============================================
-
-  // Generate comprehensive mock task data for all DAGs
-  function generateTasksForAllDags(): Task[] {
-    const allTasks: Task[] = [];
-    let taskIdCounter = 1;
-
-    // Task templates for different DAG types
-    const dagTaskTemplates = {
-      'agg_daily_pgm': [
-        { name: 'data_extraction', type: 'extraction', preference: 'ai_monitored' },
-        { name: 'data_transformation', type: 'transformation', preference: 'regular' },
-        { name: 'quality_validation', type: 'validation', preference: 'ai_monitored' },
-        { name: 'aggregation_processing', type: 'processing', preference: 'regular' },
-        { name: 'output_generation', type: 'output', preference: 'regular' }
-      ],
-      'agg_hourly_pgm': [
-        { name: 'stream_ingestion', type: 'ingestion', preference: 'ai_monitored' },
-        { name: 'real_time_processing', type: 'processing', preference: 'ai_monitored' },
-        { name: 'metric_calculation', type: 'calculation', preference: 'regular' },
-        { name: 'dashboard_update', type: 'output', preference: 'regular' }
-      ],
-      'agg_daily_non_bucketed_core': [
-        { name: 'raw_data_ingestion', type: 'ingestion', preference: 'regular' },
-        { name: 'schema_validation', type: 'validation', preference: 'ai_monitored' },
-        { name: 'non_bucketed_processing', type: 'processing', preference: 'regular' },
-        { name: 'index_generation', type: 'indexing', preference: 'regular' }
-      ],
-      'PGM_Freeview_Play_agg_daily_core': [
-        { name: 'freeview_data_extraction', type: 'extraction', preference: 'regular' },
-        { name: 'play_event_processing', type: 'processing', preference: 'ai_monitored' },
-        { name: 'audience_analytics', type: 'analytics', preference: 'ai_monitored' },
-        { name: 'reporting_generation', type: 'reporting', preference: 'regular' }
-      ],
-      'CHN_billing_viewer_product': [
-        { name: 'billing_data_ingestion', type: 'ingestion', preference: 'regular' },
-        { name: 'rate_calculation', type: 'calculation', preference: 'ai_monitored' },
-        { name: 'invoice_generation', type: 'generation', preference: 'regular' },
-        { name: 'financial_reporting', type: 'reporting', preference: 'regular' }
-      ],
-      'default': [
-        { name: 'data_ingestion', type: 'ingestion', preference: 'regular' },
-        { name: 'data_processing', type: 'processing', preference: 'regular' },
-        { name: 'data_validation', type: 'validation', preference: 'ai_monitored' },
-        { name: 'output_generation', type: 'output', preference: 'regular' }
-      ]
-    };
-
-    // Get all entities from storage and filter DAGs
-    const entities = storage.getAllEntities();
-    const dagEntities = entities.filter(e => e.type === 'dag');
-
-    dagEntities.forEach(dag => {
-      const dagName = dag.name;
-      const teamName = dag.team_name || 'Unknown';
-      const tenantName = dag.tenant_name || 'Data Engineering';
-      
-      // Get task template for this DAG
-      const taskTemplate = dagTaskTemplates[dagName as keyof typeof dagTaskTemplates] || dagTaskTemplates.default;
-      
-      taskTemplate.forEach(template => {
-        allTasks.push({
-          id: taskIdCounter++,
-          task_name: template.name,
-          task_type: template.type,
-          dag_name: dagName,
-          team_name: teamName,
-          team_id: dag.teamId || 1,
-          tenant_name: tenantName,
-          tenant_id: dag.tenant_name === 'Ad Engineering' ? 2 : 1,
-          task_preference: template.preference as 'regular' | 'ai_monitored',
-          status: ['pending', 'running', 'completed', 'failed'][Math.floor(Math.random() * 4)] as any,
-          priority: ['low', 'normal', 'high'][Math.floor(Math.random() * 3)] as any,
-          duration_minutes: Math.floor(Math.random() * 120) + 5,
-          last_run: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString(),
-          next_run: new Date(Date.now() + Math.random() * 24 * 60 * 60 * 1000).toISOString(),
-          dependencies: template.name === 'data_extraction' || template.name === 'raw_data_ingestion' ? [] : 
-                       [taskTemplate[taskTemplate.indexOf(template) - 1]?.name || 'previous_task']
-        });
-      });
-    });
-
-    return allTasks;
-  }
-
-  // FastAPI endpoint: Get all tasks across teams (with proper auth and caching)
-  app.get("/api/v1/get_tasks", requireActiveUser, async (req: Request, res: Response) => {
-    try {
-      console.log('[Tasks API] Processing get all tasks request');
-
-      // Check if FastAPI is enabled and available
-      if (USE_FASTAPI && FASTAPI_BASE_URL) {
-        try {
-          // Get authentication session ID
-          const sessionId = await getServiceSessionId();
-          if (!sessionId) {
-            throw new Error('Failed to obtain service account session for FastAPI authentication');
-          }
-
-          console.log('[Tasks API] Attempting FastAPI call with session authentication');
-
-          // Add timeout using AbortController
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
-
-          const headers: Record<string, string> = {
-            'Content-Type': 'application/json',
-            'X-Session-ID': sessionId, // CRITICAL: Add authentication header for RBAC
-          };
-
-          // Add session headers if available (for continuity with Express sessions)
-          const expressSessionId = (req as any).sessionID;
-          if (expressSessionId) {
-            headers['X-Express-Session-ID'] = expressSessionId;
-          }
-
-          const response = await fetch(`${FASTAPI_BASE_URL}/api/v1/get_tasks`, {
-            method: 'GET',
-            headers,
-            signal: controller.signal,
-          });
-
-          clearTimeout(timeoutId);
-
-          if (response.ok) {
-            const fastApiData = await response.json();
-            console.log(`[Tasks API] FastAPI success: ${fastApiData.length || 0} tasks returned`);
-            
-            // Cache the FastAPI response for 6 hours like other endpoints
-            const cacheKey = `tasks:all:${Date.now()}`;
-            await redisCache.set(cacheKey, fastApiData, 6 * 60 * 60); // 6 hour cache
-            
-            return res.json(fastApiData);
-          } else if (response.status === 401 || response.status === 403) {
-            console.warn('[Tasks API] FastAPI authentication failed, clearing session and falling back to Express');
-            serviceSession = null; // Clear invalid session
-            // Fall through to Express fallback
-          } else {
-            console.warn(`[Tasks API] FastAPI error ${response.status}, falling back to Express`);
-            // Fall through to Express fallback
-          }
-        } catch (error: any) {
-          console.warn('[Tasks API] FastAPI request failed, falling back to Express:', error.message);
-          // Fall through to Express fallback
-        }
-      }
-
-      // Express fallback: Generate comprehensive mock task data
-      console.log('[Tasks API] Using Express fallback for tasks data');
-      const mockTasks = generateTasksForAllDags();
-      
-      // Cache the task data for 6 hours like other endpoints
-      await redisCache.setTasks(mockTasks);
-      
-      console.log(`[Tasks API] Express fallback success: ${mockTasks.length} tasks generated`);
-      res.json(mockTasks);
-
-    } catch (error) {
-      console.error('[Tasks API] Error fetching all tasks:', error);
-      res.status(500).json({ 
-        message: "Failed to fetch tasks",
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
-    }
-  });
-
-  // FastAPI endpoint: Update task preference  
-  app.patch("/api/v1/tasks/:taskId/preference", requireActiveUser, async (req: Request, res: Response) => {
-    try {
-      const taskId = parseInt(req.params.taskId);
-      if (isNaN(taskId)) {
-        return res.status(400).json({ message: "Invalid task ID" });
-      }
-
-      const { task_preference } = req.body;
-      if (!task_preference || !["regular", "AI"].includes(task_preference)) {
-        return res.status(400).json({ 
-          message: "Invalid task_preference. Must be 'regular' or 'AI'" 
-        });
-      }
-
-      console.log(`[Tasks API] Processing preference update for task ${taskId} to ${task_preference}`);
-
-      // Check if FastAPI is enabled and available
-      if (USE_FASTAPI && FASTAPI_BASE_URL) {
-        try {
-          // Get authentication session ID
-          const sessionId = await getServiceSessionId();
-          if (!sessionId) {
-            throw new Error('Failed to obtain service account session for FastAPI authentication');
-          }
-
-          console.log('[Tasks API] Attempting FastAPI preference update with session authentication');
-
-          // Add timeout using AbortController  
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
-
-          const headers: Record<string, string> = {
-            'Content-Type': 'application/json',
-            'X-Session-ID': sessionId, // CRITICAL: Add authentication header for RBAC
-          };
-
-          // Add session headers if available (for continuity with Express sessions)
-          const expressSessionId = (req as any).sessionID;
-          if (expressSessionId) {
-            headers['X-Express-Session-ID'] = expressSessionId;
-          }
-
-          const response = await fetch(`${FASTAPI_BASE_URL}/api/v1/tasks/${taskId}/preference`, {
-            method: 'PATCH',
-            headers,
-            body: JSON.stringify({ task_preference }),
-            signal: controller.signal,
-          });
-
-          clearTimeout(timeoutId);
-
-          if (response.ok) {
-            const fastApiData = await response.json();
-            console.log(`[Tasks API] FastAPI preference update success for task ${taskId}`);
-            
-            // Invalidate task cache after successful update
-            await redisCache.invalidatePattern('tasks:*');
-            
-            return res.json(fastApiData);
-          } else if (response.status === 401 || response.status === 403) {
-            console.warn('[Tasks API] FastAPI authentication failed during preference update, clearing session and falling back to Express');
-            serviceSession = null; // Clear invalid session
-            // Fall through to Express fallback
-          } else {
-            console.warn(`[Tasks API] FastAPI preference update error ${response.status}, falling back to Express`);
-            // Fall through to Express fallback
-          }
-        } catch (error: any) {
-          console.warn('[Tasks API] FastAPI preference update failed, falling back to Express:', error.message);
-          // Fall through to Express fallback
-        }
-      }
-
-      // Express fallback: Update mock task preference
-      console.log(`[Tasks API] Using Express fallback for task ${taskId} preference update`);
-      const updatedTask = {
-        id: taskId,
-        task_name: `task_${taskId}`,
-        task_type: 'processing',
-        task_preference: task_preference,
-        status: 'running',
-        priority: 'normal',
-        duration_minutes: 30,
-        last_run: new Date().toISOString(),
-        next_run: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-        dependencies: [],
-        updatedAt: new Date().toISOString()
-      };
-
-      // Invalidate task cache after update and broadcast change
-      await redisCache.invalidateTaskCache();
-      
-      // Broadcast cache refresh like other endpoints
-      try {
-        const publishData = {
-          event: 'task-preference-updated',
-          taskId: taskId,
-          preference: task_preference,
-          timestamp: new Date().toISOString()
-        };
-        await redisCache.publishEntityChange(publishData);
-      } catch (publishError) {
-        console.warn('[Tasks API] Failed to publish cache refresh:', publishError);
-      }
-      
-      console.log(`[Tasks API] Express fallback preference update success for task ${taskId}`);
-      res.json(updatedTask);
-
-    } catch (error) {
-      console.error(`[Tasks API] Error updating task ${req.params.taskId} preference:`, error);
-      res.status(500).json({ 
-        message: "Failed to update task preference",
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
-    }
-  });
-
-  // Express fallback: Get all tasks (mirrors /api/v1/get_tasks)
-  app.get("/api/get_tasks", requireActiveUser, async (req: Request, res: Response) => {
-    try {
-      console.log('[Tasks API] Processing Express fallback get all tasks request');
-      
-      // Get comprehensive task data from cache or generate
-      const tasks = await redisCache.getAllTasks();
-      
-      console.log(`[Tasks API] Express fallback returned ${tasks.length} tasks`);
-      res.json(tasks);
-
-    } catch (error) {
-      console.error('[Tasks API] Error in Express fallback get all tasks:', error);
-      res.status(500).json({ 
-        message: "Failed to fetch tasks",
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
-    }
-  });
-
-  // Express fallback: Update task preference (mirrors /api/v1/tasks/:taskId/preference)
-  app.patch("/api/tasks/:taskId/preference", requireActiveUser, async (req: Request, res: Response) => {
-    try {
-      const taskId = parseInt(req.params.taskId);
-      if (isNaN(taskId)) {
-        return res.status(400).json({ message: "Invalid task ID" });
-      }
-
-      const { task_preference } = req.body;
-      if (!task_preference || !["regular", "AI"].includes(task_preference)) {
-        return res.status(400).json({ 
-          message: "Invalid task_preference. Must be 'regular' or 'AI'" 
-        });
-      }
-
-      console.log(`[Tasks API] Express fallback processing preference update for task ${taskId} to ${task_preference}`);
-
-      // Update mock task preference
-      const updatedTask = {
-        id: taskId,
-        task_name: `task_${taskId}`,
-        task_type: 'processing',
-        task_preference: task_preference,
-        status: 'running',
-        priority: 'normal',
-        duration_minutes: 30,
-        last_run: new Date().toISOString(),
-        next_run: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-        dependencies: [],
-        updatedAt: new Date().toISOString()
-      };
-
-      // Invalidate task cache and broadcast change
-      await redisCache.invalidateTaskCache();
-      
-      // Broadcast cache refresh like other endpoints
-      try {
-        const publishData = {
-          event: 'task-preference-updated',
-          taskId: taskId,
-          preference: task_preference,
-          timestamp: new Date().toISOString()
-        };
-        await redisCache.publishEntityChange(publishData);
-      } catch (publishError) {
-        console.warn('[Tasks API] Failed to publish cache refresh:', publishError);
-      }
-      
-      console.log(`[Tasks API] Express fallback preference update success for task ${taskId}`);
-      res.json(updatedTask);
-
-    } catch (error) {
-      console.error(`[Tasks API] Error in Express fallback updating task ${req.params.taskId} preference:`, error);
-      res.status(500).json({ 
-        message: "Failed to update task preference",
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
-    }
-  });
-
-  // Legacy: Get tasks for a specific DAG
-  app.get("/api/dags/:dagId/tasks", requireActiveUser, async (req: Request, res: Response) => {
+  // Task API routes
+  // Get tasks for a specific DAG
+  app.get("/api/dags/:dagId/tasks", isAuthenticated, async (req: Request, res: Response) => {
     try {
       const dagId = parseInt(req.params.dagId);
       if (isNaN(dagId)) {
         return res.status(400).json({ message: "Invalid DAG ID" });
       }
 
-      // Get tasks for specific DAG using cache
-      const dagTasks = await redisCache.getTasksByDAG(dagId);
+      // For now, return mock data as tasks are not stored in database yet
+      // In a real implementation, this would fetch from the database
+      const mockTasks = [
+        {
+          id: 1,
+          name: "Task1",
+          priority: "normal",
+          status: "running",
+          dagId: dagId,
+          description: "First task in the DAG"
+        },
+        {
+          id: 2,
+          name: "Task2", 
+          priority: "high",
+          status: "completed",
+          dagId: dagId,
+          description: "Second task in the DAG"
+        },
+        {
+          id: 3,
+          name: "Task3",
+          priority: "normal",
+          status: "pending",
+          dagId: dagId,
+          description: "Third task in the DAG"
+        }
+      ];
 
-      res.json(dagTasks);
+      res.json(mockTasks);
     } catch (error) {
       console.error("Error fetching DAG tasks:", error);
       res.status(500).json({ message: "Failed to fetch DAG tasks" });
     }
   });
 
-  // Legacy: Update task priority
-  app.patch("/api/tasks/:taskId", requireActiveUser, async (req: Request, res: Response) => {
+  // Update task priority
+  app.patch("/api/tasks/:taskId", isAuthenticated, async (req: Request, res: Response) => {
     try {
       const taskId = parseInt(req.params.taskId);
       if (isNaN(taskId)) {
@@ -3877,20 +2566,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const { priority } = req.body;
-      if (!priority || !["high", "normal", "low"].includes(priority)) {
-        return res.status(400).json({ message: "Invalid priority. Must be 'high', 'normal', or 'low'" });
+      if (!priority || !["high", "normal"].includes(priority)) {
+        return res.status(400).json({ message: "Invalid priority. Must be 'high' or 'normal'" });
       }
 
-      // Return updated mock data
+      // For now, return updated mock data
+      // In a real implementation, this would update the database
       const updatedTask = {
         id: taskId,
-        task_name: `task_${taskId}`,
+        name: `Task${taskId}`,
         priority: priority,
         status: "running",
         description: `Updated task ${taskId} priority to ${priority}`,
         updatedAt: new Date().toISOString()
       };
 
+      // Task priority updated
       res.json(updatedTask);
     } catch (error) {
       console.error("Error updating task priority:", error);
@@ -3921,7 +2612,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create new tenant with optimistic update support
-  app.post("/api/admin/tenants", async (req, res) => {
+  app.post("/api/admin/tenants", requireActiveUser, async (req: Request, res: Response) => {
     try {
       const tenantSchema = z.object({
         name: z.string().min(1),
@@ -3963,7 +2654,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update tenant with optimistic update support
-  app.put("/api/admin/tenants/:id", async (req, res) => {
+  app.put("/api/admin/tenants/:id", requireActiveUser, async (req: Request, res: Response) => {
     try {
       const tenantId = parseInt(req.params.id);
       if (isNaN(tenantId)) {
@@ -4018,7 +2709,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ============================================
   
   // Create new team from admin panel with comprehensive cache invalidation
-  app.post("/api/admin/teams", async (req, res) => {
+  app.post("/api/admin/teams", requireActiveUser, async (req: Request, res: Response) => {
     try {
       const result = insertTeamSchema.safeParse(req.body);
       
@@ -4083,7 +2774,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create new user from admin panel
-  app.post("/api/admin/users", async (req, res) => {
+  app.post("/api/admin/users", requireActiveUser, async (req: Request, res: Response) => {
     try {
       const result = adminUserSchema.safeParse(req.body);
       
@@ -4134,7 +2825,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update existing user from admin panel
-  app.put("/api/admin/users/:id", async (req, res) => {
+  app.put("/api/admin/users/:id", requireActiveUser, async (req: Request, res: Response) => {
     try {
       const userId = parseInt(req.params.id);
       if (isNaN(userId)) {
@@ -4171,12 +2862,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (adminUserData.user_pagerduty !== undefined) updateData.user_pagerduty = adminUserData.user_pagerduty;
       if (adminUserData.is_active !== undefined) updateData.is_active = adminUserData.is_active;
       
-      // Note: Since storage doesn't have updateUser method, we'll simulate it for now
-      // In a real implementation, you'd add updateUser to the storage interface
-      const updatedUser = {
+      // Persist user update in storage so is_active changes are saved
+      const updatedUser = await storage.updateUser(userId, updateData) || {
         ...existingUser,
         ...updateData
       };
+
+      // If the user was active and is now deactivated → remove from all teams
+      const wasActive = existingUser.is_active ?? true;
+      const isNowInactive = updateData.is_active === false && wasActive;
+
+      if (isNowInactive) {
+        try {
+          const allTeams = await storage.getTeams();
+          const username = existingUser.username;
+          const userEmail = existingUser.email || '';
+          const displayName = existingUser.displayName || '';
+          const teamsWithUser = allTeams.filter(t => 
+            Array.isArray(t.team_members_ids) && 
+            t.team_members_ids.some(m => m === username || m === userEmail || m === displayName)
+          );
+
+          // Helper: best-effort FastAPI update, fallback to local storage update
+          const USE_FASTAPI = process.env.ENABLE_FASTAPI_INTEGRATION === 'true';
+          const FASTAPI_BASE_URL = process.env.FASTAPI_BASE_URL || 'http://localhost:8080';
+          const sessionIdHeader = (Array.isArray(req.headers['x-session-id']) ? req.headers['x-session-id'][0] : req.headers['x-session-id']) as string | undefined;
+
+          for (const team of teamsWithUser) {
+            const newMembers = (team.team_members_ids || []).filter(m => (m !== username && m !== userEmail && m !== displayName));
+
+            let updated = false;
+            if (USE_FASTAPI) {
+              try {
+                const fastApiUrl = `${FASTAPI_BASE_URL}/api/v1/teams/${team.id}`;
+                const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+                if (sessionIdHeader) headers['X-Session-ID'] = sessionIdHeader;
+                const resp = await fetch(fastApiUrl, {
+                  method: 'PUT',
+                  headers,
+                  body: JSON.stringify({ team_members_ids: newMembers })
+                });
+                if (resp.ok) updated = true;
+              } catch (_err) {
+                // Ignore and fallback
+              }
+            }
+
+            if (!updated) {
+              // Fallback to local storage update
+              await storage.updateTeam(team.id, { team_members_ids: newMembers });
+              updated = true;
+            }
+
+            if (updated) {
+              // Invalidate caches and broadcast members-updated event
+              try {
+                const tenants = await redisCache.getAllTenants();
+                const tenantName = tenants.find((t: any) => t.id === team.tenant_id)?.name || 'Unknown';
+                await redisCache.invalidateTeamData(team.name, {
+                  action: 'remove',
+                  memberId: String(existingUser.id),
+                  memberName: username,
+                  tenantName
+                });
+              } catch (_e) {
+                // Non-fatal
+              }
+            }
+          }
+        } catch (_err) {
+          // Non-fatal: if bulk removal fails, continue with user update response
+        }
+      }
       
       // Invalidate user-related caches
       await redisCache.invalidateUserData();
@@ -4194,6 +2951,109 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(adminUser);
     } catch (error) {
       console.error('Admin user update error:', error);
+      res.status(500).json(createErrorResponse("Failed to update user"));
+    }
+  });
+
+  // FastAPI-style: Update existing user (fallback handler)
+  app.put("/api/v1/users/:id", async (req, res) => {
+    try {
+      const userId = parseInt(req.params.id);
+      if (isNaN(userId)) {
+        return res.status(400).json(createErrorResponse("Invalid user ID", "invalid_parameter"));
+      }
+
+      const result = adminUserSchema.partial().safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json(createValidationErrorResponse(result.error, "Invalid user data"));
+      }
+
+      const adminUserData = result.data;
+
+      // Load existing user
+      const existingUser = await storage.getUser(userId);
+      if (!existingUser) {
+        return res.status(404).json(createErrorResponse("User not found", "user_not_found"));
+      }
+
+      // Prepare update data
+      const updateData: any = {};
+      if (adminUserData.user_name) updateData.username = adminUserData.user_name;
+      if (adminUserData.user_email) updateData.email = adminUserData.user_email;
+      if (adminUserData.user_slack !== undefined) updateData.user_slack = adminUserData.user_slack;
+      if (adminUserData.user_pagerduty !== undefined) updateData.user_pagerduty = adminUserData.user_pagerduty;
+      if (adminUserData.is_active !== undefined) updateData.is_active = adminUserData.is_active;
+
+      const updatedUser = await storage.updateUser(userId, updateData) || {
+        ...existingUser,
+        ...updateData
+      };
+
+      // Handle deactivation: remove user from all teams (FastAPI-first, fallback to storage)
+      const wasActive = existingUser.is_active ?? true;
+      const isNowInactive = updateData.is_active === false && wasActive;
+      if (isNowInactive) {
+        try {
+          const allTeams = await storage.getTeams();
+          const username = existingUser.username;
+          const userEmail = existingUser.email || '';
+          const displayName = existingUser.displayName || '';
+          const teamsWithUser = allTeams.filter(t => Array.isArray(t.team_members_ids) && t.team_members_ids.some(m => m === username || m === userEmail || m === displayName));
+
+          const USE_FASTAPI = process.env.ENABLE_FASTAPI_INTEGRATION === 'true';
+          const FASTAPI_BASE_URL = process.env.FASTAPI_BASE_URL || 'http://localhost:8080';
+          const sessionIdHeader = (Array.isArray(req.headers['x-session-id']) ? req.headers['x-session-id'][0] : req.headers['x-session-id']) as string | undefined;
+
+          for (const team of teamsWithUser) {
+            const newMembers = (team.team_members_ids || []).filter(m => (m !== username && m !== userEmail && m !== displayName));
+            let updated = false;
+            if (USE_FASTAPI) {
+              try {
+                const fastApiUrl = `${FASTAPI_BASE_URL}/api/v1/teams/${team.id}`;
+                const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+                if (sessionIdHeader) headers['X-Session-ID'] = sessionIdHeader;
+                const resp = await fetch(fastApiUrl, {
+                  method: 'PUT',
+                  headers,
+                  body: JSON.stringify({ team_members_ids: newMembers })
+                });
+                if (resp.ok) updated = true;
+              } catch (_err) {}
+            }
+            if (!updated) {
+              await storage.updateTeam(team.id, { team_members_ids: newMembers });
+              updated = true;
+            }
+            if (updated) {
+              try {
+                const tenants = await redisCache.getAllTenants();
+                const tenantName = tenants.find((t: any) => t.id === team.tenant_id)?.name || 'Unknown';
+                await redisCache.invalidateTeamData(team.name, {
+                  action: 'remove',
+                  memberId: String(existingUser.id),
+                  memberName: username,
+                  tenantName
+                });
+              } catch (_e) {}
+            }
+          }
+        } catch (_err) {}
+      }
+
+      await redisCache.invalidateUserData();
+
+      const adminUser = {
+        user_id: updatedUser.id,
+        user_name: updatedUser.username,
+        user_email: updatedUser.email || '',
+        user_slack: updatedUser.user_slack || null,
+        user_pagerduty: updatedUser.user_pagerduty || null,
+        is_active: updatedUser.is_active ?? true
+      };
+
+      res.json(adminUser);
+    } catch (error) {
+      console.error('FastAPI-style user update error:', error);
       res.status(500).json(createErrorResponse("Failed to update user"));
     }
   });
@@ -4465,23 +3325,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-
-  // Update table owner by entity_name (Express fallback)
-  app.patch('/api/tables/:name/owner', requireActiveUser, async (req: Request, res: Response) => {
+  // Update entity owners (PATCH) - accepts array of emails (comma or array)
+  app.patch('/api/entities/:entityId/owner', async (req: Request, res: Response) => {
     try {
-      const tableName = req.params.name;
-      console.log(`[EXPRESS_FALLBACK] PATCH /api/tables/${tableName}/owner`);
-
-      // Find the table entity by name
-      const allEntities = await redisCache.getAllEntities();
-      const entity = allEntities.find(e => 
-        e.type === 'table' && 
-        (e.name === tableName || e.table_name === tableName)
-      );
-
-      if (!entity) {
-        console.log(`[EXPRESS_FALLBACK] Table "${tableName}" not found`);
-        return res.status(404).json(createErrorResponse('Table not found', 'not_found'));
+      const entityId = parseInt(req.params.entityId);
+      if (isNaN(entityId)) {
+        return res.status(400).json(createErrorResponse('Invalid entity ID', 'validation_error'));
       }
 
       const { owner_email, ownerEmail, owners } = req.body || {};
@@ -4494,163 +3343,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const updates: any = {};
       const normalized = emails.join(',');
+      // If empty array, clear owners; otherwise set to comma-separated list
       updates.owner_email = normalized;
       updates.ownerEmail = normalized;
 
       // Update via redis cache helper to persist to Redis and fallback consistently
-      const updated = await redisCache.updateEntityById(entity.id, updates);
+      const updated = await redisCache.updateEntityById(entityId, updates);
       if (!updated) {
         return res.status(404).json(createErrorResponse('Entity not found', 'not_found'));
       }
 
-      // Targeted invalidation: only invalidate tables for this team
-      await redisCache.invalidateEntityDataByType(entity.teamId, 'table');
+      // Optional: targeted invalidation (entities by team) to refresh any dependent lists
+      await redisCache.invalidateEntityData((updated as any).teamId);
 
-      console.log(`[EXPRESS_FALLBACK] Table "${tableName}" owner updated successfully`);
       return res.json({ success: true, owner_email: (updated as any).owner_email || (updated as any).ownerEmail || null });
     } catch (error) {
-      console.error('[EXPRESS_FALLBACK] Update table owner error:', error);
-      return res.status(500).json(createErrorResponse('Failed to update table owner', 'update_error'));
+      console.error('Update entity owner error:', error);
+      return res.status(500).json(createErrorResponse('Failed to update owner', 'update_error'));
     }
   });
 
-  // Update DAG owner by entity_name (Express fallback)
-  app.patch('/api/dags/:name/owner', requireActiveUser, async (req: Request, res: Response) => {
+  // FastAPI-style alias
+  app.patch('/api/v1/entities/:entityId/owner', async (req: Request, res: Response) => {
     try {
-      const dagName = req.params.name;
-      console.log(`[EXPRESS_FALLBACK] PATCH /api/dags/${dagName}/owner`);
-
-      // Find the DAG entity by name
-      const allEntities = await redisCache.getAllEntities();
-      const entity = allEntities.find(e => 
-        e.type === 'dag' && 
-        (e.name === dagName || e.dag_name === dagName)
-      );
-
-      if (!entity) {
-        console.log(`[EXPRESS_FALLBACK] DAG "${dagName}" not found`);
-        return res.status(404).json(createErrorResponse('DAG not found', 'not_found'));
-      }
-
-      const { owner_email, ownerEmail, owners } = req.body || {};
-      // Normalize owners to a comma-separated string stored in ownerEmail/owner_email
-      let emails: string[] = [];
-      if (Array.isArray(owners)) emails = owners;
-      else if (typeof owner_email === 'string') emails = owner_email.split(',');
-      else if (typeof ownerEmail === 'string') emails = ownerEmail.split(',');
-      emails = emails.map((e: string) => e.trim()).filter((e: string) => e.length > 0);
-
-      const updates: any = {};
-      const normalized = emails.join(',');
-      updates.owner_email = normalized;
-      updates.ownerEmail = normalized;
-
-      // Update via redis cache helper to persist to Redis and fallback consistently
-      const updated = await redisCache.updateEntityById(entity.id, updates);
-      if (!updated) {
-        return res.status(404).json(createErrorResponse('Entity not found', 'not_found'));
-      }
-
-      // Targeted invalidation: only invalidate DAGs for this team
-      await redisCache.invalidateEntityDataByType(entity.teamId, 'dag');
-
-      console.log(`[EXPRESS_FALLBACK] DAG "${dagName}" owner updated successfully`);
-      return res.json({ success: true, owner_email: (updated as any).owner_email || (updated as any).ownerEmail || null });
+      const { entityId } = req.params;
+      req.url = `/api/entities/${entityId}/owner`;
+      res.redirect(307, req.url);
     } catch (error) {
-      console.error('[EXPRESS_FALLBACK] Update DAG owner error:', error);
-      return res.status(500).json(createErrorResponse('Failed to update DAG owner', 'update_error'));
-    }
-  });
-
-  // FastAPI v1: Update table owner by entity_name
-  app.patch('/api/v1/tables/:name/owner', requireActiveUser, async (req: Request, res: Response) => {
-    try {
-      console.log("EXPRESS_FASTAPI_FALLBACK_DEV", req.sessionID);
-      const tableName = req.params.name;
-
-      // Find the table entity by name
-      const allEntities = await redisCache.getAllEntities();
-      const entity = allEntities.find(e => 
-        e.type === 'table' && 
-        (e.name === tableName || e.table_name === tableName)
-      );
-
-      if (!entity) {
-        return res.status(404).json(createErrorResponse('Table not found', 'not_found'));
-      }
-
-      const { owner_email, ownerEmail, owners } = req.body || {};
-      // Normalize owners to a comma-separated string stored in ownerEmail/owner_email
-      let emails: string[] = [];
-      if (Array.isArray(owners)) emails = owners;
-      else if (typeof owner_email === 'string') emails = owner_email.split(',');
-      else if (typeof ownerEmail === 'string') emails = ownerEmail.split(',');
-      emails = emails.map((e: string) => e.trim()).filter((e: string) => e.length > 0);
-
-      const updates: any = {};
-      const normalized = emails.join(',');
-      updates.owner_email = normalized;
-      updates.ownerEmail = normalized;
-
-      // Update via redis cache helper to persist to Redis and fallback consistently
-      const updated = await redisCache.updateEntityById(entity.id, updates);
-      if (!updated) {
-        return res.status(404).json(createErrorResponse('Entity not found', 'not_found'));
-      }
-
-      // Targeted invalidation: only invalidate tables for this team  
-      await redisCache.invalidateEntityDataByType(entity.teamId, 'table');
-
-      return res.json({ success: true, owner_email: (updated as any).owner_email || (updated as any).ownerEmail || null });
-    } catch (error) {
-      console.error('FastAPI fallback PATCH /api/v1/tables/:name/owner error:', error);
-      return res.status(500).json(createErrorResponse('Failed to update table owner', 'update_error'));
-    }
-  });
-
-  // FastAPI v1: Update DAG owner by entity_name
-  app.patch('/api/v1/dags/:name/owner', requireActiveUser, async (req: Request, res: Response) => {
-    try {
-      console.log("EXPRESS_FASTAPI_FALLBACK_DEV", req.sessionID);
-      const dagName = req.params.name;
-
-      // Find the DAG entity by name
-      const allEntities = await redisCache.getAllEntities();
-      const entity = allEntities.find(e => 
-        e.type === 'dag' && 
-        (e.name === dagName || e.dag_name === dagName)
-      );
-
-      if (!entity) {
-        return res.status(404).json(createErrorResponse('DAG not found', 'not_found'));
-      }
-
-      const { owner_email, ownerEmail, owners } = req.body || {};
-      // Normalize owners to a comma-separated string stored in ownerEmail/owner_email
-      let emails: string[] = [];
-      if (Array.isArray(owners)) emails = owners;
-      else if (typeof owner_email === 'string') emails = owner_email.split(',');
-      else if (typeof ownerEmail === 'string') emails = ownerEmail.split(',');
-      emails = emails.map((e: string) => e.trim()).filter((e: string) => e.length > 0);
-
-      const updates: any = {};
-      const normalized = emails.join(',');
-      updates.owner_email = normalized;
-      updates.ownerEmail = normalized;
-
-      // Update via redis cache helper to persist to Redis and fallback consistently
-      const updated = await redisCache.updateEntityById(entity.id, updates);
-      if (!updated) {
-        return res.status(404).json(createErrorResponse('Entity not found', 'not_found'));
-      }
-
-      // Targeted invalidation: only invalidate DAGs for this team
-      await redisCache.invalidateEntityDataByType(entity.teamId, 'dag');
-
-      return res.json({ success: true, owner_email: (updated as any).owner_email || (updated as any).ownerEmail || null });
-    } catch (error) {
-      console.error('FastAPI fallback PATCH /api/v1/dags/:name/owner error:', error);
-      return res.status(500).json(createErrorResponse('Failed to update DAG owner', 'update_error'));
+      console.error('Update entity owner v1 alias error:', error);
+      res.status(500).json(createErrorResponse('Failed to update owner', 'update_error'));
     }
   });
 
@@ -5518,340 +4239,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   process.on('SIGINT', () => {
     clearInterval(heartbeatInterval);
     clearInterval(cleanupInterval);
-  });
-
-  // Alert System API Routes
-  
-  // GET /api/alerts - Get system-wide alerts (Express) with 6-hour caching
-  app.get("/api/alerts", async (req: Request, res: Response) => {
-    try {
-      const cacheKey = CACHE_KEYS.ALERTS;
-      let alerts = await redisCache.get(cacheKey);
-      
-      if (!alerts) {
-        alerts = await storage.getActiveAlerts();
-        await redisCache.set(cacheKey, alerts, 6 * 60 * 60); // 6 hour cache
-      }
-
-      // Add HTTP caching headers with versioning to avoid 304 on stale data
-      const lastUpdatedRaw = await (redisCache as any).get ? await (redisCache as any).get(CACHE_KEYS.LAST_UPDATED) : null;
-      const lastUpdated = lastUpdatedRaw || new Date();
-      const version = Date.now();
-      res.set({
-        'ETag': `W/"alerts:${version}"`,
-        'Last-Modified': new Date(lastUpdated).toUTCString(),
-        'Cache-Control': 'no-cache'
-      });
-
-      res.json(alerts);
-    } catch (error) {
-      console.error('Error fetching alerts:', error);
-      res.status(500).json(createErrorResponse("Failed to fetch system alerts", "server_error"));
-    }
-  });
-
-  // GET /api/v1/alerts - FastAPI fallback for system-wide alerts with 6-hour caching
-  app.get("/api/v1/alerts", async (req: Request, res: Response) => {
-    try {
-      const cacheKey = CACHE_KEYS.ALERTS;
-      let alerts = await redisCache.get(cacheKey);
-      
-      if (!alerts) {
-        alerts = await storage.getActiveAlerts();
-        await redisCache.set(cacheKey, alerts, 6 * 60 * 60); // 6 hour cache
-      }
-
-      // Add HTTP caching headers with versioning to avoid 304 on stale data
-      const lastUpdatedRaw = await (redisCache as any).get ? await (redisCache as any).get(CACHE_KEYS.LAST_UPDATED) : null;
-      const lastUpdated = lastUpdatedRaw || new Date();
-      const version = Date.now();
-      res.set({
-        'ETag': `W/"alerts:${version}"`,
-        'Last-Modified': new Date(lastUpdated).toUTCString(),
-        'Cache-Control': 'no-cache'
-      });
-
-      res.json(alerts);
-    } catch (error) {
-      console.error('Error fetching alerts from FastAPI fallback:', error);
-      res.status(500).json(createErrorResponse("Failed to fetch system alerts from backup system", "fallback_error"));
-    }
-  });
-
-  // POST /api/alerts - Create new alert (Express, admin only)
-  app.post("/api/alerts", requireActiveUser, async (req: Request, res: Response) => {
-    try {
-      const result = insertAlertSchema.safeParse(req.body);
-      
-      if (!result.success) {
-        return res.status(400).json(createValidationErrorResponse(result.error));
-      }
-
-      const alert = await storage.createAlert(result.data);
-      
-      // Invalidate alert caches using consistent cache key patterns
-      await redisCache.invalidateCache({
-        keys: [CACHE_KEYS.ALERTS, 'system_alerts'],
-        patterns: ['alerts:*', 'alert_*'],
-        mainCacheKeys: ['ALERTS'],
-        refreshAffectedData: true
-      });
-
-      res.status(201).json(alert);
-    } catch (error) {
-      console.error('Error creating alert:', error);
-      res.status(500).json(createErrorResponse("Failed to create alert", "server_error"));
-    }
-  });
-
-  // POST /api/v1/alerts - FastAPI fallback for creating alerts (development only)
-  app.post("/api/v1/alerts", requireActiveUser, async (req: Request, res: Response) => {
-    try {
-      const result = insertAlertSchema.safeParse(req.body);
-      
-      if (!result.success) {
-        return res.status(400).json(createValidationErrorResponse(result.error));
-      }
-
-      const alert = await storage.createAlert(result.data);
-      
-      // Invalidate alert caches using consistent cache key patterns
-      await redisCache.invalidateCache({
-        keys: [CACHE_KEYS.ALERTS, 'system_alerts'],
-        patterns: ['alerts:*', 'alert_*'],
-        mainCacheKeys: ['ALERTS'],
-        refreshAffectedData: true
-      });
-
-      res.status(201).json(alert);
-    } catch (error) {
-      console.error('Error creating alert from FastAPI fallback:', error);
-      res.status(500).json(createErrorResponse("Failed to create alert from backup system", "fallback_error"));
-    }
-  });
-
-  // DELETE /api/alerts/:id - Deactivate alert (Express, admin only)
-  app.delete("/api/alerts/:id", requireActiveUser, async (req: Request, res: Response) => {
-    try {
-      const alertId = parseInt(req.params.id);
-      if (isNaN(alertId)) {
-        return res.status(400).json(createErrorResponse("Invalid alert ID", "validation_error"));
-      }
-
-      await storage.deactivateAlert(alertId);
-      
-      // Invalidate alert caches using consistent cache key patterns
-      await redisCache.invalidateCache({
-        keys: [CACHE_KEYS.ALERTS, 'system_alerts'],
-        patterns: ['alerts:*', 'alert_*'],
-        mainCacheKeys: ['ALERTS'],
-        refreshAffectedData: true
-      });
-
-      res.json({ message: "Alert deactivated successfully" });
-    } catch (error) {
-      console.error('Error deactivating alert:', error);
-      res.status(500).json(createErrorResponse("Failed to deactivate alert", "server_error"));
-    }
-  });
-
-  // DELETE /api/v1/alerts/:id - FastAPI fallback for deactivating alerts (development only)
-  app.delete("/api/v1/alerts/:id", requireActiveUser, async (req: Request, res: Response) => {
-    try {
-      const alertId = parseInt(req.params.id);
-      if (isNaN(alertId)) {
-        return res.status(400).json(createErrorResponse("Invalid alert ID", "validation_error"));
-      }
-
-      await storage.deactivateAlert(alertId);
-      
-      // Invalidate alert caches using consistent cache key patterns
-      await redisCache.invalidateCache({
-        keys: [CACHE_KEYS.ALERTS, 'system_alerts'],
-        patterns: ['alerts:*', 'alert_*'],
-        mainCacheKeys: ['ALERTS'],
-        refreshAffectedData: true
-      });
-
-      res.json({ message: "Alert deactivated successfully" });
-    } catch (error) {
-      console.error('Error deactivating alert from FastAPI fallback:', error);
-      res.status(500).json(createErrorResponse("Failed to deactivate alert from backup system", "fallback_error"));
-    }
-  });
-
-  // Admin Broadcast Message API Routes
-
-  // GET /api/admin/broadcast-messages - Get admin broadcast messages (Express)
-  app.get("/api/admin/broadcast-messages", async (req: Request, res: Response) => {
-    try {
-      const { user_id } = req.query;
-      
-      if (user_id) {
-        // Get messages for specific user (login-triggered + active immediate)
-        const userId = parseInt(user_id as string);
-        if (isNaN(userId)) {
-          return res.status(400).json(createErrorResponse("Invalid user ID", "validation_error"));
-        }
-        const messages = await storage.getAdminBroadcastMessagesForUser(userId);
-        res.json(messages);
-      } else {
-        // Get all active admin broadcast messages
-        const messages = await storage.getActiveAdminBroadcastMessages();
-        res.json(messages);
-      }
-    } catch (error) {
-      console.error('Error fetching admin broadcast messages:', error);
-      res.status(500).json(createErrorResponse("Failed to fetch admin broadcast messages", "server_error"));
-    }
-  });
-
-  // GET /api/v1/admin/broadcast-messages - FastAPI fallback for admin broadcast messages
-  app.get("/api/v1/admin/broadcast-messages", async (req: Request, res: Response) => {
-    try {
-      const { user_id } = req.query;
-      
-      if (user_id) {
-        // Get messages for specific user (login-triggered + active immediate)
-        const userId = parseInt(user_id as string);
-        if (isNaN(userId)) {
-          return res.status(400).json(createErrorResponse("Invalid user ID", "validation_error"));
-        }
-        const messages = await storage.getAdminBroadcastMessagesForUser(userId);
-        res.json(messages);
-      } else {
-        // Get all active admin broadcast messages
-        const messages = await storage.getActiveAdminBroadcastMessages();
-        res.json(messages);
-      }
-    } catch (error) {
-      console.error('Error fetching admin broadcast messages from FastAPI fallback:', error);
-      res.status(500).json(createErrorResponse("Failed to fetch admin broadcast messages from backup system", "fallback_error"));
-    }
-  });
-
-  // POST /api/admin/broadcast-messages - Create new admin broadcast message (Express, admin only)
-  app.post("/api/admin/broadcast-messages", requireActiveUser, async (req: Request, res: Response) => {
-    try {
-      const result = insertAdminBroadcastMessageSchema.safeParse(req.body);
-      
-      if (!result.success) {
-        return res.status(400).json(createValidationErrorResponse(result.error));
-      }
-
-      const message = await storage.createAdminBroadcastMessage(result.data);
-      
-      // Invalidate admin message caches and broadcast real-time updates  
-      await redisCache.invalidateCache({
-        keys: [CACHE_KEYS.ADMIN_MESSAGES, 'admin_broadcast_messages'],
-        patterns: ['admin_messages:*', 'admin_*'],
-        mainCacheKeys: ['ADMIN_MESSAGES'],
-        refreshAffectedData: true
-      });
-
-      // Broadcast immediate message to all connected clients if it's immediate delivery
-      if (result.data.deliveryType === 'immediate') {
-        await redisCache.broadcastAdminMessage({
-          id: message.id,
-          message: message.message,
-          deliveryType: message.deliveryType as 'immediate' | 'login_triggered',
-          createdAt: message.createdAt,
-          expiresAt: message.expiresAt
-        });
-      }
-
-      res.status(201).json(message);
-    } catch (error) {
-      console.error('Error creating admin broadcast message:', error);
-      res.status(500).json(createErrorResponse("Failed to create admin broadcast message", "server_error"));
-    }
-  });
-
-  // POST /api/v1/admin/broadcast-messages - FastAPI fallback for creating admin broadcast messages (development only)
-  app.post("/api/v1/admin/broadcast-messages", requireActiveUser, async (req: Request, res: Response) => {
-    try {
-      const result = insertAdminBroadcastMessageSchema.safeParse(req.body);
-      
-      if (!result.success) {
-        return res.status(400).json(createValidationErrorResponse(result.error));
-      }
-
-      const message = await storage.createAdminBroadcastMessage(result.data);
-      
-      // Invalidate admin message caches and broadcast real-time updates  
-      await redisCache.invalidateCache({
-        keys: [CACHE_KEYS.ADMIN_MESSAGES, 'admin_broadcast_messages'],
-        patterns: ['admin_messages:*', 'admin_*'],
-        mainCacheKeys: ['ADMIN_MESSAGES'],
-        refreshAffectedData: true
-      });
-
-      // Broadcast immediate message to all connected clients if it's immediate delivery
-      if (result.data.deliveryType === 'immediate') {
-        await redisCache.broadcastAdminMessage({
-          id: message.id,
-          message: message.message,
-          deliveryType: message.deliveryType as 'immediate' | 'login_triggered',
-          createdAt: message.createdAt,
-          expiresAt: message.expiresAt
-        });
-      }
-
-      res.status(201).json(message);
-    } catch (error) {
-      console.error('Error creating admin broadcast message from FastAPI fallback:', error);
-      res.status(500).json(createErrorResponse("Failed to create admin broadcast message from backup system", "fallback_error"));
-    }
-  });
-
-  // DELETE /api/admin/broadcast-messages/:id - Deactivate admin broadcast message (Express, admin only)
-  app.delete("/api/admin/broadcast-messages/:id", requireActiveUser, async (req: Request, res: Response) => {
-    try {
-      const messageId = parseInt(req.params.id);
-      if (isNaN(messageId)) {
-        return res.status(400).json(createErrorResponse("Invalid message ID", "validation_error"));
-      }
-
-      await storage.deactivateAdminBroadcastMessage(messageId);
-      
-      // Invalidate admin message caches
-      await redisCache.invalidateCache({
-        keys: [CACHE_KEYS.ADMIN_MESSAGES, 'admin_broadcast_messages'],
-        patterns: ['admin_messages:*', 'admin_*'],
-        mainCacheKeys: ['ADMIN_MESSAGES'],
-        refreshAffectedData: true
-      });
-
-      res.json({ message: "Admin broadcast message deactivated successfully" });
-    } catch (error) {
-      console.error('Error deactivating admin broadcast message:', error);
-      res.status(500).json(createErrorResponse("Failed to deactivate admin broadcast message", "server_error"));
-    }
-  });
-
-  // DELETE /api/v1/admin/broadcast-messages/:id - FastAPI fallback for deactivating admin broadcast messages (development only)
-  app.delete("/api/v1/admin/broadcast-messages/:id", requireActiveUser, async (req: Request, res: Response) => {
-    try {
-      const messageId = parseInt(req.params.id);
-      if (isNaN(messageId)) {
-        return res.status(400).json(createErrorResponse("Invalid message ID", "validation_error"));
-      }
-
-      await storage.deactivateAdminBroadcastMessage(messageId);
-      
-      // Invalidate admin message caches
-      await redisCache.invalidateCache({
-        keys: [CACHE_KEYS.ADMIN_MESSAGES, 'admin_broadcast_messages'],
-        patterns: ['admin_messages:*', 'admin_*'],
-        mainCacheKeys: ['ADMIN_MESSAGES'],
-        refreshAffectedData: true
-      });
-
-      res.json({ message: "Admin broadcast message deactivated successfully" });
-    } catch (error) {
-      console.error('Error deactivating admin broadcast message from FastAPI fallback:', error);
-      res.status(500).json(createErrorResponse("Failed to deactivate admin broadcast message from backup system", "fallback_error"));
-    }
   });
 
   // Connect WebSocket to cache system with authenticated sockets

@@ -38,6 +38,7 @@ import {
   Clear as ClearIcon
 } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useAdminMutation } from '@/utils/cache-management';
 import { useToast } from '@/hooks/use-toast';
 import { buildUrl, endpoints } from '@/config';
 import { apiRequest } from '@/lib/queryClient';
@@ -179,6 +180,7 @@ const UsersManagement = () => {
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { updateUser: updateUserAdmin } = useAdminMutation();
   const { executeWithOptimism, cacheManager } = useOptimisticMutation();
   
   // Debounce search query for better performance
@@ -390,15 +392,16 @@ const UsersManagement = () => {
 
       // CRITICAL FIX: Apply optimistic update to profile cache if current user is being updated
       const currentProfile = queryClient.getQueryData(['profile', 'current']) as any;
-      if (currentProfile && result && (currentProfile.user_email === result.email || currentProfile.user_id === userId)) {
+      const userResult = result as any; // Type assertion for API result
+      if (currentProfile && userResult && (currentProfile.user_email === userResult.email || currentProfile.user_id === userId)) {
         cacheManager.setOptimisticData(['profile', 'current'], (old: any | undefined) => {
           if (!old) return old;
           return {
             ...old,
-            user_name: result.user_name || result.username || old.user_name,
-            user_slack: result.user_slack || old.user_slack,
-            user_pagerduty: result.user_pagerduty || old.user_pagerduty,
-            is_active: result.is_active !== undefined ? result.is_active : old.is_active,
+            user_name: userResult.user_name || userResult.username || old.user_name,
+            user_slack: userResult.user_slack || old.user_slack,
+            user_pagerduty: userResult.user_pagerduty || old.user_pagerduty,
+            is_active: userResult.is_active !== undefined ? userResult.is_active : old.is_active,
           };
         });
       }
@@ -464,7 +467,12 @@ const UsersManagement = () => {
   const handleSubmitUser = async (userData: any) => {
     try {
       if (selectedUser) {
-        await updateUserMutation.mutateAsync({ userId: selectedUser.user_id, userData });
+        await updateUserAdmin(selectedUser.user_id, userData);
+        toast({
+          title: 'Success',
+          description: 'User updated successfully',
+        });
+        setDialogOpen(false);
       } else {
         await createUserMutation.mutateAsync(userData);
       }
