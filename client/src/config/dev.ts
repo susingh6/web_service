@@ -60,7 +60,7 @@ export const devConfig = {
     
     // Profile endpoints - Session-based user profile management
     profile: {
-      getCurrent: '/api/user/profile',
+      getCurrent: '/api/user',
       updateCurrent: '/api/user/profile',
     },
     

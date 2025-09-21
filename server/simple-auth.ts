@@ -275,6 +275,44 @@ export function setupSimpleAuth(app: Express) {
     res.json(userWithoutPassword);
   });
 
+  // Update current user profile route
+  app.put("/api/user/profile", async (req: Request, res: Response) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+    
+    try {
+      const currentUser = req.user;
+      const updateData = req.body;
+      
+      // Update the user in storage
+      const updatedUser = await storage.updateUser(currentUser.id, {
+        user_name: updateData.user_name,
+        user_email: updateData.user_email,
+        user_slack: updateData.user_slack,
+        user_pagerduty: updateData.user_pagerduty,
+      });
+      
+      if (!updatedUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Update the session with new user data
+      req.login(updatedUser, (loginErr) => {
+        if (loginErr) {
+          return res.status(500).json({ message: "Failed to update session" });
+        }
+        
+        // Don't send the password back to the client
+        const { password, ...userWithoutPassword } = updatedUser;
+        res.json(userWithoutPassword);
+      });
+    } catch (error) {
+      console.error('Profile update error:', error);
+      res.status(500).json({ message: "Failed to update profile" });
+    }
+  });
+
   // Azure SSO validation endpoint for admin role checking
   app.post("/api/auth/azure/validate", async (req: Request, res: Response) => {
     try {
