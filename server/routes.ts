@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { redisCache } from "./redis-cache";
-import { insertEntitySchema, insertTeamSchema, updateTeamSchema, insertEntityHistorySchema, insertIssueSchema, insertUserSchema, insertNotificationTimelineSchema, adminUserSchema, Entity, InsertNotificationTimeline } from "@shared/schema";
+import { insertEntitySchema, insertTeamSchema, updateTeamSchema, insertEntityHistorySchema, insertIssueSchema, insertUserSchema, insertNotificationTimelineSchema, insertEntitySubscriptionSchema, adminUserSchema, Entity, InsertNotificationTimeline } from "@shared/schema";
 import { z } from "zod";
 import { logAuthenticationEvent, structuredLogger } from "./middleware/structured-logging";
 import { requireActiveUser } from "./middleware/check-active-user";
@@ -2952,6 +2952,88 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error deleting notification timeline:", error);
       res.status(500).json({ message: "Failed to delete notification timeline" });
+    }
+  });
+
+  // Entity subscription routes
+  // Subscribe to a notification timeline
+  app.post("/api/subscriptions", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      if (!req.user?.id) {
+        return res.status(401).json({ message: "User not authenticated" });
+      }
+
+      const subscriptionData = {
+        ...req.body,
+        userId: req.user.id
+      };
+      
+      const validatedData = insertEntitySubscriptionSchema.parse(subscriptionData);
+      const subscription = await storage.subscribeToNotificationTimeline(validatedData);
+      res.status(201).json(subscription);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid input", errors: error.errors });
+      }
+      console.error("Error creating subscription:", error);
+      res.status(500).json({ message: "Failed to create subscription" });
+    }
+  });
+
+  // Unsubscribe from a notification timeline
+  app.delete("/api/subscriptions/:timelineId", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      if (!req.user?.id) {
+        return res.status(401).json({ message: "User not authenticated" });
+      }
+
+      const timelineId = req.params.timelineId;
+      const unsubscribed = await storage.unsubscribeFromNotificationTimeline(req.user.id, timelineId);
+      
+      if (!unsubscribed) {
+        return res.status(404).json({ message: "Subscription not found" });
+      }
+      
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error removing subscription:", error);
+      res.status(500).json({ message: "Failed to remove subscription" });
+    }
+  });
+
+  // Get user's subscriptions
+  app.get("/api/me/subscriptions", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      if (!req.user?.id) {
+        return res.status(401).json({ message: "User not authenticated" });
+      }
+
+      const subscriptions = await storage.getUserSubscriptions(req.user.id);
+      res.json(subscriptions);
+    } catch (error) {
+      console.error("Error fetching user subscriptions:", error);
+      res.status(500).json({ message: "Failed to fetch subscriptions" });
+    }
+  });
+
+  // Get subscriptions for a specific timeline (with count)
+  app.get("/api/notification-timelines/:id/subscriptions", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const timelineId = req.params.id;
+      const subscriptions = await storage.getTimelineSubscriptions(timelineId);
+      const count = await storage.getSubscriptionCount(timelineId);
+      
+      res.json({
+        count,
+        subscriptions: subscriptions.map(sub => ({
+          id: sub.id,
+          userId: sub.userId,
+          createdAt: sub.createdAt
+        }))
+      });
+    } catch (error) {
+      console.error("Error fetching timeline subscriptions:", error);
+      res.status(500).json({ message: "Failed to fetch timeline subscriptions" });
     }
   });
 
