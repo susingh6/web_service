@@ -313,7 +313,7 @@ export function setupSimpleAuth(app: Express) {
     }
   });
 
-  // Azure SSO validation endpoint for admin role checking
+  // Azure SSO validation endpoint with admin cache checking
   app.post("/api/auth/azure/validate", async (req: Request, res: Response) => {
     try {
       const { token, claims } = req.body;
@@ -361,47 +361,103 @@ export function setupSimpleAuth(app: Express) {
         return; // Important: return here to prevent further execution
       }
       
-      // Check if user has admin role from Azure SSO
-      if (userRole !== 'admin') {
-        logAuthenticationEvent("azure-validate", userEmail || 'unknown', req.sessionContext, req.requestId, false);
-        return res.status(403).json({ 
-          success: false,
-          message: "Access denied. Only administrators can access this application.",
-          errorCode: "INSUFFICIENT_PRIVILEGES"
+      // ENHANCED LOGIC: Check if user exists in admin users cache first
+      let existingAdminUser = null;
+      try {
+        // Check admin users (using same endpoint as frontend cache)
+        const adminUsers = await storage.getUsers();
+        existingAdminUser = adminUsers.find(user => 
+          user.email === userEmail || 
+          user.user_email === userEmail ||
+          user.username === userEmail
+        );
+      } catch (error) {
+        console.log('Could not fetch admin users cache, proceeding with OAuth user creation');
+      }
+
+      if (existingAdminUser) {
+        // EXISTING USER: User found in admin cache - use their existing details
+        console.log(`Existing admin user found: ${userEmail}. Using cached admin details.`);
+        
+        // Create session with existing admin user details (but update display name if provided)
+        const sessionUser = {
+          ...existingAdminUser,
+          displayName: displayName || existingAdminUser.displayName,
+          role: 'admin' // Ensure admin role for existing users
+        };
+        
+        // Log the user into the Express session
+        req.login(sessionUser, (err) => {
+          if (err) {
+            logAuthenticationEvent("azure-login", sessionUser.username, undefined, req.requestId, false);
+            return res.status(500).json({ 
+              success: false,
+              message: "Session creation failed"
+            });
+          }
+          
+          logAuthenticationEvent("azure-login", sessionUser.username, undefined, req.requestId, true);
+          
+          const { password, ...userWithoutPassword } = sessionUser;
+          return res.json({
+            success: true,
+            user: userWithoutPassword,
+            message: "Azure SSO validation successful - existing admin user"
+          });
         });
-      }
-      
-      // Validate and create/update user with Azure information
-      const userData = {
-        username: userEmail || azureObjectId,
-        email: userEmail,
-        displayName: displayName,
-        role: userRole,
-        azureObjectId: azureObjectId,
-        password: 'azure-sso-user' // Placeholder for Azure users
-      };
-      
-      let user;
-      const existingUser = await storage.getUserByUsername(userData.username);
-      if (existingUser) {
-        // Update existing user role information
-        user = { ...existingUser, role: userRole, displayName: displayName };
+        return;
       } else {
-        // Create new user
-        user = await storage.createUser(userData);
+        // NEW USER: Not found in admin cache - create from OAuth token data
+        console.log(`New user: ${userEmail}. Creating from OAuth token data.`);
+        
+        // Check if user has admin role from Azure SSO (for new users)
+        if (userRole !== 'admin') {
+          logAuthenticationEvent("azure-validate", userEmail || 'unknown', req.sessionContext, req.requestId, false);
+          return res.status(403).json({ 
+            success: false,
+            message: "Access denied. Only administrators can access this application.",
+            errorCode: "INSUFFICIENT_PRIVILEGES"
+          });
+        }
+        
+        // Create new user with OAuth token data
+        const userData = {
+          username: userEmail || azureObjectId,
+          email: userEmail,
+          displayName: displayName,
+          role: userRole,
+          azureObjectId: azureObjectId,
+          password: 'azure-sso-user', // Placeholder for Azure users
+          is_active: true // New users are active by default
+        };
+        
+        // Create new user in storage
+        const newUser = await storage.createUser(userData);
+        
+        // Log the user into the Express session
+        req.login(newUser, (err) => {
+          if (err) {
+            logAuthenticationEvent("azure-login", newUser.username, undefined, req.requestId, false);
+            return res.status(500).json({ 
+              success: false,
+              message: "Session creation failed"
+            });
+          }
+          
+          logAuthenticationEvent("azure-login", newUser.username, undefined, req.requestId, true);
+          
+          const { password, ...userWithoutPassword } = newUser;
+          return res.json({
+            success: true,
+            user: userWithoutPassword,
+            message: "Azure SSO validation successful - new user created from OAuth token"
+          });
+        });
+        return;
       }
-      
-      logAuthenticationEvent("azure-login", user.username, undefined, req.requestId, true);
-      
-      // Don't send password back
-      const { password, ...userWithoutPassword } = user;
-      res.json({
-        success: true,
-        user: userWithoutPassword,
-        message: "Azure SSO validation successful"
-      });
       
     } catch (error) {
+      console.error('Azure SSO validation error:', error);
       logAuthenticationEvent("azure-validate", "unknown", req.sessionContext, req.requestId, false);
       res.status(500).json({ 
         success: false,
