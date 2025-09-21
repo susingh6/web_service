@@ -334,8 +334,9 @@ const ConflictsManagement = () => {
       return response.json();
     },
     onSuccess: (data, variables) => {
-      // Invalidate admin conflicts cache
-      queryClient.invalidateQueries({ queryKey: ['admin', 'conflicts'] });
+      // Central admin cache invalidation
+      // Prefer centralized helper to keep parity with other admin sections
+      import('@/lib/cacheKeys').then(({ invalidateAdminCaches }) => invalidateAdminCaches(queryClient));
       
       // Find the conflict to get team/tenant info for targeted cache invalidation
       const conflict = conflicts.find(c => c.notificationId === variables.conflictId);

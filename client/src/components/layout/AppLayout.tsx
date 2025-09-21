@@ -45,9 +45,17 @@ const AppLayout = ({ children }: AppLayoutProps) => {
           }
         });
         
-        // Refresh Redux store to ensure consistency  
-        dispatch(fetchEntities({ tenant: 'Data Engineering' }));
-        dispatch(fetchDashboardSummary({ tenantName: 'Data Engineering' }));
+        // Refresh using Summary's currently selected tenant (persisted by Summary.tsx)
+        try {
+          const raw = sessionStorage.getItem('dashboard_ui_state_v1');
+          const selectedTenantName = raw ? (JSON.parse(raw)?.selectedTenantName as string | undefined) : undefined;
+          if (selectedTenantName) {
+            dispatch(fetchEntities({ tenant: selectedTenantName }));
+            dispatch(fetchDashboardSummary({ tenantName: selectedTenantName } as any));
+          }
+        } catch {
+          // Ignore parse errors; no refresh if tenant unknown
+        }
       }
     }
   });

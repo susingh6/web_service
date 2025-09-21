@@ -1361,7 +1361,11 @@ export function useAdminMutation() {
       const { apiRequest } = await import('@/lib/queryClient');
       const { endpoints } = await import('@/config');
       
-      const response = await apiRequest('POST', endpoints.admin.alerts.create, alertData);
+      // Try FastAPI endpoint first, then Express fallback
+      let response = await apiRequest('POST', endpoints.admin.alerts.create, alertData);
+      if (!response.ok && response.status === 404) {
+        response = await apiRequest('POST', '/api/alerts', alertData);
+      }
       if (!response.ok) {
         const text = await response.text();
         throw new Error(`Failed to create alert: ${text}`);
@@ -1380,7 +1384,11 @@ export function useAdminMutation() {
       const { apiRequest } = await import('@/lib/queryClient');
       const { endpoints } = await import('@/config');
       
-      const response = await apiRequest('DELETE', endpoints.admin.alerts.delete(alertId));
+      // Try FastAPI endpoint first, then Express fallback
+      let response = await apiRequest('DELETE', endpoints.admin.alerts.delete(alertId));
+      if (!response.ok && response.status === 404) {
+        response = await apiRequest('DELETE', `/api/alerts/${alertId}`);
+      }
       if (!response.ok) {
         const text = await response.text();
         throw new Error(`Failed to delete alert: ${text}`);

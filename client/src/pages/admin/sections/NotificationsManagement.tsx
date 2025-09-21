@@ -147,17 +147,63 @@ const NotificationsManagement = () => {
 
   // Fetch alerts
   const { data: alerts = [], isLoading: alertsLoading } = useQuery<Alert[]>({
-    queryKey: ['admin', 'alerts'],
+    queryKey: ['admin', 'alerts', 'v2'],
     queryFn: async () => {
-      const response = await fetch(buildUrl(endpoints.admin.alerts.getAll), {
-        headers: { 
-          'Cache-Control': 'no-cache',
-          'X-Session-ID': localStorage.getItem('fastapi_session_id') || '',
-        },
-        credentials: 'include'
+      // Fetch from both FastAPI and Express, then merge unique alerts
+      const fastUrl = buildUrl(endpoints.admin.alerts.getAll) + `?t=${Date.now()}`;
+      const expressUrl = buildUrl(endpoints.admin.alerts.getAllFallback || '/api/alerts') + `?t=${Date.now()}`;
+      const headers = {
+        'Cache-Control': 'no-cache',
+        'X-Session-ID': localStorage.getItem('fastapi_session_id') || '',
+      } as Record<string, string>;
+      const init: RequestInit = { headers, credentials: 'include' };
+
+      const [fastRes, expressRes] = await Promise.allSettled([
+        fetch(fastUrl, init),
+        fetch(expressUrl, init),
+      ]);
+
+      const lists: any[][] = [];
+      if (fastRes.status === 'fulfilled' && fastRes.value.ok) {
+        try {
+          const fastData = await fastRes.value.json();
+          if (Array.isArray(fastData)) lists.push(fastData);
+        } catch {}
+      }
+      if (expressRes.status === 'fulfilled' && expressRes.value.ok) {
+        try {
+          const expressData = await expressRes.value.json();
+          if (Array.isArray(expressData)) lists.push(expressData);
+        } catch {}
+      }
+
+      if (lists.length === 0) throw new Error('Failed to fetch alerts');
+
+      // Merge by id, prefer latest updatedAt
+      const byId = new Map<number, any>();
+      for (const list of lists) {
+        for (const item of list) {
+          const existing = byId.get(item.id);
+          if (!existing) {
+            byId.set(item.id, item);
+          } else {
+            const existingUpdated = existing?.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+            const candidateUpdated = item?.updatedAt ? new Date(item.updatedAt).getTime() : 0;
+            if (candidateUpdated >= existingUpdated) byId.set(item.id, item);
+          }
+        }
+      }
+      const data: any[] = Array.from(byId.values());
+      
+      // Filter only active alerts that haven't expired (consistent with header)
+      const now = new Date();
+      // Remove debug logs in production
+      const filteredAlerts = data.filter((alert: Alert) => {
+        const isActive = alert.isActive;
+        const notExpired = !alert.expiresAt || new Date(alert.expiresAt) > now;
+        return isActive && notExpired;
       });
-      if (!response.ok) throw new Error('Failed to fetch alerts');
-      return response.json();
+      return filteredAlerts;
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
@@ -179,9 +225,9 @@ const NotificationsManagement = () => {
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
-  // Create alert wrapper function
-  const createAlertMutation = {
-    mutateAsync: async (data: AlertFormData) => {
+  // Create alert mutation using centralized cache management
+  const createAlertMutation = useMutation({
+    mutationFn: async (data: AlertFormData) => {
       const expiresAtDate = new Date(Date.now() + data.expiresInHours * 60 * 60 * 1000);
       const alertData = {
         title: data.title,
@@ -193,25 +239,26 @@ const NotificationsManagement = () => {
         expiresAt: expiresAtDate.toISOString(),
       };
 
-      console.log('Creating alert with data:', alertData);
-
       try {
         const result = await createAlert(alertData);
-        toast({ title: 'Success', description: 'Alert created successfully' });
-        setAlertDialogOpen(false);
-        alertForm.reset();
         return result;
-      } catch (error: any) {
-        toast({ 
-          title: 'Error', 
-          description: error.message || 'Failed to create alert', 
-          variant: 'destructive' 
-        });
+      } catch (error) {
         throw error;
       }
     },
-    isPending: false
-  };
+    onSuccess: () => {
+      toast({ title: 'Success', description: 'Alert created successfully' });
+      setAlertDialogOpen(false);
+      alertForm.reset();
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: 'Error', 
+        description: error.message || 'Failed to create alert', 
+        variant: 'destructive' 
+      });
+    }
+  });
 
   // Create admin message mutation
   const createMessageMutation = useMutation({
@@ -225,7 +272,8 @@ const NotificationsManagement = () => {
         expiresAt: new Date(Date.now() + data.expiresInDays * 24 * 60 * 60 * 1000).toISOString(),
       };
 
-      const response = await fetch(buildUrl(endpoints.admin.broadcastMessages.create), {
+      // Try FastAPI endpoint first
+      let response = await fetch(buildUrl(endpoints.admin.broadcastMessages.create), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -234,6 +282,19 @@ const NotificationsManagement = () => {
         body: JSON.stringify(messageData),
         credentials: 'include',
       });
+
+      // If FastAPI fails, try Express fallback
+      if (!response.ok && response.status === 404) {
+        response = await fetch(buildUrl('/api/broadcast-messages'), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': localStorage.getItem('fastapi_session_id') || '',
+          },
+          body: JSON.stringify(messageData),
+          credentials: 'include',
+        });
+      }
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -258,35 +319,46 @@ const NotificationsManagement = () => {
     }
   });
 
-  // Deactivate alert wrapper function
-  const deactivateAlertMutation = {
-    mutateAsync: async (alertId: number) => {
-      try {
-        const result = await deleteAlert(alertId);
-        toast({ title: 'Success', description: 'Alert deactivated successfully' });
-        return result;
-      } catch (error: any) {
-        toast({ 
-          title: 'Error', 
-          description: error.message || 'Failed to deactivate alert', 
-          variant: 'destructive' 
-        });
-        throw error;
-      }
+  // Deactivate alert mutation using centralized cache management
+  const deactivateAlertMutation = useMutation({
+    mutationFn: async (alertId: number) => {
+      return await deleteAlert(alertId);
     },
-    isPending: false
-  };
+    onSuccess: () => {
+      toast({ title: 'Success', description: 'Alert deactivated successfully' });
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: 'Error', 
+        description: error.message || 'Failed to deactivate alert', 
+        variant: 'destructive' 
+      });
+    }
+  });
 
   // Deactivate admin message mutation
   const deactivateMessageMutation = useMutation({
     mutationFn: async (messageId: number) => {
-      const response = await fetch(buildUrl(endpoints.admin.broadcastMessages.delete(messageId)), {
+      // Try FastAPI endpoint first
+      let response = await fetch(buildUrl(endpoints.admin.broadcastMessages.delete(messageId)), {
         method: 'DELETE',
         headers: {
           'X-Session-ID': localStorage.getItem('fastapi_session_id') || '',
         },
         credentials: 'include',
       });
+
+      // If FastAPI fails, try Express fallback
+      if (!response.ok && response.status === 404) {
+        response = await fetch(buildUrl(`/api/broadcast-messages/${messageId}`), {
+          method: 'DELETE',
+          headers: {
+            'X-Session-ID': localStorage.getItem('fastapi_session_id') || '',
+          },
+          credentials: 'include',
+        });
+      }
+
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(`Failed to deactivate admin message: ${errorData.message || 'Unknown error'}`);
@@ -330,7 +402,7 @@ const NotificationsManagement = () => {
   }, [adminMessages, deferredSearchQuery]);
 
   const handleCreateAlert = (data: AlertFormData) => {
-    createAlertMutation.mutateAsync(data);
+    createAlertMutation.mutate(data);
   };
 
   const handleCreateMessage = (data: AdminMessageFormData) => {

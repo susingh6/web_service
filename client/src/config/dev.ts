@@ -186,11 +186,19 @@ export const devConfig = {
         getAll: '/api/v1/alerts',
         create: '/api/v1/alerts',
         delete: (alertId: number) => `/api/v1/alerts/${alertId}`,
+        // Express fallbacks
+        getAllFallback: '/api/alerts',
+        createFallback: '/api/alerts',
+        deleteFallback: (alertId: number) => `/api/alerts/${alertId}`,
       },
       broadcastMessages: {
         getAll: '/api/v1/admin/broadcast-messages',
         create: '/api/v1/admin/broadcast-messages',
         delete: (messageId: number) => `/api/v1/admin/broadcast-messages/${messageId}`,
+        // Express fallbacks
+        getAllFallback: '/api/broadcast-messages',
+        createFallback: '/api/broadcast-messages',
+        deleteFallback: (messageId: number) => `/api/broadcast-messages/${messageId}`,
       },
     },
     

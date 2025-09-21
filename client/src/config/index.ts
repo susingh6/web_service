@@ -153,11 +153,19 @@ interface ApiConfig {
         getAll: string;
         create: string;
         delete: (alertId: number) => string;
+        // Optional Express fallbacks (development only)
+        getAllFallback?: string;
+        createFallback?: string;
+        deleteFallback?: (alertId: number) => string;
       };
       broadcastMessages: {
         getAll: string;
         create: string;
         delete: (messageId: number) => string;
+        // Optional Express fallbacks (development only)
+        getAllFallback?: string;
+        createFallback?: string;
+        deleteFallback?: (messageId: number) => string;
       };
     };
     audit: {

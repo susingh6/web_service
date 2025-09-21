@@ -76,6 +76,10 @@ export function invalidateAdminCaches(queryClient: QueryClient) {
   queryClient.invalidateQueries({ queryKey: ['admin', 'teams'] });
   queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
   queryClient.invalidateQueries({ queryKey: ['admin', 'roles'] });
+  // Conflicts
+  queryClient.invalidateQueries({ queryKey: ['admin', 'conflicts'] });
+  queryClient.invalidateQueries({ queryKey: ['admin', 'conflicts', 'v2'] });
+  queryClient.invalidateQueries({ queryKey: ['admin', 'conflicts', 'overview'] });
   queryClient.invalidateQueries({ queryKey: ['admin', 'alerts'] });
   queryClient.invalidateQueries({ queryKey: ['notifications', 'alerts'] });
   queryClient.invalidateQueries({ queryKey: ['admin', 'broadcast-messages'] });

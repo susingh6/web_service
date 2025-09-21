@@ -522,138 +522,24 @@ export const dashboardApi = {
 };
 
 export const rollbackApi = {
-  // 3-tier fallback: FastAPI → Express → Mock data (development only)
+  // FastAPI only (no Express/mock fallback). Surfaces clear error if unavailable.
   getDeletedEntitiesByName: async (entityName: string) => {
-    try {
-      const res = await environmentAwareApiRequest('GET', endpoints.audit.getDeletedEntitiesByName(entityName));
-      return await res.json();
-    } catch (error) {
-      if (isDevelopment) {
-        console.warn('[DEVELOPMENT] Audit API unavailable, falling back to mock data');
-        // Mock search - find entities that match the name
-        const MOCK_DELETED_ENTITIES = [
-          {
-            id: '1',
-            entity_name: 'user_analytics_pipeline',
-            entity_type: 'dag',
-            tenant_name: 'Data Engineering123',
-            team_name: 'Analytics Team',
-            deleted_date: '2025-09-15T10:30:00Z',
-            deleted_by: 'john.doe@company.com',
-            entity_id: 'dag_123',
-            tenant_id: '1',
-            team_id: '1'
-          },
-          {
-            id: '2',
-            entity_name: 'customer_data_table',
-            entity_type: 'table',
-            tenant_name: 'Marketing Ops',
-            team_name: 'Customer Insights',
-            deleted_date: '2025-09-14T15:45:00Z',
-            deleted_by: 'jane.smith@company.com',
-            entity_id: 'table_456',
-            tenant_id: '2',
-            team_id: '2'
-          },
-          {
-            id: '3',
-            entity_name: 'sales_reporting_dag',
-            entity_type: 'dag',
-            tenant_name: 'Sales Operations',
-            team_name: 'Sales Analytics',
-            deleted_date: '2025-09-13T09:15:00Z',
-            deleted_by: 'mike.wilson@company.com',
-            entity_id: 'dag_789',
-            tenant_id: '3',
-            team_id: '3'
-          },
-          {
-            id: '4',
-            entity_name: 'inventory_tracking_table',
-            entity_type: 'table',
-            tenant_name: 'Operations',
-            team_name: 'Supply Chain',
-            deleted_date: '2025-09-12T14:20:00Z',
-            deleted_by: 'sarah.johnson@company.com',
-            entity_id: 'table_101',
-            tenant_id: '4',
-            team_id: '4'
-          }
-        ];
-        return MOCK_DELETED_ENTITIES.filter(entity => 
-          entity.entity_name.toLowerCase().includes(entityName.toLowerCase())
-        );
-      }
-      throw error;
+    const res = await apiRequest('GET', endpoints.audit.getDeletedEntitiesByName(entityName));
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(text || `FastAPI returned ${res.status}`);
     }
+    return await res.json();
   },
   
-  // 3-tier fallback: FastAPI → Express → Mock data (development only)
+  // FastAPI only (no Express/mock fallback). Surfaces clear error if unavailable.
   getDeletedEntitiesByTeamTenant: async (tenantId: number, teamId: number) => {
-    try {
-      const res = await environmentAwareApiRequest('GET', endpoints.audit.getDeletedEntitiesByTeamTenant(tenantId, teamId));
-      return await res.json();
-    } catch (error) {
-      if (isDevelopment) {
-        console.warn('[DEVELOPMENT] Audit API unavailable, falling back to mock data');
-        // Mock search - find entities for the selected team/tenant
-        const MOCK_DELETED_ENTITIES = [
-          {
-            id: '1',
-            entity_name: 'user_analytics_pipeline',
-            entity_type: 'dag',
-            tenant_name: 'Data Engineering123',
-            team_name: 'Analytics Team',
-            deleted_date: '2025-09-15T10:30:00Z',
-            deleted_by: 'john.doe@company.com',
-            entity_id: 'dag_123',
-            tenant_id: '1',
-            team_id: '1'
-          },
-          {
-            id: '2',
-            entity_name: 'customer_data_table',
-            entity_type: 'table',
-            tenant_name: 'Marketing Ops',
-            team_name: 'Customer Insights',
-            deleted_date: '2025-09-14T15:45:00Z',
-            deleted_by: 'jane.smith@company.com',
-            entity_id: 'table_456',
-            tenant_id: '2',
-            team_id: '2'
-          },
-          {
-            id: '3',
-            entity_name: 'sales_reporting_dag',
-            entity_type: 'dag',
-            tenant_name: 'Sales Operations',
-            team_name: 'Sales Analytics',
-            deleted_date: '2025-09-13T09:15:00Z',
-            deleted_by: 'mike.wilson@company.com',
-            entity_id: 'dag_789',
-            tenant_id: '3',
-            team_id: '3'
-          },
-          {
-            id: '4',
-            entity_name: 'inventory_tracking_table',
-            entity_type: 'table',
-            tenant_name: 'Operations',
-            team_name: 'Supply Chain',
-            deleted_date: '2025-09-12T14:20:00Z',
-            deleted_by: 'sarah.johnson@company.com',
-            entity_id: 'table_101',
-            tenant_id: '4',
-            team_id: '4'
-          }
-        ];
-        return MOCK_DELETED_ENTITIES.filter(entity => 
-          entity.tenant_id === tenantId.toString() && entity.team_id === teamId.toString()
-        );
-      }
-      throw error;
+    const res = await apiRequest('GET', endpoints.audit.getDeletedEntitiesByTeamTenant(tenantId, teamId));
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(text || `FastAPI returned ${res.status}`);
     }
+    return await res.json();
   },
   
   // 2-tier fallback: FastAPI → Express → NO mock fallback (write operation)

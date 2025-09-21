@@ -194,8 +194,8 @@ const RollbackManagement = () => {
     onError: (error: any) => {
       console.error('❌ Entity name search error:', error);
       toast({
-        title: 'Search Failed',
-        description: 'Failed to search for entities. Please try again.',
+        title: 'FastAPI unavailable',
+        description: error?.message || 'Search requires FastAPI. Please start the backend or try later.',
         variant: 'destructive'
       });
     }
@@ -232,8 +232,8 @@ const RollbackManagement = () => {
     onError: (error: any) => {
       console.error('❌ Team/tenant search error:', error);
       toast({
-        title: 'Search Failed',
-        description: 'Failed to search for entities. Please try again.',
+        title: 'FastAPI unavailable',
+        description: error?.message || 'Search requires FastAPI. Please start the backend or try later.',
         variant: 'destructive'
       });
     }
@@ -302,7 +302,7 @@ const RollbackManagement = () => {
   });
 
   // Handle entity name search using mutation
-  const handleEntityNameSearch = () => {
+  const handleEntityNameSearch = async () => {
     if (!entityNameSearch.trim()) {
       toast({
         title: 'Search Required',
@@ -312,11 +312,15 @@ const RollbackManagement = () => {
       return;
     }
 
-    entityNameSearchMutation.mutate(entityNameSearch);
+    try {
+      await entityNameSearchMutation.mutateAsync(entityNameSearch);
+    } catch {
+      setShowResults(false);
+    }
   };
 
   // Handle team/tenant search using mutation
-  const handleTeamTenantSearch = () => {
+  const handleTeamTenantSearch = async () => {
     if (!selectedTenant || !selectedTeam) {
       toast({
         title: 'Selection Required',
@@ -326,10 +330,14 @@ const RollbackManagement = () => {
       return;
     }
 
-    teamTenantSearchMutation.mutate({
-      tenantId: parseInt(selectedTenant),
-      teamId: parseInt(selectedTeam)
-    });
+    try {
+      await teamTenantSearchMutation.mutateAsync({
+        tenantId: parseInt(selectedTenant),
+        teamId: parseInt(selectedTeam)
+      });
+    } catch {
+      setShowResults(false);
+    }
   };
 
   // Modern cache-managed rollback

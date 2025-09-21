@@ -205,7 +205,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       '/dashboard/summary',
       '/users',
       '/tenants',
-      '/audit'
+      '/audit',
+      '/alerts',
+      '/broadcast-messages'
     ];
     
     // Check core system paths first (always allowed)
@@ -761,6 +763,122 @@ export async function registerRoutes(app: Express): Promise<Server> {
         success: false,
         message: "Failed to deactivate broadcast message",
         error: error.message 
+      });
+    }
+  });
+
+  // Express fallback endpoints for alerts (following the correct pattern)
+  app.get("/api/alerts", async (req, res) => {
+    try {
+      const alerts = await storage.getActiveAlerts();
+      res.json(alerts);
+    } catch (error) {
+      console.error("Error fetching alerts via Express fallback:", error);
+      res.status(500).json({ message: "Failed to fetch alerts" });
+    }
+  });
+
+  app.post("/api/alerts", requireActiveUser, async (req: Request, res: Response) => {
+    try {
+      console.log('Creating alert via Express fallback:', req.body);
+      const newAlert = await storage.createAlert(req.body);
+      res.status(201).json({
+        success: true,
+        message: "Alert created successfully",
+        alert: newAlert
+      });
+    } catch (error) {
+      console.error("Error creating alert via Express fallback:", error);
+      res.status(500).json({ 
+        success: false,
+        message: "Failed to create alert",
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
+  app.delete("/api/alerts/:id", requireActiveUser, async (req: Request, res: Response) => {
+    try {
+      const alertId = parseInt(req.params.id);
+      console.log('Deactivating alert via Express fallback:', alertId);
+      
+      const success = await storage.deactivateAlert(alertId);
+      if (!success) {
+        return res.status(404).json({ 
+          success: false,
+          message: "Alert not found" 
+        });
+      }
+
+      res.json({
+        success: true,
+        message: "Alert deactivated successfully"
+      });
+    } catch (error) {
+      console.error("Error deactivating alert via Express fallback:", error);
+      res.status(500).json({ 
+        success: false,
+        message: "Failed to deactivate alert",
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
+  // Express fallback endpoints for broadcast messages
+  app.post("/api/broadcast-messages", requireActiveUser, async (req: Request, res: Response) => {
+    try {
+      console.log('Creating broadcast message via Express fallback:', req.body);
+      const newMessage = await storage.createAdminBroadcastMessage(req.body);
+
+      // Broadcast to connected clients if delivery type is immediate
+      if (newMessage.deliveryType === 'immediate') {
+        await redisCache.broadcastAdminMessage({
+          id: newMessage.id,
+          message: newMessage.message,
+          deliveryType: newMessage.deliveryType,
+          createdAt: typeof newMessage.createdAt === 'string' ? new Date(newMessage.createdAt) : newMessage.createdAt,
+          expiresAt: newMessage.expiresAt ? (typeof newMessage.expiresAt === 'string' ? new Date(newMessage.expiresAt) : newMessage.expiresAt) : null
+        });
+      }
+
+      res.status(201).json({
+        success: true,
+        message: "Broadcast message created successfully",
+        broadcastMessage: newMessage
+      });
+    } catch (error) {
+      console.error("Error creating broadcast message via Express fallback:", error);
+      res.status(500).json({ 
+        success: false,
+        message: "Failed to create broadcast message",
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
+  app.delete("/api/broadcast-messages/:id", requireActiveUser, async (req: Request, res: Response) => {
+    try {
+      const messageId = parseInt(req.params.id);
+      console.log('Deactivating broadcast message via Express fallback:', messageId);
+      
+      const success = await storage.deactivateAdminBroadcastMessage(messageId);
+      if (!success) {
+        return res.status(404).json({ 
+          success: false,
+          message: "Broadcast message not found" 
+        });
+      }
+
+      res.json({
+        success: true,
+        message: "Broadcast message deactivated successfully"
+      });
+    } catch (error) {
+      console.error("Error deactivating broadcast message via Express fallback:", error);
+      res.status(500).json({ 
+        success: false,
+        message: "Failed to deactivate broadcast message",
+        error: error instanceof Error ? error.message : String(error)
       });
     }
   });

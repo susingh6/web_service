@@ -5,7 +5,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { useLocation } from 'wouter';
 import { AccountInfo } from '@azure/msal-browser';
 import { useQuery } from '@tanstack/react-query';
-import { buildUrl } from '@/config';
+import { buildUrl, endpoints } from '@/config';
 
 interface Alert {
   id: number;
@@ -72,20 +72,64 @@ const Header = () => {
 
   // Fetch active alerts
   const { data: alerts = [], isLoading: alertsLoading } = useQuery<Alert[]>({
-    queryKey: ['notifications', 'alerts'],
+    queryKey: ['notifications', 'alerts', 'v2'],
     queryFn: async () => {
-      const response = await fetch(buildUrl('/api/v1/alerts'), {
-        headers: { 'Cache-Control': 'no-cache' }
-      });
-      if (!response.ok) throw new Error('Failed to fetch alerts');
-      const data = await response.json();
+      // Fetch from both FastAPI and Express, then merge unique alerts
+      const fastUrl = buildUrl(endpoints.admin.alerts.getAll) + `?t=${Date.now()}`;
+      const expressUrl = buildUrl(endpoints.admin.alerts.getAllFallback || '/api/alerts') + `?t=${Date.now()}`;
+      const headers = {
+        'Cache-Control': 'no-cache',
+        'X-Session-ID': localStorage.getItem('fastapi_session_id') || '',
+      } as Record<string, string>;
+      const init: RequestInit = { headers, credentials: 'include' };
+
+      const [fastRes, expressRes] = await Promise.allSettled([
+        fetch(fastUrl, init),
+        fetch(expressUrl, init),
+      ]);
+
+      const lists: any[][] = [];
+      if (fastRes.status === 'fulfilled' && fastRes.value.ok) {
+        try {
+          const fastData = await fastRes.value.json();
+          if (Array.isArray(fastData)) lists.push(fastData);
+        } catch {}
+      }
+      if (expressRes.status === 'fulfilled' && expressRes.value.ok) {
+        try {
+          const expressData = await expressRes.value.json();
+          if (Array.isArray(expressData)) lists.push(expressData);
+        } catch {}
+      }
+
+      // If both failed, throw
+      if (lists.length === 0) throw new Error('Failed to fetch alerts');
+
+      // Merge by id, prefer latest updatedAt
+      const byId = new Map<number, any>();
+      for (const list of lists) {
+        for (const item of list) {
+          const existing = byId.get(item.id);
+          if (!existing) {
+            byId.set(item.id, item);
+          } else {
+            const existingUpdated = existing?.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+            const candidateUpdated = item?.updatedAt ? new Date(item.updatedAt).getTime() : 0;
+            if (candidateUpdated >= existingUpdated) byId.set(item.id, item);
+          }
+        }
+      }
+      const data: any[] = Array.from(byId.values());
       
       // Filter only active alerts that haven't expired
       const now = new Date();
-      return data.filter((alert: Alert) => 
-        alert.isActive && 
-        (!alert.expiresAt || new Date(alert.expiresAt) > now)
-      );
+      // Remove debug logs in production
+      const filteredAlerts = data.filter((alert: Alert) => {
+        const isActive = alert.isActive;
+        const notExpired = !alert.expiresAt || new Date(alert.expiresAt) > now;
+        return isActive && notExpired;
+      });
+      return filteredAlerts;
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
     refetchInterval: 5 * 60 * 1000, // Refetch every 5 minutes
