@@ -73,8 +73,8 @@ const TaskManagementModal: React.FC<TaskManagementModalProps> = ({
       entityName: dag?.name as string,     // For Express fallback API compatibility
       dagName: dag?.name as string,        // Primary: For dag_name-based FastAPI system
       allTasks: tasks,                     // All tasks for bulk update context
-      tenantName: dag?.tenant_name,        // Team context for scoped updates
-      teamName: dag?.team_name             // Team context for scoped updates
+      tenantName: dag?.tenant_name || undefined,        // Team context for scoped updates
+      teamName: dag?.team_name || undefined             // Team context for scoped updates
     });
   };
   

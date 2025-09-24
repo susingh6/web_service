@@ -115,8 +115,8 @@ export const mockTaskService = {
   // Update a task's priority
   updateTaskPriority: (taskId: number, priority: TaskPriority): Task | null => {
     // Find the task in our mocked data
-    for (const [dagId, tasks] of mockTasks.entries()) {
-      const taskIndex = tasks.findIndex(t => t.id === taskId);
+    for (const [dagId, tasks] of Array.from(mockTasks.entries())) {
+      const taskIndex = tasks.findIndex((t: Task) => t.id === taskId);
       
       if (taskIndex >= 0) {
         // Create updated task with new priority
