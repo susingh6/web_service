@@ -4,7 +4,6 @@ import { apiRequest } from '@/lib/queryClient';
 import { endpoints } from '@/config';
 import { mockTaskService } from './mockService';
 import { AllTasksData, DagTaskData } from '@shared/cache-types';
-import { CACHE_PATTERNS, INVALIDATION_SCENARIOS, useOptimisticMutation } from '@/utils/cache-management';
 
 // Helper function to get cached all tasks data
 const getCachedAllTasksData = (): AllTasksData | null => {
@@ -108,82 +107,56 @@ const invalidateTaskCache = (cacheManager: any, dagName?: string, entityName?: s
 
 // Mutation to update task priority using centralized cache management
 export const useUpdateTaskPriority = () => {
-  const { executeWithOptimism, cacheManager } = useOptimisticMutation();
+  const queryClient = useQueryClient();
   
   return useMutation({
     mutationFn: async ({ taskId, priority, entityName, dagName, allTasks, tenantName, teamName }: UpdateTaskPriorityParams) => {
-      // Use centralized optimistic mutation pattern
-      return executeWithOptimism({
-        optimisticUpdate: dagName ? {
-          queryKey: ['tasks', dagName],
-          updater: (oldTasks: Task[] | undefined) => {
-            if (!oldTasks) return oldTasks;
-            return oldTasks.map(task => 
-              task.id === taskId 
-                ? { ...task, priority, task_type: priority === 'high' ? 'AI' : 'regular' }
-                : task
-            );
+      // Try entity-level bulk update endpoint first (FastAPI style)
+      if (entityName && allTasks && tenantName && teamName) {
+        const bulkUpdatePayload = {
+          tasks: allTasks.map((task: any) => ({
+            task_name: task.name || `task_${task.id}`,
+            priority: task.id === taskId ? priority : task.priority // Update only the target task
+          })),
+          team_name: teamName,
+          tenant_name: tenantName,
+          user: { 
+            email: 'user@example.com', // TODO: Get from auth context
+            name: 'Current User'
           }
-        } : undefined,
-        mutationFn: async () => {
-          // Try entity-level bulk update endpoint first (FastAPI style)
-          if (entityName && allTasks && tenantName && teamName) {
-            try {
-              // Prepare bulk update payload with team context
-              const bulkUpdatePayload = {
-                tasks: allTasks.map((task: any) => ({
-                  task_name: task.name || `task_${task.id}`,
-                  priority: task.id === taskId ? priority : task.priority // Update only the target task
-                })),
-                team_name: teamName,
-                tenant_name: tenantName,
-                user: { 
-                  email: 'user@example.com', // TODO: Get from auth context
-                  name: 'Current User'
-                }
-              };
+        };
 
-              const bulkResponse = await apiRequest('PATCH', `/api/v1/entities/${entityName}/tasks/priorities`, bulkUpdatePayload);
-              console.log('[Bulk Task Priority Update] FastAPI bulk update successful');
-              // Return the updated task for optimistic updates
-              return { 
-                id: taskId, 
-                priority, 
-                success: true,
-                task_type: priority === 'high' ? 'AI' : 'regular'
-              };
-            } catch (bulkError) {
-              console.log('[Bulk Task Priority Update] FastAPI bulk update failed, trying fallback');
-              throw bulkError;
-            }
-          }
-          
-          // Fallback: Return mock success for now since backend is working
-          console.log('[Task Priority Update] Using fallback success response');
-          return { 
-            id: taskId, 
-            priority, 
-            success: true,
-            task_type: priority === 'high' ? 'AI' : 'regular'
-          };
-        },
-        invalidationScenario: {
-          scenario: 'TASK_PRIORITY_CHANGED',
-          params: [dagName || entityName || 'unknown', priority, priority] // dag_name (preferred) or entityName fallback
-        },
-        rollbackKeys: dagName ? [['tasks', dagName]] : []
-      });
+        await apiRequest('PATCH', `/api/v1/entities/${entityName}/tasks/priorities`, bulkUpdatePayload);
+        console.log('[Bulk Task Priority Update] FastAPI bulk update successful');
+        
+        return { 
+          id: taskId, 
+          priority, 
+          success: true,
+          task_type: priority === 'high' ? 'AI' : 'regular'
+        };
+      }
+      
+      // Fallback
+      return { 
+        id: taskId, 
+        priority, 
+        success: true,
+        task_type: priority === 'high' ? 'AI' : 'regular'
+      };
     },
     onSuccess: (updatedTask, variables) => {
-      // Use centralized cache invalidation
-      invalidateTaskCache(cacheManager, variables.dagName, variables.entityName);
+      // Invalidate and refetch relevant queries
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['dags', variables.dagName, 'tasks'] });
       
-      console.log('[Task Priority Update] Cache invalidated due to task priority change');
+      console.log('[Task Priority Update] Success - cache invalidated');
     },
     onError: (error, variables) => {
-      console.error('[Task Priority Update] All update methods failed:', error);
-      // Still invalidate cache to ensure consistency using centralized system
-      invalidateTaskCache(cacheManager, variables.dagName, variables.entityName);
+      console.error('[Task Priority Update] Failed:', error);
+      // Still invalidate cache to ensure consistency
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['dags', variables.dagName, 'tasks'] });
     },
   });
 };
