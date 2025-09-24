@@ -389,6 +389,25 @@ function mapSlaDataToEntities(slaData: any[]): Entity[] {
     source_system: item.source_system || null,
     created_by_user_id: item.created_by_user_id || null,
     is_entity_owner: item.is_entity_owner !== false,
+    // Add missing required properties
+    nextRefresh: item.next_refresh ? new Date(item.next_refresh) : new Date(Date.now() + 24 * 60 * 60 * 1000),
+    owner: item.owner || item.owner_email || 'Unknown',
+    ownerEmail: item.owner_email || item.email || null,
+    schema_name: item.schema_name || item.schema || null,
+    table_name: item.table_name || item.name || 'unknown_table',
+    dag_name: item.dag_name || item.name || 'unknown_dag',
+    task_count: item.task_count || 0,
+    successful_runs_24h: item.successful_runs_24h || 0,
+    failed_runs_24h: item.failed_runs_24h || 0,
+    avg_runtime_minutes: item.avg_runtime_minutes || 0,
+    data_freshness_score: item.data_freshness_score || 100,
+    quality_score: item.quality_score || 100,
+    lineage_upstream_count: item.lineage_upstream_count || 0,
+    lineage_downstream_count: item.lineage_downstream_count || 0,
+    storage_size_gb: item.storage_size_gb || 0,
+    row_count: item.row_count || 0,
+    column_count: item.column_count || 0,
+    last_schema_change: item.last_schema_change ? new Date(item.last_schema_change) : null,
     createdAt: item.created_at ? new Date(item.created_at) : new Date(),
     updatedAt: item.updated_at ? new Date(item.updated_at) : new Date(),
   }));
@@ -410,6 +429,7 @@ function mapFastAPITeamsToTeams(teamsData: any[]): Team[] {
     team_slack: Array.isArray(item.team_slack) ? item.team_slack : (item.team_slack ? [item.team_slack] : []),
     team_pagerduty: Array.isArray(item.team_pagerduty) ? item.team_pagerduty : (item.team_pagerduty ? [item.team_pagerduty] : []),
     team_notify_preference_id: item.team_notify_preference_id || null,
+    isActive: item.is_active !== false, // Add missing required property
     createdAt: item.created_at ? new Date(item.created_at) : new Date(),
     updatedAt: item.updated_at ? new Date(item.updated_at) : new Date(),
   }));
