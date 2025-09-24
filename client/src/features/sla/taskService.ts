@@ -77,33 +77,89 @@ interface UpdateTaskPriorityParams {
   dagName?: string;     // For dag_name-based cross-referencing
 }
 
-// Mutation to update task priority
+// Helper function to invalidate task-related cache
+const invalidateTaskCache = (queryClient: any, dagName?: string, entityName?: string) => {
+  // Invalidate specific DAG tasks cache
+  if (dagName) {
+    queryClient.invalidateQueries({ queryKey: ['tasks', dagName] });
+  }
+  if (entityName) {
+    queryClient.invalidateQueries({ queryKey: ['tasks', entityName] });
+  }
+  
+  // Invalidate cached all tasks data from localStorage
+  try {
+    localStorage.removeItem('sla_cache_data');
+    console.log('[Task Priority Update] Cache invalidated due to task priority change');
+  } catch (error) {
+    console.error('Error invalidating cache:', error);
+  }
+};
+
+// Mutation to update task priority with both FastAPI and Express fallback
 export const useUpdateTaskPriority = () => {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: async ({ taskId, priority, entityName }: UpdateTaskPriorityParams) => {
+    mutationFn: async ({ taskId, priority, entityName, dagName }: UpdateTaskPriorityParams) => {
+      let lastError: Error | null = null;
+      
+      // Try FastAPI endpoint first
       try {
-        // Try to update via API first
-        const response = await apiRequest('PATCH', endpoints.tasks.updatePriority(taskId), { priority });
-        return await response.json();
-      } catch (error) {
-        // Fall back to mock data if API fails or doesn't exist yet
-        // Using mock update for task
-        return mockTaskService.updateTaskPriority(taskId, priority);
+        const fastApiResponse = await apiRequest('PATCH', `/api/v1/tasks/${taskId}/priority`, { priority });
+        console.log('[Task Priority Update] FastAPI update successful');
+        return await fastApiResponse.json();
+      } catch (fastApiError) {
+        console.log('[Task Priority Update] FastAPI failed, trying Express fallback');
+        lastError = fastApiError as Error;
+        
+        // Try Express fallback endpoint
+        try {
+          const expressResponse = await apiRequest('PATCH', endpoints.tasks.updatePriority(taskId), { priority });
+          console.log('[Task Priority Update] Express fallback update successful');
+          return await expressResponse.json();
+        } catch (expressError) {
+          console.log('[Task Priority Update] Express fallback failed, using mock data');
+          lastError = expressError as Error;
+          
+          // Final fallback to mock data
+          return mockTaskService.updateTaskPriority(taskId, priority);
+        }
       }
     },
     onSuccess: (updatedTask, variables) => {
-      // Update the cache directly instead of invalidating to prevent UI flicker
-      queryClient.setQueryData(['tasks', variables.entityName], (oldTasks: Task[] | undefined) => {
-        if (!oldTasks) return oldTasks;
-        
-        return oldTasks.map(task => 
-          task.id === variables.taskId 
-            ? { ...task, priority: variables.priority, task_type: variables.priority === 'high' ? 'AI' : 'regular' }
-            : task
-        );
-      });
+      // Invalidate cache for both dag_name and entity_name to ensure coherence
+      invalidateTaskCache(queryClient, variables.dagName, variables.entityName);
+      
+      // Update both possible cache keys directly to prevent UI flicker
+      if (variables.dagName) {
+        queryClient.setQueryData(['tasks', variables.dagName], (oldTasks: Task[] | undefined) => {
+          if (!oldTasks) return oldTasks;
+          
+          return oldTasks.map(task => 
+            task.id === variables.taskId 
+              ? { ...task, priority: variables.priority, task_type: variables.priority === 'high' ? 'AI' : 'regular' }
+              : task
+          );
+        });
+      }
+      
+      if (variables.entityName && variables.entityName !== variables.dagName) {
+        queryClient.setQueryData(['tasks', variables.entityName], (oldTasks: Task[] | undefined) => {
+          if (!oldTasks) return oldTasks;
+          
+          return oldTasks.map(task => 
+            task.id === variables.taskId 
+              ? { ...task, priority: variables.priority, task_type: variables.priority === 'high' ? 'AI' : 'regular' }
+              : task
+          );
+        });
+      }
+    },
+    onError: (error, variables) => {
+      console.error('[Task Priority Update] All update methods failed:', error);
+      // Still invalidate cache to ensure consistency
+      invalidateTaskCache(queryClient, variables.dagName, variables.entityName);
     },
   });
 };
