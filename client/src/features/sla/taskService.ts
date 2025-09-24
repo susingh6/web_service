@@ -147,7 +147,15 @@ export const useUpdateTaskPriority = () => {
 
               const bulkResponse = await apiRequest('PATCH', `/api/v1/entities/${entityName}/tasks/priorities`, bulkUpdatePayload);
               console.log('[Bulk Task Priority Update] FastAPI bulk update successful');
-              return await bulkResponse.json();
+              // Handle response - some endpoints may not return JSON
+              try {
+                const responseText = await bulkResponse.text();
+                return responseText ? JSON.parse(responseText) : { success: true };
+              } catch (parseError) {
+                // If JSON parsing fails, still return success since the API call succeeded
+                console.log('[Bulk Task Priority Update] Response parsing failed, but API call succeeded');
+                return { success: true };
+              }
             } catch (bulkError) {
               console.log('[Bulk Task Priority Update] FastAPI bulk update failed, trying individual task fallback');
               lastError = bulkError as Error;
