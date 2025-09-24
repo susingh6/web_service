@@ -29,11 +29,13 @@ export const useGetDagTasks = (dagName?: string, entityName?: string) => {
       
       let lastError: Error | null = null;
       
-      // Priority 1: Try FastAPI dag-based endpoint
+      // Priority 1: Try FastAPI dag-based endpoint with cache busting
       if (dagName) {
         try {
           console.log(`[TaskService] Trying FastAPI for DAG: ${dagName}`);
-          const response = await apiRequest('GET', `/api/v1/dags/${dagName}/tasks`);
+          // Add cache busting parameter to ensure fresh data
+          const cacheBuster = Date.now();
+          const response = await apiRequest('GET', `/api/v1/dags/${dagName}/tasks?_t=${cacheBuster}`);
           const tasks = await response.json();
           console.log(`[TaskService] FastAPI success for DAG: ${dagName}`);
           return tasks;
@@ -97,7 +99,9 @@ export const useGetDagTasks = (dagName?: string, entityName?: string) => {
     },
     enabled: !!(dagName || entityName),
     staleTime: 0, // Always refetch to ensure we get latest data after updates
-    cacheTime: 0 // Don't cache stale data
+    cacheTime: 0, // Don't cache stale data
+    refetchOnMount: true,
+    refetchOnWindowFocus: true
   });
 };
 
