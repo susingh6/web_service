@@ -32,8 +32,8 @@ const TaskManagementModal: React.FC<TaskManagementModalProps> = ({
   const [normalPriorityTasks, setNormalPriorityTasks] = useState<Task[]>([]);
   
   // Get tasks for this DAG using dag_name for cross-referencing (dag.name represents dag_name)
-  const { data: tasks, isLoading, error } = useGetDagTasks(dag?.name, dag?.name);
-  const { mutate: updateTaskPriority } = useUpdateTaskPriority();
+  const { data: tasks, isLoading, error, refetch } = useGetDagTasks(dag?.name, dag?.name);
+  const updateTaskPriority = useUpdateTaskPriority();
   
   // Split tasks into priority zones when data loads
   useEffect(() => {
@@ -67,7 +67,7 @@ const TaskManagementModal: React.FC<TaskManagementModalProps> = ({
     }
     
     // Call API to persist changes with team-scoped bulk update
-    updateTaskPriority({ 
+    updateTaskPriority.mutate({ 
       taskId, 
       priority: newPriority,
       entityName: dag?.name as string,     // For Express fallback API compatibility
@@ -75,6 +75,15 @@ const TaskManagementModal: React.FC<TaskManagementModalProps> = ({
       allTasks: tasks,                     // All tasks for bulk update context
       tenantName: dag?.tenant_name || undefined,        // Team context for scoped updates
       teamName: dag?.team_name || undefined             // Team context for scoped updates
+    }, {
+      onSuccess: (data) => {
+        console.log('[TaskManagementModal] Task priority update successful:', data);
+        // Force refetch tasks to ensure UI is in sync
+        refetch();
+      },
+      onError: (error) => {
+        console.error('[TaskManagementModal] Task priority update failed:', error);
+      }
     });
   };
   
