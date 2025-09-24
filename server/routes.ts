@@ -3059,7 +3059,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Use mock service to generate tasks (imports mockTaskService for consistency)
       const { mockTaskService } = await import('../client/src/features/sla/mockService.js');
-      const tasks = mockTaskService.getDagTasks(dagEntity.id);
+      const tasks = mockTaskService.getDagTasks(dagEntity.id, entityName);
       
       // Transform to API format with task_type field for frontend compatibility
       const formattedTasks = tasks.map(task => ({
@@ -3124,6 +3124,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Mock FastAPI endpoint for all tasks data (fallback when FastAPI unavailable)
+  app.get("/api/v1/sla/all_tasks", async (req: Request, res: Response) => {
+    try {
+      // Use mock service to get all tasks data in the expected format
+      const { mockTaskService } = await import('../client/src/features/sla/mockService.js');
+      const allTasksData = mockTaskService.getAllTasksData();
+      
+      res.json(allTasksData.dagTasks); // Return just the dagTasks array
+    } catch (error) {
+      console.error("Error fetching all tasks data:", error);
+      res.status(500).json({ message: "Failed to fetch all tasks data" });
+    }
+  });
+
   // PATCH API for task priority updates - FastAPI-style endpoint
   app.patch("/api/v1/tasks/:taskId/priority", isAuthenticated, async (req: Request, res: Response) => {
     try {
@@ -3153,6 +3167,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // This ensures cache coherence across the application
       console.log(`[Task Priority Update] Task ${taskId} priority updated to ${priority}`);
 
+      // Force cache invalidation by setting no-cache headers
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.set('Pragma', 'no-cache');
+      res.set('Expires', '0');
+      res.set('Surrogate-Control', 'no-store');
       res.json(updatedTask);
     } catch (error) {
       console.error("Error updating task priority:", error);
