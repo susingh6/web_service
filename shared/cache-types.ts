@@ -35,6 +35,23 @@ export interface EntityChange {
   timestamp: Date;
 }
 
+// DAG Task data structures for cache
+export interface DagTask {
+  task_name: string;
+  task_type: string; // e.g., "SparkTask", "HiveTask"  
+  priority: string; // e.g., "AI Monitored", "Regular"
+}
+
+export interface DagTaskData {
+  dag_name: string;
+  tasks: DagTask[];
+}
+
+export interface AllTasksData {
+  dagTasks: DagTaskData[];
+  lastUpdated: Date;
+}
+
 // Predefined date range types
 export type PredefinedRange = 'today' | 'yesterday' | 'last7Days' | 'last30Days' | 'thisMonth';
 
@@ -65,6 +82,8 @@ export interface CachedData {
   // Team-specific data
   teamMetrics: Record<string, Record<string, DashboardMetrics>>;
   teamTrends: Record<string, Record<string, ComplianceTrendData>>;
+  // DAG task data cached from FastAPI
+  allTasksData: AllTasksData | null;
   lastUpdated: Date;
   recentChanges: EntityChange[];
 }
@@ -88,6 +107,8 @@ export interface CacheRefreshData {
   last7DayTrends: Record<string, ComplianceTrendData>;
   last30DayTrends: Record<string, ComplianceTrendData>;
   thisMonthTrends: Record<string, ComplianceTrendData>;
+  // DAG task data for cache refresh
+  allTasksData: AllTasksData | null;
   lastUpdated: Date;
 }
 

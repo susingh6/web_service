@@ -195,6 +195,10 @@ async function fetchConflictsFromFastAPI(): Promise<any[]> {
   return await fastApiRequest('/api/v1/conflicts');
 }
 
+async function fetchAllTasksFromFastAPI(): Promise<any> {
+  return await fastApiRequest('/api/v1/sla/all_tasks');
+}
+
 // Worker thread main function
 async function refreshCacheData(): Promise<CacheRefreshData> {
   try {
@@ -228,7 +232,7 @@ async function refreshFromFastAPI(): Promise<CacheRefreshData> {
   
   try {
     // Call all FastAPI endpoints in parallel for better performance
-    const [tenantsData, teamsData, presetsData, complianceData, slaData, usersData, rolesData, conflictsData] = await Promise.all([
+    const [tenantsData, teamsData, presetsData, complianceData, slaData, usersData, rolesData, conflictsData, allTasksData] = await Promise.all([
       fetchTenantsFromFastAPI(),
       fetchTeamsFromFastAPI(),
       fetchPresetsFromFastAPI(),
@@ -237,6 +241,7 @@ async function refreshFromFastAPI(): Promise<CacheRefreshData> {
       fetchUsersFromFastAPI(),
       fetchRolesFromFastAPI(),
       fetchConflictsFromFastAPI(),
+      fetchAllTasksFromFastAPI(),
     ]);
 
     // Map FastAPI data to our cache structure
@@ -249,6 +254,12 @@ async function refreshFromFastAPI(): Promise<CacheRefreshData> {
     
     // Extract metrics and trends from presets and compliance data (with fallback calculation)
     const { last30DayMetrics, complianceTrends, teamMetrics, teamTrends } = extractMetricsAndTrends(presetsData, complianceData, entities, tenants);
+
+    // Process all tasks data
+    const processedAllTasksData = allTasksData ? {
+      dagTasks: Array.isArray(allTasksData) ? allTasksData : [],
+      lastUpdated: new Date()
+    } : null;
 
     const cacheData: CacheRefreshData & { users: any[], roles: any[], conflicts: any[] } = {
       entities,
@@ -269,6 +280,7 @@ async function refreshFromFastAPI(): Promise<CacheRefreshData> {
       last7DayTrends: {},
       last30DayTrends: {}, // Fix: Add missing required property
       thisMonthTrends: {},
+      allTasksData: processedAllTasksData,
       lastUpdated: new Date()
     };
 
@@ -327,6 +339,7 @@ async function refreshFromStorage(): Promise<CacheRefreshData> {
     last7DayTrends: {},
     last30DayTrends: {}, // Fix: Add missing required property
     thisMonthTrends: {},
+    allTasksData: null, // No FastAPI available for storage mode
     lastUpdated: new Date()
   };
 
