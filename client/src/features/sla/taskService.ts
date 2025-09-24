@@ -76,6 +76,10 @@ interface UpdateTaskPriorityParams {
   priority: TaskPriority;
   entityName?: string;  // For Express fallback API compatibility  
   dagName?: string;     // Primary: For dag_name-based FastAPI system
+  // New bulk update parameters
+  allTasks?: Task[];    // All tasks for bulk update
+  tenantName?: string;  // Team context
+  teamName?: string;    // Team context
 }
 
 // Helper function to invalidate task-related cache using centralized system
@@ -124,13 +128,39 @@ export const useUpdateTaskPriority = () => {
         mutationFn: async () => {
           let lastError: Error | null = null;
           
-          // Try FastAPI endpoint first
+          // Try entity-level bulk update endpoint first (FastAPI style)
+          if (entityName && allTasks && tenantName && teamName) {
+            try {
+              // Prepare bulk update payload with team context
+              const bulkUpdatePayload = {
+                tasks: allTasks.map(task => ({
+                  task_name: task.name || `task_${task.id}`,
+                  priority: task.id === taskId ? priority : task.priority // Update only the target task
+                })),
+                team_name: teamName,
+                tenant_name: tenantName,
+                user: { 
+                  email: 'user@example.com', // TODO: Get from auth context
+                  name: 'Current User'
+                }
+              };
+
+              const bulkResponse = await apiRequest('PATCH', `/api/v1/entities/${entityName}/tasks/priorities`, bulkUpdatePayload);
+              console.log('[Bulk Task Priority Update] FastAPI bulk update successful');
+              return await bulkResponse.json();
+            } catch (bulkError) {
+              console.log('[Bulk Task Priority Update] FastAPI bulk update failed, trying individual task fallback');
+              lastError = bulkError as Error;
+            }
+          }
+          
+          // Fallback to individual task endpoint
           try {
             const fastApiResponse = await apiRequest('PATCH', `/api/v1/tasks/${taskId}/priority`, { priority });
-            console.log('[Task Priority Update] FastAPI update successful');
+            console.log('[Task Priority Update] Individual FastAPI update successful');
             return await fastApiResponse.json();
           } catch (fastApiError) {
-            console.log('[Task Priority Update] FastAPI failed, trying Express fallback');
+            console.log('[Task Priority Update] Individual FastAPI failed, trying Express fallback');
             lastError = fastApiError as Error;
             
             // Try Express fallback endpoint
