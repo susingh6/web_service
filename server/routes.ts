@@ -202,6 +202,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       '/debug/teams',
       '/teams',
       '/entities',
+      '/tables',
+      '/dags',
       '/dashboard/summary',
       '/users',
       '/tenants',
