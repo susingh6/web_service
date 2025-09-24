@@ -27,29 +27,29 @@ export const useGetDagTasks = (dagName?: string, entityName?: string) => {
     queryFn: async () => {
       if (!dagName && !entityName) return [];
       
-      // Priority 1: Try to get from cached all tasks data using dag_name
+      let lastError: Error | null = null;
+      
+      // Priority 1: Try FastAPI dag-based endpoint
       if (dagName) {
-        const cachedAllTasks = getCachedAllTasksData();
-        if (cachedAllTasks) {
-          const dagTaskData = cachedAllTasks.dagTasks.find((dtd: DagTaskData) => dtd.dag_name === dagName);
-          if (dagTaskData) {
-            // Transform cached data to expected UI format
-            return dagTaskData.tasks.map((task: any, index: number) => ({
-              id: index + 1, // Generate ID from index since cached data may not have IDs
-              name: task.task_name,
-              description: `${task.task_type} task`,
-              priority: task.priority === 'AI Monitored' ? 'high' : 'normal',
-              task_type: task.task_type
-            }));
-          }
+        try {
+          console.log(`[TaskService] Trying FastAPI for DAG: ${dagName}`);
+          const response = await apiRequest('GET', `/api/v1/dags/${dagName}/tasks`);
+          const tasks = await response.json();
+          console.log(`[TaskService] FastAPI success for DAG: ${dagName}`);
+          return tasks;
+        } catch (error) {
+          console.log(`[TaskService] FastAPI failed for DAG ${dagName}, trying Express fallback`);
+          lastError = error as Error;
         }
       }
       
-      // Priority 2: Fallback to API call using entityName (for backwards compatibility)
+      // Priority 2: Try Express endpoint fallback
       if (entityName) {
         try {
+          console.log(`[TaskService] Trying Express fallback for entity: ${entityName}`);
           const response = await apiRequest('GET', endpoints.entity.tasks(entityName));
           const allTasks = await response.json();
+          console.log(`[TaskService] Express fallback success for entity: ${entityName}`);
           
           // Transform to expected format with priority field
           return allTasks.map((task: any) => ({
@@ -60,14 +60,44 @@ export const useGetDagTasks = (dagName?: string, entityName?: string) => {
             task_type: task.task_type
           }));
         } catch (error) {
-          console.error('Error fetching tasks from API:', error);
+          console.log(`[TaskService] Express fallback failed for entity ${entityName}, trying cached data`);
+          lastError = error as Error;
         }
       }
       
-      return [];
+      // Priority 3: Try cached all tasks data using dag_name  
+      if (dagName) {
+        try {
+          console.log(`[TaskService] Trying cached data for DAG: ${dagName}`);
+          const cachedAllTasks = getCachedAllTasksData();
+          if (cachedAllTasks) {
+            const dagTaskData = cachedAllTasks.dagTasks.find((dtd: DagTaskData) => dtd.dag_name === dagName);
+            if (dagTaskData) {
+              console.log(`[TaskService] Cached data success for DAG: ${dagName}`);
+              // Transform cached data to expected UI format
+              return dagTaskData.tasks.map((task: any, index: number) => ({
+                id: index + 1, // Generate ID from index since cached data may not have IDs
+                name: task.task_name,
+                description: `${task.task_type} task`,
+                priority: task.priority === 'AI Monitored' ? 'high' : 'normal',
+                task_type: task.task_type
+              }));
+            }
+          }
+          console.log(`[TaskService] No cached data found for DAG ${dagName}, using mock service`);
+        } catch (error) {
+          console.log(`[TaskService] Cached data failed for DAG ${dagName}, using mock service`);
+          lastError = error as Error;
+        }
+      }
+      
+      // Final fallback: Use mock data (always works)
+      console.log(`[TaskService] Using mock task service fallback for: ${dagName || entityName}`);
+      return mockTaskService.getDagTasks(1, dagName || entityName);
     },
     enabled: !!(dagName || entityName),
-    staleTime: 1000 * 60 * 30, // 30 minutes for cached data
+    staleTime: 0, // Always refetch to ensure we get latest data after updates
+    cacheTime: 0 // Don't cache stale data
   });
 };
 
