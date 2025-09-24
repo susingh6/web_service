@@ -111,7 +111,7 @@ export const useUpdateTaskPriority = () => {
   const { executeWithOptimism, cacheManager } = useOptimisticMutation();
   
   return useMutation({
-    mutationFn: async ({ taskId, priority, entityName, dagName }: UpdateTaskPriorityParams) => {
+    mutationFn: async ({ taskId, priority, entityName, dagName, allTasks, tenantName, teamName }: UpdateTaskPriorityParams) => {
       // Use centralized optimistic mutation pattern
       return executeWithOptimism({
         optimisticUpdate: dagName ? {
@@ -133,7 +133,7 @@ export const useUpdateTaskPriority = () => {
             try {
               // Prepare bulk update payload with team context
               const bulkUpdatePayload = {
-                tasks: allTasks.map(task => ({
+                tasks: allTasks.map((task: any) => ({
                   task_name: task.name || `task_${task.id}`,
                   priority: task.id === taskId ? priority : task.priority // Update only the target task
                 })),
@@ -186,14 +186,14 @@ export const useUpdateTaskPriority = () => {
     },
     onSuccess: (updatedTask, variables) => {
       // Use centralized cache invalidation
-      invalidateTaskCache(cacheManager, variables.dagName, variables.entityName, variables.dagId);
+      invalidateTaskCache(cacheManager, variables.dagName, variables.entityName);
       
       console.log('[Task Priority Update] Cache invalidated due to task priority change');
     },
     onError: (error, variables) => {
       console.error('[Task Priority Update] All update methods failed:', error);
       // Still invalidate cache to ensure consistency using centralized system
-      invalidateTaskCache(cacheManager, variables.dagName, variables.entityName, variables.dagId);
+      invalidateTaskCache(cacheManager, variables.dagName, variables.entityName);
     },
   });
 };
