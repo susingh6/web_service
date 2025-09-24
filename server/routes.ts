@@ -3172,6 +3172,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         name: user?.name || 'Unknown User'
       };
 
+      // Actually update the mock service data so changes persist
+      const { mockTaskService } = await import('../client/src/features/sla/mockService.js');
+      
+      // Find the DAG entity to get its ID
+      const entities = await storage.getEntities();
+      const dagEntity = entities.find(e => e.name === entityName && e.type === 'dag');
+      
+      if (dagEntity) {
+        // Update each task's priority in the mock service
+        tasks.forEach(task => {
+          mockTaskService.updateTaskPriorityByName(dagEntity.id, task.task_name, task.priority);
+        });
+      }
+
       // Process bulk task priority updates with team context
       const updatedTasks = tasks.map(task => ({
         task_name: task.task_name,

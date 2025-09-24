@@ -132,5 +132,45 @@ export const mockTaskService = {
     }
     
     return null;
+  },
+
+  // Update task priority by DAG entity ID and task name (for backend PATCH endpoint)
+  updateTaskPriorityByName: (dagId: number, taskName: string, priority: TaskPriority): boolean => {
+    // Find the corresponding DAG name for this dagId
+    const entities = Object.keys(dagTaskDefinitions);
+    
+    // For the mock system, we can derive dag name from common entity names
+    // This is a simple mapping - in a real system this would be more robust
+    let targetDagName: string | null = null;
+    
+    // Since we don't have access to the storage here, we'll need to update all matching task names
+    // across all DAGs that contain that task name
+    for (const [dagName, taskDefs] of Object.entries(dagTaskDefinitions)) {
+      const taskIndex = taskDefs.findIndex(task => task.task_name === taskName);
+      if (taskIndex >= 0) {
+        // Update the task definition directly
+        const priorityString = priority === 'high' ? 'AI Monitored' : 'Regular';
+        dagTaskDefinitions[dagName][taskIndex] = {
+          ...dagTaskDefinitions[dagName][taskIndex],
+          priority: priorityString
+        };
+        
+        // Also update the cached tasks if they exist
+        if (mockTasks.has(dagId)) {
+          const cachedTasks = mockTasks.get(dagId)!;
+          const cachedTaskIndex = cachedTasks.findIndex(t => t.name === taskName);
+          if (cachedTaskIndex >= 0) {
+            const updatedTasks = [...cachedTasks];
+            updatedTasks[cachedTaskIndex] = { ...updatedTasks[cachedTaskIndex], priority };
+            mockTasks.set(dagId, updatedTasks);
+          }
+        }
+        
+        targetDagName = dagName;
+        break;
+      }
+    }
+    
+    return targetDagName !== null;
   }
 };
