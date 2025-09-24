@@ -74,18 +74,17 @@ export const useGetDagTasks = (dagName?: string, entityName?: string) => {
 interface UpdateTaskPriorityParams {
   taskId: number;
   priority: TaskPriority;
-  entityName?: string;  // For fallback API compatibility  
-  dagName?: string;     // For dag_name-based cross-referencing
-  dagId?: number;       // For centralized cache patterns
+  entityName?: string;  // For Express fallback API compatibility  
+  dagName?: string;     // Primary: For dag_name-based FastAPI system
 }
 
 // Helper function to invalidate task-related cache using centralized system
-const invalidateTaskCache = (cacheManager: any, dagName?: string, entityName?: string, dagId?: number) => {
-  // Use centralized cache invalidation patterns
+const invalidateTaskCache = (cacheManager: any, dagName?: string, entityName?: string) => {
+  // Use centralized cache invalidation patterns (dag_name based for FastAPI consistency)
   const invalidationKeys = [
-    ...(dagId ? CACHE_PATTERNS.TASKS.BY_DAG(dagId) : []),
-    ...(dagName ? [['tasks', dagName]] : []),
-    ...(entityName ? [['tasks', entityName]] : []),
+    ...(dagName ? CACHE_PATTERNS.TASKS.BY_DAG_NAME(dagName) : []), // FastAPI endpoint format
+    ...(dagName ? CACHE_PATTERNS.TASKS.BY_NAME(dagName) : []), // React Query cache format  
+    ...(entityName ? [['tasks', entityName]] : []), // Express fallback compatibility
     ...CACHE_PATTERNS.TASKS.LIST
   ];
   
@@ -94,10 +93,10 @@ const invalidateTaskCache = (cacheManager: any, dagName?: string, entityName?: s
     cacheManager.invalidateQueries({ queryKey: key });
   });
   
-  // Invalidate cached all tasks data from localStorage
+  // Invalidate cached all tasks data from localStorage (FastAPI cache)
   try {
     localStorage.removeItem('sla_cache_data');
-    console.log('[Task Priority Update] Cache invalidated due to task priority change');
+    console.log('[Task Priority Update] Cache invalidated due to dag_name-based cache change');
   } catch (error) {
     console.error('Error invalidating cache:', error);
   }
@@ -108,7 +107,7 @@ export const useUpdateTaskPriority = () => {
   const { executeWithOptimism, cacheManager } = useOptimisticMutation();
   
   return useMutation({
-    mutationFn: async ({ taskId, priority, entityName, dagName, dagId }: UpdateTaskPriorityParams & { dagId?: number }) => {
+    mutationFn: async ({ taskId, priority, entityName, dagName }: UpdateTaskPriorityParams) => {
       // Use centralized optimistic mutation pattern
       return executeWithOptimism({
         optimisticUpdate: dagName ? {
@@ -150,7 +149,7 @@ export const useUpdateTaskPriority = () => {
         },
         invalidationScenario: {
           scenario: 'TASK_PRIORITY_CHANGED',
-          params: [dagId || 0, priority, priority] // dagId, oldPriority, newPriority
+          params: [dagName || entityName || 'unknown', priority, priority] // dag_name (preferred) or entityName fallback
         },
         rollbackKeys: dagName ? [['tasks', dagName]] : []
       });

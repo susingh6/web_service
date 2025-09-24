@@ -251,14 +251,18 @@ export const CACHE_PATTERNS = {
   },
   
   // Task-related cache keys (6-hourly caching for tasks in team dashboards)
+  // Using dag_name consistently with FastAPI cache system
   TASKS: {
     LIST: ['/api/tasks'],
-    BY_DAG: (dagId: number) => [`/api/dags/${dagId}/tasks`],
+    BY_DAG: (dagId: number) => [`/api/dags/${dagId}/tasks`], // Keep for legacy Express endpoint
+    BY_DAG_NAME: (dagName: string) => [`/api/v1/dags/${dagName}/tasks`], // FastAPI endpoint format
     BY_ENTITY: (entityId: number) => [`/api/entities/${entityId}/tasks`],
     DETAILS: (taskId: number) => [`/api/tasks/${taskId}`],
     BY_PRIORITY: (priority: 'high' | 'normal') => [`/api/tasks`, { priority }],
     BY_DAG_AND_PRIORITY: (dagId: number, priority: 'high' | 'normal') => [`/api/dags/${dagId}/tasks`, { priority }],
+    BY_DAG_NAME_AND_PRIORITY: (dagName: string, priority: 'high' | 'normal') => [`/api/v1/dags/${dagName}/tasks`, { priority }],
     BY_TEAM_DAG: (teamId: number, dagName: string) => [`/api/teams/${teamId}/dags/${dagName}/tasks`],
+    BY_NAME: (dagName: string) => [['tasks', dagName]], // React Query cache key format
   },
 } as const;
 

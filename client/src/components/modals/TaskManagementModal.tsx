@@ -66,13 +66,12 @@ const TaskManagementModal: React.FC<TaskManagementModalProps> = ({
       setHighPriorityTasks(prev => prev.filter(t => t.id !== taskId));
     }
     
-    // Call API to persist changes with centralized cache invalidation
+    // Call API to persist changes with dag_name-based cache invalidation
     updateTaskPriority({ 
       taskId, 
       priority: newPriority,
-      entityName: dag?.name as string, // For fallback API compatibility
-      dagName: dag?.name as string,    // For dag_name-based cross-referencing
-      dagId: dag?.id                   // For centralized cache patterns
+      entityName: dag?.name as string, // For Express fallback API compatibility
+      dagName: dag?.name as string     // Primary: For dag_name-based FastAPI system
     });
   };
   
