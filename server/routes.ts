@@ -3637,6 +3637,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Create DAG endpoint (development fallback)
+  app.post("/api/dags", requireActiveUser, async (req: Request, res: Response) => {
+    try {
+      const result = insertEntitySchema.safeParse(req.body);
+      
+      if (!result.success) {
+        return res.status(400).json({ message: "Invalid DAG data", errors: result.error.format() });
+      }
+      
+      // Ensure this is a DAG entity
+      const payload = { ...result.data, type: 'dag' } as any;
+
+      // Create DAG entity using the same logic as entities endpoint
+      const newDag = await storage.createEntity(payload);
+      
+      // Invalidate relevant caches
+      await redisCache.invalidateCache({
+        keys: [
+          'entities_all',
+          `entities_team_${newDag.teamId}`,
+          `entities_tenant_${payload.tenant_name || 'default'}`,
+        ],
+        patterns: [
+          'dashboard_*',
+          'summary_*',
+          'teams_*'
+        ]
+      });
+
+      res.status(201).json(newDag);
+    } catch (error) {
+      console.error("Error creating DAG:", error);
+      res.status(500).json({ message: "Failed to create DAG" });
+    }
+  });
+
   // Get all Tables endpoint
   app.get("/api/tables", async (req, res) => {
     try {
@@ -3645,6 +3681,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching Tables:", error);
       res.status(500).json({ message: "Failed to fetch Tables" });
+    }
+  });
+
+  // Create Table endpoint (development fallback)
+  app.post("/api/tables", requireActiveUser, async (req: Request, res: Response) => {
+    try {
+      const result = insertEntitySchema.safeParse(req.body);
+      
+      if (!result.success) {
+        return res.status(400).json({ message: "Invalid table data", errors: result.error.format() });
+      }
+      
+      // Ensure this is a table entity
+      const payload = { ...result.data, type: 'table' } as any;
+
+      // Create table entity using the same logic as entities endpoint
+      const newTable = await storage.createEntity(payload);
+      
+      // Invalidate relevant caches
+      await redisCache.invalidateCache({
+        keys: [
+          'entities_all',
+          `entities_team_${newTable.teamId}`,
+          `entities_tenant_${payload.tenant_name || 'default'}`,
+        ],
+        patterns: [
+          'dashboard_*',
+          'summary_*',
+          'teams_*'
+        ]
+      });
+
+      res.status(201).json(newTable);
+    } catch (error) {
+      console.error("Error creating Table:", error);
+      res.status(500).json({ message: "Failed to create table" });
     }
   });
   
