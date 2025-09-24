@@ -31,8 +31,8 @@ const TaskManagementModal: React.FC<TaskManagementModalProps> = ({
   const [highPriorityTasks, setHighPriorityTasks] = useState<Task[]>([]);
   const [normalPriorityTasks, setNormalPriorityTasks] = useState<Task[]>([]);
   
-  // Get tasks for this DAG using entity name
-  const { data: tasks, isLoading, error } = useGetDagTasks(dag?.name);
+  // Get tasks for this DAG using dag_name for cross-referencing (dag.name represents dag_name)
+  const { data: tasks, isLoading, error } = useGetDagTasks(dag?.name, dag?.name);
   const { mutate: updateTaskPriority } = useUpdateTaskPriority();
   
   // Split tasks into priority zones when data loads
@@ -66,11 +66,12 @@ const TaskManagementModal: React.FC<TaskManagementModalProps> = ({
       setHighPriorityTasks(prev => prev.filter(t => t.id !== taskId));
     }
     
-    // Call API to persist changes
+    // Call API to persist changes with cache invalidation
     updateTaskPriority({ 
       taskId, 
       priority: newPriority,
-      entityName: dag?.name as string
+      entityName: dag?.name as string, // For fallback API compatibility
+      dagName: dag?.name as string     // For dag_name-based cross-referencing
     });
   };
   
