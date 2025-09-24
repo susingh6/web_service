@@ -187,14 +187,21 @@ export const useUpdateTaskPriority = () => {
       });
     },
     onSettled: (data, error, variables) => {
-      // Always invalidate cache for consistency, whether success or failure
+      // Aggressively invalidate ALL related caches to force fresh data
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       queryClient.invalidateQueries({ queryKey: ['dags', variables.dagName, 'tasks'] });
+      queryClient.removeQueries({ queryKey: ['tasks', variables.dagName] });
+      queryClient.removeQueries({ queryKey: ['tasks', variables.entityName] });
+      
+      // Force a hard refresh of the task data
+      if (variables.dagName) {
+        queryClient.refetchQueries({ queryKey: ['tasks', variables.dagName] });
+      }
       
       if (error) {
         console.error('[Task Priority Update] Failed:', error);
       } else {
-        console.log('[Task Priority Update] Success - cache invalidated');
+        console.log('[Task Priority Update] Success - cache aggressively invalidated and refetched');
       }
     },
   });
