@@ -4,6 +4,7 @@ import { apiRequest } from '@/lib/queryClient';
 import { endpoints } from '@/config';
 import { mockTaskService } from './mockService';
 import { AllTasksData, DagTaskData } from '@shared/cache-types';
+import { useOptimisticMutation } from '@/utils/cache-management';
 
 // Helper function to get cached all tasks data
 const getCachedAllTasksData = (): AllTasksData | null => {
@@ -105,58 +106,96 @@ const invalidateTaskCache = (cacheManager: any, dagName?: string, entityName?: s
   }
 };
 
-// Mutation to update task priority using centralized cache management
+// Mutation to update task priority using optimistic updates
 export const useUpdateTaskPriority = () => {
+  const { executeWithOptimism } = useOptimisticMutation();
   const queryClient = useQueryClient();
   
   return useMutation({
     mutationFn: async ({ taskId, priority, entityName, dagName, allTasks, tenantName, teamName }: UpdateTaskPriorityParams) => {
-      // Try entity-level bulk update endpoint first (FastAPI style)
-      if (entityName && allTasks && tenantName && teamName) {
-        const bulkUpdatePayload = {
-          tasks: allTasks.map((task: any) => ({
-            task_name: task.name || `task_${task.id}`,
-            priority: task.id === taskId ? priority : task.priority // Update only the target task
-          })),
-          team_name: teamName,
-          tenant_name: tenantName,
-          user: { 
-            email: 'user@example.com', // TODO: Get from auth context
-            name: 'Current User'
+      return executeWithOptimism({
+        optimisticUpdate: dagName ? {
+          queryKey: ['tasks', dagName],
+          updater: (oldTasks: Task[] | undefined) => {
+            if (!oldTasks) return oldTasks;
+            return oldTasks.map(task => 
+              task.id === taskId 
+                ? { ...task, priority, task_type: priority === 'high' ? 'AI' : 'regular' }
+                : task
+            );
           }
-        };
+        } : undefined,
+        mutationFn: async () => {
+          // Try entity-level bulk update endpoint first (FastAPI style)
+          if (entityName && allTasks && tenantName && teamName) {
+            try {
+              const bulkUpdatePayload = {
+                tasks: allTasks.map((task: any) => ({
+                  task_name: task.name || `task_${task.id}`,
+                  priority: task.id === taskId ? priority : task.priority // Update only the target task
+                })),
+                team_name: teamName,
+                tenant_name: tenantName,
+                user: { 
+                  email: 'user@example.com', // TODO: Get from auth context
+                  name: 'Current User'
+                }
+              };
 
-        await apiRequest('PATCH', `/api/v1/entities/${entityName}/tasks/priorities`, bulkUpdatePayload);
-        console.log('[Bulk Task Priority Update] FastAPI bulk update successful');
-        
-        return { 
-          id: taskId, 
-          priority, 
-          success: true,
-          task_type: priority === 'high' ? 'AI' : 'regular'
-        };
+              await apiRequest('PATCH', `/api/v1/entities/${entityName}/tasks/priorities`, bulkUpdatePayload);
+              console.log('[Bulk Task Priority Update] FastAPI bulk update successful');
+              
+              // Return immediately after successful call
+              return { 
+                id: taskId, 
+                priority, 
+                success: true,
+                task_type: priority === 'high' ? 'AI' : 'regular',
+                entityName,
+                dagName
+              };
+            } catch (error) {
+              console.log('[Bulk Task Priority Update] Failed, trying fallback');
+              // Try individual task endpoint as fallback
+              try {
+                await apiRequest('PATCH', endpoints.tasks.updatePriority(taskId), { priority });
+                console.log('[Individual Task Update] Success');
+                return { 
+                  id: taskId, 
+                  priority, 
+                  success: true,
+                  task_type: priority === 'high' ? 'AI' : 'regular',
+                  entityName,
+                  dagName
+                };
+              } catch (fallbackError) {
+                console.log('[Individual Task Update] Failed, using mock');
+                // Final fallback to mock
+                return mockTaskService.updateTaskPriority(taskId, priority);
+              }
+            }
+          }
+          
+          // No entity context, use mock
+          return mockTaskService.updateTaskPriority(taskId, priority);
+        },
+        invalidationScenario: {
+          scenario: 'TASK_PRIORITY_CHANGED',
+          params: [dagName || entityName || 'unknown', priority, priority]
+        },
+        rollbackKeys: dagName ? [['tasks', dagName]] : []
+      });
+    },
+    onSettled: (data, error, variables) => {
+      // Always invalidate cache for consistency, whether success or failure
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['dags', variables.dagName, 'tasks'] });
+      
+      if (error) {
+        console.error('[Task Priority Update] Failed:', error);
+      } else {
+        console.log('[Task Priority Update] Success - cache invalidated');
       }
-      
-      // Fallback
-      return { 
-        id: taskId, 
-        priority, 
-        success: true,
-        task_type: priority === 'high' ? 'AI' : 'regular'
-      };
-    },
-    onSuccess: (updatedTask, variables) => {
-      // Invalidate and refetch relevant queries
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
-      queryClient.invalidateQueries({ queryKey: ['dags', variables.dagName, 'tasks'] });
-      
-      console.log('[Task Priority Update] Success - cache invalidated');
-    },
-    onError: (error, variables) => {
-      console.error('[Task Priority Update] Failed:', error);
-      // Still invalidate cache to ensure consistency
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
-      queryClient.invalidateQueries({ queryKey: ['dags', variables.dagName, 'tasks'] });
     },
   });
 };
