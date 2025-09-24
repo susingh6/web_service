@@ -3040,6 +3040,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Task API routes
+  // Get tasks for a specific DAG by entity name (FastAPI-style)
+  app.get("/api/v1/dags/:entityName/tasks", async (req: Request, res: Response) => {
+    try {
+      const entityName = req.params.entityName;
+      
+      if (!entityName) {
+        return res.status(400).json({ message: "Invalid entity name" });
+      }
+
+      // Find the DAG entity by name to get its ID for mock service
+      const entities = await storage.getEntities();
+      const dagEntity = entities.find(e => e.name === entityName && e.type === 'dag');
+      
+      if (!dagEntity) {
+        return res.status(404).json({ message: "DAG entity not found" });
+      }
+
+      // Use mock service to generate tasks (imports mockTaskService for consistency)
+      const { mockTaskService } = await import('../client/src/features/sla/mockService.js');
+      const tasks = mockTaskService.getDagTasks(dagEntity.id);
+      
+      // Transform to API format with task_type field for frontend compatibility
+      const formattedTasks = tasks.map(task => ({
+        id: task.id,
+        name: task.name,
+        description: task.description,
+        status: task.status,
+        duration: task.duration,
+        dependencies: task.dependencies,
+        task_type: task.priority === 'high' ? 'AI' : 'regular', // Map priority to task_type
+        priority: task.priority
+      }));
+
+      res.json(formattedTasks);
+    } catch (error) {
+      console.error("Error fetching DAG tasks by entity name:", error);
+      res.status(500).json({ message: "Failed to fetch DAG tasks" });
+    }
+  });
+
   // Get tasks for a specific DAG
   app.get("/api/dags/:dagId/tasks", isAuthenticated, async (req: Request, res: Response) => {
     try {

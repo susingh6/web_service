@@ -4,16 +4,16 @@ import { apiRequest } from '@/lib/queryClient';
 import { endpoints } from '@/config';
 import { mockTaskService } from './mockService';
 
-// Task service that uses unified tasks API
-export const useGetDagTasks = (dagId?: number) => {
+// Task service that uses entity name-based tasks API
+export const useGetDagTasks = (entityName?: string) => {
   return useQuery({
-    queryKey: ['tasks', dagId],
+    queryKey: ['tasks', entityName],
     queryFn: async () => {
-      if (!dagId) return [];
+      if (!entityName) return [];
       
       try {
-        // Get all tasks from unified endpoint
-        const response = await apiRequest('GET', endpoints.entity.tasks(dagId));
+        // Get all tasks from entity name-based endpoint
+        const response = await apiRequest('GET', endpoints.entity.tasks(entityName));
         const allTasks = await response.json();
         
         // Transform to expected format with priority field
@@ -29,7 +29,7 @@ export const useGetDagTasks = (dagId?: number) => {
         return [];
       }
     },
-    enabled: !!dagId,
+    enabled: !!entityName,
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
 };
@@ -37,7 +37,7 @@ export const useGetDagTasks = (dagId?: number) => {
 interface UpdateTaskPriorityParams {
   taskId: number;
   priority: TaskPriority;
-  dagId: number;
+  entityName: string;
 }
 
 // Mutation to update task priority
@@ -45,7 +45,7 @@ export const useUpdateTaskPriority = () => {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: async ({ taskId, priority, dagId }: UpdateTaskPriorityParams) => {
+    mutationFn: async ({ taskId, priority, entityName }: UpdateTaskPriorityParams) => {
       try {
         // Try to update via API first
         const response = await apiRequest('PATCH', endpoints.tasks.updatePriority(taskId), { priority });
@@ -58,7 +58,7 @@ export const useUpdateTaskPriority = () => {
     },
     onSuccess: (updatedTask, variables) => {
       // Update the cache directly instead of invalidating to prevent UI flicker
-      queryClient.setQueryData(['tasks', variables.dagId], (oldTasks: Task[] | undefined) => {
+      queryClient.setQueryData(['tasks', variables.entityName], (oldTasks: Task[] | undefined) => {
         if (!oldTasks) return oldTasks;
         
         return oldTasks.map(task => 

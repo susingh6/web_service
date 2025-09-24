@@ -78,7 +78,7 @@ export const devConfig = {
       history: (entityId: number) => `/api/v1/entities/${entityId}/history`,
       issues: (entityId: number) => `/api/v1/entities/${entityId}/issues`,
       details: (entityId: number) => `/api/entities/${entityId}/details`,
-      tasks: (entityId: number) => `/api/v1/entities/${entityId}/tasks`,
+      tasks: (entityName: string) => `/api/v1/dags/${entityName}/tasks`,
       notificationTimelines: (entityId: number) => `/api/v1/entities/${entityId}/notification-timelines`,
       trends30Day: '/api/v1/entities/trends/30-day',
       delete: (id: number) => `/api/v1/entities/${id}`,

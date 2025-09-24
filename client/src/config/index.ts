@@ -72,7 +72,7 @@ interface ApiConfig {
       history: (entityId: number) => string;
       issues: (entityId: number) => string;
       details: (entityId: number) => string;
-      tasks: (entityId: number) => string;
+      tasks: (entityName: string) => string;
       notificationTimelines: (entityId: number) => string;
       trends30Day: string;
       delete: (id: number) => string;
