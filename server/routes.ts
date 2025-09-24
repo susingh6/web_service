@@ -3138,44 +3138,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // PATCH API for task priority updates - FastAPI-style endpoint
-  app.patch("/api/v1/tasks/:taskId/priority", isAuthenticated, async (req: Request, res: Response) => {
+  // PATCH API for bulk task priority updates at entity level - Team-scoped with user context
+  app.patch("/api/v1/entities/:entity_name/tasks/priorities", isAuthenticated, async (req: Request, res: Response) => {
     try {
-      const taskId = parseInt(req.params.taskId);
-      if (isNaN(taskId)) {
-        return res.status(400).json({ message: "Invalid task ID" });
+      const entityName = req.params.entity_name;
+      if (!entityName) {
+        return res.status(400).json({ message: "Entity name is required" });
       }
 
-      const { priority } = req.body;
-      if (!priority || !["high", "normal"].includes(priority)) {
-        return res.status(400).json({ message: "Invalid priority. Must be 'high' or 'normal'" });
+      const { tasks, team_name, tenant_name, user } = req.body;
+      
+      // Validation
+      if (!Array.isArray(tasks)) {
+        return res.status(400).json({ message: "Tasks array is required" });
+      }
+      
+      if (!team_name || !tenant_name) {
+        return res.status(400).json({ message: "team_name and tenant_name are required" });
       }
 
-      // For now, return updated mock data with cache invalidation
-      // In a real implementation, this would update the database
-      const updatedTask = {
-        id: taskId,
-        name: `Task${taskId}`,
-        priority: priority,
-        status: "running",
-        task_type: priority === 'high' ? 'AI' : 'regular',
-        description: `Updated task ${taskId} priority to ${priority}`,
-        updatedAt: new Date().toISOString()
+      // Validate each task priority
+      for (const task of tasks) {
+        if (!task.task_name || !task.priority || !["high", "normal"].includes(task.priority)) {
+          return res.status(400).json({ 
+            message: `Invalid task format. Each task must have task_name and priority ('high' or 'normal')` 
+          });
+        }
+      }
+
+      // Get logged-in user from session
+      const loggedInUser = req.session?.user || req.user || { 
+        email: user?.email || 'unknown@example.com',
+        name: user?.name || 'Unknown User'
       };
 
-      // Invalidate cache for all affected DAGs (since we don't know which DAG this task belongs to)
-      // This ensures cache coherence across the application
-      console.log(`[Task Priority Update] Task ${taskId} priority updated to ${priority}`);
+      // Process bulk task priority updates with team context
+      const updatedTasks = tasks.map(task => ({
+        task_name: task.task_name,
+        priority: task.priority,
+        task_type: task.priority === 'high' ? 'AI' : 'regular',
+        entity_name: entityName,
+        team_name: team_name,
+        tenant_name: tenant_name,
+        updated_by: loggedInUser.email,
+        updated_by_name: loggedInUser.name,
+        updatedAt: new Date().toISOString()
+      }));
 
-      // Force cache invalidation by setting no-cache headers
+      console.log(`[Bulk Task Priority Update] Entity: ${entityName}, Team: ${team_name}, Tenant: ${tenant_name}`);
+      console.log(`[Bulk Task Priority Update] Updated ${tasks.length} tasks by user: ${loggedInUser.email}`);
+      
+      // Log each task update for audit trail
+      tasks.forEach(task => {
+        console.log(`[Task Update] ${task.task_name}: ${task.priority} (${task.priority === 'high' ? 'AI' : 'regular'})`);
+      });
+
+      // Force cache invalidation for team-scoped data
       res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
       res.set('Pragma', 'no-cache');
       res.set('Expires', '0');
       res.set('Surrogate-Control', 'no-store');
-      res.json(updatedTask);
+      
+      res.json({
+        success: true,
+        entity_name: entityName,
+        team_name: team_name,
+        tenant_name: tenant_name,
+        updated_by: loggedInUser.email,
+        tasks_updated: updatedTasks.length,
+        tasks: updatedTasks,
+        timestamp: new Date().toISOString()
+      });
     } catch (error) {
-      console.error("Error updating task priority:", error);
-      res.status(500).json({ message: "Failed to update task priority" });
+      console.error("Error updating task priorities:", error);
+      res.status(500).json({ message: "Failed to update task priorities" });
     }
   });
 
