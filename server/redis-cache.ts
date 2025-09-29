@@ -2212,6 +2212,10 @@ export class RedisCache {
       if (this.useRedis && this.redis) {
         await this.redis.publish(CACHE_KEYS.CHANGES_CHANNEL, JSON.stringify(changeEvent));
       } else {
+        console.log('🔄 Cache: Broadcasting team member change directly to WebSocket clients (fallback mode)');
+        console.log('🔍 Cache: WebSocket server available:', !!this.wss);
+        console.log('🔍 Cache: Connected clients count:', this.wss?.clients?.size || 0);
+        console.log('🔍 Cache: Authenticated sockets count:', this.authenticatedSockets?.size || 0);
         this.broadcastToClients('team-members-updated', changeEvent);
       }
     }
