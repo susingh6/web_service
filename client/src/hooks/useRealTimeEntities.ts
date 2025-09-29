@@ -134,10 +134,12 @@ export const useRealTimeEntities = (options: UseRealTimeEntitiesOptions) => {
       options.onTeamMembersUpdated?.(data);
     },
 
-    onCacheUpdated: (data) => {
-      // Debounced global invalidation to avoid refetch storms
-      pendingGlobalInvalidateRef.current = true;
-      scheduleFlush();
+    onCacheUpdated: (data, cacheType) => {
+      // Only trigger global invalidation for entity/metrics changes, not team member changes
+      if (cacheType === 'entities-cache' || cacheType === 'metrics-cache') {
+        pendingGlobalInvalidateRef.current = true;
+        scheduleFlush();
+      }
     },
 
     onConnect: () => {
