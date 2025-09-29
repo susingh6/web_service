@@ -259,11 +259,7 @@ const Summary = () => {
         dispatch(fetchDashboardSummary({ tenantName: selectedTenant.name }));
       }
       // Removed fetchEntities to prevent cross-contamination - React Query handles data refresh
-      toast({
-        title: "Data Refreshed",
-        description: "Dashboard data has been updated with latest information",
-        variant: "default",
-      });
+      // Removed toast notification to prevent interference with Team Dashboard toasts
     },
     onConnect: () => {},
     onDisconnect: () => {}
