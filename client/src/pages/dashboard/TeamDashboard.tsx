@@ -27,6 +27,7 @@ import { useRealTimeEntities } from '@/hooks/useRealTimeEntities';
 import { useQueryClient } from '@tanstack/react-query';
 import { TeamNotificationSettings } from '@/components/team/TeamNotificationSettings';
 import NotificationSummary from '@/components/team/NotificationSummary';
+import { useWebSocket } from '@/hooks/useWebSocket';
 
 interface TeamDashboardProps {
   teamName: string;
@@ -155,6 +156,16 @@ const TeamDashboard = ({
     window.addEventListener('admin-teams-updated', handler);
     return () => window.removeEventListener('admin-teams-updated', handler);
   }, [tenantName, queryClient]);
+
+  // WebSocket real-time cache updates for team members
+  useWebSocket({
+    onCacheUpdated: (data, cacheType) => {
+      if (cacheType === 'team-members-cache' && teamIdRef.current) {
+        console.log('📨 TeamDashboard: Received team-members-cache update, invalidating queries');
+        queryClient.invalidateQueries({ queryKey: cacheKeys.teamMembers(tenantName, teamIdRef.current) });
+      }
+    }
+  });
 
   // Fetch data when team is found
   // Use React Query for team entities so cache invalidation works
