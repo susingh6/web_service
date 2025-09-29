@@ -2291,14 +2291,6 @@ export class RedisCache {
       timestamp: new Date().toISOString()
     });
 
-    // Also broadcast metrics update if data changed
-    if (memberChangeData) {
-      this.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.METRICS, {
-        teamName,
-        timestamp: new Date().toISOString()
-      });
-    }
-
     // Broadcast team member change if details provided
     if (teamName && memberChangeData) {
       const changeEvent: TeamMemberChangeEvent = {
