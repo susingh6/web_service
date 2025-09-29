@@ -718,6 +718,9 @@ const TeamsManagement = () => {
 
   // Modern cache-managed team update
   const handleUpdateTeamModern = async (teamId: number, teamData: any) => {
+    // Get original team data for comparison before update
+    const originalTeam = teams?.find(team => team.id === teamId);
+    
     try {
       await updateTeamAdmin(teamId, teamData);
       
@@ -732,6 +735,93 @@ const TeamsManagement = () => {
         title: 'Team Updated', 
         description: successMessage 
       });
+
+      // WebSocket broadcasting for team member changes
+      if (teamData.hasOwnProperty('team_members_ids') && originalTeam) {
+        const originalMembers = originalTeam.team_members_ids || [];
+        const newMembers = teamData.team_members_ids || [];
+        const teamName = originalTeam.name;
+        const tenantName = tenantNameMap.get(originalTeam.tenant_id) || 'Unknown';
+        
+        // Detect member additions
+        const addedMembers = newMembers.filter((memberId: string) => !originalMembers.includes(memberId));
+        // Detect member removals  
+        const removedMembers = originalMembers.filter((memberId: string) => !newMembers.includes(memberId));
+        
+        console.log('📡 Team member changes detected:', {
+          teamName,
+          tenantName,
+          addedMembers,
+          removedMembers,
+          originalMembers,
+          newMembers
+        });
+        
+        // Dispatch window event to notify team dashboard of member changes
+        try {
+          window.dispatchEvent(new CustomEvent('admin-teams-updated', {
+            detail: { teamId, teamName, tenantName, type: 'member-change' }
+          }));
+        } catch {}
+        
+        // Broadcast member additions
+        addedMembers.forEach((memberId: string) => {
+          const teamMemberEvent = {
+            type: 'team-change',
+            event: 'team-members-updated',
+            data: {
+              type: 'member-added',
+              teamName,
+              tenantName,
+              memberId,
+              memberName: memberId, // Use memberId as fallback since availableUsers is not in scope
+              teamId,
+              version: Date.now(),
+              ts: Date.now(),
+              updatedAt: new Date().toISOString(),
+              originUserId: sessionId || 'admin'
+            }
+          };
+          
+          console.log('📡 Broadcasting member addition:', teamMemberEvent);
+          if (typeof sendMessage === 'function') {
+            sendMessage(teamMemberEvent);
+          }
+        });
+        
+        // Broadcast member removals
+        removedMembers.forEach((memberId: string) => {
+          const teamMemberEvent = {
+            type: 'team-change',
+            event: 'team-members-updated',
+            data: {
+              type: 'member-removed',
+              teamName,
+              tenantName,
+              memberId,
+              memberName: memberId, // Use memberId as fallback since availableUsers is not in scope
+              teamId,
+              version: Date.now(),
+              ts: Date.now(),
+              updatedAt: new Date().toISOString(),
+              originUserId: sessionId || 'admin'
+            }
+          };
+          
+          console.log('📡 Broadcasting member removal:', teamMemberEvent);
+          if (typeof sendMessage === 'function') {
+            sendMessage(teamMemberEvent);
+          }
+        });
+
+        // Invalidate relevant cache entries for real-time updates
+        try {
+          await queryClient.invalidateQueries({ queryKey: ['teamMembers', tenantName, teamId, teamName] });
+          await queryClient.refetchQueries({ queryKey: ['teamMembers', tenantName, teamId, teamName] });
+        } catch (_err) {
+          // Swallow errors; real-time WS or next navigation will recover
+        }
+      }
       
       setDialogOpen(false);
     } catch (error: any) {
@@ -826,15 +916,6 @@ const TeamsManagement = () => {
       });
     },
     onSuccess: async (_res, { teamId, teamData }, ctx) => {
-      // Debug logging for team member updates
-      console.log('🔍 Team update onSuccess:', {
-        teamId,
-        teamData,
-        originalTeam: ctx?.originalTeam,
-        hasTeamMembersIds: teamData.hasOwnProperty('team_members_ids'),
-        teamMembersIds: teamData.team_members_ids
-      });
-      
       // WebSocket broadcasting for team member changes
       if (teamData.hasOwnProperty('team_members_ids') && ctx?.originalTeam) {
         const originalMembers = ctx.originalTeam.team_members_ids || [];
