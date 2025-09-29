@@ -407,7 +407,6 @@ export class RedisCache {
           // Skip originator since they already got the echo
           if (!data.originUserId || !socketData || socketData.userId !== data.originUserId) {
             this.sendWithBackpressureProtection(client, message, `${event}:${subscriptionKey}`);
-            console.log('✅ Cache: Sent WebSocket event to client (development mode bypass)');
           }
         }
         // Production mode: send to authenticated clients who are subscribed to this tenant:team
@@ -416,7 +415,6 @@ export class RedisCache {
             socketData.userId !== data.originUserId
         ) {
           this.sendWithBackpressureProtection(client, message, `${event}:${subscriptionKey}`);
-          console.log('✅ Cache: Sent WebSocket event to authenticated client');
         }
       }
     });
@@ -2222,10 +2220,7 @@ export class RedisCache {
       if (this.useRedis && this.redis) {
         await this.redis.publish(CACHE_KEYS.CHANGES_CHANNEL, JSON.stringify(changeEvent));
       } else {
-        console.log('🔄 Cache: Broadcasting team member change directly to WebSocket clients (fallback mode)');
-        console.log('🔍 Cache: WebSocket server available:', !!this.wss);
         console.log('🔍 Cache: Connected clients count:', this.wss?.clients?.size || 0);
-        console.log('🔍 Cache: Authenticated sockets count:', this.authenticatedSockets?.size || 0);
         this.broadcastToClients('team-members-updated', changeEvent);
       }
     }

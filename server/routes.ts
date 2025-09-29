@@ -5138,7 +5138,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     ws.on('message', async (message) => {
       try {
         const data = JSON.parse(message.toString());
-        console.log('🔥 Server WebSocket: Raw message received:', data);
         
         // Handle authentication
         if (data.type === 'authenticate') {
@@ -5171,16 +5170,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // Allow team member updates to bypass authentication (they're broadcast-only cache invalidation)
         if (data.event === 'team-members-updated') {
-          console.log('🔥 Server: Team member update message bypassing authentication');
           // Process immediately without authentication check
           const changeData = data.data;
           if (changeData && changeData.teamName && changeData.tenantName) {
             try {
-              console.log('🔍 Server: Processing team member change:', { 
-                teamName: changeData.teamName, 
-                type: changeData.type, 
-                tenantName: changeData.tenantName 
-              });
               
               // Use existing cache invalidation system to trigger proper WebSocket broadcasting
               await redisCache.invalidateTeamData(changeData.teamName, {
@@ -5190,7 +5183,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 tenantName: changeData.tenantName
               });
               
-              console.log('✅ Server: Team member change processed through cache system');
             } catch (error) {
               console.error('⚠️ Server: Error processing team member update:', error);
             }
@@ -5202,12 +5194,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // Require authentication for all other operations
         if (!socketData) {
-          console.log('🚨 Server: WebSocket message blocked - not authenticated:', data);
           ws.send(JSON.stringify({ type: 'error', message: 'Not authenticated' }));
           return;
         }
         
-        console.log('✅ Server: WebSocket message authenticated, proceeding with handlers...');
 
         // Handle subscription management
         if (data.type === 'subscribe') {
@@ -5255,7 +5245,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return;
         }
 
-        console.log('🔍 Server: Unhandled WebSocket message event:', data.event);
 
       } catch (error) {
         console.error('WebSocket message parse error:', error);
