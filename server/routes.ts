@@ -5121,9 +5121,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Setup WebSocket server with authentication and subscriptions
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
   
-  // Initialize WebSocket in cache system early (before clients connect)
-  redisCache.setupWebSocket(wss);
-  
   // Track authenticated connections with heartbeat monitoring
   const authenticatedSockets: Map<WebSocket, {
     sessionId: string;
@@ -5133,6 +5130,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     lastPong: number; // Last pong response timestamp
     isAlive: boolean; // Heartbeat status
   }> = new Map();
+  
+  // Initialize WebSocket in cache system with the authenticatedSockets map
+  redisCache.setupWebSocket(wss, authenticatedSockets as any);
 
   // Heartbeat configuration
   const HEARTBEAT_INTERVAL = 30000; // 30 seconds
@@ -5340,9 +5340,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     clearInterval(heartbeatInterval);
     clearInterval(cleanupInterval);
   });
-
-  // Connect WebSocket to cache system with authenticated sockets
-  redisCache.setupWebSocket(wss, authenticatedSockets as any);
 
   return httpServer;
 }
