@@ -69,6 +69,7 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+- **Implemented centralized cache update filtering system** - Built comprehensive granular cache update type system that eliminates unnecessary cache invalidations across all admin panel operations. System auto-detects cache types (team-members, notifications, entities, users, tenants, metrics, etc.) and uses centralized filtering rules to broadcast only to components that need specific updates. Summary Dashboard now receives only entities/metrics updates, not team member changes, dramatically reducing unnecessary re-renders.
 - **FIXED: Real-time team member updates** - Resolved critical issue where team dashboard wouldn't update in real-time when members were added/removed via admin panel. Fixed WebSocket broadcasting logic that was in unused code path and corrected message format to match useWebSocket expectations.
 - Completed FastAPI integration for all 8 endpoints with comprehensive error handling and fallback mechanisms
 - Fixed major architectural issue: TeamDashboard now uses team-specific data instead of tenant-level summary data
