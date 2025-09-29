@@ -2194,6 +2194,7 @@ export class RedisCache {
     });
 
     // Broadcast team member change if details provided
+    console.log('🔍 Cache: Checking broadcast condition - teamName:', !!teamName, 'memberChangeData:', !!memberChangeData);
     if (teamName && memberChangeData) {
       const changeEvent: TeamMemberChangeEvent = {
         event: 'team-members-updated',
