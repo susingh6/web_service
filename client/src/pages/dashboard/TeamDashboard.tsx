@@ -116,7 +116,7 @@ const TeamDashboard = ({
 
   // React Query to fetch team members - automatically updates when cache changes
   const { data: teamMembers = [], isLoading: teamMembersLoading } = useQuery({
-    queryKey: ['teamMembers', tenantName, team?.id, team?.name],
+    queryKey: cacheKeys.teamMembers(tenantName, team?.id),
     queryFn: async () => {
       if (!team?.name) return [];
       const response = await apiClient.teams.getMembers(team.name);
@@ -227,7 +227,7 @@ const TeamDashboard = ({
     },
     onTeamMembersUpdated: (data) => {
       // Refresh team members when real-time update received
-      queryClient.invalidateQueries({ queryKey: ['teamMembers', tenantName, team?.id] });
+      queryClient.invalidateQueries({ queryKey: cacheKeys.teamMembers(tenantName, team?.id) });
     }
   });
 

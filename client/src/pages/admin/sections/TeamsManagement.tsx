@@ -847,6 +847,13 @@ const TeamsManagement = () => {
           newMembers
         });
         
+        // Dispatch window event to notify team dashboard of member changes
+        try {
+          window.dispatchEvent(new CustomEvent('admin-teams-updated', {
+            detail: { teamId, teamName, tenantName, type: 'member-change' }
+          }));
+        } catch {}
+        
         // Broadcast member additions
         addedMembers.forEach((memberId: string) => {
           const teamMemberEvent = {
