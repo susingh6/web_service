@@ -5,7 +5,7 @@ import { useLocation } from 'wouter';
 import Header from './Header';
 import { useAuth } from '@/hooks/use-auth';
 import { useWebSocket } from '@/hooks/useWebSocket';
-import { WEBSOCKET_CONFIG } from '../../../shared/websocket-config';
+import { WEBSOCKET_CONFIG } from '../../../../shared/websocket-config';
 import { useAppDispatch } from '@/lib/store';
 import { fetchEntities } from '@/features/sla/slices/entitiesSlice';
 import { fetchDashboardSummary } from '@/features/sla/slices/dashboardSlice';

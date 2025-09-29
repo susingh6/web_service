@@ -44,7 +44,7 @@ import { useToast } from '@/hooks/use-toast';
 import { tenantsApi, teamsApi, rollbackApi } from '@/features/sla/api';
 import { cacheKeys, invalidateAdminCaches, invalidateEntityCaches } from '@/lib/cacheKeys';
 import { useWebSocket } from '@/hooks/useWebSocket';
-import { WEBSOCKET_CONFIG } from '../../../../shared/websocket-config';
+import { WEBSOCKET_CONFIG } from '../../../../../shared/websocket-config';
 import { buildUrl, endpoints } from '@/config';
 
 

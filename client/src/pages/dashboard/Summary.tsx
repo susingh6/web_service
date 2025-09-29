@@ -28,7 +28,7 @@ import { cacheKeys } from '@/lib/cacheKeys';
 import type { Tenant } from '@/lib/tenantCache';
 import { tenantsApi } from '@/features/sla/api';
 import { useWebSocket } from '@/hooks/useWebSocket';
-import { WEBSOCKET_CONFIG } from '../../../shared/websocket-config';
+import { WEBSOCKET_CONFIG } from '../../../../shared/websocket-config';
 import { useEntityMutation } from '@/utils/cache-management';
 import { invalidateEntityCaches, invalidateTenantCaches } from '@/lib/cacheKeys';
 import { resolveEntityIdentifier } from '@shared/entity-utils';
