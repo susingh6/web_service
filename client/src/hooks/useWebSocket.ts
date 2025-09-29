@@ -100,7 +100,6 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
           options.onMessage?.(message);
           
           // Call specific event handlers with enhanced versioning protection
-          console.log('🔥 useWebSocket: Processing message with event:', message.event, 'config.teamMembersUpdated:', config.websocket.events.teamMembersUpdated);
           switch (message.event) {
             case config.websocket.events.cacheUpdated:
               options.onCacheUpdated?.(message.data);

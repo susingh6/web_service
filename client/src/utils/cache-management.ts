@@ -1666,18 +1666,8 @@ export function useTeamMemberMutationV2() {
       
       console.log('🚀 Team dashboard member removal - broadcasting WebSocket event:', teamMemberEvent);
       if (typeof sendMessage === 'function') {
-        console.log('✅ WebSocket sendMessage function is available');
-        
-        // Add a small delay to ensure WebSocket is truly connected after reconnections
-        setTimeout(() => {
-          console.log('🔔 Attempting to send team member update after connection delay');
-          try {
-            sendMessage(teamMemberEvent);
-            console.log('✅ Team member WebSocket message sent successfully');
-          } catch (error) {
-            console.error('❌ Failed to send team member WebSocket message:', error);
-          }
-        }, 200); // 200ms delay to ensure stable connection
+        console.log('✅ WebSocket sendMessage function is available, sending...');
+        sendMessage(teamMemberEvent);
       } else {
         console.warn('❌ WebSocket sendMessage function not available:', typeof sendMessage);
       }
