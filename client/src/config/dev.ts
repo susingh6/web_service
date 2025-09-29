@@ -267,6 +267,24 @@ export const devConfig = {
     recentChanges: '/api/v1/cache/recent-changes',
   },
   
+  // WebSocket configuration (component types and filtering are in shared/websocket-config.ts)
+  websocket: {
+    path: '/ws',
+    events: {
+      cacheUpdated: 'cache-updated',
+      entityUpdated: 'entity-updated',
+      entitiesUpdated: 'entities-updated',
+      teamMembersUpdated: 'team-members-updated',
+      echoToOrigin: 'echo-to-origin',
+      userStatusChanged: 'user_status_changed',
+    },
+    features: {
+      enableEchoToOrigin: true,
+      enableEventVersioning: true,
+      multiTabSubscriptions: true,
+    },
+  },
+  
   // Development settings
   debug: true,
   logLevel: 'debug',
