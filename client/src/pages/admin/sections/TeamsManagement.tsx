@@ -505,6 +505,19 @@ const TeamsManagement = () => {
   const { sendMessage } = useWebSocket({
     componentType: WEBSOCKET_CONFIG.componentTypes.TEAMS_MANAGEMENT,
     sessionId: sessionId || undefined,
+    onCacheUpdated: async (data) => {
+      console.log('📡 Admin Panel received cache update via WebSocket:', data);
+      // Handle cache updates for teams-related data
+      if (data.cacheType === WEBSOCKET_CONFIG.cacheUpdateTypes.TEAM_MEMBERS ||
+          data.cacheType === WEBSOCKET_CONFIG.cacheUpdateTypes.TEAM_DETAILS ||
+          data.cacheType === WEBSOCKET_CONFIG.cacheUpdateTypes.USERS ||
+          data.cacheType === WEBSOCKET_CONFIG.cacheUpdateTypes.TENANTS) {
+        // Invalidate teams cache to refresh the table
+        await queryClient.invalidateQueries({ queryKey: ['admin', 'teams'] });
+        await invalidateAdminCaches(queryClient);
+        await queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
+      }
+    },
     onTeamMembersUpdated: async (data) => {
       console.log('📡 Received team member update via WebSocket:', data);
       // Invalidate teams cache to refresh the table when team members change

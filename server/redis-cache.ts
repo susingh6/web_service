@@ -567,6 +567,8 @@ export class RedisCache {
         const socketData = this.authenticatedSockets.get(client);
         const componentType = (socketData as any)?.componentType || 'unknown';
         
+        console.log(`🔍 Client componentType: "${componentType}", cacheType: "${cacheType}", shouldReceive: ${shouldReceiveCacheUpdate(cacheType, componentType)}`);
+        
         // Apply centralized filtering: only send to components that need this cache type
         if (shouldReceiveCacheUpdate(cacheType, componentType)) {
           this.sendWithBackpressureProtection(client, message, `cache:${cacheType}`);
