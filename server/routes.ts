@@ -5121,9 +5121,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Setup WebSocket server with authentication and subscriptions
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
   
-  // Initialize cache system with WebSocket server for real-time broadcasting
-  redisCache.setupWebSocket(wss);
-  
   // Track authenticated connections with heartbeat monitoring
   const authenticatedSockets: Map<WebSocket, {
     sessionId: string;
