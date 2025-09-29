@@ -5167,7 +5167,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           };
           
           authenticatedSockets.set(ws, socketData);
-          console.log(`🔐 WebSocket authenticated: userId=${socketData.userId}, componentType=${socketData.componentType}`);
           ws.send(JSON.stringify({ type: 'auth-success', message: 'Authenticated' }));
           return;
         }

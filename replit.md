@@ -69,6 +69,7 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+- **FIXED: WebSocket component type authentication** - Resolved critical issue where all WebSocket clients defaulted to componentType='unknown', breaking granular cache update filtering. Fixed client-side useWebSocket.ts to always authenticate on connection (not just when sessionId exists), ensuring componentType is properly sent to server. Now broadcasts correctly filter to specific components (e.g., team-members-cache → team-dashboard only, metrics-cache → summary-dashboard + team-dashboard).
 - **Implemented centralized cache update filtering system** - Built comprehensive granular cache update type system that eliminates unnecessary cache invalidations across all admin panel operations. System auto-detects cache types (team-members, notifications, entities, users, tenants, metrics, etc.) and uses centralized filtering rules to broadcast only to components that need specific updates. Summary Dashboard now receives only entities/metrics updates, not team member changes, dramatically reducing unnecessary re-renders.
 - **FIXED: Real-time team member updates** - Resolved critical issue where team dashboard wouldn't update in real-time when members were added/removed via admin panel. Fixed WebSocket broadcasting logic that was in unused code path and corrected message format to match useWebSocket expectations.
 - Completed FastAPI integration for all 8 endpoints with comprehensive error handling and fallback mechanisms

@@ -569,8 +569,6 @@ export class RedisCache {
         }
       }
     });
-    
-    console.log(`📡 Broadcast: ${cacheType} | Components: [${componentTypes.join(', ')}] | Sent: ${sentCount}, Filtered: ${filteredCount}`);
   }
 
   // Broadcast admin message to all authenticated clients (for multi-instance support)
@@ -2320,7 +2318,6 @@ export class RedisCache {
       if (this.useRedis && this.redis) {
         await this.redis.publish(CACHE_KEYS.CHANGES_CHANNEL, JSON.stringify(changeEvent));
       } else {
-        console.log('🔍 Cache: Connected clients count:', this.wss?.clients?.size || 0);
         this.broadcastToClients('team-members-updated', changeEvent);
       }
     }
