@@ -826,6 +826,15 @@ const TeamsManagement = () => {
       });
     },
     onSuccess: async (_res, { teamId, teamData }, ctx) => {
+      // Debug logging for team member updates
+      console.log('🔍 Team update onSuccess:', {
+        teamId,
+        teamData,
+        originalTeam: ctx?.originalTeam,
+        hasTeamMembersIds: teamData.hasOwnProperty('team_members_ids'),
+        teamMembersIds: teamData.team_members_ids
+      });
+      
       // WebSocket broadcasting for team member changes
       if (teamData.hasOwnProperty('team_members_ids') && ctx?.originalTeam) {
         const originalMembers = ctx.originalTeam.team_members_ids || [];
