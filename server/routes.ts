@@ -5212,6 +5212,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return;
         }
 
+        // Handle team member update messages - route through existing cache management system
+        if (data.event === 'team-members-updated') {
+          console.log('🔥 Server: Received team-members-updated WebSocket message:', data);
+          
+          const changeData = data.data;
+          if (changeData && changeData.teamName && changeData.tenantName) {
+            try {
+              // Use existing cache invalidation system to trigger proper WebSocket broadcasting
+              await redisCache.invalidateTeamData(changeData.teamName, {
+                action: changeData.type === 'member-added' ? 'add' : 'remove',
+                memberId: changeData.memberId,
+                memberName: changeData.memberName,
+                tenantName: changeData.tenantName
+              });
+              
+              console.log('✅ Server: Team member change processed through cache system');
+            } catch (error) {
+              console.error('⚠️ Server: Error processing team member update:', error);
+            }
+          } else {
+            console.warn('⚠️ Server: Invalid team member data received:', changeData);
+          }
+          return;
+        }
+
       } catch (error) {
         console.error('WebSocket message parse error:', error);
         ws.send(JSON.stringify({ type: 'error', message: 'Invalid message format' }));
