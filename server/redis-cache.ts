@@ -1,6 +1,6 @@
 import Redis from 'ioredis';
 import { WebSocketServer } from 'ws';
-import { shouldReceiveEvent, shouldReceiveCacheUpdate, WEBSOCKET_CONFIG } from '../shared/websocket-config';
+import { shouldReceiveEvent, shouldReceiveCacheUpdate, WEBSOCKET_CONFIG, SocketData } from '../shared/websocket-config';
 import { Worker } from 'worker_threads';
 import { config } from './config';
 import { Entity, Team } from '@shared/schema';
@@ -38,12 +38,6 @@ interface TeamMemberChangeEvent {
   data?: any;           // optional team data
 }
 
-interface SocketData {
-  sessionId: string;
-  userId: string;
-  componentType?: string; // Optional component type for smart filtering
-  subscriptions: Set<string>; // tenant:team format
-}
 
 // Cache keys
 export const CACHE_KEYS = {
@@ -70,7 +64,7 @@ export class RedisCache {
   private readonly CACHE_DURATION_MS = config.cache.refreshIntervalHours * 60 * 60 * 1000;
   private readonly LOCK_TIMEOUT = 300000; // 5 minutes lock timeout
   private wss: WebSocketServer | null = null;
-  private authenticatedSockets: Map<any, SocketData> = new Map();
+  private authenticatedSockets: Map<WebSocket, SocketData> = new Map();
   private pendingNotifications: Array<{event: string, data: any, timestamp: Date}> = [];
   private cacheWorker: Worker | null = null;
   private isInitialized = false;
@@ -354,12 +348,7 @@ export class RedisCache {
     // Auto-refresh scheduled
   }
 
-  setupWebSocket(wss: WebSocketServer, authenticatedSockets?: Map<WebSocket, {
-    sessionId: string;
-    userId: string;
-    componentType?: string;
-    subscriptions: Set<string>;
-  }>): void {
+  setupWebSocket(wss: WebSocketServer, authenticatedSockets?: Map<WebSocket, SocketData>): void {
     this.wss = wss;
     this.authenticatedSockets = authenticatedSockets || new Map();
     // WebSocket server attached to Redis cache with authenticated socket tracking
@@ -415,7 +404,7 @@ export class RedisCache {
           // Skip originator since they already got the echo
           if (!data.originUserId || !socketData || socketData.userId !== data.originUserId) {
             // Smart filtering: use centralized event filtering configuration
-            const componentType = (socketData as any)?.componentType;
+            const componentType = socketData?.componentType;
             if (componentType && this.shouldReceiveEvent(event, componentType)) {
               this.sendWithBackpressureProtection(client, message, `${event}:${subscriptionKey}`);
             } else if (!componentType) {
@@ -568,7 +557,7 @@ export class RedisCache {
     this.wss.clients.forEach((client: any) => {
       if (client.readyState === 1) { // WebSocket.OPEN
         const socketData = this.authenticatedSockets.get(client);
-        const componentType = (socketData as any)?.componentType || 'unknown';
+        const componentType = socketData?.componentType || 'unknown';
         componentTypes.push(componentType);
         
         // Apply centralized filtering: only send to components that need this cache type

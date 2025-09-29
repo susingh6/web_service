@@ -62,10 +62,8 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
         setConnectionError(null);
         reconnectAttempts.current = 0;
         
-        // Authenticate immediately if we have session info
-        if (options.sessionId) {
-          authenticate();
-        }
+        // Always authenticate immediately (handles missing sessionId gracefully)
+        authenticate();
         
         options.onConnect?.();
       };

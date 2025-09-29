@@ -71,3 +71,14 @@ export const shouldReceiveCacheUpdate = (cacheType: string, componentType: strin
 export type ComponentType = typeof WEBSOCKET_CONFIG.componentTypes[keyof typeof WEBSOCKET_CONFIG.componentTypes];
 export type WebSocketEvent = typeof WEBSOCKET_CONFIG.events[keyof typeof WEBSOCKET_CONFIG.events];
 export type CacheUpdateType = typeof WEBSOCKET_CONFIG.cacheUpdateTypes[keyof typeof WEBSOCKET_CONFIG.cacheUpdateTypes];
+
+// Shared SocketData interface for authenticated WebSocket connections
+// This ensures type consistency between routes.ts and redis-cache.ts
+export interface SocketData {
+  sessionId: string;
+  userId: string;
+  componentType: string; // Required - no optional, defaults to 'unknown' during authentication
+  subscriptions: Set<string>; // tenant:team format
+  lastPong?: number; // Optional - for heartbeat monitoring
+  isAlive?: boolean; // Optional - for heartbeat status
+}

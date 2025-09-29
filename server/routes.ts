@@ -5,6 +5,7 @@ import { storage } from "./storage";
 import { redisCache } from "./redis-cache";
 import { insertEntitySchema, insertTeamSchema, updateTeamSchema, insertEntityHistorySchema, insertIssueSchema, insertUserSchema, insertNotificationTimelineSchema, insertEntitySubscriptionSchema, adminUserSchema, Entity, InsertNotificationTimeline } from "@shared/schema";
 import { z } from "zod";
+import { SocketData } from "@shared/websocket-config";
 import { logAuthenticationEvent, structuredLogger } from "./middleware/structured-logging";
 import { requireActiveUser } from "./middleware/check-active-user";
 
@@ -5122,17 +5123,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
   
   // Track authenticated connections with heartbeat monitoring
-  const authenticatedSockets: Map<WebSocket, {
-    sessionId: string;
-    userId: string;
-    componentType: string;
-    subscriptions: Set<string>; // tenant:team format
-    lastPong: number; // Last pong response timestamp
-    isAlive: boolean; // Heartbeat status
-  }> = new Map();
+  // Using shared SocketData type for consistency with redis-cache.ts
+  const authenticatedSockets: Map<WebSocket, SocketData> = new Map();
   
   // Initialize WebSocket in cache system with the authenticatedSockets map
-  redisCache.setupWebSocket(wss, authenticatedSockets as any);
+  redisCache.setupWebSocket(wss, authenticatedSockets);
 
   // Heartbeat configuration
   const HEARTBEAT_INTERVAL = 30000; // 30 seconds
@@ -5140,7 +5135,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const CLEANUP_INTERVAL = 10000; // 10 seconds
 
   wss.on('connection', (ws, req) => {
-    let socketData: { sessionId: string; userId: string; componentType: string; subscriptions: Set<string>; lastPong: number; isAlive: boolean } | null = null;
+    let socketData: SocketData | null = null;
 
     ws.on('message', async (message) => {
       try {
@@ -5172,6 +5167,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           };
           
           authenticatedSockets.set(ws, socketData);
+          console.log(`🔐 WebSocket authenticated: userId=${socketData.userId}, componentType=${socketData.componentType}`);
           ws.send(JSON.stringify({ type: 'auth-success', message: 'Authenticated' }));
           return;
         }
