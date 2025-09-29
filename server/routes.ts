@@ -5135,6 +5135,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     ws.on('message', async (message) => {
       try {
         const data = JSON.parse(message.toString());
+        console.log('🔥 Server WebSocket: Raw message received:', data);
         
         // Handle authentication
         if (data.type === 'authenticate') {
