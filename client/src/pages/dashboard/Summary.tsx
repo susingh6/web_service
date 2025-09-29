@@ -227,18 +227,6 @@ const Summary = () => {
       if (selectedTenant) {
         dispatch(fetchDashboardSummary({ tenantName: selectedTenant.name }));
       }
-
-      const messages: Record<'created' | 'updated' | 'deleted', string> = {
-        created: `${data.entityName} has been created successfully`,
-        updated: `${data.entityName} has been updated successfully`,
-        deleted: `${data.entityName} has been deleted successfully`
-      };
-
-      toast({
-        title: `Entity ${operation.charAt(0).toUpperCase() + operation.slice(1)}`,
-        description: messages[operation] || messages.updated,
-        variant: operation === 'deleted' ? "destructive" : "default",
-      });
     },
     onCacheUpdated: (data: any, cacheType?: string) => {
       // Only show toast and refresh for relevant cache types (entities and metrics)
@@ -605,12 +593,6 @@ const Summary = () => {
         teamId: selectedEntity.teamId,
       });
 
-      toast({
-        title: 'Success',
-        description: `${selectedEntity.name} has been deleted.`,
-        variant: 'default',
-      });
-
       setOpenDeleteDialog(false);
       setSelectedEntity(null);
     } catch (error) {
@@ -966,11 +948,6 @@ const Summary = () => {
         entity={selectedEntity}
         onSuccess={() => {
           setOpenNotificationModal(false);
-          toast({
-            title: 'Success',
-            description: 'Notification timeline has been configured.',
-            variant: 'default',
-          });
         }}
       />
 
