@@ -6,6 +6,7 @@ const log = getLogger();
 
 interface WebSocketMessage {
   event: string;
+  cacheType?: string; // Optional cache type for granular cache-updated events
   data: any;
   timestamp: string;
   originalEvent?: string;

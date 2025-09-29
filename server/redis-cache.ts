@@ -116,8 +116,8 @@ export class RedisCache {
 
     this.subscriber.on('message', (channel, message) => {
       if (channel === CACHE_KEYS.REFRESH_CHANNEL) {
-        // Cache refresh notification received - broadcast to all
-        this.broadcastCacheUpdate('cache-updated', JSON.parse(message));
+        // Cache refresh notification received - broadcast as general cache update
+        this.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.GENERAL, JSON.parse(message));
       } else if (channel === CACHE_KEYS.CHANGES_CHANNEL) {
         // Entity change notification received - filtered broadcast
         const changeEvent: EntityChangeEvent = JSON.parse(message);
@@ -720,8 +720,8 @@ export class RedisCache {
                 podId: process.env.POD_NAME || 'unknown'
               }));
 
-              // Broadcast to WebSocket clients (simple payload)
-              this.broadcastCacheUpdate('cache-updated', {
+              // Broadcast to WebSocket clients (simple payload) - use general cache type for full refresh
+              this.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.GENERAL, {
                 lastUpdated: message.data.lastUpdated,
                 entitiesCount: message.data.entities.length
               });
