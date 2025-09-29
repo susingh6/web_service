@@ -767,8 +767,7 @@ const TeamsManagement = () => {
         // Broadcast member additions
         addedMembers.forEach((memberId: string) => {
           const teamMemberEvent = {
-            type: 'team-change',
-            event: 'team-members-updated',
+            event: 'team-members-updated',  // Top-level event name expected by useWebSocket
             data: {
               type: 'member-added',
               teamName,
@@ -792,8 +791,7 @@ const TeamsManagement = () => {
         // Broadcast member removals
         removedMembers.forEach((memberId: string) => {
           const teamMemberEvent = {
-            type: 'team-change',
-            event: 'team-members-updated',
+            event: 'team-members-updated',  // Top-level event name expected by useWebSocket
             data: {
               type: 'member-removed',
               teamName,
