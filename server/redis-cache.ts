@@ -562,10 +562,14 @@ export class RedisCache {
     let sentCount = 0;
     let filteredCount = 0;
     
+    // Collect component types for debugging
+    const componentTypes: string[] = [];
+    
     this.wss.clients.forEach((client: any) => {
       if (client.readyState === 1) { // WebSocket.OPEN
         const socketData = this.authenticatedSockets.get(client);
         const componentType = (socketData as any)?.componentType || 'unknown';
+        componentTypes.push(componentType);
         
         // Apply centralized filtering: only send to components that need this cache type
         if (shouldReceiveCacheUpdate(cacheType, componentType)) {
@@ -576,6 +580,8 @@ export class RedisCache {
         }
       }
     });
+    
+    console.log(`📡 Broadcast: ${cacheType} | Components: [${componentTypes.join(', ')}] | Sent: ${sentCount}, Filtered: ${filteredCount}`);
   }
 
   // Broadcast admin message to all authenticated clients (for multi-instance support)
