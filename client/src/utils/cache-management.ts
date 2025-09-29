@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { getLogger } from '@/lib/logger';
 import { cacheKeys, invalidateEntityCaches } from '@/lib/cacheKeys';
 import { removeEntity, fetchEntities } from '@/features/sla/slices/entitiesSlice';
 import { resolveEntityIdentifier } from '@shared/entity-utils';
@@ -6,6 +7,8 @@ import { Entity } from '@shared/schema';
 import { useAppDispatch } from '@/lib/store';
 import { queryClient } from '@/lib/queryClient';
 import { entitiesApi } from '@/features/sla/api';
+
+const log = getLogger();
 
 // Utility to detect optimistic vs real IDs
 const isOptimisticId = (id: number): boolean => {
@@ -541,7 +544,7 @@ export function useCacheManager() {
         staleTime: 5 * 60 * 1000, // 5 minutes
       });
     } catch (error) {
-      console.warn(`Background cache rebuild failed for team ${teamId}, type ${entityType}:`, error);
+      log.warn(`Background cache rebuild failed for team ${teamId}, type ${entityType}:`, error);
       // Fail silently - next request will rebuild via lazy loading
     }
   };
@@ -965,13 +968,13 @@ export function useEntityMutation() {
   // DELETE
   const deleteMutation = useMutation<boolean | undefined, Error, { entityName: string; entityType: Entity['type']; tenant?: string; teamId: number; teamName?: string; entity?: Entity }, DeleteMutationContext>({
     mutationFn: async ({ entityName, entityType, teamName }) => {
-      console.log('[useEntityMutation][delete] mutationFn start', { entityName, entityType, teamName });
+      log.debug('[useEntityMutation][delete] mutationFn start', { entityName, entityType, teamName });
       const result = await entitiesApi.deleteEntityByName({ type: entityType, entityName, teamName });
-      console.log('[useEntityMutation][delete] mutationFn result', { entityName, entityType, result });
+      log.debug('[useEntityMutation][delete] mutationFn result', { entityName, entityType, result });
       return result;
     },
     onMutate: async ({ entityName, tenant, teamId, teamName }) => {
-      console.log('[useEntityMutation][delete] onMutate', { entityName, tenant, teamId, teamName });
+      log.debug('[useEntityMutation][delete] onMutate', { entityName, tenant, teamId, teamName });
       const effectiveTenant = tenant || 'Data Engineering';
       const key = cacheKeys.entitiesByTenantAndTeam(effectiveTenant, teamId);
       await queryClient.cancelQueries({ queryKey: key });
@@ -989,13 +992,13 @@ export function useEntityMutation() {
       };
     },
     onError: (_err, _vars, ctx) => {
-      console.warn('[useEntityMutation][delete] onError - restoring previous cache', { ctx });
+      log.warn('[useEntityMutation][delete] onError - restoring previous cache', { ctx });
       if (ctx?.previous) queryClient.setQueryData(ctx.key, ctx.previous);
     },
     onSettled: async (_res, _err, vars, ctx) => {
       if (!ctx) return;
       const { tenantName, teamId } = ctx;
-      console.log('[useEntityMutation][delete] onSettled', { tenantName, teamId, vars, ctx });
+      log.debug('[useEntityMutation][delete] onSettled', { tenantName, teamId, vars, ctx });
       // First, ensure Redux removal is applied
       dispatch(removeEntity({ name: vars?.entityName!, entityType: vars?.entityType, teamId }));
       // Targeted invalidations only; avoid invalidating the team list here.
@@ -1018,10 +1021,10 @@ export function useEntityMutation() {
       const entityType = vars?.entityType;
       const targetName = vars?.entityName;
       if (targetName) {
-        console.log('[useEntityMutation][delete] dispatch removeEntity', { targetName, entityType, teamId });
+        log.debug('[useEntityMutation][delete] dispatch removeEntity', { targetName, entityType, teamId });
         dispatch(removeEntity({ name: targetName, entityType, teamId }));
       } else {
-        console.warn('[useEntityMutation][delete] missing targetName, refetching entities', { tenantName });
+        log.warn('[useEntityMutation][delete] missing targetName, refetching entities', { tenantName });
         // Unable to resolve ID locally, let Redux refetch sweep it up
         dispatch(fetchEntities({ tenant: tenantName }))
           .catch(() => { /* swallow */ });

@@ -1,7 +1,10 @@
 import { Entity } from '@shared/schema';
 import { resolveEntityIdentifier } from '@shared/entity-utils';
 import { endpoints, isDevelopment, isStaging, isProduction, buildUrlWithParams } from '@/config';
+// endpoints now includes byName and v1 generic builders
 import { apiRequest } from '@/lib/queryClient';
+import { getLogger } from '@/lib/logger';
+const log = getLogger();
 
 // Check if FastAPI is available (for development fallback only)
 async function checkFastAPIAvailable(): Promise<boolean> {
@@ -233,20 +236,7 @@ export const entitiesApi = {
     // Defensively resolve entity name with fallbacks
     let resolvedEntityName = entityName;
     if (!resolvedEntityName && entity) {
-      console.log(`[UPDATE_ENTITY_DEBUG] Entity object:`, {
-        id: entity.id,
-        name: entity.name,
-        type: entity.type,
-        dag_name: entity.dag_name,
-        table_name: entity.table_name,
-        entity_name: entity.entity_name
-      });
-      
-      if (type === 'dag') {
-        resolvedEntityName = entity.dag_name || entity.name || entity.entity_name;
-      } else {
-        resolvedEntityName = entity.table_name || entity.name || entity.entity_name;
-      }
+      resolvedEntityName = resolveEntityIdentifier(entity, { fallback: entity.name ?? entity.entity_name ?? undefined });
     }
     
     if (!resolvedEntityName) {
@@ -254,12 +244,12 @@ export const entitiesApi = {
     }
     
     // Use type-specific endpoints with FastAPI first, then Express by-name route
-    const primaryEndpoint = type === 'table' ? 
-      endpoints.tablesUpdate(resolvedEntityName) : 
-      endpoints.dagsUpdate(resolvedEntityName);
+    const updateKey = `${type as string}sUpdate` as keyof typeof endpoints;
+    const updater = (endpoints as any)[updateKey] as ((name: string) => string) | undefined;
+    const primaryEndpoint = updater ? updater(resolvedEntityName) : `/api/v1/${encodeURIComponent(type)}s/${encodeURIComponent(resolvedEntityName)}`;
     // Include teamName when available to disambiguate lookups (matches delete behavior)
     const inferredTeamName = (entity && (entity.team_name || entity.teamName)) || (updates && (updates.team_name || updates.teamName));
-    const expressByName = `/api/entities/by-name/${encodeURIComponent(type)}/${encodeURIComponent(resolvedEntityName)}${inferredTeamName ? `?teamName=${encodeURIComponent(inferredTeamName)}` : ''}`;
+    const expressByName = endpoints.byName.update(String(type), resolvedEntityName, inferredTeamName);
 
     try {
       const res = await environmentAwareApiRequest('PATCH', primaryEndpoint, updates);
@@ -291,7 +281,7 @@ export const entitiesApi = {
     // Defensively resolve entity name with fallbacks
     let resolvedEntityName = entityName;
     if (!resolvedEntityName && entity) {
-      console.log(`[READ_ENTITY_DEBUG] Entity object:`, {
+      log.debug(`[READ_ENTITY_DEBUG] Entity object:`, {
         id: entity.id,
         name: entity.name,
         type: entity.type,
@@ -307,13 +297,12 @@ export const entitiesApi = {
     }
     
     // Use type-specific endpoints with FastAPI/Express fallback pattern
-    const primaryEndpoint = type === 'table' ? 
-      endpoints.tablesGet(resolvedEntityName) : 
-      endpoints.dagsGet(resolvedEntityName);
-    
-    const fallbackEndpoint = type === 'table' ? 
-      endpoints.tablesGetFallback?.(resolvedEntityName) : 
-      endpoints.dagsGetFallback?.(resolvedEntityName);
+    const getKey = `${type as string}sGet` as keyof typeof endpoints;
+    const getFallbackKey = `${type as string}sGetFallback` as keyof typeof endpoints;
+    const getter = (endpoints as any)[getKey] as ((name: string) => string) | undefined;
+    const getterFallback = (endpoints as any)[getFallbackKey] as ((name: string) => string) | undefined;
+    const primaryEndpoint = getter ? getter(resolvedEntityName) : endpoints.v1.typedByName(String(type), 'get', resolvedEntityName);
+    const fallbackEndpoint = getterFallback ? getterFallback(resolvedEntityName) : undefined;
 
     // Build query params if team is specified
     const queryParams = teamName ? { team: teamName } : undefined;
@@ -346,13 +335,16 @@ export const entitiesApi = {
     }
   },
   deleteEntityByName: async ({ type, entityName, teamName }: { type: Entity['type']; entityName: string; teamName?: string; }) => {
-    const map = typeEndpointMap[type];
+    const deleteKey = `${type as string}sDelete` as keyof typeof endpoints;
+    const deleteFallbackKey = `${type as string}sDeleteFallback` as keyof typeof endpoints;
+    const deleter = (endpoints as any)[deleteKey] as ((name: string) => string) | undefined;
+    const deleteFallback = (endpoints as any)[deleteFallbackKey] as ((name: string) => string) | undefined;
 
     // Prefer our Express by-name route before legacy Express fallbacks
     const urlsToTry = [
-      map.delete(entityName),
-      map.expressDelete(entityName, teamName),
-      map.deleteFallback ? map.deleteFallback(entityName) : undefined,
+      deleter ? deleter(entityName) : endpoints.v1.typedByName(String(type), 'delete', entityName),
+      endpoints.byName.delete(String(type), entityName, teamName),
+      deleteFallback ? deleteFallback(entityName) : undefined,
     ].filter(Boolean) as string[];
 
     
@@ -377,7 +369,7 @@ export const entitiesApi = {
     // Defensively resolve entity name with fallbacks
     let resolvedEntityName = entityName;
     if (!resolvedEntityName && entity) {
-      console.log(`[DELETE_ENTITY_DEBUG] Entity object:`, {
+      log.debug(`[DELETE_ENTITY_DEBUG] Entity object:`, {
         id: entity.id,
         name: entity.name,
         type: entity.type,
@@ -394,15 +386,15 @@ export const entitiesApi = {
     }
     
     // Use type-specific endpoints with FastAPI/Express fallback pattern
-    const primaryEndpoint = type === 'table' ? 
-      endpoints.tablesDelete(resolvedEntityName) : 
-      endpoints.dagsDelete(resolvedEntityName);
-    
-    const fallbackEndpoint = type === 'table' ? 
-      endpoints.tablesDeleteFallback?.(resolvedEntityName) : 
-      endpoints.dagsDeleteFallback?.(resolvedEntityName);
+    const deleteKey = `${type as string}sDelete` as keyof typeof endpoints;
+    const deleteFallbackKey = `${type as string}sDeleteFallback` as keyof typeof endpoints;
+    const deleter = (endpoints as any)[deleteKey] as ((name: string) => string) | undefined;
+    const deleteFallback = (endpoints as any)[deleteFallbackKey] as ((name: string) => string) | undefined;
 
-    const expressDelete = typeEndpointMap[type].expressDelete(resolvedEntityName, teamName || entity?.team_name || undefined);
+    const primaryEndpoint = deleter ? deleter(resolvedEntityName) : endpoints.v1.typedByName(String(type), 'delete', resolvedEntityName);
+    const fallbackEndpoint = deleteFallback ? deleteFallback(resolvedEntityName) : undefined;
+
+    const expressDelete = endpoints.byName.delete(String(type), resolvedEntityName, teamName || entity?.team_name);
 
     try {
       const res = await environmentAwareApiRequest('DELETE', primaryEndpoint);
@@ -525,13 +517,17 @@ export async function entityRequest(
   let primaryEndpoint: string;
   let fallbackEndpoint: string | undefined;
 
-  if (entityType === 'table') {
-    primaryEndpoint = operation === 'bulk' ? endpoints.tablesBulk : endpoints.tables;
-    fallbackEndpoint = operation === 'bulk' ? endpoints.tablesBulkFallback : endpoints.tablesFallback;
-  } else {
-    primaryEndpoint = operation === 'bulk' ? endpoints.dagsBulk : endpoints.dags;
-    fallbackEndpoint = operation === 'bulk' ? endpoints.dagsBulkFallback : endpoints.dagsFallback;
-  }
+  // Derive endpoint keys from type to avoid hard-coded unions
+  const baseKey = `${entityType as string}s` as keyof typeof endpoints;
+  const bulkKey = `${entityType as string}sBulk` as keyof typeof endpoints;
+  const baseFallbackKey = `${entityType as string}sFallback` as keyof typeof endpoints;
+  const bulkFallbackKey = `${entityType as string}sBulkFallback` as keyof typeof endpoints;
+
+  const primary = (endpoints as any)[operation === 'bulk' ? bulkKey : baseKey];
+  const fallback = (endpoints as any)[operation === 'bulk' ? bulkFallbackKey : baseFallbackKey];
+
+  primaryEndpoint = typeof primary === 'string' ? primary : String(primary || '');
+  fallbackEndpoint = typeof fallback === 'string' ? fallback : undefined;
 
   if (isProduction || isStaging) {
     return apiRequest(method, primaryEndpoint, data);

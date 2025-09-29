@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { config } from '@/config';
 import { toast } from '@/hooks/use-toast';
+import { getLogger } from '@/lib/logger';
+const log = getLogger();
 
 interface WebSocketMessage {
   event: string;
@@ -48,7 +50,7 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
       const host = window.location.host || 'localhost:5000';
       const wsUrl = `${protocol}//${host}${config.websocket.path}`;
       
-      console.log('Connecting to WebSocket:', wsUrl);
+      log.info('Connecting to WebSocket:', wsUrl);
       
       ws.current = new WebSocket(wsUrl);
 
@@ -103,7 +105,7 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
                 const versionKey = `entity-${entityEvent.entityId}`;
                 const lastVersion = lastVersions.current.get(versionKey) || 0;
                 if (entityEvent.version <= lastVersion) {
-                  console.log(`Ignoring out-of-order entity event ${entityEvent.version} <= ${lastVersion} for entity ${entityEvent.entityId}`);
+                  log.debug(`Ignoring out-of-order entity event ${entityEvent.version} <= ${lastVersion} for entity ${entityEvent.entityId}`);
                   return;
                 }
                 lastVersions.current.set(versionKey, entityEvent.version);
@@ -117,7 +119,7 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
                 const versionKey = `team-${teamEvent.teamName}`;
                 const lastVersion = lastVersions.current.get(versionKey) || 0;
                 if (teamEvent.version <= lastVersion) {
-                  console.log(`Ignoring out-of-order team event ${teamEvent.version} <= ${lastVersion} for team ${teamEvent.teamName}`);
+                  log.debug(`Ignoring out-of-order team event ${teamEvent.version} <= ${lastVersion} for team ${teamEvent.teamName}`);
                   return;
                 }
                 lastVersions.current.set(versionKey, teamEvent.version);
@@ -127,7 +129,7 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
             case config.websocket.events.userStatusChanged:
               // Handle user status changed events with toast notifications
               const userStatusEvent = message.data;
-              console.log('User status changed:', userStatusEvent);
+              log.info('User status changed:', userStatusEvent);
               
               // Show toast notification based on status change
               if (userStatusEvent?.user_email && userStatusEvent?.is_active !== undefined) {
@@ -146,7 +148,7 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
               break;
             case config.websocket.events.echoToOrigin:
               // Handle echo-to-origin for instant feedback
-              console.log('Received echo-to-origin:', message.data);
+              log.debug('Received echo-to-origin:', message.data);
               // Process echo as the original event type for instant UI updates
               if (message.originalEvent === config.websocket.events.entityUpdated) {
                 options.onEntityUpdated?.(message.data);
@@ -161,13 +163,13 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
                 sendMessage({ type: 'pong', timestamp: new Date().toISOString() });
               } else if (message.event === 'pong') {
                 // Server responding to our ping
-                console.log('Received pong from server');
+                log.debug('Received pong from server');
               } else {
-                console.log('Unknown WebSocket event:', message.event);
+                log.debug('Unknown WebSocket event:', message.event);
               }
           }
         } catch (error) {
-          console.error('Error parsing WebSocket message:', error);
+          log.error('Error parsing WebSocket message:', error);
         }
       };
 
@@ -177,7 +179,7 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
         setIsAuthenticated(false);
         options.onDisconnect?.();
         
-        console.log(`WebSocket disconnected. Active subscriptions to rehydrate:`, Array.from(activeSubscriptions.current));
+        log.info(`WebSocket disconnected. Active subscriptions to rehydrate:`, Array.from(activeSubscriptions.current));
         
         // Attempt to reconnect
         if (reconnectAttempts.current < maxReconnectAttempts) {

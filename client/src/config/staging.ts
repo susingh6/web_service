@@ -2,6 +2,14 @@
 export const stagingConfig = {
   baseUrl: 'https://staging-api.sla-management.com',
   endpoints: {
+    byName: {
+      delete: (type: string, name: string, teamName?: string) => `/api/entities/by-name/${encodeURIComponent(type)}/${encodeURIComponent(name)}${teamName ? `?teamName=${encodeURIComponent(teamName)}` : ''}`,
+      update: (type: string, name: string, teamName?: string) => `/api/entities/by-name/${encodeURIComponent(type)}/${encodeURIComponent(name)}${teamName ? `?teamName=${encodeURIComponent(teamName)}` : ''}`,
+      read:   (type: string, name: string, teamName?: string) => `/api/entities/by-name/${encodeURIComponent(type)}/${encodeURIComponent(name)}${teamName ? `?teamName=${encodeURIComponent(teamName)}` : ''}`,
+    },
+    v1: {
+      typedByName: (type: string, op: 'get'|'update'|'delete', name: string) => `/api/v1/${encodeURIComponent(type)}s/${encodeURIComponent(name)}`,
+    },
     // Authentication - FastAPI only (no Express fallback in staging)
     auth: {
       login: '/api/v1/auth/login',

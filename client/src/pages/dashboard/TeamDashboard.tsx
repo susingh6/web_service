@@ -231,6 +231,19 @@ const TeamDashboard = ({
     }
   });
 
+  // Guard Select values at render time to prevent MUI out-of-range warnings
+  // Use the same filtered list we render for options
+  const filteredAvailableUsers = (availableUsers || [])
+    .filter((user: any) => user.is_active !== false)
+    .filter((user: any) => !(teamMembers as any[]).some((member: any) => member.id === user.id));
+
+  const addValue = selectedUserId && filteredAvailableUsers.some((u: any) => u.id === Number(selectedUserId))
+    ? selectedUserId
+    : '';
+  const removeValue = selectedMemberId && (teamMembers as any[]).some((m: any) => m.id === Number(selectedMemberId))
+    ? selectedMemberId
+    : '';
+
 
   const fetchAvailableUsers = async () => {
     try {
@@ -252,6 +265,20 @@ const TeamDashboard = ({
     setSelectedMemberId('');
     setRemoveMemberDialogOpen(true);
   };
+
+  // Clear add-member selection if current value no longer exists in options
+  useEffect(() => {
+    if (!selectedUserId) return;
+    const exists = availableUsers.some((u: any) => u.id === Number(selectedUserId));
+    if (!exists) setSelectedUserId('');
+  }, [availableUsers, selectedUserId]);
+
+  // Clear remove-member selection if current value no longer exists in team members
+  useEffect(() => {
+    if (!selectedMemberId) return;
+    const exists = (teamMembers as any[]).some((m: any) => m.id === Number(selectedMemberId));
+    if (!exists) setSelectedMemberId('');
+  }, [teamMembers, selectedMemberId]);
 
   const onAddMember = async () => {
     if (!selectedUserId) return;
@@ -751,7 +778,7 @@ const TeamDashboard = ({
               <FormControl fullWidth size="small">
                 <InputLabel>Select User to Add</InputLabel>
                 <Select
-                  value={selectedUserId}
+                  value={addValue}
                   onChange={(e) => setSelectedUserId(e.target.value)}
                   label="Select User to Add"
                   MenuProps={{
@@ -799,7 +826,7 @@ const TeamDashboard = ({
               <FormControl fullWidth size="small">
                 <InputLabel>Select Member to Remove</InputLabel>
                 <Select
-                  value={selectedMemberId}
+                  value={removeValue}
                   onChange={(e) => setSelectedMemberId(e.target.value)}
                   label="Select Member to Remove"
                   MenuProps={{

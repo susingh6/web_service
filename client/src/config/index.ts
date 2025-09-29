@@ -49,6 +49,14 @@ interface ApiConfig {
     dagsDeleteFallback?: (entityName: string) => string;
     dagsUpdateFallback?: (entityName: string) => string;
     dagsGetFallback?: (entityName: string) => string;
+    byName: {
+      delete: (type: string, name: string, teamName?: string) => string;
+      update: (type: string, name: string, teamName?: string) => string;
+      read:   (type: string, name: string, teamName?: string) => string;
+    };
+    v1: {
+      typedByName: (type: string, op: 'get'|'update'|'delete', name: string) => string;
+    };
     teams: string;
     tenants: string;
     teamDetails: (teamName: string) => string;
@@ -214,7 +222,7 @@ interface ApiConfig {
       entitiesUpdated: string;
       teamMembersUpdated: string;
       echoToOrigin: string;
-      userStatusChanged: string;
+      userStatusChanged?: string;
     };
     features: {
       enableEchoToOrigin: boolean;

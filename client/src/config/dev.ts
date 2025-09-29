@@ -47,6 +47,16 @@ export const devConfig = {
     dagsUpdateFallback: (entityName: string) => `/api/dags/${entityName}`,
     dagsGetFallback: (entityName: string) => `/api/dags/${entityName}`,
     dagsOwnerUpdateFallback: (entityName: string) => `/api/dags/${entityName}/owner`,
+
+    // Generic builders for by-name Express routes and v1 typed routes
+    byName: {
+      delete: (type: string, name: string, teamName?: string) => `/api/entities/by-name/${encodeURIComponent(type)}/${encodeURIComponent(name)}${teamName ? `?teamName=${encodeURIComponent(teamName)}` : ''}`,
+      update: (type: string, name: string, teamName?: string) => `/api/entities/by-name/${encodeURIComponent(type)}/${encodeURIComponent(name)}${teamName ? `?teamName=${encodeURIComponent(teamName)}` : ''}`,
+      read:   (type: string, name: string, teamName?: string) => `/api/entities/by-name/${encodeURIComponent(type)}/${encodeURIComponent(name)}${teamName ? `?teamName=${encodeURIComponent(teamName)}` : ''}`,
+    },
+    v1: {
+      typedByName: (type: string, op: 'get'|'update'|'delete', name: string) => `/api/v1/${encodeURIComponent(type)}s/${encodeURIComponent(name)}`,
+    },
     teams: '/api/teams',
     tenants: '/api/v1/tenants',
     teamDetails: (teamName: string) => `/api/v1/get_team_details/${teamName}`,

@@ -450,7 +450,7 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
         }}
       >
         <DialogTitle sx={{ m: 0, p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Typography variant="h6" fontWeight={600} fontFamily="Inter, sans-serif">
+          <Typography component="span" variant="h6" fontWeight={600} fontFamily="Inter, sans-serif">
             Entity Details
           </Typography>
           <IconButton edge="end" color="inherit" onClick={onClose} aria-label="close">
