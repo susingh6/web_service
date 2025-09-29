@@ -235,7 +235,7 @@ const TeamDashboard = ({
       };
 
       toast({
-        title: `Entity ${operation.charAt(0).toUpperCase() + operation.slice(1)}`,
+        title: 'Success',
         description: messages[operation] || messages.updated,
         variant: "default",
       });
