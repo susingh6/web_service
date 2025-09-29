@@ -413,8 +413,11 @@ export class RedisCache {
           // Skip originator since they already got the echo
           if (!data.originUserId || !socketData || socketData.userId !== data.originUserId) {
             // Smart filtering: use centralized event filtering configuration
-            const componentType = (socketData as any).componentType;
+            const componentType = (socketData as any)?.componentType;
             if (componentType && this.shouldReceiveEvent(event, componentType)) {
+              this.sendWithBackpressureProtection(client, message, `${event}:${subscriptionKey}`);
+            } else if (!componentType) {
+              // Fallback for clients without componentType (backwards compatibility)
               this.sendWithBackpressureProtection(client, message, `${event}:${subscriptionKey}`);
             }
           }

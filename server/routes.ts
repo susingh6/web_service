@@ -2113,7 +2113,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Team member update error:', error);
       console.error('Request body:', req.body);
-      console.error('Team name:', teamName);
+      console.error('Team name:', req.params.teamName);
       res.status(500).json({ 
         message: "Failed to update team members", 
         error: error instanceof Error ? error.message : 'Unknown error' 
