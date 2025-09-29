@@ -218,12 +218,27 @@ const TeamDashboard = ({
     teamName,
     teamId: team?.id,
     onEntityUpdated: (data) => {
+      const operation: 'created' | 'updated' | 'deleted' = data.type || 'updated';
+      
       // Refresh team entities when real-time update received
       queryClient.invalidateQueries({ queryKey: cacheKeys.entitiesByTenantAndTeam(tenantName, team?.id) });
       // Also refresh dashboard summary
       queryClient.invalidateQueries({ queryKey: cacheKeys.dashboardSummary(tenantName, team?.id) });
       // Only refresh specific team entities via React Query, avoid Redux to prevent cross-contamination
       queryClient.refetchQueries({ queryKey: ['entities', 'team', team?.id] });
+
+      // Show toast notification
+      const messages: Record<'created' | 'updated' | 'deleted', string> = {
+        created: `${data.entityName} has been created successfully`,
+        updated: `${data.entityName} has been updated successfully`,
+        deleted: `${data.entityName} has been deleted successfully`
+      };
+
+      toast({
+        title: `Entity ${operation.charAt(0).toUpperCase() + operation.slice(1)}`,
+        description: messages[operation] || messages.updated,
+        variant: "default",
+      });
     },
     onTeamMembersUpdated: (data) => {
       // Refresh team members when real-time update received
