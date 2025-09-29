@@ -33,16 +33,16 @@ export const WEBSOCKET_CONFIG = {
   
   // Granular cache update filtering - maps cache types to components that need them
   cacheUpdateFiltering: {
-    'team-members-cache': ['teams-management', 'team-dashboard'],
-    'team-details-cache': ['teams-management', 'team-dashboard'],
-    'team-notifications-cache': ['teams-management'],
-    'entities-cache': ['summary-dashboard', 'team-dashboard', 'teams-management', 'rollback-management'],
-    'entity-ownership-cache': ['summary-dashboard', 'team-dashboard', 'teams-management'],
-    'users-cache': ['teams-management', 'users-management'],
-    'tenants-cache': ['teams-management', 'summary-dashboard'],
-    'conflicts-cache': ['conflicts-management'],
-    'metrics-cache': ['summary-dashboard', 'team-dashboard'],
-    'general-cache': ['summary-dashboard', 'team-dashboard', 'teams-management'], // Broad updates
+    'team-members-cache': ['teams-management', 'team-dashboard', 'singleton'],
+    'team-details-cache': ['teams-management', 'team-dashboard', 'singleton'],
+    'team-notifications-cache': ['teams-management', 'singleton'],
+    'entities-cache': ['summary-dashboard', 'team-dashboard', 'teams-management', 'rollback-management', 'singleton'],
+    'entity-ownership-cache': ['summary-dashboard', 'team-dashboard', 'teams-management', 'singleton'],
+    'users-cache': ['teams-management', 'users-management', 'singleton'],
+    'tenants-cache': ['teams-management', 'summary-dashboard', 'singleton'],
+    'conflicts-cache': ['conflicts-management', 'singleton'],
+    'metrics-cache': ['summary-dashboard', 'team-dashboard', 'singleton'],
+    'general-cache': ['summary-dashboard', 'team-dashboard', 'teams-management', 'singleton'], // Broad updates
   } as Record<string, string[]>,
   
   events: {
