@@ -340,14 +340,31 @@ export const entitiesApi = {
     const deleter = (endpoints as any)[deleteKey] as ((name: string) => string) | undefined;
     const deleteFallback = (endpoints as any)[deleteFallbackKey] as ((name: string) => string) | undefined;
 
-    // Prefer our Express by-name route before legacy Express fallbacks
+    // In development: Try FastAPI first, silently fall back to Express if unavailable (like create does)
+    if (isDevelopment) {
+      try {
+        const fastAPIUrl = deleter ? deleter(entityName) : endpoints.v1.typedByName(String(type), 'delete', entityName);
+        const res = await apiRequest('DELETE', fastAPIUrl);
+        if (res.status === 204 || res.status === 404) {
+          return true;
+        }
+      } catch (_error) {
+        // Silently fall back to Express in development
+      }
+      
+      // Express fallback
+      const expressUrl = endpoints.byName.delete(String(type), entityName, teamName);
+      const expressRes = await expressApiRequest('DELETE', expressUrl);
+      return expressRes.status === 204 || expressRes.status === 404;
+    }
+
+    // Production: Try all endpoints sequentially
     const urlsToTry = [
       deleter ? deleter(entityName) : endpoints.v1.typedByName(String(type), 'delete', entityName),
       endpoints.byName.delete(String(type), entityName, teamName),
       deleteFallback ? deleteFallback(entityName) : undefined,
     ].filter(Boolean) as string[];
 
-    
     for (const url of urlsToTry) {
       try {
         const response = await environmentAwareApiRequest('DELETE', url);
@@ -357,7 +374,6 @@ export const entitiesApi = {
           return true;
         }
       } catch (_error) {
-        
         // Try next fallback
       }
     }
