@@ -49,8 +49,9 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
     const componentType = 'singleton'; // Single connection for all components
 
     ws.current.send(JSON.stringify({
-      event: 'authenticate',
-      sessionId: sessionId || undefined,
+      type: 'authenticate',
+      sessionId: sessionId || 'anonymous',
+      userId: 'anonymous',
       componentType
     }));
   };
@@ -60,7 +61,7 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
       const [tenantName, teamName] = subscription.split(':');
       if (ws.current && ws.current.readyState === WebSocket.OPEN) {
         ws.current.send(JSON.stringify({
-          event: 'subscribe',
+          type: 'subscribe',
           tenantName,
           teamName
         }));
@@ -146,6 +147,18 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
             });
           }
 
+          // Notify wildcard '*' listeners
+          const wildcardListeners = eventListeners.current.get('*');
+          if (wildcardListeners) {
+            wildcardListeners.forEach(callback => {
+              try {
+                callback(message);
+              } catch (error) {
+                log.error('[WebSocket Singleton] Error in wildcard listener:', error);
+              }
+            });
+          }
+
           // Also notify cache-updated listeners with cacheType
           if (message.event === config.websocket.events.cacheUpdated) {
             const cacheListeners = eventListeners.current.get('cache-updated-with-type');
@@ -199,7 +212,7 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
     
     if (ws.current && ws.current.readyState === WebSocket.OPEN && isAuthenticated) {
       ws.current.send(JSON.stringify({
-        event: 'subscribe',
+        type: 'subscribe',
         tenantName,
         teamName
       }));
@@ -212,7 +225,7 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
     
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {
       ws.current.send(JSON.stringify({
-        event: 'unsubscribe',
+        type: 'unsubscribe',
         tenantName,
         teamName
       }));
