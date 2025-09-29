@@ -1,6 +1,6 @@
 import Redis from 'ioredis';
 import { WebSocketServer } from 'ws';
-import { shouldReceiveEvent } from '../shared/websocket-config';
+import { shouldReceiveEvent, shouldReceiveCacheUpdate, WEBSOCKET_CONFIG } from '../shared/websocket-config';
 import { Worker } from 'worker_threads';
 import { config } from './config';
 import { Entity, Team } from '@shared/schema';
@@ -546,15 +546,26 @@ export class RedisCache {
     console.log(`Flushed ${events.length} queued events`);
   }
 
-  // Legacy broadcast for cache updates with backpressure protection
-  private broadcastCacheUpdate(event: string, data: any): void {
+  // Centralized cache update broadcast with granular filtering
+  private broadcastCacheUpdate(cacheType: string, data: any): void {
     if (!this.wss) return;
 
-    const message = JSON.stringify({ event, data, timestamp: new Date().toISOString() });
+    const message = JSON.stringify({ 
+      event: 'cache-updated',
+      cacheType, // Specific cache type for filtering
+      data, 
+      timestamp: new Date().toISOString() 
+    });
     
-    this.wss.clients.forEach((client) => {
+    this.wss.clients.forEach((client: any) => {
       if (client.readyState === 1) { // WebSocket.OPEN
-        this.sendWithBackpressureProtection(client, message, `cache:${event}`);
+        const socketData = this.authenticatedSockets.get(client);
+        const componentType = socketData?.userId || 'unknown';
+        
+        // Apply centralized filtering: only send to components that need this cache type
+        if (shouldReceiveCacheUpdate(cacheType, componentType)) {
+          this.sendWithBackpressureProtection(client, message, `cache:${cacheType}`);
+        }
       }
     });
   }
@@ -2062,8 +2073,9 @@ export class RedisCache {
     patterns?: string[];
     mainCacheKeys?: (keyof typeof CACHE_KEYS)[];
     refreshAffectedData?: boolean;
+    cacheTypes?: string[]; // Optional explicit cache types, auto-detected if not provided
   }): Promise<void> {
-    const { keys = [], patterns = [], mainCacheKeys = [], refreshAffectedData = true } = invalidationConfig;
+    const { keys = [], patterns = [], mainCacheKeys = [], refreshAffectedData = true, cacheTypes } = invalidationConfig;
 
     try {
       // Invalidate specific cache keys
@@ -2086,9 +2098,66 @@ export class RedisCache {
         await this.invalidateAndRefreshMainCache(mainCacheKeys, refreshAffectedData);
       }
 
+      // Auto-detect and broadcast cache update types based on what was invalidated
+      const detectedCacheTypes = cacheTypes || this.detectCacheTypes(keys, patterns, mainCacheKeys);
+      detectedCacheTypes.forEach(cacheType => {
+        this.broadcastCacheUpdate(cacheType, {
+          timestamp: new Date().toISOString()
+        });
+      });
+
     } catch (error) {
       console.error('Cache invalidation error:', error);
     }
+  }
+
+  // Auto-detect which cache types were affected by the invalidation
+  private detectCacheTypes(keys: string[], patterns: string[], mainCacheKeys: (keyof typeof CACHE_KEYS)[]): string[] {
+    const cacheTypes = new Set<string>();
+
+    // Check patterns and keys for specific cache types
+    const allPatterns = [...keys, ...patterns].join(' ').toLowerCase();
+
+    if (allPatterns.includes('team') || allPatterns.includes('member')) {
+      cacheTypes.add(WEBSOCKET_CONFIG.cacheUpdateTypes.TEAM_MEMBERS);
+      cacheTypes.add(WEBSOCKET_CONFIG.cacheUpdateTypes.TEAM_DETAILS);
+    }
+    if (allPatterns.includes('notification')) {
+      cacheTypes.add(WEBSOCKET_CONFIG.cacheUpdateTypes.TEAM_NOTIFICATIONS);
+    }
+    if (allPatterns.includes('entit')) {
+      cacheTypes.add(WEBSOCKET_CONFIG.cacheUpdateTypes.ENTITIES);
+    }
+    if (allPatterns.includes('owner')) {
+      cacheTypes.add(WEBSOCKET_CONFIG.cacheUpdateTypes.ENTITY_OWNERSHIP);
+    }
+    if (allPatterns.includes('user')) {
+      cacheTypes.add(WEBSOCKET_CONFIG.cacheUpdateTypes.USERS);
+    }
+    if (allPatterns.includes('tenant')) {
+      cacheTypes.add(WEBSOCKET_CONFIG.cacheUpdateTypes.TENANTS);
+    }
+    if (allPatterns.includes('conflict')) {
+      cacheTypes.add(WEBSOCKET_CONFIG.cacheUpdateTypes.CONFLICTS);
+    }
+
+    // Check main cache keys
+    mainCacheKeys.forEach(key => {
+      if (key === 'ENTITIES') cacheTypes.add(WEBSOCKET_CONFIG.cacheUpdateTypes.ENTITIES);
+      if (key === 'TEAMS') {
+        cacheTypes.add(WEBSOCKET_CONFIG.cacheUpdateTypes.TEAM_DETAILS);
+        cacheTypes.add(WEBSOCKET_CONFIG.cacheUpdateTypes.TEAM_MEMBERS);
+      }
+      if (key === 'TENANTS') cacheTypes.add(WEBSOCKET_CONFIG.cacheUpdateTypes.TENANTS);
+      if (key === 'METRICS') cacheTypes.add(WEBSOCKET_CONFIG.cacheUpdateTypes.METRICS);
+    });
+
+    // If no specific types detected, use general cache update
+    if (cacheTypes.size === 0) {
+      cacheTypes.add(WEBSOCKET_CONFIG.cacheUpdateTypes.GENERAL);
+    }
+
+    return Array.from(cacheTypes);
   }
 
   private async getKeysByPattern(pattern: string): Promise<string[]> {
@@ -2214,6 +2283,21 @@ export class RedisCache {
       refreshAffectedData: true
     });
 
+    // Broadcast specific cache updates based on what changed
+    this.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.TEAM_MEMBERS, {
+      teamName,
+      action: memberChangeData?.action,
+      timestamp: new Date().toISOString()
+    });
+
+    // Also broadcast metrics update if data changed
+    if (memberChangeData) {
+      this.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.METRICS, {
+        teamName,
+        timestamp: new Date().toISOString()
+      });
+    }
+
     // Broadcast team member change if details provided
     if (teamName && memberChangeData) {
       const changeEvent: TeamMemberChangeEvent = {
@@ -2247,6 +2331,18 @@ export class RedisCache {
       patterns: teamId ? [] : ['entities_team_*'],
       mainCacheKeys: ['ENTITIES', 'TEAMS', 'METRICS'],
       refreshAffectedData: true
+    });
+
+    // Broadcast entities cache update
+    this.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.ENTITIES, {
+      teamId,
+      timestamp: new Date().toISOString()
+    });
+
+    // Broadcast metrics update
+    this.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.METRICS, {
+      teamId,
+      timestamp: new Date().toISOString()
     });
   }
 
@@ -2439,6 +2535,11 @@ export class RedisCache {
       mainCacheKeys: ['TEAMS'],
       refreshAffectedData: true
     });
+
+    // Broadcast users cache update
+    this.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.USERS, {
+      timestamp: new Date().toISOString()
+    });
   }
 
   // New: Invalidate tenants comprehensively (dev + prod compatible)
@@ -2465,6 +2566,16 @@ export class RedisCache {
       patterns: ['tenants_*'],
       mainCacheKeys: ['TENANTS'],
       refreshAffectedData: true
+    });
+
+    // Broadcast tenants cache update
+    this.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.TENANTS, {
+      timestamp: new Date().toISOString()
+    });
+
+    // Broadcast metrics update
+    this.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.METRICS, {
+      timestamp: new Date().toISOString()
     });
   }
 
