@@ -267,6 +267,7 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
   };
 
   useEffect(() => {
+    console.log('[WebSocket Singleton] Initializing connection...');
     connect();
     
     return () => {

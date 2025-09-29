@@ -5323,6 +5323,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (stuckClients.length > 0) {
       console.log(`Cleaned up ${stuckClients.length} stuck WebSocket connections`);
     }
+    
+    // Log active connection count
+    console.log(`Active WebSocket connections: ${authenticatedSockets.size}`);
   }, CLEANUP_INTERVAL);
 
   // Cleanup intervals on server shutdown
