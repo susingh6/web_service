@@ -278,11 +278,6 @@ export const devConfig = {
       echoToOrigin: 'echo-to-origin',
       userStatusChanged: 'user_status_changed',
     },
-    features: {
-      enableEchoToOrigin: true,
-      enableEventVersioning: true,
-      multiTabSubscriptions: true,
-    },
   },
   
   // Development settings

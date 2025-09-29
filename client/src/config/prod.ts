@@ -200,11 +200,6 @@ export const prodConfig = {
       teamMembersUpdated: 'team-members-updated',
       echoToOrigin: 'echo-to-origin',
     },
-    features: {
-      enableEchoToOrigin: true,
-      enableEventVersioning: true,
-      multiTabSubscriptions: true,
-    },
   },
   
   // SLA Compliance Color Thresholds
