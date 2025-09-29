@@ -5163,9 +5163,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // Require authentication for all other operations
         if (!socketData) {
+          console.log('🚨 Server: WebSocket message blocked - not authenticated:', data);
           ws.send(JSON.stringify({ type: 'error', message: 'Not authenticated' }));
           return;
         }
+        
+        console.log('✅ Server: WebSocket message authenticated, proceeding with handlers...');
 
         // Handle subscription management
         if (data.type === 'subscribe') {
