@@ -530,7 +530,7 @@ const TeamsManagement = () => {
       // Show toast notification for the update
       if (data.type === 'member-added') {
         toast({ 
-          title: 'Team Member Added', 
+          title: 'Success', 
           description: `${data.memberName || 'Member'} has been added to team ${data.teamName}` 
         });
       } else if (data.type === 'member-removed') {
@@ -657,7 +657,7 @@ const TeamsManagement = () => {
   const handleCreateTeamModern = async (teamData: any) => {
     try {
       await createTeamAdmin(teamData);
-      toast({ title: 'Team Created', description: 'New team has been successfully created.' });
+      toast({ title: 'Success', description: 'New team has been successfully created.' });
       setDialogOpen(false);
     } catch (error: any) {
       toast({ title: 'Creation Failed', description: 'Failed to create team. Please try again.', variant: 'destructive' });

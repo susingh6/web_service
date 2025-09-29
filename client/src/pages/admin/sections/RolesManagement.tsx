@@ -180,7 +180,7 @@ const RolesManagement = () => {
       return { previous };
     },
     onError: (_e, _v, ctx) => { if (ctx?.previous) queryClient.setQueryData(['admin', 'roles'], ctx.previous); },
-    onSuccess: () => { toast({ title: 'Role Created', description: 'New role has been created.' }); },
+    onSuccess: () => { toast({ title: 'Success', description: 'New role has been created.' }); },
     onSettled: async () => {
       await invalidateAdminCaches(queryClient);
       // Always invalidate to ensure changes persist

@@ -177,7 +177,7 @@ const TenantsManagement = () => {
   const handleCreateTenant = async (tenantData: any) => {
     try {
       await createTenant(tenantData);
-      toast({ title: 'Tenant Created', description: 'New tenant has been successfully created.' });
+      toast({ title: 'Success', description: 'New tenant has been successfully created.' });
       setDialogOpen(false);
     } catch (error: any) {
       toast({ title: 'Creation Failed', description: 'Failed to create tenant. Please try again.', variant: 'destructive' });
