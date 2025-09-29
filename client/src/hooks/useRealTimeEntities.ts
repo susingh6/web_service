@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { cacheKeys, invalidateEntityCaches } from '@/lib/cacheKeys';
 import { Entity } from '@shared/schema';
 import { useEffect, useRef } from 'react';
+import { WEBSOCKET_CONFIG } from '@shared/websocket-config';
 
 interface UseRealTimeEntitiesOptions {
   tenantName?: string;
@@ -101,6 +102,7 @@ export const useRealTimeEntities = (options: UseRealTimeEntitiesOptions) => {
   const { isConnected, isAuthenticated: wsAuthenticated, subscribe, unsubscribe } = useWebSocket({
     sessionId: sessionId || undefined,
     userId: getUserId(),
+    componentType: WEBSOCKET_CONFIG.componentTypes.TEAM_DASHBOARD,
     tenantName: options.tenantName,
     teamName: options.teamName,
     
