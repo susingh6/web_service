@@ -5,6 +5,7 @@ import { config } from './config';
 import { Entity, Team } from '@shared/schema';
 import { storage } from './storage';
 import { DashboardMetrics, EntityChange, CachedData, calculateMetrics, ComplianceTrendData, ComplianceTrendPoint } from '@shared/cache-types';
+import { resolveEntityIdentifier } from '@shared/entity-utils';
 
 // Standardized event envelope for real-time updates with race condition protection
 interface EntityChangeEvent {
@@ -657,7 +658,9 @@ export class RedisCache {
 
       // Use worker thread for heavy cache refresh work with timeout
       const refreshPromise = new Promise((resolve, reject) => {
-        this.cacheWorker = new Worker('./server/cache-worker.ts', {
+        const workerUrl = new URL('./cache-worker-entry.ts', import.meta.url);
+        this.cacheWorker = new Worker(workerUrl, {
+          execArgv: ['--import', 'tsx/register'],
           workerData: { redisUrl: process.env.REDIS_URL || 'redis://localhost:6379' }
         });
 
@@ -895,7 +898,8 @@ export class RedisCache {
       teamMetrics,
       teamTrends,
       lastUpdated: new Date(),
-      recentChanges: []
+      recentChanges: [],
+      allTasksData: null
     };
   }
 
@@ -1050,24 +1054,18 @@ export class RedisCache {
       const data = await this.redis.get(CACHE_KEYS.ENTITIES);
       const cachedEntities: Entity[] = data ? JSON.parse(data) : [];
 
-      // Always compare against storage to ensure new entities are reflected
-      try {
-        const storageEntities = await storage.getEntities();
-        const storageIds = new Set(storageEntities.map(e => e.id));
-
-        // If cache is empty or behind storage (fewer items), refresh cache from storage
-        if (!data || cachedEntities.length < storageEntities.length) {
+      // If no cache exists yet, initialize from storage once; otherwise trust Redis as source of truth
+      if (!data) {
+        try {
+          const storageEntities = await storage.getEntities();
           const expireTime = Math.floor(this.CACHE_DURATION_MS / 1000);
           await this.set(CACHE_KEYS.ENTITIES, storageEntities, expireTime);
           return storageEntities;
+        } catch (_err) {
+          return [];
         }
-
-        // Otherwise, return cached entities filtered by existing storage IDs (drop deleted)
-        return cachedEntities.filter(e => storageIds.has(e.id));
-      } catch (_err) {
-        // If storage compare fails, return whatever is in cache
-        return cachedEntities;
       }
+      return cachedEntities;
     } catch (error) {
       console.error('Error getting entities from Redis:', error);
       return this.fallbackData ? this.fallbackData.entities : [];
@@ -1292,7 +1290,8 @@ export class RedisCache {
             last30DayMetrics: {}, todayMetrics: {}, yesterdayMetrics: {}, last7DayMetrics: {},
             thisMonthMetrics: {}, todayTrends: {}, yesterdayTrends: {}, last7DayTrends: {},
             last30DayTrends: {}, thisMonthTrends: {}, teamMetrics: {}, teamTrends: {},
-            lastUpdated: new Date(), recentChanges: []
+            lastUpdated: new Date(), recentChanges: [],
+            allTasksData: null
           };
         }
         (this.fallbackData as any).tasks = tasks;
@@ -1595,7 +1594,7 @@ export class RedisCache {
       // Record the change
       const change: EntityChange = {
         entityId: entity.id,
-        entityName: entity.name,
+        entityName: resolveEntityIdentifier(entity, { fallback: entity.name ?? undefined }),
         entityType: entity.type,
         teamName: entity.team_name || 'Unknown',
         tenantName: entity.tenant_name || 'Unknown',
@@ -1624,9 +1623,9 @@ export class RedisCache {
         event: 'entity-updated',
         type: 'deleted',
         entityId: entity.id.toString(),
-        entityName: entity.name,
-        tenantName: entity.tenant_name || 'Unknown',
-        teamName: entity.team_name || 'Unknown',
+        entityName: change.entityName,
+        tenantName: change.tenantName,
+        teamName: change.teamName,
         ts: Date.now(),
         version: Date.now(), // Use timestamp as version for ordering
         updatedAt: entity.updatedAt?.toISOString() || new Date().toISOString(),
@@ -1648,6 +1647,29 @@ export class RedisCache {
       console.error('Error deleting entity in Redis:', error);
       return await storage.deleteEntity(entityId);
     }
+  }
+
+  async getEntityByName({ name, type, teamName }: { name: string; type?: Entity['type']; teamName?: string }): Promise<Entity | undefined> {
+    const entities = await this.getAllEntities();
+    return entities.find((entity) => {
+      if (type && entity.type !== type) return false;
+      const candidates = [
+        resolveEntityIdentifier(entity, { fallback: entity.name ?? undefined }),
+        (entity as any).name,
+        (entity as any).entity_name,
+        (entity as any).table_name,
+        (entity as any).dag_name,
+      ].filter(Boolean) as string[];
+      if (!candidates.includes(name)) return false;
+      if (teamName && entity.team_name !== teamName) return false;
+      return true;
+    });
+  }
+
+  async deleteEntityByName(params: { name: string; type?: Entity['type']; teamName?: string }): Promise<boolean> {
+    const entity = await this.getEntityByName(params);
+    if (!entity) return false;
+    return this.deleteEntity(entity.id);
   }
 
   async updateEntityById(entityId: number, updates: Partial<Entity>): Promise<Entity | undefined> {
@@ -2427,16 +2449,16 @@ export class RedisCache {
   // Hybrid approach: Invalidate targeted cache + optional background rebuild
   async invalidateAndRebuildEntityCache(
     teamId: number,
-    entityType: 'table' | 'dag',
+    entityType: Entity['type'],
     backgroundRebuild: boolean = true
   ): Promise<void> {
     // Step 1: Immediate targeted invalidation (fast response)
-    await this.invalidateEntityDataByType(teamId, entityType, false);
+    await this.invalidateEntityDataByType(teamId, entityType as 'table' | 'dag', false);
     
     // Step 2: Optional background rebuild (non-blocking)
     if (backgroundRebuild) {
       // Run in background without awaiting
-      this.rebuildEntityCacheByType(teamId, entityType);
+      this.rebuildEntityCacheByType(teamId, entityType as 'table' | 'dag');
     }
   }
 

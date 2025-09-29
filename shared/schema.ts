@@ -506,5 +506,3 @@ export const notificationTimelineSchema = createInsertSchema(notificationTimelin
 // Types for subscriptions
 export type EntitySubscription = typeof entitySubscriptions.$inferSelect;
 export type InsertEntitySubscription = z.infer<typeof insertEntitySubscriptionSchema>;
-export type NotificationTimeline = typeof notificationTimelines.$inferSelect;
-export type InsertNotificationTimeline = z.infer<typeof notificationTimelineSchema>;

@@ -385,16 +385,13 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
     try {
       const entityType = entity.type as 'table' | 'dag';
       
-      console.log(`[DELETE_DEBUG] Starting delete for entity:`, {
-        id: entity.id,
-        name: entity.name,
-        type: entityType,
-        dag_name: entity.dag_name,
-        table_name: entity.table_name
-      });
       
       // Use modern cache-management approach with automatic cache invalidation
-      await deleteEntity(entity.name, entityType, entity.teamId ?? 1, entity.tenant_name || undefined);
+      await deleteEntity(entity.name, entityType, {
+        tenantName: entity.tenant_name || undefined,
+        teamId: entity.teamId ?? 1,
+        teamName: entity.team_name || undefined
+      });
       
       toast({
         title: 'Success',
@@ -405,9 +402,8 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
       setOpenDeleteDialog(false);
       onClose();
       
-      console.log(`[DELETE_DEBUG] Delete completed successfully`);
     } catch (error) {
-      console.error('[DELETE_DEBUG] Delete failed:', error);
+      
       
       toast({
         title: 'Error',

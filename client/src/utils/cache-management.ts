@@ -1,5 +1,9 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { cacheKeys, invalidateEntityCaches } from '@/lib/cacheKeys';
+import { removeEntity, fetchEntities } from '@/features/sla/slices/entitiesSlice';
+import { resolveEntityIdentifier } from '@shared/entity-utils';
+import { Entity } from '@shared/schema';
+import { useAppDispatch } from '@/lib/store';
 import { queryClient } from '@/lib/queryClient';
 import { entitiesApi } from '@/features/sla/api';
 
@@ -15,7 +19,7 @@ interface PendingOperation {
   type: 'update' | 'delete';
   entityData?: any;
   teamId: number;
-  entityType: 'table' | 'dag';
+  entityType: Entity['type'];
   timestamp: number;
 }
 
@@ -459,7 +463,7 @@ export function useCacheManager() {
   };
 
   // Background cache rebuilding for entity-specific caches
-  const rebuildEntityCacheBackground = async (teamId: number, entityType: 'table' | 'dag') => {
+  const rebuildEntityCacheBackground = async (teamId: number, entityType: Entity['type']) => {
     try {
       // Pre-fetch the data to rebuild the cache
       await queryClient.prefetchQuery({
@@ -545,7 +549,7 @@ export function useCacheManager() {
   // Smart invalidation with optional background rebuild
   const invalidateWithRebuild = async (
     scenario: keyof typeof INVALIDATION_SCENARIOS,
-    rebuildOptions?: { teamId: number; entityType: 'table' | 'dag' },
+    rebuildOptions?: { teamId: number; entityType: Entity['type'] },
     ...params: any[]
   ) => {
     // Invalidate the cache first
@@ -581,7 +585,7 @@ export function useOptimisticMutation<TData, TVariables, TOptimisticData = TData
     invalidationScenario?: {
       scenario: keyof typeof INVALIDATION_SCENARIOS;
       params: any[];
-      rebuildOptions?: { teamId: number; entityType: 'table' | 'dag' };
+    rebuildOptions?: { teamId: number; entityType: Entity['type'] };
     };
     rollbackKeys?: (string | object)[][];
   }) => {
@@ -746,30 +750,39 @@ export function useTeamMemberMutation() {
   return { addMember, removeMember };
 }
 
+type EntityMutationContext = {
+  tenantName?: string;
+  teamId: number;
+  teamName?: string;
+};
+
+type CreateMutationContext = EntityMutationContext & {
+  key: ReturnType<typeof cacheKeys.entitiesByTenantAndTeam>;
+  optimisticId: number;
+  previous?: any[];
+};
+
+type UpdateMutationContext = EntityMutationContext & {
+  key: ReturnType<typeof cacheKeys.entitiesByTenantAndTeam>;
+  previous?: any[];
+};
+
+type DeleteMutationContext = EntityMutationContext & {
+  key: ReturnType<typeof cacheKeys.entitiesByTenantAndTeam>;
+  previous?: any[];
+};
+
+// Shared mutation hook for entities with consistent optimistic updates
 export function useEntityMutation() {
   const queryClient = useQueryClient();
+  const dispatch = useAppDispatch();
 
   // CREATE
-  const createMutation = useMutation({
+  const createMutation = useMutation<any, Error, any, CreateMutationContext>({
     mutationFn: async (entityData: any) => {
-      const { entityRequest } = await import('@/features/sla/api');
-      const entityType = entityData.type as 'table' | 'dag';
-      const response = await entityRequest('POST', entityType, 'create', entityData);
-      
-      if (!response.ok) {
-        const text = (await response.text()) || response.statusText;
-        // Try to parse as JSON to extract a specific error message
-        try {
-          const errorData = JSON.parse(text);
-          if (errorData && typeof errorData.message === 'string') {
-            throw new Error(errorData.message);
-          }
-        } catch (parseError) {
-          // If JSON parsing fails, fall back to descriptive message
-        }
-        throw new Error('Unable to create entity. Please try again or contact your administrator.');
-      }
-      return response.json();
+      // Use unified create endpoint that works with Express fallback in dev
+      const created = await entitiesApi.create(entityData);
+      return created;
     },
     onMutate: async (entityData: any) => {
       const tenant = entityData.tenant_name;
@@ -780,12 +793,18 @@ export function useEntityMutation() {
       const optimisticId = Date.now();
       const optimisticEntity = { ...entityData, id: optimisticId };
       queryClient.setQueryData<any[]>(key, (old) => old ? [...old, optimisticEntity] : [optimisticEntity]);
-      return { previous, key, optimisticId };
+      return {
+        previous,
+        key,
+        optimisticId,
+        tenantName: tenant,
+        teamId
+      };
     },
-    onError: (_err, _vars, ctx: any) => {
+    onError: (_err, _vars, ctx) => {
       if (ctx?.previous) queryClient.setQueryData(ctx.key, ctx.previous);
     },
-    onSuccess: (result, vars, ctx: any) => {
+    onSuccess: (result, _vars, ctx) => {
       if (ctx?.key && ctx?.optimisticId) {
         queryClient.setQueryData<any[]>(ctx.key, (old) => {
           if (!old) return [result];
@@ -793,18 +812,23 @@ export function useEntityMutation() {
         });
       }
     },
-    onSettled: async (result, _err, vars) => {
+    onSettled: async (_result, _err, vars) => {
+      // Mirror delete/edit behavior for Summary without forcing team list refetch
       await invalidateEntityCaches(queryClient, {
         tenant: vars?.tenant_name,
-        teamId: vars?.teamId,
-        entityId: result?.id,
+        // omit teamId to avoid team list refetch flicker
       });
+      // Also invalidate all summary range variants (Last 7, Custom, etc.)
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] }),
+        queryClient.invalidateQueries({ queryKey: ['/api/dashboard/summary'] }),
+      ]);
     },
   });
 
   // UPDATE
-  const updateMutation = useMutation({
-    mutationFn: async ({ entityName, entityType, entityData }: { entityName: string; entityType: 'table' | 'dag'; entityData: any }) => {
+  const updateMutation = useMutation<any, Error, { entityName: string; entityType: Entity['type']; entityData: any }, UpdateMutationContext>({
+    mutationFn: async ({ entityName, entityType, entityData }) => {
       // Use the name-based updateEntity function with FastAPI/Express fallback
       return await entitiesApi.updateEntity({
         type: entityType,
@@ -813,7 +837,7 @@ export function useEntityMutation() {
         updates: entityData
       });
     },
-    onMutate: async ({ entityName, entityType, entityData }: { entityName: string; entityType: 'table' | 'dag'; entityData: any }) => {
+    onMutate: async ({ entityName, entityType, entityData }) => {
       const effectiveTenant = entityData.tenant_name || 'Data Engineering';
       const key = cacheKeys.entitiesByTenantAndTeam(effectiveTenant, entityData.teamId);
       await queryClient.cancelQueries({ queryKey: key });
@@ -829,9 +853,15 @@ export function useEntityMutation() {
         );
       });
       
-      return { previous, key, tenant: effectiveTenant, teamId: entityData.teamId };
+      return {
+        previous,
+        key,
+        tenantName: effectiveTenant,
+        teamId: entityData.teamId,
+        teamName: entityData.team_name
+      };
     },
-    onError: (_err, _vars, ctx: any) => {
+    onError: (_err, _vars, ctx) => {
       if (ctx?.previous) queryClient.setQueryData(ctx.key, ctx.previous);
     },
     onSettled: async (_res, _err, vars) => {
@@ -846,7 +876,7 @@ export function useEntityMutation() {
 
   // UPDATE OWNER (specialized owner-only update)
   const updateOwnerMutation = useMutation({
-    mutationFn: async ({ entityName, entityType, ownerData }: { entityName: string; entityType: 'table' | 'dag'; ownerData: any }) => {
+    mutationFn: async ({ entityName, entityType, ownerData }: { entityName: string; entityType: Entity['type']; ownerData: any }) => {
       // Use the name-based owner update endpoints
       const { apiRequest } = await import('@/lib/queryClient');
       const { buildUrl, endpoints } = await import('@/config');
@@ -861,7 +891,7 @@ export function useEntityMutation() {
       }
       return response.json();
     },
-    onMutate: async ({ entityName, entityType, ownerData }: { entityName: string; entityType: 'table' | 'dag'; ownerData: any }) => {
+    onMutate: async ({ entityName, entityType, ownerData }: { entityName: string; entityType: Entity['type']; ownerData: any }) => {
       const effectiveTenant = ownerData.tenant_name || 'Data Engineering';
       const key = cacheKeys.entitiesByTenantAndTeam(effectiveTenant, ownerData.teamId);
       await queryClient.cancelQueries({ queryKey: key });
@@ -900,7 +930,7 @@ export function useEntityMutation() {
 
   // ROLLBACK ENTITY (specialized rollback operation with modern cache invalidation)
   const rollbackEntityMutation = useMutation({
-    mutationFn: async ({ entityName, entityType, teamName, rollbackData }: { entityName: string; entityType: 'table' | 'dag'; teamName: string; rollbackData: any }) => {
+    mutationFn: async ({ entityName, entityType, teamName, rollbackData }: { entityName: string; entityType: Entity['type']; teamName: string; rollbackData: any }) => {
       // Use the rollback endpoint with name-based URL
       const { apiRequest } = await import('@/lib/queryClient');
       const { buildUrl } = await import('@/config');
@@ -912,7 +942,7 @@ export function useEntityMutation() {
       }
       return response.json();
     },
-    onMutate: async ({ entityName, entityType, rollbackData }: { entityName: string; entityType: 'table' | 'dag'; teamName: string; rollbackData: any }) => {
+    onMutate: async ({ entityName, entityType, rollbackData }: { entityName: string; entityType: Entity['type']; teamName: string; rollbackData: any }) => {
       // For rollback, we don't do optimistic updates since we don't know what the rolled-back state will be
       // We'll let the cache invalidation handle the refresh after the API call succeeds
       return { entityName, entityType, rollbackData };
@@ -933,62 +963,88 @@ export function useEntityMutation() {
   });
 
   // DELETE
-  const deleteMutation = useMutation({
-    mutationFn: async ({ entityName, entityType, tenant, teamId }: { entityName: string; entityType: 'table' | 'dag'; tenant?: string; teamId: number }) => {
-      // Use the new deleteEntity function with FastAPI/Express fallback
-      return await entitiesApi.deleteEntity({ type: entityType, entityName });
+  const deleteMutation = useMutation<boolean | undefined, Error, { entityName: string; entityType: Entity['type']; tenant?: string; teamId: number; teamName?: string; entity?: Entity }, DeleteMutationContext>({
+    mutationFn: async ({ entityName, entityType, teamName }) => {
+      console.log('[useEntityMutation][delete] mutationFn start', { entityName, entityType, teamName });
+      const result = await entitiesApi.deleteEntityByName({ type: entityType, entityName, teamName });
+      console.log('[useEntityMutation][delete] mutationFn result', { entityName, entityType, result });
+      return result;
     },
-    onMutate: async ({ entityName, entityType, tenant, teamId }: { entityName: string; entityType: 'table' | 'dag'; tenant?: string; teamId: number }) => {
+    onMutate: async ({ entityName, tenant, teamId, teamName }) => {
+      console.log('[useEntityMutation][delete] onMutate', { entityName, tenant, teamId, teamName });
       const effectiveTenant = tenant || 'Data Engineering';
       const key = cacheKeys.entitiesByTenantAndTeam(effectiveTenant, teamId);
       await queryClient.cancelQueries({ queryKey: key });
       const previous = queryClient.getQueryData<any[]>(key);
-      // Filter by entity_name instead of id (entities have both name and entity_name fields)
-      queryClient.setQueryData<any[]>(key, (old) => old ? old.filter(e => 
-        e.entity_name !== entityName && e.name !== entityName
-      ) : []);
-      return { previous, key, tenant: effectiveTenant, teamId };
+      queryClient.setQueryData<any[]>(key, (old) => old ? old.filter(e => {
+        const candidate = resolveEntityIdentifier(e, { fallback: e.name ?? e.entity_name ?? undefined });
+        return candidate !== entityName;
+      }) : []);
+      return {
+        tenantName: effectiveTenant,
+        teamId,
+        teamName,
+        previous,
+        key
+      };
     },
-    onError: (_err, _vars, ctx: any) => {
+    onError: (_err, _vars, ctx) => {
+      console.warn('[useEntityMutation][delete] onError - restoring previous cache', { ctx });
       if (ctx?.previous) queryClient.setQueryData(ctx.key, ctx.previous);
     },
-    onSettled: async (_res, _err, vars: any, ctx: any) => {
-      // Comprehensive cache invalidation to handle all cache patterns used throughout the app
+    onSettled: async (_res, _err, vars, ctx) => {
+      if (!ctx) return;
+      const { tenantName, teamId } = ctx;
+      console.log('[useEntityMutation][delete] onSettled', { tenantName, teamId, vars, ctx });
+      // First, ensure Redux removal is applied
+      dispatch(removeEntity({ name: vars?.entityName!, entityType: vars?.entityType, teamId }));
+      // Targeted invalidations only; avoid invalidating the team list here.
+      // Team Dashboard will refetch on WebSocket "deleted" event to prevent races.
       await Promise.all([
-        // 1. Invalidate structured cache keys
         invalidateEntityCaches(queryClient, {
-        tenant: ctx?.tenant,
-        teamId: ctx?.teamId,
-          entityId: vars?.entityName,
+          tenant: tenantName,
+          teamId,
+          entityName: vars?.entityName,
         }),
-        
-        // 2. Invalidate direct API path cache keys (used in Summary and other places)
         queryClient.invalidateQueries({ queryKey: ['/api/v1/entities'] }),
         queryClient.invalidateQueries({ queryKey: ['/api/entities'] }),
-        
-        // 3. Invalidate tenant-wide cache
-        ctx?.tenant ? queryClient.invalidateQueries({ queryKey: cacheKeys.entitiesByTenant(ctx.tenant) }) : Promise.resolve(),
-        
-        // 4. Invalidate team-specific cache 
-        (ctx?.tenant && ctx?.teamId) ? queryClient.invalidateQueries({ queryKey: cacheKeys.entitiesByTenantAndTeam(ctx.tenant, ctx.teamId) }) : Promise.resolve(),
-        
-        // 5. Invalidate dashboard summary to update metrics
+        tenantName ? queryClient.invalidateQueries({ queryKey: cacheKeys.entitiesByTenant(tenantName) }) : Promise.resolve(),
         queryClient.invalidateQueries({ queryKey: ['/api/dashboard/summary'] }),
-        ctx?.tenant ? queryClient.invalidateQueries({ queryKey: cacheKeys.dashboardSummary(ctx.tenant) }) : Promise.resolve(),
-        (ctx?.tenant && ctx?.teamId) ? queryClient.invalidateQueries({ queryKey: cacheKeys.dashboardSummary(ctx.tenant, ctx.teamId) }) : Promise.resolve(),
+        tenantName ? queryClient.invalidateQueries({ queryKey: cacheKeys.dashboardSummary(tenantName) }) : Promise.resolve(),
+        (tenantName && teamId) ? queryClient.invalidateQueries({ queryKey: cacheKeys.dashboardSummary(tenantName, teamId) }) : Promise.resolve(),
       ]);
+
+      // Remove from Redux cache using name-based lookup
+      const entityType = vars?.entityType;
+      const targetName = vars?.entityName;
+      if (targetName) {
+        console.log('[useEntityMutation][delete] dispatch removeEntity', { targetName, entityType, teamId });
+        dispatch(removeEntity({ name: targetName, entityType, teamId }));
+      } else {
+        console.warn('[useEntityMutation][delete] missing targetName, refetching entities', { tenantName });
+        // Unable to resolve ID locally, let Redux refetch sweep it up
+        dispatch(fetchEntities({ tenant: tenantName }))
+          .catch(() => { /* swallow */ });
+      }
     },
   });
 
   const createEntity = async (entityData: any) => createMutation.mutateAsync(entityData);
-  const updateEntity = async (entityName: string, entityType: 'table' | 'dag', entityData: any) =>
+  const updateEntity = async (entityName: string, entityType: Entity['type'], entityData: any) =>
     updateMutation.mutateAsync({ entityName, entityType, entityData });
-  const updateOwner = async (entityName: string, entityType: 'table' | 'dag', ownerData: any) =>
+  const updateOwner = async (entityName: string, entityType: Entity['type'], ownerData: any) =>
     updateOwnerMutation.mutateAsync({ entityName, entityType, ownerData });
-  const rollbackEntity = async (entityName: string, entityType: 'table' | 'dag', teamName: string, rollbackData: any) =>
+  const rollbackEntity = async (entityName: string, entityType: Entity['type'], teamName: string, rollbackData: any) =>
     rollbackEntityMutation.mutateAsync({ entityName, entityType, teamName, rollbackData });
-  const deleteEntity = async (entityName: string, entityType: 'table' | 'dag', teamId: number, tenantName?: string) =>
-    deleteMutation.mutateAsync({ entityName, entityType, tenant: tenantName, teamId });
+  const deleteEntity = async (entityName: string, entityType: Entity['type'], context: EntityMutationContext & { entity?: Entity }) =>
+    deleteMutation.mutateAsync({
+      entityName,
+      entityType,
+      tenant: context.tenantName,
+      teamId: context.teamId,
+      teamName: context.teamName,
+      entity: context.entity
+    });
 
   return { createEntity, updateEntity, updateOwner, rollbackEntity, deleteEntity };
 }

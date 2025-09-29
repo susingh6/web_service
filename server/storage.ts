@@ -1,4 +1,4 @@
-import { 
+import {
   users, type User, type InsertUser, type UserRole,
   teams, type Team, type InsertTeam,
   entities, type Entity, type InsertEntity,
@@ -11,8 +11,9 @@ import {
   incidents, type Incident, type InsertIncident,
   alerts, type Alert, type InsertAlert,
   adminBroadcastMessages, type AdminBroadcastMessage, type InsertAdminBroadcastMessage,
-  roles, type Role, type InsertRole
+  roles, type Role, type InsertRole, type UpdateRole
 } from "@shared/schema";
+import { resolveEntityIdentifier } from '@shared/entity-utils';
 
 // Tenant interface for tenant management
 export interface Tenant {
@@ -66,6 +67,7 @@ export interface IStorage {
   createEntity(entity: InsertEntity): Promise<Entity>;
   updateEntity(id: number, entity: Partial<Entity>): Promise<Entity | undefined>;
   deleteEntity(id: number): Promise<boolean>;
+  deleteEntityByName(params: { name: string; type?: Entity['type']; teamName?: string }): Promise<boolean>;
   
   // Entity History operations
   getEntityHistory(entityId: number): Promise<EntityHistory[]>;
@@ -90,7 +92,7 @@ export interface IStorage {
   // Incident operations for AI agent integration
   createIncident(incident: InsertIncident): Promise<Incident>;
   getIncident(notificationId: string): Promise<Incident | undefined>;
-  getEntityByName(dagName: string, teamName?: string): Promise<Entity | undefined>;
+  getEntityByName(params: { name: string; type?: Entity['type']; teamName?: string }): Promise<Entity | undefined>;
   resolveIncident(notificationId: string): Promise<Incident | undefined>;
   
   // Alert operations for system-wide alerts
@@ -1578,6 +1580,19 @@ export class MemStorage implements IStorage {
   async deleteEntity(id: number): Promise<boolean> {
     return this.entities.delete(id);
   }
+
+  async deleteEntityByName({ name, type, teamName }: { name: string; type?: Entity['type']; teamName?: string }): Promise<boolean> {
+    await this.ensureInitialized();
+    for (const [id, entity] of Array.from(this.entities.entries())) {
+      if (type && entity.type !== type) continue;
+      const identifier = resolveEntityIdentifier(entity, { fallback: entity.name ?? undefined });
+      if (identifier !== name) continue;
+      if (teamName && entity.team_name !== teamName) continue;
+      this.entities.delete(id);
+      return true;
+    }
+    return false;
+  }
   
   // Entity History operations
   async getEntityHistory(entityId: number): Promise<EntityHistory[]> {
@@ -1686,7 +1701,23 @@ export class MemStorage implements IStorage {
   }
 
   async deleteNotificationTimeline(id: string): Promise<boolean> {
-    return this.notificationTimelines.delete(id);
+    await this.ensureInitialized();
+    
+    const exists = this.notificationTimelines.has(id);
+    if (exists) {
+      // Delete the timeline
+      this.notificationTimelines.delete(id);
+      
+      // Cascade delete: deactivate all subscriptions for this timeline
+      const subscriptionEntries = Array.from(this.entitySubscriptionsData.entries());
+      subscriptionEntries.forEach(([subId, subscription]) => {
+        if (subscription.notificationTimelineId === id && subscription.isActive) {
+          const deactivatedSubscription = { ...subscription, isActive: false, updatedAt: new Date() };
+          this.entitySubscriptionsData.set(subId, deactivatedSubscription);
+        }
+      });
+    }
+    return exists;
   }
   
   /**
@@ -2123,18 +2154,17 @@ export class MemStorage implements IStorage {
     return this.incidents.get(notificationId);
   }
 
-  async getEntityByName(dagName: string, teamName?: string): Promise<Entity | undefined> {
+  async getEntityByName({ name, type, teamName }: { name: string; type?: Entity['type']; teamName?: string; }): Promise<Entity | undefined> {
     await this.ensureInitialized();
-    
-    // Find entity by DAG name, optionally filtered by team
+
     for (const entity of Array.from(this.entities.values())) {
-      if (entity.type === 'dag' && entity.dag_name === dagName) {
-        if (!teamName || entity.team_name === teamName) {
-          return entity;
-        }
-      }
+      if (type && entity.type !== type) continue;
+      const identifier = resolveEntityIdentifier(entity, { fallback: entity.name ?? undefined });
+      if (identifier !== name) continue;
+      if (teamName && entity.team_name !== teamName) continue;
+      return entity;
     }
-    
+
     return undefined;
   }
 
@@ -2413,26 +2443,6 @@ export class MemStorage implements IStorage {
     return Array.from(this.entitySubscriptionsData.values()).filter(
       sub => sub.notificationTimelineId === notificationTimelineId && sub.isActive
     ).length;
-  }
-
-  // Override deleteNotificationTimeline to handle cascading delete of subscriptions
-  async deleteNotificationTimeline(id: string): Promise<boolean> {
-    await this.ensureInitialized();
-    
-    const exists = this.notificationTimelines.has(id);
-    if (exists) {
-      // Delete the timeline
-      this.notificationTimelines.delete(id);
-      
-      // Cascade delete: deactivate all subscriptions for this timeline
-      for (const [subId, subscription] of this.entitySubscriptionsData.entries()) {
-        if (subscription.notificationTimelineId === id && subscription.isActive) {
-          const deactivatedSubscription = { ...subscription, isActive: false, updatedAt: new Date() };
-          this.entitySubscriptionsData.set(subId, deactivatedSubscription);
-        }
-      }
-    }
-    return exists;
   }
 }
 

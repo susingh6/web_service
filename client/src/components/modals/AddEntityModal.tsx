@@ -199,7 +199,7 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
   // This effect updates the form when entity type changes (preserves only common fields)
   useEffect(() => {
     // Only reset when entity type actually changes, not on initial render
-    const currentValues = watch();
+    const currentValues = getValues();
     
     // Only proceed if we have existing form values (user has started filling the form)
     if (Object.keys(currentValues).length > 0) {
@@ -214,7 +214,7 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
         // Reset entity-specific fields to defaults for the new type
       });
     }
-  }, [entityType, reset, watch]);
+  }, [entityType, reset, getValues]);
 
   // Preserve form values when Entity Owner toggle changes
   useEffect(() => {
@@ -250,10 +250,7 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
   
   const onSubmit = async (data: any) => {
     // Form data submitted
-    console.log('🚀 FORM SUBMISSION START:', data);
-    console.log('🔍 Entity type:', entityType);
-    console.log('📋 Form validation errors:', errors);
-    console.log('📝 isSubmitting:', isSubmitting);
+    
     setValidationError(null);
     
     try {
@@ -312,13 +309,9 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
         ownerEmail: data.ownerEmail || data.owner_email || '',
       };
       
-      console.log('📤 Final entity data to submit:', entityData);
-      
       // Use React Query mutation for proper cache invalidation
-      console.log('⏳ Creating entity with proper cache invalidation...');
       
       const result = await createEntity(entityData);
-      console.log('✅ Entity created successfully:', result);
       
       // Update local caches for dropdowns
       if (entityType === 'dag') {
@@ -334,7 +327,7 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
       onClose();
       reset();
     } catch (error) {
-      console.error('Error during submission:', error);
+      
       setValidationError('An error occurred during submission. Please try again.');
     }
   };

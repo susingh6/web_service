@@ -4,7 +4,7 @@ import { Box, Grid, Button, Typography, Tabs, Tab, Select, MenuItem, FormControl
 import { Add as AddIcon, Upload as UploadIcon, Close as CloseIcon } from '@mui/icons-material';
 import { useAppDispatch, useAppSelector } from '@/lib/store';
 import { fetchDashboardSummary } from '@/features/sla/slices/dashboardSlice';
-import { upsertEntity, fetchEntities, fetchTeams } from '@/features/sla/slices/entitiesSlice';
+import { upsertEntity, fetchEntities, fetchTeams, removeEntity } from '@/features/sla/slices/entitiesSlice';
 import { Entity } from '@shared/schema';
 import MetricCard from '@/components/dashboard/MetricCard';
 import ChartCard from '@/components/dashboard/ChartCard';
@@ -30,6 +30,7 @@ import { tenantsApi } from '@/features/sla/api';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { useEntityMutation } from '@/utils/cache-management';
 import { invalidateEntityCaches, invalidateTenantCaches } from '@/lib/cacheKeys';
+import { resolveEntityIdentifier } from '@shared/entity-utils';
 
 const Summary = () => {
   const dispatch = useAppDispatch();
@@ -554,17 +555,48 @@ const Summary = () => {
 
       // Use centralized delete mutation with proper cache management
       // Get the actual entity name for the delete operation
-      const entityName = selectedEntity.type === 'table' ? selectedEntity.table_name : selectedEntity.dag_name;
-      if (!entityName) {
-        throw new Error(`Missing ${selectedEntity.type} name for entity ${selectedEntity.name}`);
+      const entityNameForApi = resolveEntityIdentifier(selectedEntity, {
+        fallback: selectedEntity.name ?? ''
+      });
+      if (!entityNameForApi) {
+        throw new Error(`Missing ${selectedEntity.type} identifier for entity ${selectedEntity.name}`);
       }
-      
-      await deleteEntity(
-        entityName,
-        selectedEntity.type as 'table' | 'dag',
-        selectedEntity.teamId, 
-        selectedTenant?.name
-      );
+
+      console.log('[Summary][Delete] Initiating delete', {
+        entityDisplayName: selectedEntity.name,
+        entityNameForApi,
+        entityType: selectedEntity.type,
+        tenantName: selectedTenant?.name,
+        teamId: selectedEntity.teamId,
+        teamName: selectedEntity.team_name,
+      });
+
+      console.log('[Summary][Delete] Calling deleteEntity with params', {
+        entityNameForApi,
+        entityType: selectedEntity.type,
+        tenantName: selectedTenant?.name,
+        teamId: selectedEntity.teamId,
+        teamName: selectedEntity.team_name
+      });
+
+      await deleteEntity(entityNameForApi, selectedEntity.type as Entity['type'], {
+        tenantName: selectedTenant?.name,
+        teamId: selectedEntity.teamId,
+        teamName: selectedEntity.team_name || undefined
+      });
+
+      // Remove from Redux slice immediately
+      dispatch(removeEntity({
+        name: entityNameForApi,
+        entityType: selectedEntity.type as 'table' | 'dag',
+        teamId: selectedEntity.teamId
+      }));
+
+      console.log('[Summary][Delete] Completed delete mutation and dispatched removeEntity', {
+        entityNameForApi,
+        entityType: selectedEntity.type,
+        teamId: selectedEntity.teamId,
+      });
 
       toast({
         title: 'Success',
@@ -652,6 +684,7 @@ const Summary = () => {
                         e.stopPropagation();
                         handleCloseTeamTab(teamName);
                       }}
+                      component="span"
                       sx={{ 
                         ml: 0.5,
                         p: 0.25,

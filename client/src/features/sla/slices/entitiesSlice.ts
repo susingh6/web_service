@@ -1,6 +1,7 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { entitiesApi, teamsApi } from '../api';
 import { Entity, Team, InsertEntity } from '@shared/schema';
+import { resolveEntityIdentifier } from '@shared/entity-utils';
 
 // Define local types for the slice
 interface EntityFilter {
@@ -118,6 +119,27 @@ const entitiesSlice = createSlice({
         state.selectedEntity = structuredClone(updatedEntity);
       }
     },
+    removeEntity: (state, action: PayloadAction<{ name: string; entityType?: Entity['type']; teamId?: number }>) => {
+      const { name, entityType, teamId } = action.payload;
+      const matcher = (entity: Entity) => {
+        if (entityType && entity.type !== entityType) return true;
+        const identifier = resolveEntityIdentifier(entity, { fallback: entity.name ?? undefined });
+        return identifier !== name;
+      };
+
+      state.list = state.list.filter(matcher);
+
+      if (teamId !== undefined && state.teamLists[teamId]) {
+        state.teamLists[teamId] = state.teamLists[teamId].filter(matcher);
+      }
+
+      if (state.selectedEntity) {
+        const selectedIdentifier = resolveEntityIdentifier(state.selectedEntity, { fallback: state.selectedEntity.name ?? undefined });
+        if (selectedIdentifier === name && (!entityType || state.selectedEntity.type === entityType)) {
+          state.selectedEntity = null;
+        }
+      }
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -179,7 +201,8 @@ export const {
   updateFilter, 
   resetFilter, 
   resetEntities,
-  upsertEntity
+  upsertEntity,
+  removeEntity
 } = entitiesSlice.actions;
 
 export default entitiesSlice.reducer;

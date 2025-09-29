@@ -54,7 +54,7 @@ const ConfirmDialog = ({
       }}
     >
       <DialogTitle>
-        <Typography variant="h6" fontWeight={600}>
+        <Typography variant="h6" component="span" fontWeight={600}>
           {title}
         </Typography>
       </DialogTitle>

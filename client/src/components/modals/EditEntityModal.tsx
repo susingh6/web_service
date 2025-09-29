@@ -431,7 +431,7 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
       disablePortal={false}
     >
       <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1 }}>
-        <Typography variant="h6" fontWeight={600} fontFamily="Inter, sans-serif">
+        <Typography component="span" variant="h6" fontWeight={600} fontFamily="Inter, sans-serif">
           Edit {entityType.toUpperCase()} Entity
         </Typography>
         <IconButton edge="end" color="inherit" onClick={onClose} aria-label="close">

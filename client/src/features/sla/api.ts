@@ -1,4 +1,5 @@
 import { Entity } from '@shared/schema';
+import { resolveEntityIdentifier } from '@shared/entity-utils';
 import { endpoints, isDevelopment, isStaging, isProduction, buildUrlWithParams } from '@/config';
 import { apiRequest } from '@/lib/queryClient';
 
@@ -93,7 +94,6 @@ async function environmentAwareApiRequest(
 ): Promise<Response> {
   // In production/staging: Always use FastAPI with proper RBAC
   if (isProduction || isStaging) {
-    console.log(`[${isProduction ? 'PRODUCTION' : 'STAGING'}] Using FastAPI with RBAC enforcement`);
     return await apiRequest(method, url, data);
   }
   
@@ -102,10 +102,8 @@ async function environmentAwareApiRequest(
     const isFastAPIAvailable = await checkFastAPIAvailable();
     
     if (isFastAPIAvailable) {
-      console.log('[DEVELOPMENT] Using FastAPI');
       return await apiRequest(method, url, data);
     } else {
-      console.log('[DEVELOPMENT] FastAPI unavailable, falling back to Express');
       return await expressApiRequest(method, url, data);
     }
   }
@@ -115,59 +113,22 @@ async function environmentAwareApiRequest(
   return await apiRequest(method, url, data);
 }
 
-// Entity-specific request function with type-aware fallback support
-export async function entityRequest(
-  method: string,
-  entityType: 'table' | 'dag',
-  operation: 'create' | 'bulk',
-  data?: unknown | undefined,
-): Promise<Response> {
-  // Select primary and fallback endpoints based on entity type and operation
-  let primaryEndpoint: string;
-  let fallbackEndpoint: string | undefined;
-  
-  if (entityType === 'table') {
-    primaryEndpoint = operation === 'bulk' ? endpoints.tablesBulk : endpoints.tables;
-    fallbackEndpoint = operation === 'bulk' ? endpoints.tablesBulkFallback : endpoints.tablesFallback;
-  } else {
-    primaryEndpoint = operation === 'bulk' ? endpoints.dagsBulk : endpoints.dags;
-    fallbackEndpoint = operation === 'bulk' ? endpoints.dagsBulkFallback : endpoints.dagsFallback;
-  }
-  
-  console.log(`[ENTITY_REQUEST] ${method} ${entityType} (${operation}) - Primary: ${primaryEndpoint}, Fallback: ${fallbackEndpoint || 'none'}`);
-  
-  // In production/staging: Always use FastAPI with proper RBAC
-  if (isProduction || isStaging) {
-    console.log(`[${isProduction ? 'PRODUCTION' : 'STAGING'}] Using FastAPI with RBAC enforcement`);
-    return await apiRequest(method, primaryEndpoint, data);
-  }
-  
-  // In development: Try FastAPI first, fallback to Express on failure
-  if (isDevelopment) {
-    try {
-      console.log('[DEVELOPMENT] Trying FastAPI for entity operation');
-      const response = await apiRequest(method, primaryEndpoint, data);
-      
-      // If response is 404 or 500+, try Express fallback
-      if (!response.ok && (response.status === 404 || response.status >= 500)) {
-        throw new Error(`FastAPI endpoint returned ${response.status}`);
-      }
-      
-      return response;
-    } catch (error) {
-      if (!fallbackEndpoint) {
-        throw new Error(`FastAPI failed and no Express fallback configured for ${entityType} ${operation} operation: ${error}`);
-      }
-      
-      console.log(`[DEVELOPMENT] FastAPI failed (${error}), falling back to Express for entity operation`);
-      return await expressApiRequest(method, fallbackEndpoint, data);
-    }
-  }
-  
-  // Default fallback (should not reach here)
-  console.warn('Unknown environment, defaulting to FastAPI for entity operation');
-  return await apiRequest(method, primaryEndpoint, data);
-}
+const typeEndpointMap: Record<Entity['type'], {
+  delete: (entityName: string) => string;
+  deleteFallback?: (entityName: string) => string;
+  expressDelete: (entityName: string, teamName?: string) => string;
+}> = {
+  table: {
+    delete: endpoints.tablesDelete,
+    deleteFallback: endpoints.tablesDeleteFallback,
+    expressDelete: (entityName: string, teamName?: string) => `/api/entities/by-name/table/${encodeURIComponent(entityName)}${teamName ? `?teamName=${encodeURIComponent(teamName)}` : ''}`,
+  },
+  dag: {
+    delete: endpoints.dagsDelete,
+    deleteFallback: endpoints.dagsDeleteFallback,
+    expressDelete: (entityName: string, teamName?: string) => `/api/entities/by-name/dag/${encodeURIComponent(entityName)}${teamName ? `?teamName=${encodeURIComponent(teamName)}` : ''}`,
+  },
+};
 
 export const teamsApi = {
   getAll: async (teamName?: string) => {
@@ -177,7 +138,7 @@ export const teamsApi = {
     }
     const res = await environmentAwareApiRequest('GET', url);
     return await res.json();
-  },
+  }
 };
 
 export const tenantsApi = {
@@ -188,19 +149,7 @@ export const tenantsApi = {
     }
     const res = await environmentAwareApiRequest('GET', url);
     return await res.json();
-  },
-  create: async (tenantData: any) => {
-    const res = await environmentAwareApiRequest('POST', endpoints.admin.tenants.create, tenantData);
-    return await res.json();
-  },
-  update: async (tenantId: number, tenantData: any) => {
-    const res = await environmentAwareApiRequest('PUT', endpoints.admin.tenants.update(tenantId), tenantData);
-    return await res.json();
-  },
-  disable: async (tenantId: number) => {
-    const res = await environmentAwareApiRequest('PUT', endpoints.admin.tenants.disable(tenantId));
-    return await res.json();
-  },
+  }
 };
 
 export const entitiesApi = {
@@ -218,7 +167,10 @@ export const entitiesApi = {
     return await res.json();
   },
   getByTeam: async (teamId: number) => {
-    const res = await environmentAwareApiRequest('GET', endpoints.entity.byTeam(teamId));
+    // In development, prefer Express for team lists to stay consistent with Express delete fallback
+    const res = isDevelopment
+      ? await expressApiRequest('GET', endpoints.entity.byTeam(teamId))
+      : await environmentAwareApiRequest('GET', endpoints.entity.byTeam(teamId));
     const entities = await res.json();
     return entities.map(normalizeEntity);
   },
@@ -228,28 +180,55 @@ export const entitiesApi = {
     return entities.map(normalizeEntity);
   },
   create: async (entityData: any) => {
-    const res = await environmentAwareApiRequest('POST', endpoints.entities, entityData);
-    const entity = await res.json();
-    return normalizeEntity(entity);
+    try {
+      const res = await environmentAwareApiRequest('POST', endpoints.entities, entityData);
+      if (res.ok) {
+        const entity = await res.json();
+        return normalizeEntity(entity);
+      }
+      return res;
+    } catch (err: any) {
+      // If FastAPI path is missing in dev, fall back to Express route
+      const res = await expressApiRequest('POST', '/api/entities', entityData);
+      const entity = await res.json();
+      return normalizeEntity(entity);
+    }
+  },
+  bulkCreate: async (entities: any[]) => {
+    if (!Array.isArray(entities) || entities.length === 0) {
+      throw new Error('bulkCreate requires a non-empty array');
+    }
+    // Prefer FastAPI bulk if available and consistent types; otherwise fall back to Express transactional bulk
+    const allType = entities[0]?.type;
+    const sameType = entities.every(e => e.type === allType);
+    if ((isProduction || isStaging) && sameType) {
+      const bulkEndpoint = allType === 'table' ? (endpoints as any).tablesBulk : (endpoints as any).dagsBulk;
+      if (typeof bulkEndpoint === 'string' || typeof bulkEndpoint === 'function') {
+        const url = typeof bulkEndpoint === 'function' ? bulkEndpoint() : bulkEndpoint;
+        const res = await environmentAwareApiRequest('POST', url, entities);
+        const data = await res.json();
+        return Array.isArray(data) ? data.map(normalizeEntity) : data;
+      }
+    }
+    // Express transactional bulk (all-or-nothing)
+    const res = await expressApiRequest('POST', '/api/entities/bulk', entities);
+    const data = await res.json();
+    return Array.isArray(data) ? data.map(normalizeEntity) : data;
   },
   update: async (payload: { id: number; updates: any }) => {
-    console.log('🌐 API UPDATE REQUEST START:', payload);
-    
     const res = await environmentAwareApiRequest('PUT', endpoints.entity.byId(payload.id), payload.updates);
-    
-    console.log('🌐 API UPDATE RESPONSE:', { status: res.status, ok: res.ok, statusText: res.statusText });
-    
-    const result = await res.json();
-    console.log('🌐 API UPDATE SUCCESS:', result);
-    return normalizeEntity(result);
+    if (res.ok) {
+      const entity = await res.json();
+      return normalizeEntity(entity);
+    }
+    return res;
   },
   updateEntity: async ({ type, entityName, entity, updates }: { 
-    type: 'table' | 'dag'; 
+    type: Entity['type']; 
     entityName?: string; 
     entity?: any; 
     updates: any; 
   }) => {
-    console.log(`[UPDATE_ENTITY_DEBUG] Input parameters:`, { type, entityName, entity, updates });
     
     // Defensively resolve entity name with fallbacks
     let resolvedEntityName = entityName;
@@ -274,57 +253,40 @@ export const entitiesApi = {
       throw new Error(`Cannot determine entity name for ${type} update`);
     }
     
-    console.log(`[UPDATE_ENTITY] Updating ${type}: "${resolvedEntityName}"`);
-    
-    // Use type-specific endpoints with FastAPI/Express fallback pattern
+    // Use type-specific endpoints with FastAPI first, then Express by-name route
     const primaryEndpoint = type === 'table' ? 
       endpoints.tablesUpdate(resolvedEntityName) : 
       endpoints.dagsUpdate(resolvedEntityName);
-    
-    const fallbackEndpoint = type === 'table' ? 
-      endpoints.tablesUpdateFallback?.(resolvedEntityName) : 
-      endpoints.dagsUpdateFallback?.(resolvedEntityName);
-
-    console.log(`[UPDATE_ENTITY] Primary URL: ${primaryEndpoint}, Fallback URL: ${fallbackEndpoint}`);
+    // Include teamName when available to disambiguate lookups (matches delete behavior)
+    const inferredTeamName = (entity && (entity.team_name || entity.teamName)) || (updates && (updates.team_name || updates.teamName));
+    const expressByName = `/api/entities/by-name/${encodeURIComponent(type)}/${encodeURIComponent(resolvedEntityName)}${inferredTeamName ? `?teamName=${encodeURIComponent(inferredTeamName)}` : ''}`;
 
     try {
-      console.log('[UPDATE_ENTITY] Trying FastAPI for entity update');
       const res = await environmentAwareApiRequest('PATCH', primaryEndpoint, updates);
-      console.log(`[UPDATE_ENTITY] FastAPI response: ${res.status}`);
       
       if (!res.ok) {
         throw new Error(`FastAPI returned ${res.status}`);
       }
       
       const result = await res.json();
-      console.log('🌐 UPDATE_ENTITY SUCCESS:', result);
       return normalizeEntity(result);
     } catch (error) {
-      console.log(`[UPDATE_ENTITY] FastAPI failed (${error}), falling back to Express`);
       
-      if (fallbackEndpoint) {
-        const res = await environmentAwareApiRequest('PATCH', fallbackEndpoint, updates);
-        console.log(`[UPDATE_ENTITY] Express fallback response: ${res.status}`);
-        
-        if (!res.ok) {
-          throw new Error(`Express fallback returned ${res.status}`);
-        }
-        
-        const result = await res.json();
-        console.log('🌐 UPDATE_ENTITY FALLBACK SUCCESS:', result);
-        return normalizeEntity(result);
-      } else {
-        throw error; // No fallback available, re-throw the original error
+      // Fall back to Express by-name PATCH
+      const res = await environmentAwareApiRequest('PATCH', expressByName, updates);
+      if (!res.ok) {
+        throw new Error(`Express by-name returned ${res.status}`);
       }
+      const result = await res.json();
+      return normalizeEntity(result);
     }
   },
   readEntityByName: async ({ type, entityName, entity, teamName }: { 
-    type: 'table' | 'dag'; 
+    type: Entity['type']; 
     entityName?: string; 
     entity?: any; 
     teamName?: string;
   }) => {
-    console.log(`[READ_ENTITY_DEBUG] Input parameters:`, { type, entityName, entity, teamName });
     
     // Defensively resolve entity name with fallbacks
     let resolvedEntityName = entityName;
@@ -337,18 +299,12 @@ export const entitiesApi = {
         table_name: entity.table_name
       });
       
-      if (type === 'dag') {
-        resolvedEntityName = entity.dag_name || entity.name;
-      } else {
-        resolvedEntityName = entity.table_name || entity.name;
-      }
+      resolvedEntityName = resolveEntityIdentifier(entity, { fallback: entity.name ?? undefined });
     }
     
     if (!resolvedEntityName) {
       throw new Error(`Cannot determine entity name for ${type} read`);
     }
-    
-    console.log(`[READ_ENTITY] Reading ${type}: "${resolvedEntityName}"`);
     
     // Use type-specific endpoints with FastAPI/Express fallback pattern
     const primaryEndpoint = type === 'table' ? 
@@ -364,41 +320,59 @@ export const entitiesApi = {
     const primaryUrl = buildUrlWithParams(primaryEndpoint, queryParams);
     const fallbackUrl = fallbackEndpoint ? buildUrlWithParams(fallbackEndpoint, queryParams) : undefined;
 
-    console.log(`[READ_ENTITY] Primary URL: ${primaryUrl}, Fallback URL: ${fallbackUrl}`);
-
     try {
-      console.log('[READ_ENTITY] Trying FastAPI for entity read');
       const res = await environmentAwareApiRequest('GET', primaryUrl);
-      console.log(`[READ_ENTITY] FastAPI response: ${res.status}`);
       
       if (!res.ok) {
         throw new Error(`FastAPI returned ${res.status}`);
       }
       
       const result = await res.json();
-      console.log('🌐 READ_ENTITY SUCCESS:', result);
       return normalizeEntity(result);
     } catch (error) {
-      console.log(`[READ_ENTITY] FastAPI failed (${error}), falling back to Express`);
       
       if (fallbackUrl) {
         const res = await environmentAwareApiRequest('GET', fallbackUrl);
-        console.log(`[READ_ENTITY] Express fallback response: ${res.status}`);
         
         if (!res.ok) {
           throw new Error(`Express fallback returned ${res.status}`);
         }
         
         const result = await res.json();
-        console.log('🌐 READ_ENTITY FALLBACK SUCCESS:', result);
         return normalizeEntity(result);
       } else {
         throw error; // No fallback available, re-throw the original error
       }
     }
   },
-  deleteEntity: async ({ type, entityName, entity }: { type: 'table' | 'dag', entityName?: string, entity?: any }) => {
-    console.log(`[DELETE_ENTITY_DEBUG] Input parameters:`, { type, entityName, entity });
+  deleteEntityByName: async ({ type, entityName, teamName }: { type: Entity['type']; entityName: string; teamName?: string; }) => {
+    const map = typeEndpointMap[type];
+
+    // Prefer our Express by-name route before legacy Express fallbacks
+    const urlsToTry = [
+      map.delete(entityName),
+      map.expressDelete(entityName, teamName),
+      map.deleteFallback ? map.deleteFallback(entityName) : undefined,
+    ].filter(Boolean) as string[];
+
+    
+    for (const url of urlsToTry) {
+      try {
+        const response = await environmentAwareApiRequest('DELETE', url);
+        
+        // Treat 204 as success, 404 as already gone, keep trying on 200s from legacy endpoints
+        if (response.status === 204 || response.status === 404) {
+          return true;
+        }
+      } catch (_error) {
+        
+        // Try next fallback
+      }
+    }
+
+    throw new Error(`Entity ${entityName} not found or failed to delete`);
+  },
+  deleteEntity: async ({ type, entityName, entity, teamName }: { type: Entity['type']; entityName?: string; entity?: any; teamName?: string }) => {
     
     // Defensively resolve entity name with fallbacks
     let resolvedEntityName = entityName;
@@ -412,18 +386,12 @@ export const entitiesApi = {
         entity_name: entity.entity_name
       });
       
-      if (type === 'dag') {
-        resolvedEntityName = entity.dag_name || entity.name || entity.entity_name;
-      } else {
-        resolvedEntityName = entity.table_name || entity.name || entity.entity_name;
-      }
+      resolvedEntityName = resolveEntityIdentifier(entity, { fallback: entity.entity_name || entity.name || undefined });
     }
     
     if (!resolvedEntityName) {
       throw new Error(`Cannot determine entity name for ${type} deletion`);
     }
-    
-    console.log(`[DELETE_ENTITY] Deleting ${type}: "${resolvedEntityName}"`);
     
     // Use type-specific endpoints with FastAPI/Express fallback pattern
     const primaryEndpoint = type === 'table' ? 
@@ -434,27 +402,28 @@ export const entitiesApi = {
       endpoints.tablesDeleteFallback?.(resolvedEntityName) : 
       endpoints.dagsDeleteFallback?.(resolvedEntityName);
 
-    console.log(`[DELETE_ENTITY] Primary URL: ${primaryEndpoint}, Fallback URL: ${fallbackEndpoint}`);
+    const expressDelete = typeEndpointMap[type].expressDelete(resolvedEntityName, teamName || entity?.team_name || undefined);
 
     try {
-      console.log('[DELETE_ENTITY] Trying FastAPI for entity deletion');
       const res = await environmentAwareApiRequest('DELETE', primaryEndpoint);
-      console.log(`[DELETE_ENTITY] FastAPI response: ${res.status}`);
       return res.ok;
     } catch (error) {
-      console.log(`[DELETE_ENTITY] FastAPI failed (${error}), falling back to Express`);
       
       if (fallbackEndpoint) {
-        const res = await environmentAwareApiRequest('DELETE', fallbackEndpoint);
-        console.log(`[DELETE_ENTITY] Express fallback response: ${res.status}`);
-        return res.ok;
-      } else {
-        throw error; // No fallback available, re-throw the original error
+        try {
+          const res = await environmentAwareApiRequest('DELETE', fallbackEndpoint);
+          if (res.ok) return true;
+        } catch (fallbackError) {
+          
+        }
       }
+
+      const expressRes = await expressApiRequest('DELETE', expressDelete);
+      return expressRes.ok;
     }
   },
   // Keep legacy delete for backward compatibility but deprecated
-  delete: async (entityName: string, entityType: 'table' | 'dag') => {
+  delete: async (entityName: string, entityType: Entity['type']) => {
     console.warn('[DEPRECATED] Use deleteEntity instead of delete');
     return entitiesApi.deleteEntity({ type: entityType, entityName });
   },
@@ -501,10 +470,8 @@ export const dashboardApi = {
       url += `?${params.toString()}`;
     }
     
-    console.log('[DEBUG] dashboardApi.getSummary - calling URL:', url);
     const res = await environmentAwareApiRequest('GET', url);
     const jsonData = await res.json();
-    console.log('[DEBUG] dashboardApi.getSummary - received data:', jsonData);
     return jsonData;
   },
   getTeamPerformance: async (teamId: number) => {
@@ -548,3 +515,42 @@ export const rollbackApi = {
     return await res.json();
   },
 };
+
+export async function entityRequest(
+  method: string,
+  entityType: Entity['type'],
+  operation: 'create' | 'bulk',
+  data?: unknown
+): Promise<Response> {
+  let primaryEndpoint: string;
+  let fallbackEndpoint: string | undefined;
+
+  if (entityType === 'table') {
+    primaryEndpoint = operation === 'bulk' ? endpoints.tablesBulk : endpoints.tables;
+    fallbackEndpoint = operation === 'bulk' ? endpoints.tablesBulkFallback : endpoints.tablesFallback;
+  } else {
+    primaryEndpoint = operation === 'bulk' ? endpoints.dagsBulk : endpoints.dags;
+    fallbackEndpoint = operation === 'bulk' ? endpoints.dagsBulkFallback : endpoints.dagsFallback;
+  }
+
+  if (isProduction || isStaging) {
+    return apiRequest(method, primaryEndpoint, data);
+  }
+
+  if (isDevelopment) {
+    try {
+      const response = await apiRequest(method, primaryEndpoint, data);
+      if (!response.ok && (response.status === 404 || response.status >= 500) && fallbackEndpoint) {
+        throw new Error(`FastAPI endpoint returned ${response.status}`);
+      }
+      return response;
+    } catch (error) {
+      if (!fallbackEndpoint) {
+        throw error;
+      }
+      return expressApiRequest(method, fallbackEndpoint, data);
+    }
+  }
+
+  return apiRequest(method, primaryEndpoint, data);
+}

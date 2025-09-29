@@ -45,6 +45,7 @@ const TeamSelector = ({ teams, openTeamTabs, onAddTeamTab, onLoadTeams }: TeamSe
         <IconButton
           onClick={handleClick}
           size="small"
+          component="span"
           sx={{
             backgroundColor: 'action.hover',
             color: 'primary.main',
