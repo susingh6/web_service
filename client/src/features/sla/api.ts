@@ -352,9 +352,11 @@ export const entitiesApi = {
           },
           credentials: 'include',
         });
-        if (res.status === 204 || res.status === 404) {
+        // ONLY return true if actually deleted (204), NOT on 404 (not found)
+        if (res.status === 204) {
           return true;
         }
+        // On 404 or any other status, fall through to Express
       } catch (_error) {
         // Silently fall back to Express in development
       }
