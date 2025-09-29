@@ -557,6 +557,9 @@ export class RedisCache {
       timestamp: new Date().toISOString() 
     });
     
+    let sentCount = 0;
+    let filteredCount = 0;
+    
     this.wss.clients.forEach((client: any) => {
       if (client.readyState === 1) { // WebSocket.OPEN
         const socketData = this.authenticatedSockets.get(client);
@@ -565,9 +568,14 @@ export class RedisCache {
         // Apply centralized filtering: only send to components that need this cache type
         if (shouldReceiveCacheUpdate(cacheType, componentType)) {
           this.sendWithBackpressureProtection(client, message, `cache:${cacheType}`);
+          sentCount++;
+        } else {
+          filteredCount++;
         }
       }
     });
+    
+    console.log(`📡 Cache Update Broadcast: type="${cacheType}", sent=${sentCount}, filtered=${filteredCount}`);
   }
 
   // Broadcast admin message to all authenticated clients (for multi-instance support)
