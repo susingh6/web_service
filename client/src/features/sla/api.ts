@@ -344,7 +344,14 @@ export const entitiesApi = {
     if (isDevelopment) {
       try {
         const fastAPIUrl = deleter ? deleter(entityName) : endpoints.v1.typedByName(String(type), 'delete', entityName);
-        const res = await apiRequest('DELETE', fastAPIUrl);
+        // Use fetch directly to avoid throwing errors that get caught and shown as toasts
+        const res = await fetch(fastAPIUrl, {
+          method: 'DELETE',
+          headers: {
+            'X-Session-ID': localStorage.getItem('fastapi_session_id') || '',
+          },
+          credentials: 'include',
+        });
         if (res.status === 204 || res.status === 404) {
           return true;
         }

@@ -795,7 +795,20 @@ export function useEntityMutation() {
       await queryClient.cancelQueries({ queryKey: key });
       const previous = queryClient.getQueryData<any[]>(key);
       const optimisticId = Date.now();
-      const optimisticEntity = { ...entityData, id: optimisticId };
+      
+      // CRITICAL: Normalize identifier fields to prevent cache mismatches
+      // Ensure entity_name, table_name, and dag_name are all set to the same value (entity_name)
+      // This prevents resolveEntityIdentifier from finding the wrong entity during delete
+      const entityName = entityData.entity_name || entityData.name;
+      const optimisticEntity = { 
+        ...entityData, 
+        id: optimisticId,
+        entity_name: entityName,
+        // Set type-specific name fields to match entity_name for consistent identification
+        ...(entityData.type === 'table' ? { table_name: entityName } : {}),
+        ...(entityData.type === 'dag' ? { dag_name: entityName } : {}),
+      };
+      
       queryClient.setQueryData<any[]>(key, (old) => old ? [...old, optimisticEntity] : [optimisticEntity]);
       return {
         previous,
