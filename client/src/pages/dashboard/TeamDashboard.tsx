@@ -124,6 +124,7 @@ const TeamDashboard = ({
       return await response.json();
     },
     enabled: !!team?.name && !!team?.id,
+    refetchOnMount: 'always',
   });
 
   // Ensure teams are loaded when visiting TeamDashboard directly
@@ -161,7 +162,6 @@ const TeamDashboard = ({
   useWebSocket({
     onCacheUpdated: (data, cacheType) => {
       if (cacheType === 'team-members-cache' && teamIdRef.current) {
-        console.log('📨 TeamDashboard: Received team-members-cache update, invalidating queries');
         queryClient.invalidateQueries({ queryKey: cacheKeys.teamMembers(tenantName, teamIdRef.current) });
       }
     }
@@ -177,6 +177,7 @@ const TeamDashboard = ({
     },
     enabled: !!team?.id,
     staleTime: 30 * 1000, // 30 seconds
+    refetchOnMount: 'always',
   });
 
   // Update local state when query data changes

@@ -540,7 +540,6 @@ export class RedisCache {
   // Centralized cache update broadcast with granular filtering
   private broadcastCacheUpdate(cacheType: string, data: any): void {
     if (!this.wss) {
-      console.log(`⚠️ No WebSocket server - cannot broadcast ${cacheType}`);
       return;
     }
 
@@ -551,29 +550,17 @@ export class RedisCache {
       timestamp: new Date().toISOString() 
     });
     
-    let sentCount = 0;
-    let filteredCount = 0;
-    
-    // Collect component types for debugging
-    const componentTypes: string[] = [];
-    
     this.wss.clients.forEach((client: any) => {
       if (client.readyState === 1) { // WebSocket.OPEN
         const socketData = this.authenticatedSockets.get(client);
         const componentType = socketData?.componentType || 'unknown';
-        componentTypes.push(componentType);
         
         // Apply centralized filtering: only send to components that need this cache type
         if (shouldReceiveCacheUpdate(cacheType, componentType)) {
           this.sendWithBackpressureProtection(client, message, `cache:${cacheType}`);
-          sentCount++;
-        } else {
-          filteredCount++;
         }
       }
     });
-    
-    console.log(`📡 Broadcast ${cacheType}: sent=${sentCount}, filtered=${filteredCount}, components=[${componentTypes.join(', ')}]`);
   }
 
   // Broadcast admin message to all authenticated clients (for multi-instance support)
