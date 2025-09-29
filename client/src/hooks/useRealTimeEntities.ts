@@ -172,8 +172,8 @@ export const useRealTimeEntities = (options: UseRealTimeEntitiesOptions) => {
   };
 
   const unsubscribeFromPage = () => {
-    if (wsAuthenticated) {
-      unsubscribe();
+    if (wsAuthenticated && options.tenantName && options.teamName) {
+      unsubscribe(options.tenantName, options.teamName);
     }
   };
 
