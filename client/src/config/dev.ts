@@ -267,39 +267,6 @@ export const devConfig = {
     recentChanges: '/api/v1/cache/recent-changes',
   },
   
-  // WebSocket configuration
-  websocket: {
-    path: '/ws',
-    events: {
-      cacheUpdated: 'cache-updated',
-      entityUpdated: 'entity-updated',
-      entitiesUpdated: 'entities-updated',
-      teamMembersUpdated: 'team-members-updated',
-      echoToOrigin: 'echo-to-origin',
-      userStatusChanged: 'user_status_changed',
-    },
-    features: {
-      enableEchoToOrigin: true,
-      enableEventVersioning: true,
-      multiTabSubscriptions: true,
-    },
-    componentTypes: {
-      APP_LAYOUT: 'app-layout',
-      TEAMS_MANAGEMENT: 'teams-management', 
-      TEAM_DASHBOARD: 'team-dashboard',
-      SUMMARY_DASHBOARD: 'summary-dashboard',
-      ROLLBACK_MANAGEMENT: 'rollback-management',
-      CONFLICTS_MANAGEMENT: 'conflicts-management',
-      USERS_MANAGEMENT: 'users-management',
-    },
-    eventFiltering: {
-      'team-members-updated': ['app-layout', 'teams-management', 'team-dashboard'],
-      'entity-updated': ['summary-dashboard', 'team-dashboard', 'teams-management'],
-      'cache-updated': ['summary-dashboard', 'team-dashboard', 'teams-management'],
-      'user_status_changed': ['users-management', 'teams-management'],
-    },
-  },
-  
   // Development settings
   debug: true,
   logLevel: 'debug',
