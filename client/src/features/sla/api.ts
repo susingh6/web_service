@@ -336,58 +336,18 @@ export const entitiesApi = {
   },
   deleteEntityByName: async ({ type, entityName, teamName }: { type: Entity['type']; entityName: string; teamName?: string; }) => {
     const deleteKey = `${type as string}sDelete` as keyof typeof endpoints;
-    const deleteFallbackKey = `${type as string}sDeleteFallback` as keyof typeof endpoints;
     const deleter = (endpoints as any)[deleteKey] as ((name: string) => string) | undefined;
-    const deleteFallback = (endpoints as any)[deleteFallbackKey] as ((name: string) => string) | undefined;
-
-    // In development: Try FastAPI first, silently fall back to Express if unavailable (like create does)
-    if (isDevelopment) {
-      try {
-        const fastAPIUrl = deleter ? deleter(entityName) : endpoints.v1.typedByName(String(type), 'delete', entityName);
-        // Use fetch directly to avoid throwing errors that get caught and shown as toasts
-        const res = await fetch(fastAPIUrl, {
-          method: 'DELETE',
-          headers: {
-            'X-Session-ID': localStorage.getItem('fastapi_session_id') || '',
-          },
-          credentials: 'include',
-        });
-        // ONLY return true if actually deleted (204), NOT on 404 (not found)
-        if (res.status === 204) {
-          return true;
-        }
-        // On 404 or any other status, fall through to Express
-      } catch (_error) {
-        // Silently fall back to Express in development
-      }
-      
-      // Express fallback
+    const fastAPIUrl = deleter ? deleter(entityName) : endpoints.v1.typedByName(String(type), 'delete', entityName);
+    
+    try {
+      const res = await environmentAwareApiRequest('DELETE', fastAPIUrl);
+      return res.status === 204 || res.status === 404;
+    } catch (err: any) {
+      // If FastAPI path is missing in dev, fall back to Express route
       const expressUrl = endpoints.byName.delete(String(type), entityName, teamName);
-      const expressRes = await expressApiRequest('DELETE', expressUrl);
-      return expressRes.status === 204 || expressRes.status === 404;
+      const res = await expressApiRequest('DELETE', expressUrl);
+      return res.status === 204 || res.status === 404;
     }
-
-    // Production: Try all endpoints sequentially
-    const urlsToTry = [
-      deleter ? deleter(entityName) : endpoints.v1.typedByName(String(type), 'delete', entityName),
-      endpoints.byName.delete(String(type), entityName, teamName),
-      deleteFallback ? deleteFallback(entityName) : undefined,
-    ].filter(Boolean) as string[];
-
-    for (const url of urlsToTry) {
-      try {
-        const response = await environmentAwareApiRequest('DELETE', url);
-        
-        // Treat 204 as success, 404 as already gone, keep trying on 200s from legacy endpoints
-        if (response.status === 204 || response.status === 404) {
-          return true;
-        }
-      } catch (_error) {
-        // Try next fallback
-      }
-    }
-
-    throw new Error(`Entity ${entityName} not found or failed to delete`);
   },
   deleteEntity: async ({ type, entityName, entity, teamName }: { type: Entity['type']; entityName?: string; entity?: any; teamName?: string }) => {
     
