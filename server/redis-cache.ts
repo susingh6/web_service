@@ -400,20 +400,14 @@ export class RedisCache {
       if (client.readyState === 1) { // WebSocket.OPEN
         const socketData = this.authenticatedSockets.get(client);
         
-        // For team member updates, broadcast to ALL connected clients (admin panels don't authenticate)
-        if (event === 'team-members-updated') {
-          // Skip originator since they already got the echo
-          if (!data.originUserId || !socketData || socketData.userId !== data.originUserId) {
-            this.sendWithBackpressureProtection(client, message, `${event}:${subscriptionKey}`);
-            console.log('✅ Cache: Sent team member update to client');
-          }
-        }
-        // For other events, use the original authenticated logic
-        else if (socketData && 
+        // Send to authenticated clients who are subscribed to this tenant:team
+        // Skip originator since they already got the echo
+        if (socketData && 
             socketData.subscriptions.has(subscriptionKey) &&
             socketData.userId !== data.originUserId
         ) {
           this.sendWithBackpressureProtection(client, message, `${event}:${subscriptionKey}`);
+          console.log('✅ Cache: Sent team member update to authenticated client');
         }
       }
     });
