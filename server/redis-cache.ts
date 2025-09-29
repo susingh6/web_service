@@ -396,13 +396,22 @@ export class RedisCache {
       this.echoToOriginWithBackpressure(event, enhancedData, data.originUserId);
     }
     
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+    
     this.wss.clients.forEach((client: any) => {
       if (client.readyState === 1) { // WebSocket.OPEN
         const socketData = this.authenticatedSockets.get(client);
         
-        // Send to authenticated clients who are subscribed to this tenant:team
-        // Skip originator since they already got the echo
-        if (socketData && 
+        // In development mode, bypass authentication for team member updates
+        if (isDevelopment && event === 'team-members-updated') {
+          // Skip originator since they already got the echo
+          if (!data.originUserId || !socketData || socketData.userId !== data.originUserId) {
+            this.sendWithBackpressureProtection(client, message, `${event}:${subscriptionKey}`);
+            console.log('✅ Cache: Sent team member update to client (development mode bypass)');
+          }
+        }
+        // Production mode: send to authenticated clients who are subscribed to this tenant:team
+        else if (socketData && 
             socketData.subscriptions.has(subscriptionKey) &&
             socketData.userId !== data.originUserId
         ) {
