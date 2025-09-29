@@ -93,6 +93,14 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
         try {
           const message: WebSocketMessage = JSON.parse(event.data);
           
+          // Handle heartbeat ping with pong response
+          if (message.event === 'heartbeat-ping' || (message as any).type === 'heartbeat-ping') {
+            if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+              ws.current.send(JSON.stringify({ type: 'pong', timestamp: new Date().toISOString() }));
+            }
+            return;
+          }
+          
           if (message.event === 'auth-required') {
             authenticate();
             return;
