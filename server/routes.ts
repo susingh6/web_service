@@ -5161,6 +5161,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return;
         }
 
+        // Allow team member updates to bypass authentication (they're broadcast-only cache invalidation)
+        if (data.event === 'team-members-updated') {
+          console.log('🔥 Server: Team member update message bypassing authentication');
+          // Process immediately without authentication check
+          const changeData = data.data;
+          if (changeData && changeData.teamName && changeData.tenantName) {
+            try {
+              console.log('🔍 Server: Processing team member change:', { 
+                teamName: changeData.teamName, 
+                type: changeData.type, 
+                tenantName: changeData.tenantName 
+              });
+              
+              // Use existing cache invalidation system to trigger proper WebSocket broadcasting
+              await redisCache.invalidateTeamData(changeData.teamName, {
+                action: changeData.type === 'member-added' ? 'add' : 'remove',
+                memberId: changeData.memberId,
+                memberName: changeData.memberName,
+                tenantName: changeData.tenantName
+              });
+              
+              console.log('✅ Server: Team member change processed through cache system');
+            } catch (error) {
+              console.error('⚠️ Server: Error processing team member update:', error);
+            }
+          } else {
+            console.warn('⚠️ Server: Invalid team member data received:', changeData);
+          }
+          return;
+        }
+
         // Require authentication for all other operations
         if (!socketData) {
           console.log('🚨 Server: WebSocket message blocked - not authenticated:', data);
@@ -5216,37 +5247,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return;
         }
 
-        // Handle team member update messages - route through existing cache management system
-        if (data.event === 'team-members-updated') {
-          console.log('🔥 Server: Received team-members-updated WebSocket message:', data);
-          
-          const changeData = data.data;
-          if (changeData && changeData.teamName && changeData.tenantName) {
-            try {
-              console.log('🔍 Server: Processing team member change:', { 
-                teamName: changeData.teamName, 
-                type: changeData.type, 
-                tenantName: changeData.tenantName 
-              });
-              
-              // Use existing cache invalidation system to trigger proper WebSocket broadcasting
-              await redisCache.invalidateTeamData(changeData.teamName, {
-                action: changeData.type === 'member-added' ? 'add' : 'remove',
-                memberId: changeData.memberId,
-                memberName: changeData.memberName,
-                tenantName: changeData.tenantName
-              });
-              
-              console.log('✅ Server: Team member change processed through cache system');
-            } catch (error) {
-              console.error('⚠️ Server: Error processing team member update:', error);
-            }
-          } else {
-            console.warn('⚠️ Server: Invalid team member data received:', changeData);
-          }
-          return;
-        }
-        
         console.log('🔍 Server: Unhandled WebSocket message event:', data.event);
 
       } catch (error) {
