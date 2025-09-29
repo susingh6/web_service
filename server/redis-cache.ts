@@ -2181,6 +2181,7 @@ export class RedisCache {
 
   // Centralized cache invalidation patterns for common operations
   async invalidateTeamData(teamName?: string, memberChangeData?: { action: string, memberId?: string, memberName?: string, tenantName?: string }): Promise<void> {
+    console.log('🚨 CACHE: invalidateTeamData called with:', { teamName, memberChangeData });
     const invalidationKeys = [
       'all_users',
       ...(teamName ? [`team_members_${teamName}`, `team_details_${teamName}`] : [])
