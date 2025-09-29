@@ -5175,22 +5175,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
               });
               
               // Use existing cache invalidation system to trigger proper WebSocket broadcasting
-              console.log('🔍 Server: Calling invalidateTeamData with:', {
-                teamName: changeData.teamName,
-                memberChangeData: {
+              try {
+                await redisCache.invalidateTeamData(changeData.teamName, {
                   action: changeData.type === 'member-added' ? 'add' : 'remove',
                   memberId: changeData.memberId,
                   memberName: changeData.memberName,
                   tenantName: changeData.tenantName
-                }
-              });
-              
-              await redisCache.invalidateTeamData(changeData.teamName, {
-                action: changeData.type === 'member-added' ? 'add' : 'remove',
-                memberId: changeData.memberId,
-                memberName: changeData.memberName,
-                tenantName: changeData.tenantName
-              });
+                });
+              } catch (cacheError) {
+                console.error('❌ Server: Cache invalidation failed:', cacheError);
+                throw cacheError;
+              }
               
               console.log('✅ Server: Team member change processed through cache system');
             } catch (error) {
