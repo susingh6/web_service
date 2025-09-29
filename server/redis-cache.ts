@@ -402,12 +402,12 @@ export class RedisCache {
       if (client.readyState === 1) { // WebSocket.OPEN
         const socketData = this.authenticatedSockets.get(client);
         
-        // In development mode, bypass authentication for team member updates
-        if (isDevelopment && event === 'team-members-updated') {
+        // In development mode, bypass authentication for all WebSocket events
+        if (isDevelopment) {
           // Skip originator since they already got the echo
           if (!data.originUserId || !socketData || socketData.userId !== data.originUserId) {
             this.sendWithBackpressureProtection(client, message, `${event}:${subscriptionKey}`);
-            console.log('✅ Cache: Sent team member update to client (development mode bypass)');
+            console.log('✅ Cache: Sent WebSocket event to client (development mode bypass)');
           }
         }
         // Production mode: send to authenticated clients who are subscribed to this tenant:team
@@ -416,7 +416,7 @@ export class RedisCache {
             socketData.userId !== data.originUserId
         ) {
           this.sendWithBackpressureProtection(client, message, `${event}:${subscriptionKey}`);
-          console.log('✅ Cache: Sent team member update to authenticated client');
+          console.log('✅ Cache: Sent WebSocket event to authenticated client');
         }
       }
     });
