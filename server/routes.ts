@@ -5220,6 +5220,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const changeData = data.data;
           if (changeData && changeData.teamName && changeData.tenantName) {
             try {
+              console.log('🔍 Server: Processing team member change:', { 
+                teamName: changeData.teamName, 
+                type: changeData.type, 
+                tenantName: changeData.tenantName 
+              });
+              
               // Use existing cache invalidation system to trigger proper WebSocket broadcasting
               await redisCache.invalidateTeamData(changeData.teamName, {
                 action: changeData.type === 'member-added' ? 'add' : 'remove',
@@ -5237,6 +5243,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
           return;
         }
+        
+        console.log('🔍 Server: Unhandled WebSocket message event:', data.event);
 
       } catch (error) {
         console.error('WebSocket message parse error:', error);
