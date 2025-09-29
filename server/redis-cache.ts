@@ -563,7 +563,7 @@ export class RedisCache {
     this.wss.clients.forEach((client: any) => {
       if (client.readyState === 1) { // WebSocket.OPEN
         const socketData = this.authenticatedSockets.get(client);
-        const componentType = socketData?.userId || 'unknown';
+        const componentType = (socketData as any)?.componentType || 'unknown';
         
         // Apply centralized filtering: only send to components that need this cache type
         if (shouldReceiveCacheUpdate(cacheType, componentType)) {
