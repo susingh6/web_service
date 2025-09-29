@@ -7,6 +7,7 @@ import { Entity } from '@shared/schema';
 import { useAppDispatch } from '@/lib/store';
 import { queryClient } from '@/lib/queryClient';
 import { entitiesApi } from '@/features/sla/api';
+import { useWebSocket } from '@/hooks/useWebSocket';
 
 const log = getLogger();
 
@@ -1490,6 +1491,8 @@ export function useAdminMutation() {
 // Enhanced Team Member Management Hook - Remove redundant cache invalidations
 export function useTeamMemberMutationV2() {
   const queryClient = useQueryClient();
+  const { sendMessage } = useWebSocket();
+  const sessionId = localStorage.getItem('fastapi_session_id');
 
   const addMemberMutation = useMutation({
     mutationFn: async ({ teamName, userId, user, tenantName, teamId }: { teamName: string; userId: string; user: any; tenantName?: string; teamId?: number }) => {
@@ -1536,7 +1539,7 @@ export function useTeamMemberMutationV2() {
         });
       }
     },
-    onSuccess: async (_result, { teamName, tenantName, teamId }) => {
+    onSuccess: async (_result, { teamName, userId, user, tenantName, teamId }) => {
       // Modern comprehensive cache invalidation
       const { invalidateAdminCaches } = await import('@/lib/cacheKeys');
       await invalidateAdminCaches(queryClient);
@@ -1551,6 +1554,27 @@ export function useTeamMemberMutationV2() {
       if (tenantName && teamId) {
         await queryClient.invalidateQueries({ queryKey: ['teamMembers', tenantName, teamId, teamName] });
         await queryClient.refetchQueries({ queryKey: ['teamMembers', tenantName, teamId, teamName] });
+      }
+
+      // WebSocket broadcasting using existing admin panel pattern
+      const teamMemberEvent = {
+        event: 'team-members-updated',  // Top-level event name expected by useWebSocket
+        data: {
+          type: 'member-added',
+          teamName,
+          tenantName,
+          memberId: userId,
+          memberName: user?.name || userId,
+          teamId,
+          version: Date.now(),
+          ts: Date.now(),
+          updatedAt: new Date().toISOString(),
+          originUserId: sessionId || 'team-dashboard'
+        }
+      };
+      
+      if (typeof sendMessage === 'function') {
+        sendMessage(teamMemberEvent);
       }
     },
   });
@@ -1602,7 +1626,7 @@ export function useTeamMemberMutationV2() {
         });
       }
     },
-    onSuccess: async (_result, { teamName, tenantName, teamId }) => {
+    onSuccess: async (_result, { teamName, userId, tenantName, teamId }) => {
       // Modern comprehensive cache invalidation
       const { invalidateAdminCaches } = await import('@/lib/cacheKeys');
       await invalidateAdminCaches(queryClient);
@@ -1617,6 +1641,27 @@ export function useTeamMemberMutationV2() {
       if (tenantName && teamId) {
         await queryClient.invalidateQueries({ queryKey: ['teamMembers', tenantName, teamId, teamName] });
         await queryClient.refetchQueries({ queryKey: ['teamMembers', tenantName, teamId, teamName] });
+      }
+
+      // WebSocket broadcasting using existing admin panel pattern
+      const teamMemberEvent = {
+        event: 'team-members-updated',  // Top-level event name expected by useWebSocket
+        data: {
+          type: 'member-removed',
+          teamName,
+          tenantName,
+          memberId: userId,
+          memberName: userId,
+          teamId,
+          version: Date.now(),
+          ts: Date.now(),
+          updatedAt: new Date().toISOString(),
+          originUserId: sessionId || 'team-dashboard'
+        }
+      };
+      
+      if (typeof sendMessage === 'function') {
+        sendMessage(teamMemberEvent);
       }
     },
   });
