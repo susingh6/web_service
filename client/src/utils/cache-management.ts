@@ -987,15 +987,16 @@ export function useEntityMutation() {
       log.debug('[useEntityMutation][delete] mutationFn result', { entityName, entityType, result });
       return result;
     },
-    onMutate: async ({ entityName, tenant, teamId, teamName }) => {
-      log.debug('[useEntityMutation][delete] onMutate', { entityName, tenant, teamId, teamName });
+    onMutate: async ({ entityName, entityType, tenant, teamId, teamName }) => {
+      log.debug('[useEntityMutation][delete] onMutate', { entityName, entityType, tenant, teamId, teamName });
       const effectiveTenant = tenant || 'Data Engineering';
       const key = cacheKeys.entitiesByTenantAndTeam(effectiveTenant, teamId);
       await queryClient.cancelQueries({ queryKey: key });
       const previous = queryClient.getQueryData<any[]>(key);
       queryClient.setQueryData<any[]>(key, (old) => old ? old.filter(e => {
         const candidate = resolveEntityIdentifier(e, { fallback: e.name ?? e.entity_name ?? undefined });
-        return candidate !== entityName;
+        // CRITICAL: Check both name AND type since entity names can duplicate across types
+        return !(candidate === entityName && e.type === entityType);
       }) : []);
       return {
         tenantName: effectiveTenant,

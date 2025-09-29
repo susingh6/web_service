@@ -122,9 +122,12 @@ const entitiesSlice = createSlice({
     removeEntity: (state, action: PayloadAction<{ name: string; entityType?: Entity['type']; teamId?: number }>) => {
       const { name, entityType, teamId } = action.payload;
       const matcher = (entity: Entity) => {
-        if (entityType && entity.type !== entityType) return true;
         const identifier = resolveEntityIdentifier(entity, { fallback: entity.name ?? undefined });
-        return identifier !== name;
+        // CRITICAL: Check both name AND type since entity names can duplicate across types
+        // Keep the entity if: name doesn't match OR (entityType is provided and type doesn't match)
+        const nameMatches = identifier === name;
+        const typeMatches = !entityType || entity.type === entityType;
+        return !(nameMatches && typeMatches);
       };
 
       state.list = state.list.filter(matcher);
