@@ -41,6 +41,7 @@ interface TeamMemberChangeEvent {
 interface SocketData {
   sessionId: string;
   userId: string;
+  componentType?: string; // Optional component type for smart filtering
   subscriptions: Set<string>; // tenant:team format
 }
 
@@ -356,6 +357,7 @@ export class RedisCache {
   setupWebSocket(wss: WebSocketServer, authenticatedSockets?: Map<WebSocket, {
     sessionId: string;
     userId: string;
+    componentType?: string;
     subscriptions: Set<string>;
   }>): void {
     this.wss = wss;
