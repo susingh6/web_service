@@ -539,7 +539,10 @@ export class RedisCache {
 
   // Centralized cache update broadcast with granular filtering
   private broadcastCacheUpdate(cacheType: string, data: any): void {
-    if (!this.wss) return;
+    if (!this.wss) {
+      console.log(`⚠️ No WebSocket server - cannot broadcast ${cacheType}`);
+      return;
+    }
 
     const message = JSON.stringify({ 
       event: 'cache-updated',
@@ -569,6 +572,8 @@ export class RedisCache {
         }
       }
     });
+    
+    console.log(`📡 Broadcast ${cacheType}: sent=${sentCount}, filtered=${filteredCount}, components=[${componentTypes.join(', ')}]`);
   }
 
   // Broadcast admin message to all authenticated clients (for multi-instance support)
