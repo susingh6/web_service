@@ -5143,7 +5143,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Handle authentication
         if (data.type === 'authenticate') {
           const { sessionId } = data;
-          if (!sessionId) {
+          
+          // In development mode, allow dummy authentication
+          const isDevelopment = process.env.NODE_ENV !== 'production';
+          const effectiveSessionId = sessionId || (isDevelopment ? 'dev-session' : null);
+          
+          if (!effectiveSessionId) {
             ws.send(JSON.stringify({ type: 'auth-error', message: 'Session ID required' }));
             ws.close(4001, 'Authentication failed');
             return;
@@ -5152,7 +5157,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Validate session ID (basic validation for now)
           // In production, validate against session store
           socketData = {
-            sessionId,
+            sessionId: effectiveSessionId,
             userId: data.userId || 'anonymous',
             subscriptions: new Set(),
             lastPong: Date.now(),
@@ -5160,6 +5165,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           };
           
           authenticatedSockets.set(ws, socketData);
+          console.log('✅ WebSocket authenticated:', { sessionId: effectiveSessionId, userId: data.userId || 'anonymous' });
           ws.send(JSON.stringify({ type: 'auth-success', message: 'Authenticated' }));
           return;
         }
