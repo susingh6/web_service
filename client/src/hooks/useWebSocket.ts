@@ -72,6 +72,12 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
         try {
           const message: WebSocketMessage = JSON.parse(event.data);
           
+          // Dev-friendly: auto-authenticate if server requests it
+          if (message.event === 'auth-required') {
+            authenticate();
+            return;
+          }
+
           // Handle authentication responses
           if (message.event === 'auth-success') {
             setIsAuthenticated(true);
@@ -232,13 +238,11 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
   };
 
   const authenticate = () => {
-    if (options.sessionId) {
-      sendMessage({
-        type: 'authenticate',
-        sessionId: options.sessionId,
-        userId: options.userId || 'anonymous'
-      });
-    }
+    sendMessage({
+      type: 'authenticate',
+      sessionId: options.sessionId || 'anonymous',
+      userId: options.userId || 'anonymous'
+    });
   };
 
   const subscribe = (tenantName: string, teamName: string) => {
