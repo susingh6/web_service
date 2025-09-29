@@ -15,7 +15,7 @@ interface WebSocketMessage {
 
 interface UseWebSocketOptions {
   onMessage?: (message: WebSocketMessage) => void;
-  onCacheUpdated?: (data: any) => void;
+  onCacheUpdated?: (data: any, cacheType?: string) => void;
   onEntityUpdated?: (data: any) => void;
   onTeamMembersUpdated?: (data: any) => void;
   onUserStatusChanged?: (data: any) => void;
@@ -102,7 +102,7 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
           // Call specific event handlers with enhanced versioning protection
           switch (message.event) {
             case config.websocket.events.cacheUpdated:
-              options.onCacheUpdated?.(message.data);
+              options.onCacheUpdated?.(message.data, message.cacheType);
               break;
             case config.websocket.events.entityUpdated:
               // Enhanced versioning for entity events

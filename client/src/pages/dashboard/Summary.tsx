@@ -239,7 +239,15 @@ const Summary = () => {
         variant: operation === 'deleted' ? "destructive" : "default",
       });
     },
-    onCacheUpdated: () => {
+    onCacheUpdated: (data: any, cacheType?: string) => {
+      // Only show toast and refresh for relevant cache types (entities and metrics)
+      const relevantCacheTypes = ['entities-cache', 'metrics-cache'];
+      
+      if (!cacheType || !relevantCacheTypes.includes(cacheType)) {
+        // Ignore unrelated cache updates (e.g., team-members-cache)
+        return;
+      }
+      
       // Queue normalized tenant invalidation (debounced, single path)
       if (selectedTenant?.name) {
         normalizedTenantQueueRef.current.add(selectedTenant.name);
