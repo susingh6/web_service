@@ -2280,7 +2280,7 @@ export class RedisCache {
     await this.invalidateCache({
       keys: invalidationKeys,
       patterns: teamName ? [] : ['team_members_*', 'team_details_*'],
-      mainCacheKeys: ['TEAMS', 'METRICS'],
+      mainCacheKeys: ['TEAMS'], // Removed METRICS - team member changes don't affect metrics
       refreshAffectedData: true
     });
 

@@ -41,6 +41,7 @@ const Summary = () => {
   const normalizedEntityQueueRef = useRef<Array<{ tenant?: string; teamId?: number; entityId?: number | string }>>([]);
   const normalizedTenantQueueRef = useRef<Set<string>>(new Set());
   const normalizedFlushTimerRef = useRef<any>(null);
+  const toastTimerRef = useRef<any>(null);
 
   const scheduleNormalizedFlush = () => {
     if (normalizedFlushTimerRef.current) return;
