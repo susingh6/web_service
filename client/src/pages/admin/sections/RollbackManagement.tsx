@@ -44,6 +44,7 @@ import { useToast } from '@/hooks/use-toast';
 import { tenantsApi, teamsApi, rollbackApi } from '@/features/sla/api';
 import { cacheKeys, invalidateAdminCaches, invalidateEntityCaches } from '@/lib/cacheKeys';
 import { useWebSocket } from '@/hooks/useWebSocket';
+import { WEBSOCKET_CONFIG } from '../../../../shared/websocket-config';
 import { buildUrl, endpoints } from '@/config';
 
 
@@ -76,6 +77,7 @@ const RollbackManagement = () => {
   // WebSocket integration for real-time audit updates
   const sessionId = localStorage.getItem('fastapi_session_id');
   const { sendMessage } = useWebSocket({
+    componentType: WEBSOCKET_CONFIG.componentTypes.ROLLBACK_MANAGEMENT,
     sessionId: sessionId || undefined,
     onMessage: async (data: any) => {
       console.log('📡 Received audit update via WebSocket:', data);

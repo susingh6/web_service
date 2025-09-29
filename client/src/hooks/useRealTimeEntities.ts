@@ -120,24 +120,12 @@ export const useRealTimeEntities = (options: UseRealTimeEntitiesOptions) => {
     },
 
     onTeamMembersUpdated: (data) => {
-      console.log('🔍 useRealTimeEntities: Received team members update:', {
-        receivedData: data,
-        currentOptions: {
-          teamName: options.teamName,
-          tenantName: options.tenantName,
-          teamId: options.teamId
-        },
-        teamNameMatch: data?.teamName === options.teamName,
-        hasRequiredOptions: !!(options.tenantName && options.teamId)
-      });
       
       // Queue team members cache invalidation (coalesced)
       if (data?.teamName === options.teamName && options.tenantName && options.teamId) {
-        console.log('✅ Team member cache invalidation scheduled for:', cacheKeys.teamMembers(options.tenantName, options.teamId));
         pendingQueryKeysRef.current.push([...cacheKeys.teamMembers(options.tenantName, options.teamId)] as (string | object)[]);
         scheduleFlush();
       } else {
-        console.warn('❌ Team member cache invalidation skipped - conditions not met');
       }
       
       // Call custom handler

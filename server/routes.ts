@@ -5122,6 +5122,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const authenticatedSockets: Map<WebSocket, {
     sessionId: string;
     userId: string;
+    componentType: string;
     subscriptions: Set<string>; // tenant:team format
     lastPong: number; // Last pong response timestamp
     isAlive: boolean; // Heartbeat status
@@ -5133,7 +5134,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const CLEANUP_INTERVAL = 10000; // 10 seconds
 
   wss.on('connection', (ws, req) => {
-    let socketData: { sessionId: string; userId: string; subscriptions: Set<string>; lastPong: number; isAlive: boolean } | null = null;
+    let socketData: { sessionId: string; userId: string; componentType: string; subscriptions: Set<string>; lastPong: number; isAlive: boolean } | null = null;
 
     ws.on('message', async (message) => {
       try {
@@ -5158,6 +5159,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           socketData = {
             sessionId: effectiveSessionId,
             userId: data.userId || 'anonymous',
+            componentType: data.componentType || 'unknown',
             subscriptions: new Set(),
             lastPong: Date.now(),
             isAlive: true

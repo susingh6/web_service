@@ -229,6 +229,16 @@ interface ApiConfig {
       enableEventVersioning: boolean;
       multiTabSubscriptions: boolean;
     };
+    componentTypes?: {
+      APP_LAYOUT: string;
+      TEAMS_MANAGEMENT: string;
+      TEAM_DASHBOARD: string;
+      SUMMARY_DASHBOARD: string;
+      ROLLBACK_MANAGEMENT: string;
+      CONFLICTS_MANAGEMENT: string;
+      USERS_MANAGEMENT: string;
+    };
+    eventFiltering?: Record<string, string[]>;
   };
   debug: boolean;
   logLevel: string;

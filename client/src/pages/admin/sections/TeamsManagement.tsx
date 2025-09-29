@@ -45,6 +45,7 @@ import { useAdminMutation } from '@/utils/cache-management';
 import { cacheKeys, invalidateAdminCaches } from '@/lib/cacheKeys';
 import { useToast } from '@/hooks/use-toast';
 import { useWebSocket } from '@/hooks/useWebSocket';
+import { WEBSOCKET_CONFIG } from '../../../../shared/websocket-config';
 import { buildUrl, endpoints } from '@/config';
 import { tenantsApi } from '@/features/sla/api';
 import { Team } from '@shared/schema';
@@ -502,6 +503,7 @@ const TeamsManagement = () => {
   // WebSocket integration for real-time team member updates
   const sessionId = localStorage.getItem('fastapi_session_id');
   const { sendMessage } = useWebSocket({
+    componentType: WEBSOCKET_CONFIG.componentTypes.TEAMS_MANAGEMENT,
     sessionId: sessionId || undefined,
     onTeamMembersUpdated: async (data) => {
       console.log('📡 Received team member update via WebSocket:', data);

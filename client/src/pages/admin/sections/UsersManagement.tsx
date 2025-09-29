@@ -417,7 +417,6 @@ const UsersManagement = () => {
         // Invalidate all team member queries since user status affects team dashboards
         queryClient.invalidateQueries({ queryKey: ['teamMembers'] });
         queryClient.invalidateQueries({ queryKey: ['/api/v1/get_team_members'] });
-        console.log('Cache invalidation: User status changed, invalidated team member caches');
       }
 
       toast({

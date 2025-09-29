@@ -26,6 +26,7 @@ interface UseWebSocketOptions {
   teamName?: string;
   sessionId?: string;
   userId?: string;
+  componentType?: string;
 }
 
 export const useWebSocket = (options: UseWebSocketOptions = {}) => {
@@ -119,7 +120,6 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
               options.onEntityUpdated?.(message.data);
               break;
             case config.websocket.events.teamMembersUpdated:
-              console.log('🔥 useWebSocket: Received team-members-updated event:', message);
               // Enhanced versioning for team member events
               const teamEvent = message.data;
               if (teamEvent?.version && teamEvent?.teamName) {
@@ -132,7 +132,6 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
                 }
                 lastVersions.current.set(versionKey, teamEvent.version);
               }
-              console.log('✅ useWebSocket: Calling onTeamMembersUpdated with data:', message.data);
               options.onTeamMembersUpdated?.(message.data);
               break;
             case config.websocket.events.userStatusChanged:
@@ -244,7 +243,8 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
     sendMessage({
       type: 'authenticate',
       sessionId: options.sessionId || 'anonymous',
-      userId: options.userId || 'anonymous'
+      userId: options.userId || 'anonymous',
+      componentType: options.componentType || 'unknown'
     });
   };
 

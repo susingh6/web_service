@@ -1,5 +1,6 @@
 import Redis from 'ioredis';
 import { WebSocketServer } from 'ws';
+import { shouldReceiveEvent } from '../shared/websocket-config';
 import { Worker } from 'worker_threads';
 import { config } from './config';
 import { Entity, Team } from '@shared/schema';
@@ -79,6 +80,11 @@ export class RedisCache {
 
   constructor() {
     this.initialize();
+  }
+
+  // Use centralized event filtering logic
+  private shouldReceiveEvent(event: string, componentType: string): boolean {
+    return shouldReceiveEvent(event, componentType);
   }
 
   private setupEventHandlers(): void {
@@ -402,11 +408,15 @@ export class RedisCache {
       if (client.readyState === 1) { // WebSocket.OPEN
         const socketData = this.authenticatedSockets.get(client);
         
-        // In development mode, bypass authentication for all WebSocket events
+        // In development mode, apply smart filtering based on component type
         if (isDevelopment) {
           // Skip originator since they already got the echo
           if (!data.originUserId || !socketData || socketData.userId !== data.originUserId) {
-            this.sendWithBackpressureProtection(client, message, `${event}:${subscriptionKey}`);
+            // Smart filtering: use centralized event filtering configuration
+            const componentType = (socketData as any).componentType;
+            if (componentType && this.shouldReceiveEvent(event, componentType)) {
+              this.sendWithBackpressureProtection(client, message, `${event}:${subscriptionKey}`);
+            }
           }
         }
         // Production mode: send to authenticated clients who are subscribed to this tenant:team

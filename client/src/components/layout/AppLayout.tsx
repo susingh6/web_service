@@ -5,6 +5,7 @@ import { useLocation } from 'wouter';
 import Header from './Header';
 import { useAuth } from '@/hooks/use-auth';
 import { useWebSocket } from '@/hooks/useWebSocket';
+import { WEBSOCKET_CONFIG } from '../../../shared/websocket-config';
 import { useAppDispatch } from '@/lib/store';
 import { fetchEntities } from '@/features/sla/slices/entitiesSlice';
 import { fetchDashboardSummary } from '@/features/sla/slices/dashboardSlice';
@@ -30,6 +31,7 @@ const AppLayout = ({ children }: AppLayoutProps) => {
   
   // WebSocket connection for real-time updates
   const { isConnected } = useWebSocket({
+    componentType: WEBSOCKET_CONFIG.componentTypes.APP_LAYOUT,
     onEntityUpdated: (data: any) => {
       if (data.type === 'deleted') {
         // Invalidate React Query cache for immediate UI updates

@@ -28,6 +28,7 @@ import { cacheKeys } from '@/lib/cacheKeys';
 import type { Tenant } from '@/lib/tenantCache';
 import { tenantsApi } from '@/features/sla/api';
 import { useWebSocket } from '@/hooks/useWebSocket';
+import { WEBSOCKET_CONFIG } from '../../../shared/websocket-config';
 import { useEntityMutation } from '@/utils/cache-management';
 import { invalidateEntityCaches, invalidateTenantCaches } from '@/lib/cacheKeys';
 import { resolveEntityIdentifier } from '@shared/entity-utils';
@@ -202,6 +203,7 @@ const Summary = () => {
 
   // WebSocket connection for real-time updates
   const { isConnected } = useWebSocket({
+    componentType: WEBSOCKET_CONFIG.componentTypes.SUMMARY_DASHBOARD,
     onEntityUpdated: (data) => {
       const operation: 'created' | 'updated' | 'deleted' = data.type || 'updated';
       // Queue normalized invalidations (debounced, single path)

@@ -1573,12 +1573,8 @@ export function useTeamMemberMutationV2() {
         }
       };
       
-      console.log('🚀 Team dashboard member addition - broadcasting WebSocket event:', teamMemberEvent);
       if (typeof sendMessage === 'function') {
-        console.log('✅ WebSocket sendMessage function is available, sending...');
         sendMessage(teamMemberEvent);
-      } else {
-        console.warn('❌ WebSocket sendMessage function not available:', typeof sendMessage);
       }
     },
   });
@@ -1664,12 +1660,8 @@ export function useTeamMemberMutationV2() {
         }
       };
       
-      console.log('🚀 Team dashboard member removal - broadcasting WebSocket event:', teamMemberEvent);
       if (typeof sendMessage === 'function') {
-        console.log('✅ WebSocket sendMessage function is available, sending...');
         sendMessage(teamMemberEvent);
-      } else {
-        console.warn('❌ WebSocket sendMessage function not available:', typeof sendMessage);
       }
     },
   });
