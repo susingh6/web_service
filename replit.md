@@ -69,6 +69,7 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+- **FIXED: Real-time team member updates** - Resolved critical issue where team dashboard wouldn't update in real-time when members were added/removed via admin panel. Fixed WebSocket broadcasting logic that was in unused code path and corrected message format to match useWebSocket expectations.
 - Completed FastAPI integration for all 8 endpoints with comprehensive error handling and fallback mechanisms
 - Fixed major architectural issue: TeamDashboard now uses team-specific data instead of tenant-level summary data
 - Updated /api/dashboard/summary endpoint to support both team dashboards and summary dashboard with backward compatibility

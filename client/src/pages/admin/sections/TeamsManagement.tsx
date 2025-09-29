@@ -748,14 +748,6 @@ const TeamsManagement = () => {
         // Detect member removals  
         const removedMembers = originalMembers.filter((memberId: string) => !newMembers.includes(memberId));
         
-        console.log('📡 Team member changes detected:', {
-          teamName,
-          tenantName,
-          addedMembers,
-          removedMembers,
-          originalMembers,
-          newMembers
-        });
         
         // Dispatch window event to notify team dashboard of member changes
         try {
@@ -782,7 +774,6 @@ const TeamsManagement = () => {
             }
           };
           
-          console.log('📡 Broadcasting member addition:', teamMemberEvent);
           if (typeof sendMessage === 'function') {
             sendMessage(teamMemberEvent);
           }
@@ -806,7 +797,6 @@ const TeamsManagement = () => {
             }
           };
           
-          console.log('📡 Broadcasting member removal:', teamMemberEvent);
           if (typeof sendMessage === 'function') {
             sendMessage(teamMemberEvent);
           }
