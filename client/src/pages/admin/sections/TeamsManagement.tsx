@@ -719,7 +719,7 @@ const TeamsManagement = () => {
   // Modern cache-managed team update
   const handleUpdateTeamModern = async (teamId: number, teamData: any) => {
     // Get original team data for comparison before update
-    const originalTeam = teams?.find(team => team.id === teamId);
+    const originalTeam = teams?.find((team: any) => team.id === teamId);
     
     try {
       await updateTeamAdmin(teamId, teamData);
