@@ -100,6 +100,7 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
           options.onMessage?.(message);
           
           // Call specific event handlers with enhanced versioning protection
+          console.log('🔥 useWebSocket: Processing message with event:', message.event, 'config.teamMembersUpdated:', config.websocket.events.teamMembersUpdated);
           switch (message.event) {
             case config.websocket.events.cacheUpdated:
               options.onCacheUpdated?.(message.data);
@@ -119,17 +120,20 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
               options.onEntityUpdated?.(message.data);
               break;
             case config.websocket.events.teamMembersUpdated:
+              console.log('🔥 useWebSocket: Received team-members-updated event:', message);
               // Enhanced versioning for team member events
               const teamEvent = message.data;
               if (teamEvent?.version && teamEvent?.teamName) {
                 const versionKey = `team-${teamEvent.teamName}`;
                 const lastVersion = lastVersions.current.get(versionKey) || 0;
                 if (teamEvent.version <= lastVersion) {
+                  console.warn(`⏸️ Ignoring out-of-order team event ${teamEvent.version} <= ${lastVersion} for team ${teamEvent.teamName}`);
                   log.debug(`Ignoring out-of-order team event ${teamEvent.version} <= ${lastVersion} for team ${teamEvent.teamName}`);
                   return;
                 }
                 lastVersions.current.set(versionKey, teamEvent.version);
               }
+              console.log('✅ useWebSocket: Calling onTeamMembersUpdated with data:', message.data);
               options.onTeamMembersUpdated?.(message.data);
               break;
             case config.websocket.events.userStatusChanged:
