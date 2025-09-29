@@ -1667,6 +1667,12 @@ export function useTeamMemberMutationV2() {
       console.log('🚀 Team dashboard member removal - broadcasting WebSocket event:', teamMemberEvent);
       if (typeof sendMessage === 'function') {
         console.log('✅ WebSocket sendMessage function is available, sending...');
+        
+        // Send a test ping first to verify server connectivity
+        console.log('🔔 Sending test ping to verify WebSocket connectivity');
+        sendMessage({ type: 'ping', timestamp: new Date().toISOString(), test: 'team-member-removal' });
+        
+        // Send the actual team member message
         sendMessage(teamMemberEvent);
       } else {
         console.warn('❌ WebSocket sendMessage function not available:', typeof sendMessage);
