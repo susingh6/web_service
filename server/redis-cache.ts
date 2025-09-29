@@ -2181,7 +2181,6 @@ export class RedisCache {
 
   // Centralized cache invalidation patterns for common operations
   async invalidateTeamData(teamName?: string, memberChangeData?: { action: string, memberId?: string, memberName?: string, tenantName?: string }): Promise<void> {
-    console.log('🚨 CACHE: invalidateTeamData called with:', { teamName, memberChangeData });
     const invalidationKeys = [
       'all_users',
       ...(teamName ? [`team_members_${teamName}`, `team_details_${teamName}`] : [])
@@ -2195,7 +2194,6 @@ export class RedisCache {
     });
 
     // Broadcast team member change if details provided
-    console.log('🔍 Cache: Checking broadcast condition - teamName:', !!teamName, 'memberChangeData:', !!memberChangeData);
     if (teamName && memberChangeData) {
       const changeEvent: TeamMemberChangeEvent = {
         event: 'team-members-updated',

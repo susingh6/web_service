@@ -5115,6 +5115,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Setup WebSocket server with authentication and subscriptions
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
   
+  // Initialize cache system with WebSocket server for real-time broadcasting
+  redisCache.setupWebSocket(wss);
+  
   // Track authenticated connections with heartbeat monitoring
   const authenticatedSockets: Map<WebSocket, {
     sessionId: string;
@@ -5175,17 +5178,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
               });
               
               // Use existing cache invalidation system to trigger proper WebSocket broadcasting
-              try {
-                await redisCache.invalidateTeamData(changeData.teamName, {
-                  action: changeData.type === 'member-added' ? 'add' : 'remove',
-                  memberId: changeData.memberId,
-                  memberName: changeData.memberName,
-                  tenantName: changeData.tenantName
-                });
-              } catch (cacheError) {
-                console.error('❌ Server: Cache invalidation failed:', cacheError);
-                throw cacheError;
-              }
+              await redisCache.invalidateTeamData(changeData.teamName, {
+                action: changeData.type === 'member-added' ? 'add' : 'remove',
+                memberId: changeData.memberId,
+                memberName: changeData.memberName,
+                tenantName: changeData.tenantName
+              });
               
               console.log('✅ Server: Team member change processed through cache system');
             } catch (error) {
