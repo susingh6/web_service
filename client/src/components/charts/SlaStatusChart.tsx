@@ -4,10 +4,9 @@ import { CheckCircle, Schedule, Cancel, AccessTime } from '@mui/icons-material';
 import { format, subDays, parseISO } from 'date-fns';
 
 interface SlaStatusData {
-  date: string;
-  sla_status: 'passed' | 'failed' | 'pending';
-  expected_finish_time?: string;
-  actual_finish_time?: string;
+  sla_status: string; // 'Passed' | 'Failed' | 'Pending'
+  expected_finish_time: string; // ISO timestamp
+  actual_finish_time?: string; // ISO timestamp (optional for pending)
 }
 
 interface SlaStatusChartProps {
@@ -38,14 +37,14 @@ const generateDemoSlaStatusData = (days = 30): SlaStatusData[] => {
     
     // Generate random but realistic SLA status distribution
     const random = Math.random();
-    let sla_status: 'passed' | 'failed' | 'pending';
+    let sla_status: string;
     
     if (random < 0.75) {
-      sla_status = 'passed'; // 75% passed
+      sla_status = 'Passed'; // 75% passed
     } else if (random < 0.90) {
-      sla_status = 'pending'; // 15% pending
+      sla_status = 'Pending'; // 15% pending
     } else {
-      sla_status = 'failed'; // 10% failed
+      sla_status = 'Failed'; // 10% failed
     }
     
     // Generate realistic times
@@ -54,11 +53,11 @@ const generateDemoSlaStatusData = (days = 30): SlaStatusData[] => {
     expectedTime.setHours(baseHour, 0, 0, 0);
     
     let actualTime;
-    if (sla_status === 'passed') {
+    if (sla_status === 'Passed') {
       // Passed: actual is before or at expected
       actualTime = new Date(expectedTime);
       actualTime.setMinutes(actualTime.getMinutes() - Math.floor(Math.random() * 30));
-    } else if (sla_status === 'failed') {
+    } else if (sla_status === 'Failed') {
       // Failed: actual is after expected
       actualTime = new Date(expectedTime);
       actualTime.setMinutes(actualTime.getMinutes() + 30 + Math.floor(Math.random() * 60));
@@ -68,7 +67,6 @@ const generateDemoSlaStatusData = (days = 30): SlaStatusData[] => {
     }
     
     data.push({
-      date: format(date, 'yyyy-MM-dd'),
       sla_status,
       expected_finish_time: expectedTime.toISOString(),
       actual_finish_time: actualTime ? actualTime.toISOString() : undefined,
@@ -94,14 +92,22 @@ const SlaStatusChart: React.FC<SlaStatusChartProps> = ({ data, days = 30 }) => {
   // Use provided data or generate demo data
   const chartData = data && data.length > 0 ? data : generateDemoSlaStatusData(days);
   
-  // Sort by date (most recent first for timeline view)
-  const sortedData = [...chartData].sort((a, b) => 
-    new Date(b.date).getTime() - new Date(a.date).getTime()
-  );
+  // Normalize status to lowercase for consistent processing
+  const normalizeStatus = (status: string): 'passed' | 'failed' | 'pending' => {
+    return status.toLowerCase() as 'passed' | 'failed' | 'pending';
+  };
+  
+  // Sort by date (most recent first for timeline view) - extract date from expected_finish_time
+  const sortedData = [...chartData].sort((a, b) => {
+    const dateA = new Date(a.expected_finish_time).getTime();
+    const dateB = new Date(b.expected_finish_time).getTime();
+    return dateB - dateA;
+  });
   
   // Calculate summary stats
   const stats = sortedData.reduce((acc, item) => {
-    acc[item.sla_status]++;
+    const status = normalizeStatus(item.sla_status);
+    acc[status]++;
     return acc;
   }, { passed: 0, failed: 0, pending: 0 });
   
@@ -165,13 +171,14 @@ const SlaStatusChart: React.FC<SlaStatusChartProps> = ({ data, days = 30 }) => {
         }}
       >
         {sortedData.map((item, index) => {
-          const itemDate = parseISO(item.date);
-          const expectedTime = item.expected_finish_time ? parseISO(item.expected_finish_time) : null;
+          const expectedTime = parseISO(item.expected_finish_time);
           const actualTime = item.actual_finish_time ? parseISO(item.actual_finish_time) : null;
+          const itemDate = expectedTime; // Use expected time as the date
+          const status = normalizeStatus(item.sla_status);
           
           return (
             <Box
-              key={item.date}
+              key={`${item.expected_finish_time}-${index}`}
               sx={{
                 display: 'flex',
                 alignItems: 'center',
@@ -198,12 +205,12 @@ const SlaStatusChart: React.FC<SlaStatusChartProps> = ({ data, days = 30 }) => {
               {/* Status Badge */}
               <Box sx={{ minWidth: 100 }}>
                 <Chip
-                  icon={<StatusIcon status={item.sla_status} />}
+                  icon={<StatusIcon status={status} />}
                   label={item.sla_status.toUpperCase()}
                   size="small"
                   sx={{
-                    bgcolor: STATUS_BG_COLORS[item.sla_status],
-                    color: STATUS_COLORS[item.sla_status],
+                    bgcolor: STATUS_BG_COLORS[status],
+                    color: STATUS_COLORS[status],
                     fontWeight: 600,
                     fontSize: '0.75rem',
                     borderRadius: 1,
@@ -235,9 +242,9 @@ const SlaStatusChart: React.FC<SlaStatusChartProps> = ({ data, days = 30 }) => {
                     variant="body2" 
                     fontWeight={500}
                     sx={{
-                      color: item.sla_status === 'pending' 
+                      color: status === 'pending' 
                         ? 'text.disabled' 
-                        : item.sla_status === 'passed'
+                        : status === 'passed'
                         ? STATUS_COLORS.passed
                         : STATUS_COLORS.failed
                     }}
@@ -248,9 +255,9 @@ const SlaStatusChart: React.FC<SlaStatusChartProps> = ({ data, days = 30 }) => {
               </Box>
               
               {/* Time Difference Indicator */}
-              {actualTime && expectedTime && (
+              {actualTime && (
                 <Box sx={{ ml: 'auto' }}>
-                  {item.sla_status === 'passed' ? (
+                  {status === 'passed' ? (
                     <Chip
                       label="On Time"
                       size="small"
@@ -261,7 +268,7 @@ const SlaStatusChart: React.FC<SlaStatusChartProps> = ({ data, days = 30 }) => {
                         height: 20,
                       }}
                     />
-                  ) : item.sla_status === 'failed' ? (
+                  ) : status === 'failed' ? (
                     <Chip
                       label="Late"
                       size="small"
