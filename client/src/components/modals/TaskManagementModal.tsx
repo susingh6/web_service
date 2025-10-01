@@ -55,17 +55,6 @@ const TaskManagementModal: React.FC<TaskManagementModalProps> = ({
     // Only process if priority is actually changing
     if (task.priority === newPriority) return;
 
-    // Update local state immediately for a responsive UI
-    const updatedTask = { ...task, priority: newPriority };
-
-    if (newPriority === 'high') {
-      setHighPriorityTasks(prev => [...prev, updatedTask]);
-      setNormalPriorityTasks(prev => prev.filter(t => t.id !== taskId));
-    } else {
-      setNormalPriorityTasks(prev => [...prev, updatedTask]);
-      setHighPriorityTasks(prev => prev.filter(t => t.id !== taskId));
-    }
-
     // Build the updated tasks list with new priorities
     const updatedTasks = tasks?.map(t => 
       t.id === taskId ? { ...t, priority: newPriority } : t
@@ -81,12 +70,12 @@ const TaskManagementModal: React.FC<TaskManagementModalProps> = ({
       tenantName: dag.tenant_name || ''
     }, {
       onSuccess: () => {
-        console.log('[TaskManagementModal] Task priority update successful - refetching...');
-        // Query will auto-refetch due to invalidation in mutation
+        console.log('[TaskManagementModal] Task priority update successful - UI will update after refetch');
+        // Query auto-refetches due to invalidation, which updates highPriorityTasks/normalPriorityTasks via useEffect
       },
       onError: (error) => {
         console.error('[TaskManagementModal] Task priority update failed:', error);
-        // Revert optimistic update on error by refetching from server
+        // Refetch to ensure UI shows correct state
         refetch();
       }
     });
