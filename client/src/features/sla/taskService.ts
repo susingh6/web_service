@@ -3,103 +3,72 @@ import { Task, TaskPriority } from './types';
 import { apiRequest } from '@/lib/queryClient';
 import { endpoints } from '@/config';
 import { mockTaskService } from './mockService';
-import { AllTasksData, DagTaskData } from '@shared/cache-types';
+import { DagTaskData } from '@shared/cache-types';
 import { useOptimisticMutation } from '@/utils/cache-management';
 
-// Helper function to get cached all tasks data
-const getCachedAllTasksData = (): AllTasksData | null => {
-  try {
-    const cached = localStorage.getItem('sla_cache_data');
-    if (!cached) return null;
-    
-    const cacheData = JSON.parse(cached);
-    return cacheData.allTasksData || null;
-  } catch (error) {
-    console.error('Error getting cached tasks data:', error);
-    return null;
-  }
-};
-
-// Task service that uses dag_name-based cross-referencing with cached data
-export const useGetDagTasks = (dagName?: string, entityName?: string) => {
+// New architecture: Fetch DAG structure from cache, then fetch team-scoped AI tasks
+export const useGetDagTasks = (dagName?: string, entityName?: string, teamName?: string) => {
   return useQuery({
-    queryKey: ['tasks', dagName || entityName],
+    queryKey: ['tasks', dagName || entityName, teamName],
     queryFn: async () => {
-      if (!dagName && !entityName) return [];
+      const name = dagName || entityName;
+      if (!name) return [];
       
-      let lastError: Error | null = null;
-      
-      // Priority 1: Try FastAPI dag-based endpoint with cache busting
-      if (dagName) {
-        try {
-          console.log(`[TaskService] Trying FastAPI for DAG: ${dagName}`);
-          // Add cache busting parameter to ensure fresh data
-          const cacheBuster = Date.now();
-          const response = await apiRequest('GET', `/api/v1/dags/${dagName}/tasks?_t=${cacheBuster}`);
-          const tasks = await response.json();
-          console.log(`[TaskService] FastAPI success for DAG: ${dagName}`);
-          return tasks;
-        } catch (error) {
-          console.log(`[TaskService] FastAPI failed for DAG ${dagName}, trying Express fallback`);
-          lastError = error as Error;
+      try {
+        // Step 1: Fetch all tasks structure from 6-hour cache
+        console.log(`[TaskService] Fetching all tasks structure from cache`);
+        const allTasksResponse = await apiRequest('GET', endpoints.tasks.getAll);
+        const allTasksData: DagTaskData[] = await allTasksResponse.json();
+        
+        // Find this DAG's structure
+        const dagTaskData = allTasksData.find((dtd: DagTaskData) => dtd.dag_name === name);
+        
+        if (!dagTaskData) {
+          console.log(`[TaskService] DAG ${name} not found in cache, using mock`);
+          return mockTaskService.getDagTasks(1, name);
         }
-      }
-      
-      // Priority 2: Try Express endpoint fallback
-      if (entityName) {
-        try {
-          console.log(`[TaskService] Trying Express fallback for entity: ${entityName}`);
-          const response = await apiRequest('GET', endpoints.entity.tasks(entityName));
-          const allTasks = await response.json();
-          console.log(`[TaskService] Express fallback success for entity: ${entityName}`);
-          
-          // Transform to expected format with priority field
-          return allTasks.map((task: any) => ({
-            id: task.id,
-            name: task.name,
-            description: task.description,
-            priority: task.task_type === 'AI' ? 'high' : 'normal',
-            task_type: task.task_type
-          }));
-        } catch (error) {
-          console.log(`[TaskService] Express fallback failed for entity ${entityName}, trying cached data`);
-          lastError = error as Error;
-        }
-      }
-      
-      // Priority 3: Try cached all tasks data using dag_name  
-      if (dagName) {
-        try {
-          console.log(`[TaskService] Trying cached data for DAG: ${dagName}`);
-          const cachedAllTasks = getCachedAllTasksData();
-          if (cachedAllTasks) {
-            const dagTaskData = cachedAllTasks.dagTasks.find((dtd: DagTaskData) => dtd.dag_name === dagName);
-            if (dagTaskData) {
-              console.log(`[TaskService] Cached data success for DAG: ${dagName}`);
-              // Transform cached data to expected UI format
-              return dagTaskData.tasks.map((task: any, index: number) => ({
-                id: index + 1, // Generate ID from index since cached data may not have IDs
-                name: task.task_name,
-                description: `${task.task_type} task`,
-                priority: task.priority === 'AI Monitored' ? 'high' : 'normal',
-                task_type: task.task_type
-              }));
+
+        // Step 2: Fetch team-scoped AI tasks if team context available
+        let aiTaskNames: string[] = [];
+        if (teamName) {
+          try {
+            console.log(`[TaskService] Fetching AI tasks for team ${teamName}, DAG ${name}`);
+            const aiTasksResponse = await apiRequest('GET', `${endpoints.tasks.getAiTasks(name)}?team=${teamName}`);
+            const aiTasksData = await aiTasksResponse.json();
+            aiTaskNames = aiTasksData.ai_tasks || [];
+            console.log(`[TaskService] AI tasks for ${name}: [${aiTaskNames.join(', ')}]`);
+          } catch (error) {
+            console.log(`[TaskService] Failed to fetch AI tasks, trying fallback`);
+            try {
+              const fallbackResponse = await apiRequest('GET', `${endpoints.tasks.getAiTasksFallback(name)}?team=${teamName}`);
+              const fallbackData = await fallbackResponse.json();
+              aiTaskNames = fallbackData.ai_tasks || [];
+            } catch (fallbackError) {
+              console.log(`[TaskService] Fallback failed, using empty AI tasks`);
             }
           }
-          console.log(`[TaskService] No cached data found for DAG ${dagName}, using mock service`);
-        } catch (error) {
-          console.log(`[TaskService] Cached data failed for DAG ${dagName}, using mock service`);
-          lastError = error as Error;
         }
+
+        // Step 3: Merge structure with AI task priorities
+        const tasks = dagTaskData.tasks.map((task, index) => ({
+          id: index + 1,
+          name: task.task_name,
+          description: `${task.task_type} task`,
+          priority: aiTaskNames.includes(task.task_name) ? 'high' as TaskPriority : 'normal' as TaskPriority,
+          task_type: task.task_type
+        }));
+
+        console.log(`[TaskService] Successfully loaded ${tasks.length} tasks for ${name}`);
+        return tasks;
+      } catch (error) {
+        console.error(`[TaskService] Error fetching tasks:`, error);
+        console.log(`[TaskService] Using mock service fallback`);
+        return mockTaskService.getDagTasks(1, name);
       }
-      
-      // Final fallback: Use mock data (always works)
-      console.log(`[TaskService] Using mock task service fallback for: ${dagName || entityName}`);
-      return mockTaskService.getDagTasks(1, dagName || entityName);
     },
     enabled: !!(dagName || entityName),
-    staleTime: 0, // Always refetch to ensure we get latest data after updates
-    cacheTime: 0, // Don't cache stale data
+    staleTime: 0,
+    gcTime: 0,
     refetchOnMount: true,
     refetchOnWindowFocus: true
   });
@@ -116,29 +85,6 @@ interface UpdateTaskPriorityParams {
   teamName?: string;    // Team context
 }
 
-// Helper function to invalidate task-related cache using centralized system
-const invalidateTaskCache = (cacheManager: any, dagName?: string, entityName?: string) => {
-  // Use centralized cache invalidation patterns (dag_name based for FastAPI consistency)
-  const invalidationKeys = [
-    ...(dagName ? CACHE_PATTERNS.TASKS.BY_DAG_NAME(dagName) : []), // FastAPI endpoint format
-    ...(dagName ? CACHE_PATTERNS.TASKS.BY_NAME(dagName) : []), // React Query cache format  
-    ...(entityName ? [['tasks', entityName]] : []), // Express fallback compatibility
-    ...CACHE_PATTERNS.TASKS.LIST
-  ];
-  
-  // Invalidate React Query cache using centralized system
-  invalidationKeys.forEach(key => {
-    cacheManager.invalidateQueries({ queryKey: key });
-  });
-  
-  // Invalidate cached all tasks data from localStorage (FastAPI cache)
-  try {
-    localStorage.removeItem('sla_cache_data');
-    console.log('[Task Priority Update] Cache invalidated due to dag_name-based cache change');
-  } catch (error) {
-    console.error('Error invalidating cache:', error);
-  }
-};
 
 // Mutation to update task priority using optimistic updates
 export const useUpdateTaskPriority = () => {
