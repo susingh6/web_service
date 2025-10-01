@@ -30,11 +30,11 @@ const TaskManagementModal: React.FC<TaskManagementModalProps> = ({
 }) => {
   const [highPriorityTasks, setHighPriorityTasks] = useState<Task[]>([]);
   const [normalPriorityTasks, setNormalPriorityTasks] = useState<Task[]>([]);
-  
+
   // Get tasks for this DAG using dag_name for cross-referencing (dag.name represents dag_name)
   const { data: tasks, isLoading, error, refetch } = useGetDagTasks(dag?.name, dag?.name);
   const updateTaskPriority = useUpdateTaskPriority();
-  
+
   // Split tasks into priority zones when data loads
   useEffect(() => {
     if (tasks) {
@@ -42,22 +42,22 @@ const TaskManagementModal: React.FC<TaskManagementModalProps> = ({
       setNormalPriorityTasks(tasks.filter((task: Task) => task.priority === 'normal'));
     }
   }, [tasks]);
-  
+
   // Handle task being dropped into a priority zone
   const handleTaskDropped = (taskId: number, newPriority: TaskPriority) => {
     // Find the task in our local state
     const highPriorityTask = highPriorityTasks.find(t => t.id === taskId);
     const normalPriorityTask = normalPriorityTasks.find(t => t.id === taskId);
     const task = highPriorityTask || normalPriorityTask;
-    
+
     if (!task) return;
-    
+
     // Only process if priority is actually changing
     if (task.priority === newPriority) return;
-    
+
     // Update local state immediately for a responsive UI
     const updatedTask = { ...task, priority: newPriority };
-    
+
     if (newPriority === 'high') {
       setHighPriorityTasks(prev => [...prev, updatedTask]);
       setNormalPriorityTasks(prev => prev.filter(t => t.id !== taskId));
@@ -65,7 +65,7 @@ const TaskManagementModal: React.FC<TaskManagementModalProps> = ({
       setNormalPriorityTasks(prev => [...prev, updatedTask]);
       setHighPriorityTasks(prev => prev.filter(t => t.id !== taskId));
     }
-    
+
     // Call API to persist changes with team-scoped bulk update
     updateTaskPriority.mutate({ 
       taskId, 
@@ -78,17 +78,19 @@ const TaskManagementModal: React.FC<TaskManagementModalProps> = ({
     }, {
       onSuccess: (data) => {
         console.log('[TaskManagementModal] Task priority update successful:', data);
-        // Force refetch tasks to ensure UI is in sync
+        // Refetch tasks from API to ensure UI is in sync with server
         refetch();
       },
       onError: (error) => {
         console.error('[TaskManagementModal] Task priority update failed:', error);
+        // Revert optimistic update on error
+        refetch();
       }
     });
   };
-  
+
   if (!dag) return null;
-  
+
   return (
     <Dialog 
       open={isOpen} 
@@ -104,16 +106,16 @@ const TaskManagementModal: React.FC<TaskManagementModalProps> = ({
       }}
     >
       <DialogTitle sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Typography variant="h6">
+        <Typography variant="h6" component="span">
           {dag.name} - Task Management
         </Typography>
         <IconButton edge="end" onClick={onClose} aria-label="close">
           <X size={18} />
         </IconButton>
       </DialogTitle>
-      
+
       <Divider />
-      
+
       <DialogContent sx={{ px: 3, py: 3 }}>
         {isLoading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8 }}>
@@ -128,13 +130,13 @@ const TaskManagementModal: React.FC<TaskManagementModalProps> = ({
         ) : (
           <Box sx={{ position: 'relative' }}>
             <TaskDragLayer />
-            
+
             <Box sx={{ mb: 3 }}>
               <Typography variant="body2" color="text.secondary">
                 Drag and drop tasks between zones to change their priority. Tasks can be configured with enhanced monitoring and notification triggers.
               </Typography>
             </Box>
-            
+
             <Box 
               sx={{ 
                 display: 'grid', 
