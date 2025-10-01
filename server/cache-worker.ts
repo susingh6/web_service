@@ -92,8 +92,13 @@ async function getServiceSessionId(): Promise<string | null> {
 }
 
 // FastAPI client functions with timeout, retry, and authentication
-async function fastApiRequest(endpoint: string, retries = 2): Promise<any> {
-  const url = `${FASTAPI_BASE_URL}${endpoint}`;
+async function fastApiRequest(endpoint: string, queryParams?: Record<string, string>, retries = 2): Promise<any> {
+  // Build URL with query parameters if provided
+  let url = `${FASTAPI_BASE_URL}${endpoint}`;
+  if (queryParams && Object.keys(queryParams).length > 0) {
+    const params = new URLSearchParams(queryParams);
+    url += `?${params.toString()}`;
+  }
   console.log(`[Cache Worker] FastAPI request: ${url}`);
   
   for (let attempt = 0; attempt <= retries; attempt++) {
@@ -163,49 +168,49 @@ async function fastApiRequest(endpoint: string, retries = 2): Promise<any> {
 }
 
 // FastAPI endpoint functions - Updated to use /api/v1/ with RBAC
-async function fetchTenantsFromFastAPI(): Promise<any[]> {
-  return await fastApiRequest('/api/v1/tenants');
+async function fetchTenantsFromFastAPI(buildType: 'Regular' | 'Forced' = 'Regular'): Promise<any[]> {
+  return await fastApiRequest('/api/v1/tenants', { cache_build_type: buildType });
 }
 
-async function fetchTeamsFromFastAPI(): Promise<any[]> {
-  return await fastApiRequest('/api/v1/teams');
+async function fetchTeamsFromFastAPI(buildType: 'Regular' | 'Forced' = 'Regular'): Promise<any[]> {
+  return await fastApiRequest('/api/v1/teams', { cache_build_type: buildType });
 }
 
-async function fetchPresetsFromFastAPI(): Promise<any> {
-  return await fastApiRequest('/api/v1/presets');
+async function fetchPresetsFromFastAPI(buildType: 'Regular' | 'Forced' = 'Regular'): Promise<any> {
+  return await fastApiRequest('/api/v1/presets', { cache_build_type: buildType });
 }
 
-async function fetchComplianceFromFastAPI(): Promise<any> {
-  return await fastApiRequest('/api/v1/compliance');
+async function fetchComplianceFromFastAPI(buildType: 'Regular' | 'Forced' = 'Regular'): Promise<any> {
+  return await fastApiRequest('/api/v1/compliance', { cache_build_type: buildType });
 }
 
-async function fetchSlaFromFastAPI(): Promise<any[]> {
-  return await fastApiRequest('/api/v1/sla');
+async function fetchSlaFromFastAPI(buildType: 'Regular' | 'Forced' = 'Regular'): Promise<any[]> {
+  return await fastApiRequest('/api/v1/sla', { cache_build_type: buildType });
 }
 
-async function fetchUsersFromFastAPI(): Promise<any[]> {
-  return await fastApiRequest('/api/v1/users');
+async function fetchUsersFromFastAPI(buildType: 'Regular' | 'Forced' = 'Regular'): Promise<any[]> {
+  return await fastApiRequest('/api/v1/users', { cache_build_type: buildType });
 }
 
-async function fetchRolesFromFastAPI(): Promise<any[]> {
-  return await fastApiRequest('/api/v1/roles');
+async function fetchRolesFromFastAPI(buildType: 'Regular' | 'Forced' = 'Regular'): Promise<any[]> {
+  return await fastApiRequest('/api/v1/roles', { cache_build_type: buildType });
 }
 
-async function fetchConflictsFromFastAPI(): Promise<any[]> {
-  return await fastApiRequest('/api/v1/conflicts');
+async function fetchConflictsFromFastAPI(buildType: 'Regular' | 'Forced' = 'Regular'): Promise<any[]> {
+  return await fastApiRequest('/api/v1/conflicts', { cache_build_type: buildType });
 }
 
-async function fetchAllTasksFromFastAPI(): Promise<any> {
-  return await fastApiRequest('/api/v1/sla/all_tasks');
+async function fetchAllTasksFromFastAPI(buildType: 'Regular' | 'Forced' = 'Regular'): Promise<any> {
+  return await fastApiRequest('/api/v1/sla/all_tasks', { cache_build_type: buildType });
 }
 
 // Worker thread main function
-async function refreshCacheData(): Promise<CacheRefreshData> {
+async function refreshCacheData(buildType: 'Regular' | 'Forced' = 'Regular'): Promise<CacheRefreshData> {
   try {
-    console.log(`[Cache Worker] Starting cache refresh (FastAPI: ${USE_FASTAPI ? 'enabled' : 'disabled'})`);
+    console.log(`[Cache Worker] Starting cache refresh (FastAPI: ${USE_FASTAPI ? 'enabled' : 'disabled'}, Build Type: ${buildType})`);
     
     if (USE_FASTAPI) {
-      return await refreshFromFastAPI();
+      return await refreshFromFastAPI(buildType);
     } else {
       return await refreshFromStorage();
     }
@@ -227,21 +232,21 @@ async function refreshCacheData(): Promise<CacheRefreshData> {
 }
 
 // FastAPI data refresh
-async function refreshFromFastAPI(): Promise<CacheRefreshData> {
-  console.log('[Cache Worker] Refreshing cache from FastAPI endpoints');
+async function refreshFromFastAPI(buildType: 'Regular' | 'Forced' = 'Regular'): Promise<CacheRefreshData> {
+  console.log(`[Cache Worker] Refreshing cache from FastAPI endpoints (Build Type: ${buildType})`);
   
   try {
-    // Call all FastAPI endpoints in parallel for better performance
+    // Call all FastAPI endpoints in parallel for better performance with cache_build_type parameter
     const [tenantsData, teamsData, presetsData, complianceData, slaData, usersData, rolesData, conflictsData, allTasksData] = await Promise.all([
-      fetchTenantsFromFastAPI(),
-      fetchTeamsFromFastAPI(),
-      fetchPresetsFromFastAPI(),
-      fetchComplianceFromFastAPI(),
-      fetchSlaFromFastAPI(),
-      fetchUsersFromFastAPI(),
-      fetchRolesFromFastAPI(),
-      fetchConflictsFromFastAPI(),
-      fetchAllTasksFromFastAPI(),
+      fetchTenantsFromFastAPI(buildType),
+      fetchTeamsFromFastAPI(buildType),
+      fetchPresetsFromFastAPI(buildType),
+      fetchComplianceFromFastAPI(buildType),
+      fetchSlaFromFastAPI(buildType),
+      fetchUsersFromFastAPI(buildType),
+      fetchRolesFromFastAPI(buildType),
+      fetchConflictsFromFastAPI(buildType),
+      fetchAllTasksFromFastAPI(buildType),
     ]);
 
     // Map FastAPI data to our cache structure
