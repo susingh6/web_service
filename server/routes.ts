@@ -3576,35 +3576,97 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Legacy Express fallback for task priority updates
-  app.patch("/api/tasks/:taskId", ...(isDevelopment ? [] : [isAuthenticated]), async (req: Request, res: Response) => {
+  // Express fallback for bulk task priority updates with entity_name pattern
+  app.patch("/api/entities/:entity_name/tasks/priorities", ...(isDevelopment ? [] : [isAuthenticated]), async (req: Request, res: Response) => {
     try {
-      const taskId = parseInt(req.params.taskId);
-      if (isNaN(taskId)) {
-        return res.status(400).json({ message: "Invalid task ID" });
+      const entityName = req.params.entity_name;
+      if (!entityName) {
+        return res.status(400).json({ message: "Entity name is required" });
       }
 
-      const { priority } = req.body;
-      if (!priority || !["high", "normal"].includes(priority)) {
-        return res.status(400).json({ message: "Invalid priority. Must be 'high' or 'normal'" });
+      const { tasks, team_name, tenant_name, user } = req.body;
+      
+      // Validation
+      if (!Array.isArray(tasks)) {
+        return res.status(400).json({ message: "Tasks array is required" });
+      }
+      
+      if (!team_name || !tenant_name) {
+        return res.status(400).json({ message: "team_name and tenant_name are required" });
       }
 
-      // For now, return updated mock data
-      // In a real implementation, this would update the database
-      const updatedTask = {
-        id: taskId,
-        name: `Task${taskId}`,
-        priority: priority,
-        status: "running",
-        description: `Updated task ${taskId} priority to ${priority}`,
-        updatedAt: new Date().toISOString()
+      // Validate each task priority
+      for (const task of tasks) {
+        if (!task.task_name || !task.priority || !["high", "normal"].includes(task.priority)) {
+          return res.status(400).json({ 
+            message: `Invalid task format. Each task must have task_name and priority ('high' or 'normal')` 
+          });
+        }
+      }
+
+      // Get logged-in user from session
+      const sessionUser = req.session ? (req.session as any).user : undefined;
+      const loggedInUser = sessionUser || req.user || { 
+        email: user?.email || 'unknown@example.com',
+        name: user?.name || 'Unknown User'
       };
 
-      // Task priority updated
-      res.json(updatedTask);
+      // Update the mock service data
+      const { mockTaskService } = await import('../client/src/features/sla/mockService.js');
+      
+      // Find the DAG entity to get its ID
+      const entities = await storage.getEntities();
+      const dagEntity = entities.find(e => e.name === entityName && e.type === 'dag');
+      
+      if (dagEntity) {
+        // Update each task's priority in the mock service
+        tasks.forEach(task => {
+          mockTaskService.updateTaskPriorityByName(dagEntity.id, task.task_name, task.priority);
+        });
+      }
+
+      // Update the 6-hour Redis cache with new allTasksData
+      const updatedAllTasksData = mockTaskService.getAllTasksData();
+      await redisCache.setAllTasksData(updatedAllTasksData);
+
+      // Store team-scoped AI tasks in Redis cache
+      const aiTasks = tasks
+        .filter(task => task.priority === 'high')
+        .map(task => task.task_name);
+      
+      const cacheKey = `ai_tasks:${team_name}:${entityName}`;
+      await redisCache.set(cacheKey, JSON.stringify(aiTasks), 21600); // 6 hour TTL
+      console.log(`[Express Fallback] AI Tasks Cache Set - ${cacheKey}: [${aiTasks.join(', ')}]`);
+
+      // Process bulk task priority updates with team context
+      const updatedTasks = tasks.map(task => ({
+        task_name: task.task_name,
+        priority: task.priority,
+        task_type: task.priority === 'high' ? 'AI' : 'regular',
+        entity_name: entityName,
+        team_name: team_name,
+        tenant_name: tenant_name,
+        updated_by: loggedInUser.email,
+        updated_by_name: loggedInUser.name,
+        updatedAt: new Date().toISOString()
+      }));
+
+      console.log(`[Express Fallback] Bulk Update - Entity: ${entityName}, Team: ${team_name}`);
+      console.log(`[Express Fallback] Updated ${tasks.length} tasks by user: ${loggedInUser.email}`);
+      
+      res.json({
+        success: true,
+        entity_name: entityName,
+        team_name: team_name,
+        tenant_name: tenant_name,
+        updated_by: loggedInUser.email,
+        tasks_updated: updatedTasks.length,
+        tasks: updatedTasks,
+        timestamp: new Date().toISOString()
+      });
     } catch (error) {
-      console.error("Error updating task priority:", error);
-      res.status(500).json({ message: "Failed to update task priority" });
+      console.error("Error updating task priorities (Express fallback):", error);
+      res.status(500).json({ message: "Failed to update task priorities" });
     }
   });
 

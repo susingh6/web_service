@@ -66,19 +66,23 @@ const TaskManagementModal: React.FC<TaskManagementModalProps> = ({
       setHighPriorityTasks(prev => prev.filter(t => t.id !== taskId));
     }
 
+    // Build the updated tasks list with new priorities
+    const updatedTasks = tasks?.map(t => 
+      t.id === taskId ? { ...t, priority: newPriority } : t
+    ) || [];
+
     // Call API to persist changes with team-scoped bulk update
+    if (!dag) return;
+    
     updateTaskPriority.mutate({ 
-      taskId, 
-      priority: newPriority,
-      entityName: dag?.name as string,     // For Express fallback API compatibility
-      dagName: dag?.name as string,        // Primary: For dag_name-based FastAPI system
-      allTasks: tasks,                     // All tasks for bulk update context
-      tenantName: dag?.tenant_name || undefined,        // Team context for scoped updates
-      teamName: dag?.team_name || undefined             // Team context for scoped updates
+      entityName: dag.name,
+      allTasks: updatedTasks,
+      teamName: dag.team_name || '',
+      tenantName: dag.tenant_name || ''
     }, {
-      onSuccess: (data) => {
-        console.log('[TaskManagementModal] Task priority update successful:', data);
-        // No refetch needed - optimistic update is already correct
+      onSuccess: () => {
+        console.log('[TaskManagementModal] Task priority update successful - refetching...');
+        // Query will auto-refetch due to invalidation in mutation
       },
       onError: (error) => {
         console.error('[TaskManagementModal] Task priority update failed:', error);
