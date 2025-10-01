@@ -28,6 +28,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { TeamNotificationSettings } from '@/components/team/TeamNotificationSettings';
 import NotificationSummary from '@/components/team/NotificationSummary';
 import { useWebSocket } from '@/hooks/useWebSocket';
+import { createPresetMap } from '@shared/preset-ranges';
 
 interface TeamDashboardProps {
   teamName: string;
@@ -135,6 +136,27 @@ const TeamDashboard = ({
     },
     enabled: !!team?.name && !!team?.id,
     refetchOnMount: 'always',
+  });
+
+  // ============================================================================
+  // TEAM PRESET CACHING - Load all presets for this team from 6-hour cache
+  // ============================================================================
+  // Loads when team tab opens (user clicks + sign)
+  // Presets are team-scoped (e.g., /api/dashboard/presets?team=PGM)
+  // Reduces API calls - use cached preset data when available
+  // Falls back to API for custom ranges or missing presets
+  // ============================================================================
+  const { data: presetsData, isLoading: presetsLoading } = useQuery<{
+    presets: Record<string, { metrics: any; complianceTrends: any }>;
+    lastUpdated: string;
+    cached: boolean;
+    scope: string;
+  }>({
+    queryKey: ['/api/dashboard/presets', tenantName, teamName],
+    enabled: !!team?.name,
+    staleTime: 6 * 60 * 60 * 1000, // 6 hours (matches cache refresh interval)
+    refetchOnWindowFocus: false,
+    refetchInterval: false // No polling, WebSocket handles invalidation
   });
 
   // Ensure teams are loaded when visiting TeamDashboard directly
