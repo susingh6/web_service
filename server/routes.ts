@@ -318,7 +318,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // FastAPI fallback route for creating new users
-  app.post("/api/v1/users", async (req: Request, res: Response) => {
+  app.post("/api/v1/users", checkActiveUserDev, async (req: Request, res: Response) => {
     try {
       // Validate request body with admin user schema
       const validationResult = adminUserSchema.safeParse(req.body);
@@ -358,7 +358,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // FastAPI fallback route for updating users
-  app.put("/api/v1/users/:userId", async (req: Request, res: Response) => {
+  app.put("/api/v1/users/:userId", checkActiveUserDev, async (req: Request, res: Response) => {
     try {
       const userId = parseInt(req.params.userId);
       if (isNaN(userId)) {
@@ -410,7 +410,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // PATCH endpoint for user updates (FastAPI)
-  app.patch("/api/v1/users/:userId", async (req: Request, res: Response) => {
+  app.patch("/api/v1/users/:userId", checkActiveUserDev, async (req: Request, res: Response) => {
     try {
       const userId = parseInt(req.params.userId);
       if (isNaN(userId)) {
@@ -2810,7 +2810,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.post("/api/entities/:id/history", async (req, res) => {
+  app.post("/api/entities/:id/history", checkActiveUserDev, async (req, res) => {
     try {
       const entityId = parseInt(req.params.id);
       if (isNaN(entityId)) {
@@ -2846,7 +2846,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.post("/api/entities/:id/issues", async (req, res) => {
+  app.post("/api/entities/:id/issues", checkActiveUserDev, async (req, res) => {
     try {
       const entityId = parseInt(req.params.id);
       if (isNaN(entityId)) {
@@ -2867,7 +2867,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.put("/api/issues/:id/resolve", async (req, res) => {
+  app.put("/api/issues/:id/resolve", checkActiveUserDev, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -3164,7 +3164,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create notification timeline - bypass auth in development
-  app.post("/api/notification-timelines", ...(isDevelopment ? [] : [isAuthenticated]), async (req: Request, res: Response) => {
+  app.post("/api/notification-timelines", ...(isDevelopment ? [checkActiveUserDev] : [isAuthenticated]), async (req: Request, res: Response) => {
     try {
       const validatedData = insertNotificationTimelineSchema.parse(req.body);
       const timeline = await storage.createNotificationTimeline(validatedData);
@@ -3191,7 +3191,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update notification timeline - bypass auth in development
-  app.put("/api/notification-timelines/:id", ...(isDevelopment ? [] : [isAuthenticated]), async (req: Request, res: Response) => {
+  app.put("/api/notification-timelines/:id", ...(isDevelopment ? [checkActiveUserDev] : [isAuthenticated]), async (req: Request, res: Response) => {
     try {
       const timelineId = req.params.id;
       
@@ -3223,7 +3223,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Delete notification timeline - bypass auth in development
-  app.delete("/api/notification-timelines/:id", ...(isDevelopment ? [] : [isAuthenticated]), async (req: Request, res: Response) => {
+  app.delete("/api/notification-timelines/:id", ...(isDevelopment ? [checkActiveUserDev] : [isAuthenticated]), async (req: Request, res: Response) => {
     try {
       const timelineId = req.params.id;
       const deleted = await storage.deleteNotificationTimeline(timelineId);
@@ -3241,7 +3241,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Entity subscription routes
   // Subscribe to a notification timeline - bypass auth in development
-  app.post("/api/subscriptions", ...(isDevelopment ? [] : [isAuthenticated]), async (req: Request, res: Response) => {
+  app.post("/api/subscriptions", ...(isDevelopment ? [checkActiveUserDev] : [isAuthenticated]), async (req: Request, res: Response) => {
     try {
       if (!req.user?.id) {
         return res.status(401).json({ message: "User not authenticated" });
@@ -3265,7 +3265,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Unsubscribe from a notification timeline - bypass auth in development
-  app.delete("/api/subscriptions/:timelineId", ...(isDevelopment ? [] : [isAuthenticated]), async (req: Request, res: Response) => {
+  app.delete("/api/subscriptions/:timelineId", ...(isDevelopment ? [checkActiveUserDev] : [isAuthenticated]), async (req: Request, res: Response) => {
     try {
       if (!req.user?.id) {
         return res.status(401).json({ message: "User not authenticated" });
@@ -3528,7 +3528,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // PATCH API for bulk task priority updates at entity level - Team-scoped with user context
-  app.patch("/api/v1/entities/:entity_name/tasks/priorities", ...(isDevelopment ? [] : [isAuthenticated]), async (req: Request, res: Response) => {
+  app.patch("/api/v1/entities/:entity_name/tasks/priorities", ...(isDevelopment ? [checkActiveUserDev] : [isAuthenticated]), async (req: Request, res: Response) => {
     try {
       const entityName = req.params.entity_name;
       if (!entityName) {
@@ -3633,7 +3633,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Express fallback for bulk task priority updates with entity_name pattern
-  app.patch("/api/entities/:entity_name/tasks/priorities", ...(isDevelopment ? [] : [isAuthenticated]), async (req: Request, res: Response) => {
+  app.patch("/api/entities/:entity_name/tasks/priorities", ...(isDevelopment ? [checkActiveUserDev] : [isAuthenticated]), async (req: Request, res: Response) => {
     try {
       const entityName = req.params.entity_name;
       if (!entityName) {
@@ -4098,7 +4098,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // FastAPI-style: Update existing user (fallback handler)
-  app.put("/api/v1/users/:id", async (req, res) => {
+  app.put("/api/v1/users/:id", checkActiveUserDev, async (req, res) => {
     try {
       const userId = parseInt(req.params.id);
       if (isNaN(userId)) {
@@ -4556,7 +4556,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update entity owners (PATCH) - accepts array of emails (comma or array)
-  app.patch('/api/entities/:entityId/owner', async (req: Request, res: Response) => {
+  app.patch('/api/entities/:entityId/owner', checkActiveUserDev, async (req: Request, res: Response) => {
     try {
       const entityId = parseInt(req.params.entityId);
       if (isNaN(entityId)) {
@@ -4594,7 +4594,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // FastAPI-style alias
-  app.patch('/api/v1/entities/:entityId/owner', async (req: Request, res: Response) => {
+  app.patch('/api/v1/entities/:entityId/owner', checkActiveUserDev, async (req: Request, res: Response) => {
     try {
       const { entityId } = req.params;
       req.url = `/api/entities/${entityId}/owner`;
@@ -4606,7 +4606,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // FastAPI-style owner update by entity name for tables
-  app.patch('/api/v1/tables/:entityName/owner', async (req: Request, res: Response) => {
+  app.patch('/api/v1/tables/:entityName/owner', checkActiveUserDev, async (req: Request, res: Response) => {
     try {
       const { entityName } = req.params;
       
@@ -4652,7 +4652,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // FastAPI-style owner update by entity name for DAGs
-  app.patch('/api/v1/dags/:entityName/owner', async (req: Request, res: Response) => {
+  app.patch('/api/v1/dags/:entityName/owner', checkActiveUserDev, async (req: Request, res: Response) => {
     try {
       const { entityName } = req.params;
       
@@ -4700,7 +4700,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Development-only fallback routes for owner updates (non-versioned)
   if (isDevelopment) {
     // Fallback owner update by entity name for tables (Express fallback when FastAPI unavailable)
-    app.patch('/api/tables/:entityName/owner', async (req: Request, res: Response) => {
+    app.patch('/api/tables/:entityName/owner', checkActiveUserDev, async (req: Request, res: Response) => {
       try {
         const { entityName } = req.params;
         
@@ -4747,7 +4747,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
 
     // Fallback owner update by entity name for DAGs (Express fallback when FastAPI unavailable)
-    app.patch('/api/dags/:entityName/owner', async (req: Request, res: Response) => {
+    app.patch('/api/dags/:entityName/owner', checkActiveUserDev, async (req: Request, res: Response) => {
       try {
         const { entityName } = req.params;
         
