@@ -346,18 +346,11 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
     staleTime: 10 * 60 * 1000, // 10 minutes cache
   });
   
-  // Early return after all hooks have been called
-  if (!entity) return null;
-  
-  const formatDate = (date: Date | null) => {
-    if (!date) return 'N/A';
-    return format(date, 'MMM d, yyyy • h:mm a');
-  };
-  
   // Fetch compliance trend data from 6-hour cache
   const { data: complianceTrendData, isLoading: complianceTrendLoading } = useQuery({
-    queryKey: ['entity-compliance-trend', entity.type, entity.name, entity.team_name],
+    queryKey: ['entity-compliance-trend', entity?.type, entity?.name, entity?.team_name],
     queryFn: async () => {
+      if (!entity) return [];
       const teamQuery = entity.team_name ? `?teamName=${encodeURIComponent(entity.team_name)}` : '';
       const response = await fetch(`/api/entities/compliance-trend/${entity.type}/${encodeURIComponent(entity.name)}${teamQuery}`);
       if (!response.ok) throw new Error('Failed to fetch compliance trend');
@@ -365,6 +358,14 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
     },
     enabled: open && !!entity,
   });
+  
+  // Early return after all hooks have been called
+  if (!entity) return null;
+  
+  const formatDate = (date: Date | null) => {
+    if (!date) return 'N/A';
+    return format(date, 'MMM d, yyyy • h:mm a');
+  };
   
   const handleDelete = () => {
     setOpenDeleteDialog(true);
