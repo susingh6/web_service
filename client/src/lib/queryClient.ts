@@ -5,16 +5,20 @@ async function throwIfResNotOk(res: Response) {
     const text = (await res.text()) || res.statusText;
     
     // Try to parse as JSON to extract a specific error message
+    let errorData;
     try {
-      const errorData = JSON.parse(text);
-      if (errorData && typeof errorData.message === 'string') {
-        throw new Error(errorData.message);
-      }
+      errorData = JSON.parse(text);
     } catch (parseError) {
       // If JSON parsing fails, fall back to original behavior
+      throw new Error(`${res.status}: ${text}`);
     }
     
-    // Fall back to original behavior
+    // If we have a message field, throw just that
+    if (errorData && typeof errorData.message === 'string') {
+      throw new Error(errorData.message);
+    }
+    
+    // Fall back to full text
     throw new Error(`${res.status}: ${text}`);
   }
 }
