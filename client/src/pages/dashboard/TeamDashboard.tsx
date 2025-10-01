@@ -487,6 +487,39 @@ const TeamDashboard = ({
     );
   }
 
+  // Helper to count entities using same logic as "Entities Monitored" card
+  // This ensures header badges always match the card across all time frames and presets
+  const getEntityCounts = () => {
+    // Count entities exactly like EntityTable displays them
+    let filteredForDisplay = teamEntities.filter((entity: Entity) => entity.is_active);
+    
+    // Apply same filtering logic as EntityTable:
+    // If metrics unavailable for selected range, show only recent entities
+    if (!canDisplayTrends) {
+      const isEntityRecent = (entity: Entity): boolean => {
+        if (!entity.lastRefreshed && !entity.updatedAt) return false;
+        const updateTime = entity.lastRefreshed || entity.updatedAt;
+        if (!updateTime) return false;
+        const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000);
+        const entityUpdateTime = new Date(updateTime);
+        return entityUpdateTime >= sixHoursAgo;
+      };
+      filteredForDisplay = filteredForDisplay.filter(isEntityRecent);
+    }
+    
+    // Calculate breakdown using same filtering
+    const tablesForDisplay = filteredForDisplay.filter((entity: Entity) => entity.type === 'table');
+    const dagsForDisplay = filteredForDisplay.filter((entity: Entity) => entity.type === 'dag');
+    
+    return {
+      total: filteredForDisplay.length,
+      tables: tablesForDisplay.length,
+      dags: dagsForDisplay.length
+    };
+  };
+
+  const entityCounts = getEntityCounts();
+
   return (
     <Box sx={{ p: 3 }}>
       <Box mb={4}>
@@ -501,17 +534,17 @@ const TeamDashboard = ({
               </Typography>
               <Box display="flex" alignItems="center" mt={2} gap={1} flexWrap="wrap">
                 <Chip 
-                  label={`${teamMetrics?.entitiesCount || activeTeamEntities.length} Entities`} 
+                  label={`${entityCounts.total} Entities`} 
                   size="small" 
                   sx={{ bgcolor: 'primary.light', color: 'white' }} 
                 />
                 <Chip 
-                  label={`${teamMetrics?.tablesCount || tables.length} Tables`} 
+                  label={`${entityCounts.tables} Tables`} 
                   size="small" 
                   sx={{ bgcolor: 'info.light', color: 'white' }} 
                 />
                 <Chip 
-                  label={`${teamMetrics?.dagsCount || dags.length} DAGs`} 
+                  label={`${entityCounts.dags} DAGs`} 
                   size="small" 
                   sx={{ bgcolor: 'secondary.light', color: 'white' }} 
                 />
@@ -716,55 +749,12 @@ const TeamDashboard = ({
             },
             { 
               title: "Entities Monitored", 
-              value: (() => {
-                // Count entities exactly like EntityTable displays them
-                let filteredForDisplay = teamEntities.filter((entity: Entity) => entity.is_active);
-                
-                // Apply same filtering logic as EntityTable:
-                // If metrics unavailable for selected range, show only recent entities
-                if (!canDisplayTrends) {
-                  const isEntityRecent = (entity: Entity): boolean => {
-                    if (!entity.lastRefreshed && !entity.updatedAt) return false;
-                    const updateTime = entity.lastRefreshed || entity.updatedAt;
-                    if (!updateTime) return false;
-                    const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000);
-                    const entityUpdateTime = new Date(updateTime);
-                    return entityUpdateTime >= sixHoursAgo;
-                  };
-                  filteredForDisplay = filteredForDisplay.filter(isEntityRecent);
-                }
-                
-                return filteredForDisplay.length;
-              })(),
+              value: entityCounts.total,
               trend: 0, 
               suffix: "",
               loading: teamSummaryLoading,
               showDataUnavailable: false, // Never show unavailable - always show actual count
-              subtitle: (() => {
-                // Calculate breakdown using same filtering as count above
-                let tablesForDisplay = teamEntities.filter((entity: Entity) => 
-                  entity.type === 'table' && entity.is_active
-                );
-                let dagsForDisplay = teamEntities.filter((entity: Entity) => 
-                  entity.type === 'dag' && entity.is_active
-                );
-                
-                // Apply recent filter if metrics unavailable (same as EntityTable logic)
-                if (!canDisplayTrends) {
-                  const isEntityRecent = (entity: Entity): boolean => {
-                    if (!entity.lastRefreshed && !entity.updatedAt) return false;
-                    const updateTime = entity.lastRefreshed || entity.updatedAt;
-                    if (!updateTime) return false;
-                    const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000);
-                    const entityUpdateTime = new Date(updateTime);
-                    return entityUpdateTime >= sixHoursAgo;
-                  };
-                  tablesForDisplay = tablesForDisplay.filter(isEntityRecent);
-                  dagsForDisplay = dagsForDisplay.filter(isEntityRecent);
-                }
-                
-                return `${tablesForDisplay.length} Tables • ${dagsForDisplay.length} DAGs`;
-              })()
+              subtitle: `${entityCounts.tables} Tables • ${entityCounts.dags} DAGs`
             }
           ].map((card, idx) => (
             <Box key={card.title} flex="1 1 250px" minWidth="250px">
