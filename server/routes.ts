@@ -4195,10 +4195,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: 'Entity not found' });
       }
       
+      // Lookup owner's is_active status from users table
+      const ownerEmail = entity.ownerEmail || entity.owner_email || 'owner@company.com';
+      let ownerIsActive = true; // Default to active if not found
+      
+      try {
+        const users = await storage.getUsers();
+        const ownerUser = users.find(u => u.email === ownerEmail);
+        if (ownerUser) {
+          ownerIsActive = ownerUser.is_active !== undefined ? ownerUser.is_active : true;
+        }
+      } catch (userLookupError) {
+        console.warn('Failed to lookup owner active status:', userLookupError);
+        // Continue with default ownerIsActive = true
+      }
+      
       // Return owner and SLA settings data
       res.json({
         owner: entity.owner || 'Unknown Owner',
-        ownerEmail: entity.ownerEmail || entity.owner_email || 'owner@company.com',
+        ownerEmail: ownerEmail,
+        ownerIsActive: ownerIsActive, // NEW: Include owner's active status
         userEmail: 'user@company.com',
         entityName: entity.name,
         team: teamName,
