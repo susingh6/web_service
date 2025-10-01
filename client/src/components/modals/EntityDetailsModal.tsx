@@ -111,10 +111,12 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
   const [localOwnerEmails, setLocalOwnerEmails] = useState<string[] | null>(null);
   
   // Query to get all users for checking expired status
+  // Always refetch to ensure we show latest user status (active/inactive)
   const { data: allUsers = [] } = useQuery<any[]>({
     queryKey: ['/api/admin/users'],
     enabled: open && !!entity,
-    staleTime: 30 * 1000,
+    staleTime: 0, // No stale time - always fetch fresh data
+    refetchOnMount: 'always', // Force refetch when modal opens
   });
   
   // Reset local owner emails when entity changes to prevent cross-entity contamination
