@@ -417,6 +417,8 @@ const UsersManagement = () => {
         // Invalidate all team member queries since user status affects team dashboards
         queryClient.invalidateQueries({ queryKey: ['teamMembers'] });
         queryClient.invalidateQueries({ queryKey: ['/api/v1/get_team_members'] });
+        // CRITICAL: Invalidate EntityDetailsModal user list cache to show expired indicators
+        queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
       }
 
       toast({
