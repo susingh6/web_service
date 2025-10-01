@@ -2831,8 +2831,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Notification Timeline endpoints
 
-  // Get notification timelines for an entity
-  app.get("/api/entities/:id/notification-timelines", isAuthenticated, async (req: Request, res: Response) => {
+  // Get notification timelines for an entity - bypass auth in development
+  app.get("/api/entities/:id/notification-timelines", ...(isDevelopment ? [] : [isAuthenticated]), async (req: Request, res: Response) => {
     try {
       const entityId = parseInt(req.params.id);
       const timelines = await storage.getNotificationTimelines(entityId);
@@ -3107,8 +3107,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Create notification timeline
-  app.post("/api/notification-timelines", isAuthenticated, async (req: Request, res: Response) => {
+  // Create notification timeline - bypass auth in development
+  app.post("/api/notification-timelines", ...(isDevelopment ? [] : [isAuthenticated]), async (req: Request, res: Response) => {
     try {
       const validatedData = insertNotificationTimelineSchema.parse(req.body);
       const timeline = await storage.createNotificationTimeline(validatedData);
@@ -3122,8 +3122,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get notification timeline by ID
-  app.get("/api/notification-timelines/:id", isAuthenticated, async (req: Request, res: Response) => {
+  // Get notification timeline by ID - bypass auth in development
+  app.get("/api/notification-timelines/:id", ...(isDevelopment ? [] : [isAuthenticated]), async (req: Request, res: Response) => {
     try {
       const timelineId = req.params.id;
       // Implementation would retrieve timeline by ID from storage
@@ -3134,8 +3134,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Update notification timeline
-  app.put("/api/notification-timelines/:id", isAuthenticated, async (req: Request, res: Response) => {
+  // Update notification timeline - bypass auth in development
+  app.put("/api/notification-timelines/:id", ...(isDevelopment ? [] : [isAuthenticated]), async (req: Request, res: Response) => {
     try {
       const timelineId = req.params.id;
       
@@ -3166,8 +3166,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Delete notification timeline
-  app.delete("/api/notification-timelines/:id", isAuthenticated, async (req: Request, res: Response) => {
+  // Delete notification timeline - bypass auth in development
+  app.delete("/api/notification-timelines/:id", ...(isDevelopment ? [] : [isAuthenticated]), async (req: Request, res: Response) => {
     try {
       const timelineId = req.params.id;
       const deleted = await storage.deleteNotificationTimeline(timelineId);
@@ -3184,8 +3184,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Entity subscription routes
-  // Subscribe to a notification timeline
-  app.post("/api/subscriptions", isAuthenticated, async (req: Request, res: Response) => {
+  // Subscribe to a notification timeline - bypass auth in development
+  app.post("/api/subscriptions", ...(isDevelopment ? [] : [isAuthenticated]), async (req: Request, res: Response) => {
     try {
       if (!req.user?.id) {
         return res.status(401).json({ message: "User not authenticated" });
@@ -3208,8 +3208,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Unsubscribe from a notification timeline
-  app.delete("/api/subscriptions/:timelineId", isAuthenticated, async (req: Request, res: Response) => {
+  // Unsubscribe from a notification timeline - bypass auth in development
+  app.delete("/api/subscriptions/:timelineId", ...(isDevelopment ? [] : [isAuthenticated]), async (req: Request, res: Response) => {
     try {
       if (!req.user?.id) {
         return res.status(401).json({ message: "User not authenticated" });
@@ -3244,8 +3244,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get subscriptions for a specific timeline (with count and user details)
-  app.get("/api/notification-timelines/:id/subscriptions", isAuthenticated, async (req: Request, res: Response) => {
+  // Get subscriptions for a specific timeline (with count and user details) - bypass auth in development
+  app.get("/api/notification-timelines/:id/subscriptions", ...(isDevelopment ? [] : [isAuthenticated]), async (req: Request, res: Response) => {
     try {
       const timelineId = req.params.id;
       const subscriptions = await storage.getTimelineSubscriptions(timelineId);
