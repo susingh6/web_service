@@ -36,7 +36,7 @@ export const WEBSOCKET_CONFIG = {
     'team-members-cache': ['teams-management', 'team-dashboard', 'singleton'],
     'team-details-cache': ['teams-management', 'team-dashboard', 'singleton'],
     'team-notifications-cache': ['teams-management', 'singleton'],
-    'entities-cache': ['summary-dashboard', 'team-dashboard', 'teams-management', 'rollback-management', 'singleton'],
+    'entities-cache': ['summary-dashboard', 'team-dashboard', 'teams-management', 'singleton'],
     'entity-ownership-cache': ['summary-dashboard', 'team-dashboard', 'teams-management', 'singleton'],
     'users-cache': ['teams-management', 'users-management', 'singleton'],
     'tenants-cache': ['teams-management', 'summary-dashboard', 'singleton'],
