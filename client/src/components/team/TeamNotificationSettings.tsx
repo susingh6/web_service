@@ -120,9 +120,10 @@ export function TeamNotificationSettings({ team, tenantName, variant = 'default'
     },
     onError: (error: any) => {
       console.error('Update team notifications error:', error);
+      const errorMessage = error?.message || 'Failed to update team notification settings';
       toast({
         title: 'Error',
-        description: 'Failed to update team notification settings',
+        description: errorMessage,
         variant: 'destructive',
       });
     }

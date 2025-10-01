@@ -107,10 +107,31 @@ export const prodConfig = {
 
     // Agent workspace endpoints (entity_name based)
     agent: {
-      conversationSummaries: (dagId: number) => `/api/v1/agent/conversations/summaries/${dagId}`,
+      conversationSummaries: (entityName: string, dagName?: string, taskName?: string, date?: string) => {
+        const params = new URLSearchParams();
+        if (dagName) params.append('dag_name', dagName);
+        if (taskName) params.append('task_name', taskName);
+        if (date) params.append('date', date);
+        const query = params.toString();
+        return `/api/v1/agent/conversations/${entityName}/recent${query ? `?${query}` : ''}`;
+      },
       fullConversation: (conversationId: string) => `/api/v1/agent/conversations/${conversationId}`,
-      sendMessage: (dagId: number) => `/api/v1/agent/conversations/${dagId}/send`,
-      chatWithIncident: (dagId: number) => `/api/v1/agent/chat/incident/${dagId}`,
+      sendMessage: (entityName: string, dagName?: string, taskName?: string, date?: string) => {
+        const params = new URLSearchParams();
+        if (dagName) params.append('dag_name', dagName);
+        if (taskName) params.append('task_name', taskName);
+        if (date) params.append('date', date);
+        const query = params.toString();
+        return `/api/v1/agent/chat/${entityName}${query ? `?${query}` : ''}`;
+      },
+      chatWithIncident: (entityName: string, dagName?: string, taskName?: string, date?: string) => {
+        const params = new URLSearchParams();
+        if (dagName) params.append('dag_name', dagName);
+        if (taskName) params.append('task_name', taskName);
+        if (date) params.append('date', date);
+        const query = params.toString();
+        return `/api/v1/agent/chat/${entityName}${query ? `?${query}` : ''}`;
+      },
       chat: (entityName: string, dagName?: string, taskName?: string, date?: string) => {
         const params = new URLSearchParams();
         if (dagName) params.append('dag_name', dagName);
@@ -125,7 +146,7 @@ export const prodConfig = {
         if (taskName) params.append('task_name', taskName);
         if (date) params.append('date', date);
         const query = params.toString();
-        return `/api/v1/agent/history/${entityName}${query ? `?${query}` : ''}`;
+        return `/api/v1/agent/conversations/${entityName}/recent${query ? `?${query}` : ''}`;
       },
       saveConversation: (entityName: string, dagName?: string, taskName?: string, date?: string) => {
         const params = new URLSearchParams();
@@ -133,7 +154,7 @@ export const prodConfig = {
         if (taskName) params.append('task_name', taskName);
         if (date) params.append('date', date);
         const query = params.toString();
-        return `/api/v1/agent/save/${entityName}${query ? `?${query}` : ''}`;
+        return `/api/v1/agent/conversations/${entityName}/save${query ? `?${query}` : ''}`;
       },
     },
 

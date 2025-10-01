@@ -3727,6 +3727,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ============================================
+  // AGENT WORKSPACE ENDPOINTS (Express Fallback)
+  // ============================================
+  
+  // POST /api/v1/agent/chat/:entity_name - Send message to agent with entity context
+  app.post("/api/v1/agent/chat/:entity_name", ...(isDevelopment ? [checkActiveUserDev] : [isAuthenticated]), async (req: Request, res: Response) => {
+    try {
+      const { entity_name } = req.params;
+      const { dag_name, task_name, date } = req.query;
+      const { message, context } = req.body;
+      
+      console.log(`[Agent Chat Fallback] Entity: ${entity_name}, DAG: ${dag_name}, Task: ${task_name}, Date: ${date}`);
+      
+      // Mock response for development
+      res.json({
+        response: `Agent response for ${entity_name}`,
+        conversation_id: `conv_${Date.now()}`,
+        entity_name,
+        dag_name: dag_name || null,
+        task_name: task_name || null,
+        date: date || null,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error("Error in agent chat:", error);
+      res.status(500).json({ message: "Failed to process agent chat" });
+    }
+  });
+  
+  // GET /api/v1/agent/conversations/:entity_name/recent - Load recent conversation history
+  app.get("/api/v1/agent/conversations/:entity_name/recent", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const { entity_name } = req.params;
+      const { dag_name, task_name, date, limit = '10' } = req.query;
+      
+      console.log(`[Agent History Fallback] Entity: ${entity_name}, Limit: ${limit}`);
+      
+      // Mock response for development
+      res.json({
+        messages: [],
+        entity_name,
+        dag_name: dag_name || null,
+        task_name: task_name || null,
+        date: date || null
+      });
+    } catch (error) {
+      console.error("Error loading agent conversation:", error);
+      res.status(500).json({ message: "Failed to load conversation history" });
+    }
+  });
+  
+  // POST /api/v1/agent/conversations/:entity_name/save - Save conversation history
+  app.post("/api/v1/agent/conversations/:entity_name/save", ...(isDevelopment ? [checkActiveUserDev] : [isAuthenticated]), async (req: Request, res: Response) => {
+    try {
+      const { entity_name } = req.params;
+      const { dag_name, task_name, date } = req.query;
+      const { messages, user_context } = req.body;
+      
+      console.log(`[Agent Save Fallback] Entity: ${entity_name}, Messages: ${messages?.length || 0}`);
+      
+      res.json({
+        success: true,
+        entity_name,
+        saved_count: messages?.length || 0,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error("Error saving agent conversation:", error);
+      res.status(500).json({ message: "Failed to save conversation" });
+    }
+  });
+
+  // ============================================
   // ADMIN TENANT MANAGEMENT ENDPOINTS
   // ============================================
   

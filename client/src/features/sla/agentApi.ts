@@ -156,12 +156,12 @@ const mockFullConversations: Record<string, FullConversation> = {
   },
 };
 
-// Utility functions for localStorage management
-const getStorageKey = (dagId: number) => `agent-chat-${dagId}`;
+// Utility functions for localStorage management (supports both dagId and entityName)
+const getStorageKey = (identifier: number | string) => `agent-chat-${identifier}`;
 
-const loadFromLocalStorage = (dagId: number): ConversationMessage[] => {
+const loadFromLocalStorage = (identifier: number | string): ConversationMessage[] => {
   try {
-    const stored = localStorage.getItem(getStorageKey(dagId));
+    const stored = localStorage.getItem(getStorageKey(identifier));
     return stored ? JSON.parse(stored) : [];
   } catch (error) {
     console.warn('Failed to load conversation from localStorage:', error);
@@ -169,9 +169,9 @@ const loadFromLocalStorage = (dagId: number): ConversationMessage[] => {
   }
 };
 
-const saveToLocalStorage = (dagId: number, messages: ConversationMessage[]) => {
+const saveToLocalStorage = (identifier: number | string, messages: ConversationMessage[]) => {
   try {
-    localStorage.setItem(getStorageKey(dagId), JSON.stringify(messages));
+    localStorage.setItem(getStorageKey(identifier), JSON.stringify(messages));
   } catch (error) {
     console.warn('Failed to save conversation to localStorage:', error);
   }

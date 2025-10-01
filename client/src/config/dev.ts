@@ -169,12 +169,31 @@ export const devConfig = {
 
     // Agent workspace endpoints - FastAPI with incident support (entity_name based)
     agent: {
-      conversationSummaries: (dagId: number) => `/api/v1/agent/conversations/summaries/${dagId}`,
+      conversationSummaries: (entityName: string, dagName?: string, taskName?: string, date?: string) => {
+        const params = new URLSearchParams();
+        if (dagName) params.append('dag_name', dagName);
+        if (taskName) params.append('task_name', taskName);
+        if (date) params.append('date', date);
+        const query = params.toString();
+        return `/api/v1/agent/conversations/${entityName}/recent${query ? `?${query}` : ''}`;
+      },
       fullConversation: (conversationId: string) => `/api/v1/agent/conversations/${conversationId}`,
-      sendMessage: (dagId: number) => `/api/v1/agent/conversations/${dagId}/send`,
-      // Enhanced agent endpoint with incident context and OAuth claims
-      chatWithIncident: (dagId: number) => `/api/v1/agent/dags/${dagId}/chat`,
-      // Direct FastAPI agent endpoint for real conversations (entity_name based)
+      sendMessage: (entityName: string, dagName?: string, taskName?: string, date?: string) => {
+        const params = new URLSearchParams();
+        if (dagName) params.append('dag_name', dagName);
+        if (taskName) params.append('task_name', taskName);
+        if (date) params.append('date', date);
+        const query = params.toString();
+        return `/api/v1/agent/chat/${entityName}${query ? `?${query}` : ''}`;
+      },
+      chatWithIncident: (entityName: string, dagName?: string, taskName?: string, date?: string) => {
+        const params = new URLSearchParams();
+        if (dagName) params.append('dag_name', dagName);
+        if (taskName) params.append('task_name', taskName);
+        if (date) params.append('date', date);
+        const query = params.toString();
+        return `/api/v1/agent/chat/${entityName}${query ? `?${query}` : ''}`;
+      },
       chat: (entityName: string, dagName?: string, taskName?: string, date?: string) => {
         const params = new URLSearchParams();
         if (dagName) params.append('dag_name', dagName);
@@ -183,7 +202,6 @@ export const devConfig = {
         const query = params.toString();
         return `/api/v1/agent/chat/${entityName}${query ? `?${query}` : ''}`;
       },
-      // Conversation persistence endpoints (entity_name based)
       loadHistory: (entityName: string, dagName?: string, taskName?: string, date?: string) => {
         const params = new URLSearchParams();
         if (dagName) params.append('dag_name', dagName);

@@ -123,13 +123,13 @@ interface ApiConfig {
       teams: string;
     };
     agent: {
-      conversationSummaries: (dagId: number) => string;
+      conversationSummaries: (entityName: string, dagName?: string, taskName?: string, date?: string) => string;
       fullConversation: (conversationId: string) => string;
-      sendMessage: (dagId: number) => string;
-      chatWithIncident: (dagId: number) => string;
-      chat: (dagId: number) => string;
-      loadHistory: (dagId: number) => string;
-      saveConversation: (dagId: number) => string;
+      sendMessage: (entityName: string, dagName?: string, taskName?: string, date?: string) => string;
+      chatWithIncident: (entityName: string, dagName?: string, taskName?: string, date?: string) => string;
+      chat: (entityName: string, dagName?: string, taskName?: string, date?: string) => string;
+      loadHistory: (entityName: string, dagName?: string, taskName?: string, date?: string) => string;
+      saveConversation: (entityName: string, dagName?: string, taskName?: string, date?: string) => string;
     };
     admin: {
       conflicts: {

@@ -41,8 +41,7 @@ export const checkActiveUserForWrites = async (req: Request, res: Response, next
       // SECURITY FIX: Implement fail-closed approach
       // If database lookup fails, block the request to prevent inactive users from writing
       structuredLogger.error('USER_ACTIVE_CHECK_DB_ERROR', req.sessionContext, req.requestId, {
-        logger: 'app.middleware.active-check',
-        error: dbError instanceof Error ? dbError.message : String(dbError)
+        logger: 'app.middleware.active-check'
       });
       
       console.error('Failed to lookup user for active status check, blocking request for security:', dbError instanceof Error ? dbError.message : String(dbError));
@@ -91,8 +90,7 @@ export const checkActiveUserForWrites = async (req: Request, res: Response, next
     // SECURITY FIX: Implement fail-closed approach for middleware errors
     // Block requests when middleware encounters unexpected errors to prevent security bypass
     structuredLogger.error('USER_ACTIVE_CHECK_MIDDLEWARE_ERROR', req.sessionContext, req.requestId, {
-      logger: 'app.middleware.active-check',
-      error: error instanceof Error ? error.message : String(error)
+      logger: 'app.middleware.active-check'
     });
     
     console.error('Error in checkActiveUserForWrites middleware, blocking request for security:', error instanceof Error ? error.message : String(error));
