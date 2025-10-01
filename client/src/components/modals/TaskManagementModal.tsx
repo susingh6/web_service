@@ -78,12 +78,11 @@ const TaskManagementModal: React.FC<TaskManagementModalProps> = ({
     }, {
       onSuccess: (data) => {
         console.log('[TaskManagementModal] Task priority update successful:', data);
-        // Refetch tasks from API to ensure UI is in sync with server
-        refetch();
+        // No refetch needed - optimistic update is already correct
       },
       onError: (error) => {
         console.error('[TaskManagementModal] Task priority update failed:', error);
-        // Revert optimistic update on error
+        // Revert optimistic update on error by refetching from server
         refetch();
       }
     });
