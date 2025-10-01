@@ -1276,7 +1276,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // FastAPI fallback route for updating teams
-  app.put("/api/v1/teams/:teamId", requireActiveUser, async (req: Request, res: Response) => {
+  app.put("/api/v1/teams/:teamId", ...(isDevelopment ? [checkActiveUserDev] : [requireActiveUser]), async (req: Request, res: Response) => {
     try {
       const teamId = parseInt(req.params.teamId);
       if (isNaN(teamId)) {
@@ -1335,7 +1335,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Express fallback route for updating teams (for frontend fallback mechanism)
-  app.put("/api/teams/:teamId", requireActiveUser, async (req: Request, res: Response) => {
+  app.put("/api/teams/:teamId", ...(isDevelopment ? [checkActiveUserDev] : [requireActiveUser]), async (req: Request, res: Response) => {
     try {
       const teamId = parseInt(req.params.teamId);
       if (isNaN(teamId)) {
