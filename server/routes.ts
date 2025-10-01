@@ -3446,6 +3446,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
+      // Update the 6-hour Redis cache with new allTasksData
+      const updatedAllTasksData = mockTaskService.getAllTasksData();
+      await redisCache.setAllTasksData(updatedAllTasksData);
+
       // Process bulk task priority updates with team context
       const updatedTasks = tasks.map(task => ({
         task_name: task.task_name,

@@ -897,6 +897,10 @@ export class RedisCache {
       entitiesByName.set(nameKey, entity.id);
     });
 
+    // Build allTasksData from DAG entities using mock service
+    const { mockTaskService } = await import('../client/src/features/sla/mockService.js');
+    const allTasksData = mockTaskService.getAllTasksData();
+
     return {
       entities,
       // New type-segregated storage for proper cache isolation
@@ -924,7 +928,7 @@ export class RedisCache {
       teamTrends,
       lastUpdated: new Date(),
       recentChanges: [],
-      allTasksData: null
+      allTasksData
     };
   }
 
@@ -1327,17 +1331,41 @@ export class RedisCache {
     }
   }
 
+  // Set allTasksData in cache (AllTasksData format from schema)
+  async setAllTasksData(allTasksData: any): Promise<void> {
+    try {
+      if (this.useRedis && this.redis) {
+        // Store in Redis with 6-hour TTL
+        const ttlMs = 6 * 60 * 60 * 1000;
+        await this.redis.set('sla:allTasksData', JSON.stringify(allTasksData), 'PX', ttlMs);
+        console.log(`[AllTasksData Cache] Updated cache with ${allTasksData.dagTasks?.length || 0} DAGs`);
+      } else {
+        // Update fallback in-memory cache
+        if (this.fallbackData) {
+          this.fallbackData.allTasksData = allTasksData;
+          console.log(`[AllTasksData Cache] Updated fallback with ${allTasksData.dagTasks?.length || 0} DAGs`);
+        }
+      }
+    } catch (error) {
+      console.error('Error setting allTasksData cache:', error);
+    }
+  }
+
   // Invalidate task cache (for preference updates)
   async invalidateTaskCache(): Promise<void> {
     try {
       if (this.useRedis && this.redis) {
         await this.redis.del(CACHE_KEYS.TASKS);
+        await this.redis.del('sla:allTasksData'); // Also invalidate allTasksData
         console.log('[Task Cache] Redis task cache invalidated');
       }
       
       // Also clear from fallback data
-      if (this.fallbackData && (this.fallbackData as any).tasks) {
-        delete (this.fallbackData as any).tasks;
+      if (this.fallbackData) {
+        if ((this.fallbackData as any).tasks) {
+          delete (this.fallbackData as any).tasks;
+        }
+        this.fallbackData.allTasksData = null;
         console.log('[Task Cache] Fallback task cache invalidated');
       }
     } catch (error) {
