@@ -135,6 +135,15 @@ export const devConfig = {
       byId: (id: string) => `/api/v1/notification-timelines/${id}`,
       update: (id: string) => `/api/v1/notification-timelines/${id}`,
       delete: (id: string) => `/api/v1/notification-timelines/${id}`,
+      // Get timelines by entity name (separate endpoints for tables and DAGs)
+      byTableEntity: (teamName: string, entityName: string) => `/api/v1/teams/${teamName}/table/${entityName}/notification-timelines`,
+      byDagEntity: (teamName: string, entityName: string) => `/api/v1/teams/${teamName}/dag/${entityName}/notification-timelines`,
+    },
+    
+    // Notification Timelines Express Fallbacks
+    notificationTimelinesFallback: {
+      byTableEntity: (teamName: string, entityName: string) => `/api/teams/${teamName}/table/${entityName}/notification-timelines`,
+      byDagEntity: (teamName: string, entityName: string) => `/api/teams/${teamName}/dag/${entityName}/notification-timelines`,
     },
     
     // Entity Subscriptions - FastAPI
