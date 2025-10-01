@@ -56,6 +56,7 @@ export interface SystemUser {
   roles: string[];
   user_slack?: string[]; // User's Slack handles
   user_pagerduty?: string[]; // User's PagerDuty contacts
+  is_active?: boolean; // User active status
 }
 
 // Notification channel metadata for extensibility
