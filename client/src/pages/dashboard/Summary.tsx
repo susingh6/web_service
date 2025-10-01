@@ -376,7 +376,8 @@ const Summary = () => {
       dispatch(fetchTeams());
       setTeamsLoaded(true);
     }
-  }, [dispatch, selectedTenant, summaryDateRange, presetsData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dispatch, selectedTenant, summaryDateRange]);
 
   // Listen for team data refresh events (e.g., when tenant status changes cascade to teams)
   useEffect(() => {
