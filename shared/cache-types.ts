@@ -38,8 +38,7 @@ export interface EntityChange {
 // DAG Task data structures for cache
 export interface DagTask {
   task_name: string;
-  task_type: string; // e.g., "SparkTask", "HiveTask"  
-  priority: string; // e.g., "AI Monitored", "Regular"
+  task_type: string; // e.g., "SparkTask", "HiveTask"
 }
 
 export interface DagTaskData {
