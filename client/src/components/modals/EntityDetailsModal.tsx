@@ -110,6 +110,13 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
   const [selectedOwnerEmails, setSelectedOwnerEmails] = useState<string[]>([]);
   const [localOwnerEmails, setLocalOwnerEmails] = useState<string[] | null>(null);
   
+  // Query to get all users for checking expired status
+  const { data: allUsers = [] } = useQuery<any[]>({
+    queryKey: ['/api/admin/users'],
+    enabled: open && !!entity,
+    staleTime: 30 * 1000,
+  });
+  
   // Reset local owner emails when entity changes to prevent cross-entity contamination
   useEffect(() => {
     setLocalOwnerEmails(null);
@@ -435,6 +442,14 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
       .filter((e: string) => e.length > 0);
   };
   
+  // Check if an email belongs to an expired user
+  const isEmailExpired = (email: string): boolean => {
+    const user = allUsers.find((u: any) => 
+      (u.email === email || u.user_email === email) && u.is_active === false
+    );
+    return !!user;
+  };
+  
   return (
     <>
       <Dialog
@@ -601,9 +616,51 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
                           <Typography variant="body2">{ownerSlaSettings?.owner || entity.owner || 'Unassigned'}</Typography>
                         );
                       }
-                      return emails.map((email: string) => (
-                        <Chip key={email} size="small" label={email} variant="outlined" />
-                      ));
+                      return emails.map((email: string) => {
+                        const isExpired = isEmailExpired(email);
+                        return (
+                          <Chip 
+                            key={email} 
+                            size="small" 
+                            label={
+                              <Box display="flex" alignItems="center" gap={0.5}>
+                                <span style={{
+                                  textDecoration: isExpired ? 'line-through' : 'none',
+                                  fontWeight: isExpired ? 400 : 500,
+                                }}>
+                                  {email}
+                                </span>
+                                {isExpired && (
+                                  <Box
+                                    component="span"
+                                    sx={{
+                                      bgcolor: '#dc3545',
+                                      color: 'white',
+                                      borderRadius: '3px',
+                                      px: 0.5,
+                                      py: 0.1,
+                                      fontSize: '0.55rem',
+                                      fontWeight: 700,
+                                      letterSpacing: '0.02em'
+                                    }}
+                                  >
+                                    EXPIRED
+                                  </Box>
+                                )}
+                              </Box>
+                            }
+                            variant={isExpired ? "outlined" : "outlined"}
+                            sx={{
+                              ...(isExpired && {
+                                bgcolor: '#ffebee',
+                                color: '#d32f2f',
+                                borderColor: '#ef5350',
+                                opacity: 0.85,
+                              }),
+                            }}
+                          />
+                        );
+                      });
                     })()}
                   </Box>
                 )}
@@ -674,9 +731,51 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
                         <Box display="flex" gap={0.5} flexWrap="wrap">
                           {(() => {
                             const emails = normalizeOwnerEmails(ownerSlaSettings);
-                            return emails.length > 0 ? emails.map((email: string) => (
-                              <Chip key={email} size="small" label={email} variant="outlined" />
-                            )) : 'N/A';
+                            return emails.length > 0 ? emails.map((email: string) => {
+                              const isExpired = isEmailExpired(email);
+                              return (
+                                <Chip 
+                                  key={email} 
+                                  size="small" 
+                                  label={
+                                    <Box display="flex" alignItems="center" gap={0.5}>
+                                      <span style={{
+                                        textDecoration: isExpired ? 'line-through' : 'none',
+                                        fontWeight: isExpired ? 400 : 500,
+                                      }}>
+                                        {email}
+                                      </span>
+                                      {isExpired && (
+                                        <Box
+                                          component="span"
+                                          sx={{
+                                            bgcolor: '#dc3545',
+                                            color: 'white',
+                                            borderRadius: '3px',
+                                            px: 0.5,
+                                            py: 0.1,
+                                            fontSize: '0.55rem',
+                                            fontWeight: 700,
+                                            letterSpacing: '0.02em'
+                                          }}
+                                        >
+                                          EXPIRED
+                                        </Box>
+                                      )}
+                                    </Box>
+                                  }
+                                  variant="outlined"
+                                  sx={{
+                                    ...(isExpired && {
+                                      bgcolor: '#ffebee',
+                                      color: '#d32f2f',
+                                      borderColor: '#ef5350',
+                                      opacity: 0.85,
+                                    }),
+                                  }}
+                                />
+                              );
+                            }) : 'N/A';
                           })()}
                         </Box>
                       </TableCell>
