@@ -32,7 +32,7 @@ const TaskManagementModal: React.FC<TaskManagementModalProps> = ({
   const [normalPriorityTasks, setNormalPriorityTasks] = useState<Task[]>([]);
 
   // Get tasks for this DAG using new architecture: cache structure + team-scoped AI tasks
-  const { data: tasks, isLoading, error, refetch } = useGetDagTasks(dag?.name, dag?.name, dag?.team_name);
+  const { data: tasks, isLoading, error, refetch } = useGetDagTasks(dag?.name, dag?.name, dag?.team_name ?? undefined);
   const updateTaskPriority = useUpdateTaskPriority();
 
   // Split tasks into priority zones when data loads

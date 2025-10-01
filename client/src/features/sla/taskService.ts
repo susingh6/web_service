@@ -30,7 +30,7 @@ export const useGetDagTasks = (dagName?: string, entityName?: string, teamName?:
 
         // Step 2: Fetch team-scoped AI tasks if team context available
         let aiTaskNames: string[] = [];
-        if (teamName) {
+        if (teamName && endpoints.tasks.getAiTasks) {
           try {
             console.log(`[TaskService] Fetching AI tasks for team ${teamName}, DAG ${name}`);
             const aiTasksResponse = await apiRequest('GET', `${endpoints.tasks.getAiTasks(name)}?team=${teamName}`);
@@ -40,9 +40,11 @@ export const useGetDagTasks = (dagName?: string, entityName?: string, teamName?:
           } catch (error) {
             console.log(`[TaskService] Failed to fetch AI tasks, trying fallback`);
             try {
-              const fallbackResponse = await apiRequest('GET', `${endpoints.tasks.getAiTasksFallback(name)}?team=${teamName}`);
-              const fallbackData = await fallbackResponse.json();
-              aiTaskNames = fallbackData.ai_tasks || [];
+              if (endpoints.tasks.getAiTasksFallback) {
+                const fallbackResponse = await apiRequest('GET', `${endpoints.tasks.getAiTasksFallback(name)}?team=${teamName}`);
+                const fallbackData = await fallbackResponse.json();
+                aiTaskNames = fallbackData.ai_tasks || [];
+              }
             } catch (fallbackError) {
               console.log(`[TaskService] Fallback failed, using empty AI tasks`);
             }
@@ -55,7 +57,8 @@ export const useGetDagTasks = (dagName?: string, entityName?: string, teamName?:
           name: task.task_name,
           description: `${task.task_type} task`,
           priority: aiTaskNames.includes(task.task_name) ? 'high' as TaskPriority : 'normal' as TaskPriority,
-          task_type: task.task_type
+          task_type: task.task_type,
+          status: 'running' as const
         }));
 
         console.log(`[TaskService] Successfully loaded ${tasks.length} tasks for ${name}`);

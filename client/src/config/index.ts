@@ -101,9 +101,11 @@ interface ApiConfig {
       updatePriority: (taskId: number) => string;
       // New endpoints for comprehensive task management
       getAll: string;
+      getAiTasks?: (entityName: string) => string;
       updatePreference: (taskId: number) => string;
       // Express fallback endpoints (development only)
       getAllFallback?: string;
+      getAiTasksFallback?: (entityName: string) => string;
       byDagFallback?: (dagId: number) => string;
       updatePriorityFallback?: (taskId: number) => string;
       updatePreferenceFallback?: (taskId: number) => string;
