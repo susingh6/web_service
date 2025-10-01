@@ -190,11 +190,20 @@ const TeamDashboard = ({
     return () => window.removeEventListener('admin-teams-updated', handler);
   }, [tenantName, queryClient]);
 
-  // WebSocket real-time cache updates for team members
+  // WebSocket real-time cache updates for team members and presets
   useWebSocket({
     onCacheUpdated: (data, cacheType) => {
       if (cacheType === 'team-members-cache' && teamIdRef.current) {
         queryClient.invalidateQueries({ queryKey: cacheKeys.teamMembers(tenantName, teamIdRef.current) });
+      }
+      
+      // Invalidate team presets when 6-hour cache refreshes
+      // This ensures fresh preset data from Redis after cache worker runs
+      if (cacheType === 'metrics-cache' || cacheType === 'entities-cache') {
+        console.log(`[TeamDashboard ${teamName}] Cache updated - invalidating presets for fresh data`);
+        queryClient.invalidateQueries({ 
+          queryKey: ['/api/dashboard/presets', tenantName, teamName] 
+        });
       }
     }
   });
