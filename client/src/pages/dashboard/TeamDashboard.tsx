@@ -142,7 +142,7 @@ const TeamDashboard = ({
   // TEAM PRESET CACHING - Load all presets for this team from 6-hour cache
   // ============================================================================
   // Loads when team tab opens (user clicks + sign)
-  // Presets are team-scoped (e.g., /api/dashboard/presets?team=PGM)
+  // Presets are team-scoped (e.g., /api/dashboard/presets?tenant=ABC&team=PGM)
   // Reduces API calls - use cached preset data when available
   // Falls back to API for custom ranges or missing presets
   // ============================================================================
@@ -153,7 +153,15 @@ const TeamDashboard = ({
     scope: string;
   }>({
     queryKey: ['/api/dashboard/presets', tenantName, teamName],
-    enabled: !!team?.name,
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        tenant: tenantName,
+        team: teamName
+      });
+      const response = await apiRequest('GET', `/api/dashboard/presets?${params.toString()}`);
+      return response.json();
+    },
+    enabled: !!tenantName && !!teamName,
     staleTime: 6 * 60 * 60 * 1000, // 6 hours (matches cache refresh interval)
     refetchOnWindowFocus: false,
     refetchInterval: false // No polling, WebSocket handles invalidation
