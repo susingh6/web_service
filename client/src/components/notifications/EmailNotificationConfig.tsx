@@ -51,23 +51,33 @@ export function EmailNotificationConfigComponent({ config, onChange, teamName, t
   // Loading state
   const isLoading = usersLoading || teamsLoading || teamMembersLoading;
   
-  // CRITICAL: Combine team-level emails with individual team member emails
-  const allTeamEmails = useMemo(() => {
-    const emails = [...teamEmails]; // Start with team-level emails
+  // CRITICAL: Combine team-level emails with individual team member emails (with is_active status)
+  const allTeamEmailsWithStatus = useMemo(() => {
+    const emailMap = new Map<string, { email: string; isActive: boolean }>();
     
-    // Add individual team member emails
-    teamMembers.forEach((member: any) => {
-      if (member.email && !emails.includes(member.email)) {
-        emails.push(member.email);
-      }
-      // Also check for user_email field (different API responses may use different field names)
-      if (member.user_email && !emails.includes(member.user_email)) {
-        emails.push(member.user_email);
+    // Add team-level emails (assume active)
+    teamEmails.forEach(email => {
+      if (!emailMap.has(email)) {
+        emailMap.set(email, { email, isActive: true });
       }
     });
     
-    return emails;
+    // Add individual team member emails with their active status
+    teamMembers.forEach((member: any) => {
+      const email = member.email || member.user_email;
+      const isActive = member.is_active !== false;
+      if (email && !emailMap.has(email)) {
+        emailMap.set(email, { email, isActive });
+      }
+    });
+    
+    return Array.from(emailMap.values());
   }, [teamEmails, teamMembers]);
+  
+  // Keep backward compatible simple email list
+  const allTeamEmails = useMemo(() => {
+    return allTeamEmailsWithStatus.map(item => item.email);
+  }, [allTeamEmailsWithStatus]);
   
   // Compute other team emails from React Query data
   const otherTeamEmails = useMemo(() => {
@@ -167,9 +177,12 @@ export function EmailNotificationConfigComponent({ config, onChange, teamName, t
                 }}
               >
                 <option value="" disabled>Select a team member email</option>
-                {allTeamEmails.map((email, index) => (
-                  <option key={email} value={email}>
-                    {email}
+                {allTeamEmailsWithStatus.map((item, index) => (
+                  <option key={item.email} value={item.email} style={{
+                    textDecoration: !item.isActive ? 'line-through' : 'none',
+                    color: !item.isActive ? '#d32f2f' : 'inherit'
+                  }}>
+                    {item.email}{!item.isActive ? ' (EXPIRED)' : ''}
                   </option>
                 ))}
               </select>
@@ -245,26 +258,67 @@ export function EmailNotificationConfigComponent({ config, onChange, teamName, t
                       <div className="text-xs font-medium text-gray-600 mb-1 sticky top-0 bg-white py-1">System Users</div>
                       {users
                         .filter(user => user.email && !allTeamEmails.includes(user.email) && !otherTeamEmails.includes(user.email))
-                        .map((user) => (
-                          <label key={user.id} className="flex items-center space-x-2 p-1 hover:bg-gray-50 cursor-pointer rounded">
-                            <input
-                              type="checkbox"
-                              checked={selectedOtherEmails.includes(user.email)}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setSelectedOtherEmails([...selectedOtherEmails, user.email]);
-                                } else {
-                                  setSelectedOtherEmails(selectedOtherEmails.filter(e => e !== user.email));
-                                }
+                        .map((user) => {
+                          const isExpired = user.is_active === false;
+                          return (
+                            <label 
+                              key={user.id} 
+                              className="flex items-center space-x-2 p-1 hover:bg-gray-50 cursor-pointer rounded"
+                              style={{
+                                opacity: isExpired ? 0.7 : 1,
+                                backgroundColor: isExpired ? '#ffebee' : 'transparent'
                               }}
-                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                            />
-                            <span className="text-sm">{user.email}</span>
-                            {(user.displayName || user.username) && (
-                              <span className="text-xs text-gray-500">({user.displayName || user.username})</span>
-                            )}
-                          </label>
-                        ))}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={selectedOtherEmails.includes(user.email)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedOtherEmails([...selectedOtherEmails, user.email]);
+                                  } else {
+                                    setSelectedOtherEmails(selectedOtherEmails.filter(e => e !== user.email));
+                                  }
+                                }}
+                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                              />
+                              <span 
+                                className="text-sm"
+                                style={{
+                                  textDecoration: isExpired ? 'line-through' : 'none',
+                                  color: isExpired ? '#d32f2f' : 'inherit'
+                                }}
+                              >
+                                {user.email}
+                              </span>
+                              {(user.displayName || user.username) && (
+                                <span 
+                                  className="text-xs text-gray-500"
+                                  style={{
+                                    textDecoration: isExpired ? 'line-through' : 'none'
+                                  }}
+                                >
+                                  ({user.displayName || user.username})
+                                </span>
+                              )}
+                              {isExpired && (
+                                <span 
+                                  style={{
+                                    backgroundColor: '#dc3545',
+                                    color: 'white',
+                                    borderRadius: '3px',
+                                    padding: '1px 4px',
+                                    fontSize: '0.55rem',
+                                    fontWeight: 700,
+                                    letterSpacing: '0.02em',
+                                    marginLeft: '4px'
+                                  }}
+                                >
+                                  EXPIRED
+                                </span>
+                              )}
+                            </label>
+                          );
+                        })}
                     </div>
                   )}
                 </div>
