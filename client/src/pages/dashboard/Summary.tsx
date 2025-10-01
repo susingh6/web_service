@@ -238,7 +238,6 @@ const Summary = () => {
     enabled: !!selectedTenant,
     staleTime: 6 * 60 * 60 * 1000, // 6 hours (matches cache refresh interval)
     refetchOnWindowFocus: false,
-    refetchOnMount: false, // Only fetch once per session
     refetchInterval: false // No polling, WebSocket handles invalidation
   });
 
@@ -357,12 +356,13 @@ const Summary = () => {
             isLoading: false
           }
         });
-      } else if (summaryDateRange.label === 'Custom Range') {
-        // Only make API call for custom ranges
+      } else {
+        // For custom ranges OR when preset data is not yet loaded, make API call
         const startDate = summaryDateRange.startDate ? format(summaryDateRange.startDate, 'yyyy-MM-dd') : undefined;
         const endDate = summaryDateRange.endDate ? format(summaryDateRange.endDate, 'yyyy-MM-dd') : undefined;
         
-        console.log(`[Summary] Fetching custom range data from API: ${startDate} to ${endDate}`);
+        const rangeType = summaryDateRange.label === 'Custom Range' ? 'custom' : 'preset (fallback)';
+        console.log(`[Summary] Fetching ${rangeType} range data from API: ${startDate} to ${endDate}`);
         dispatch(fetchDashboardSummary({ 
           tenantName: selectedTenant.name,
           startDate,
