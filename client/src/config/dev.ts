@@ -114,11 +114,13 @@ export const devConfig = {
       byDag: (dagId: number) => `/api/v1/dags/${dagId}/tasks`,
       updatePriority: (taskId: number) => `/api/v1/tasks/${taskId}`,
       // New endpoints for comprehensive task management
-      getAll: '/api/v1/get_tasks', // Get all tasks for cache building
+      getAll: '/api/v1/sla/all_tasks', // Get all tasks structure for cache building
+      getAiTasks: (entityName: string) => `/api/v1/get_dag_task_priority/${entityName}`, // Get team-scoped AI tasks
       updatePreference: (taskId: number) => `/api/v1/tasks/${taskId}/preference`, // Update task preference (AI/regular)
       
       // Express fallback endpoints
       getAllFallback: '/api/get_tasks',
+      getAiTasksFallback: (entityName: string) => `/api/get_dag_task_priority/${entityName}`,
       byDagFallback: (dagId: number) => `/api/dags/${dagId}/tasks`,
       updatePriorityFallback: (taskId: number) => `/api/tasks/${taskId}`,
       updatePreferenceFallback: (taskId: number) => `/api/tasks/${taskId}/preference`,

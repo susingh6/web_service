@@ -3397,6 +3397,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // GET endpoint for team-scoped AI task priorities - FastAPI compatible endpoint
+  app.get("/api/v1/get_dag_task_priority/:entity_name", ...(isDevelopment ? [] : [isAuthenticated]), async (req: Request, res: Response) => {
+    try {
+      const entityName = req.params.entity_name;
+      const teamName = req.query.team as string;
+
+      if (!entityName) {
+        return res.status(400).json({ message: "Entity name is required" });
+      }
+
+      if (!teamName) {
+        return res.status(400).json({ message: "team parameter is required" });
+      }
+
+      // Get AI tasks from Redis cache using team-scoped key
+      const cacheKey = `ai_tasks:${teamName}:${entityName}`;
+      const cachedAiTasks = await redisCache.get(cacheKey);
+
+      if (cachedAiTasks) {
+        console.log(`[AI Tasks Cache Hit] ${cacheKey}`);
+        return res.json({
+          dag_name: entityName,
+          ai_tasks: JSON.parse(cachedAiTasks)
+        });
+      }
+
+      // Cache miss - return empty AI tasks list (all tasks are regular by default)
+      console.log(`[AI Tasks Cache Miss] ${cacheKey} - returning empty list`);
+      res.json({
+        dag_name: entityName,
+        ai_tasks: []
+      });
+    } catch (error) {
+      console.error("Error fetching AI task priorities:", error);
+      res.status(500).json({ message: "Failed to fetch AI task priorities" });
+    }
+  });
+
+  // Express fallback endpoint for development
+  app.get("/api/get_dag_task_priority/:entity_name", ...(isDevelopment ? [] : [isAuthenticated]), async (req: Request, res: Response) => {
+    try {
+      const entityName = req.params.entity_name;
+      const teamName = req.query.team as string;
+
+      if (!entityName) {
+        return res.status(400).json({ message: "Entity name is required" });
+      }
+
+      if (!teamName) {
+        return res.status(400).json({ message: "team parameter is required" });
+      }
+
+      // Get AI tasks from Redis cache using team-scoped key
+      const cacheKey = `ai_tasks:${teamName}:${entityName}`;
+      const cachedAiTasks = await redisCache.get(cacheKey);
+
+      if (cachedAiTasks) {
+        return res.json({
+          dag_name: entityName,
+          ai_tasks: JSON.parse(cachedAiTasks)
+        });
+      }
+
+      // Cache miss - return empty AI tasks list
+      res.json({
+        dag_name: entityName,
+        ai_tasks: []
+      });
+    } catch (error) {
+      console.error("Error fetching AI task priorities:", error);
+      res.status(500).json({ message: "Failed to fetch AI task priorities" });
+    }
+  });
+
   // PATCH API for bulk task priority updates at entity level - Team-scoped with user context
   app.patch("/api/v1/entities/:entity_name/tasks/priorities", ...(isDevelopment ? [] : [isAuthenticated]), async (req: Request, res: Response) => {
     try {
@@ -3449,6 +3523,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Update the 6-hour Redis cache with new allTasksData
       const updatedAllTasksData = mockTaskService.getAllTasksData();
       await redisCache.setAllTasksData(updatedAllTasksData);
+
+      // Store team-scoped AI tasks in Redis cache
+      const aiTasks = tasks
+        .filter(task => task.priority === 'high')
+        .map(task => task.task_name);
+      
+      const cacheKey = `ai_tasks:${team_name}:${entityName}`;
+      await redisCache.set(cacheKey, JSON.stringify(aiTasks), 21600); // 6 hour TTL
+      console.log(`[AI Tasks Cache Set] ${cacheKey}: [${aiTasks.join(', ')}]`);
 
       // Process bulk task priority updates with team context
       const updatedTasks = tasks.map(task => ({
