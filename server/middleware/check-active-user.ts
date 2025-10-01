@@ -107,6 +107,58 @@ export const checkActiveUserForWrites = async (req: Request, res: Response, next
 };
 
 /**
+ * Development-only middleware to check active status without requiring authentication
+ * Uses fallback headers (x-username) to identify the user
+ */
+export const checkActiveUserDev = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    // Only apply to write operations
+    if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') {
+      return next();
+    }
+
+    // Get username from headers (development fallback pattern)
+    const username = (Array.isArray(req.headers['x-username']) ? req.headers['x-username'][0] : req.headers['x-username']) || 'azure_test_user';
+    
+    // Look up user by username
+    let targetUser;
+    try {
+      targetUser = await storage.getUserByUsername(username);
+    } catch (dbError) {
+      console.error('Failed to lookup user for active status check:', dbError);
+      return res.status(500).json({
+        message: "Unable to verify account status",
+        type: "account_verification_error"
+      });
+    }
+    
+    // If user not found, allow (development mode)
+    if (!targetUser) {
+      return next();
+    }
+    
+    // Check if user is inactive
+    if (targetUser.is_active === false) {
+      return res.status(403).json({
+        message: "Your account has been deactivated. Please contact your administrator.",
+        type: "account_deactivated",
+        errorCode: "ACCOUNT_INACTIVE"
+      });
+    }
+    
+    // User is active, allow request
+    return next();
+    
+  } catch (error) {
+    console.error('Error in checkActiveUserDev middleware:', error);
+    return res.status(500).json({
+      message: "Authentication middleware error",
+      type: "middleware_error"
+    });
+  }
+};
+
+/**
  * Helper function to create a combined middleware that checks both authentication and active status
  * Usage: app.post('/protected-route', requireActiveUser, routeHandler)
  */

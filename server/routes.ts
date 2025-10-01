@@ -7,7 +7,7 @@ import { insertEntitySchema, insertTeamSchema, updateTeamSchema, insertEntityHis
 import { z } from "zod";
 import { SocketData } from "@shared/websocket-config";
 import { logAuthenticationEvent, structuredLogger } from "./middleware/structured-logging";
-import { requireActiveUser } from "./middleware/check-active-user";
+import { requireActiveUser, checkActiveUserDev } from "./middleware/check-active-user";
 
 // Zod validation schema for rollback requests
 const rollbackRequestSchema = z.object({
@@ -2161,8 +2161,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Team member management endpoints (development fallback, no auth required)
-  app.post("/api/teams/:teamName/members", async (req: Request, res: Response) => {
+  // Team member management endpoints (development fallback, check active status only)
+  app.post("/api/teams/:teamName/members", checkActiveUserDev, async (req: Request, res: Response) => {
     try {
       const { teamName } = req.params;
       
