@@ -112,12 +112,24 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
   
   // Query to get all users for checking expired status
   // Always refetch to ensure we show latest user status (active/inactive)
-  const { data: allUsers = [] } = useQuery<any[]>({
+  const { data: allUsers = [], isLoading: usersLoading, error: usersError } = useQuery<any[]>({
     queryKey: ['/api/admin/users'],
     enabled: open && !!entity,
     staleTime: 0, // No stale time - always fetch fresh data
     refetchOnMount: 'always', // Force refetch when modal opens
   });
+  
+  // Debug logging
+  useEffect(() => {
+    if (open && entity) {
+      console.log('[EntityDetailsModal] Modal opened, users query state:', {
+        usersLoading,
+        usersError,
+        allUsersLength: allUsers.length,
+        enabled: open && !!entity
+      });
+    }
+  }, [open, entity, usersLoading, usersError, allUsers.length]);
   
   // Reset local owner emails when entity changes to prevent cross-entity contamination
   useEffect(() => {
