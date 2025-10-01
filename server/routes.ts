@@ -2161,8 +2161,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Team member management endpoints
-  app.post("/api/teams/:teamName/members", requireActiveUser, async (req: Request, res: Response) => {
+  // Team member management endpoints (development fallback, no auth required)
+  app.post("/api/teams/:teamName/members", async (req: Request, res: Response) => {
     try {
       const { teamName } = req.params;
       
