@@ -260,6 +260,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // API Routes
   
+  // Get current user profile (from cache for optimal performance)
+  app.get("/api/user", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      if (!req.user?.id) {
+        return res.status(401).json({ message: "User not authenticated" });
+      }
+
+      // Try to get user from cache first
+      const cachedUsers = await redisCache.getAllUsers();
+      const cachedUser = cachedUsers.find(u => u.id === req.user?.id);
+      
+      if (cachedUser) {
+        return res.json(cachedUser);
+      }
+
+      // Fallback to storage if not in cache
+      const user = await storage.getUser(req.user.id);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      res.json(user);
+    } catch (error) {
+      console.error("Error fetching user profile:", error);
+      res.status(500).json({ message: "Failed to fetch user profile" });
+    }
+  });
+  
   // Users endpoints for notification system
   app.get("/api/users", async (req, res) => {
     try {
