@@ -3214,20 +3214,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get subscriptions for a specific timeline (with count)
+  // Get subscriptions for a specific timeline (with count and user details)
   app.get("/api/notification-timelines/:id/subscriptions", isAuthenticated, async (req: Request, res: Response) => {
     try {
       const timelineId = req.params.id;
       const subscriptions = await storage.getTimelineSubscriptions(timelineId);
       const count = await storage.getSubscriptionCount(timelineId);
       
+      // Fetch user details for each subscription
+      const subscriptionsWithUserDetails = await Promise.all(
+        subscriptions.map(async (sub) => {
+          try {
+            // Get user from storage
+            const user = await storage.getUser(sub.userId);
+            if (user) {
+              return {
+                id: sub.id,
+                userId: sub.userId,
+                email: user.email,
+                slackHandles: user.user_slack || [],
+                createdAt: sub.createdAt
+              };
+            }
+            
+            // User not found, return basic info
+            return {
+              id: sub.id,
+              userId: sub.userId,
+              email: `User${sub.userId}`,
+              slackHandles: [],
+              createdAt: sub.createdAt
+            };
+          } catch (error) {
+            console.warn(`Failed to fetch user details for userId ${sub.userId}:`, error);
+            return {
+              id: sub.id,
+              userId: sub.userId,
+              email: `User${sub.userId}`,
+              slackHandles: [],
+              createdAt: sub.createdAt
+            };
+          }
+        })
+      );
+      
       res.json({
         count,
-        subscriptions: subscriptions.map(sub => ({
-          id: sub.id,
-          userId: sub.userId,
-          createdAt: sub.createdAt
-        }))
+        subscriptions: subscriptionsWithUserDetails
       });
     } catch (error) {
       console.error("Error fetching timeline subscriptions:", error);
