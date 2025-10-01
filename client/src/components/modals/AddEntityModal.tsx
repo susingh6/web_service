@@ -30,7 +30,11 @@ import {
   ToggleButtonGroup,
   Typography,
   Alert,
+  Tooltip,
+  InputAdornment,
+  IconButton,
 } from '@mui/material';
+import { InfoOutlined } from '@mui/icons-material';
 import { validateTenant, validateTeam, validateDag, updateCacheWithNewValue } from '@/lib/validationUtils';
 import { useAuth } from '@/hooks/use-auth';
 import { fetchWithCacheGeneric, getFromCacheGeneric } from '@/lib/cacheUtils';
@@ -356,6 +360,22 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
               onChange={handleChangeEntityType}
               aria-label="entity type"
               fullWidth
+              sx={{
+                '& .MuiToggleButton-root': {
+                  color: '#1976d2',
+                  borderColor: '#1976d2',
+                  '&.Mui-selected': {
+                    backgroundColor: '#1976d2',
+                    color: '#fff',
+                    '&:hover': {
+                      backgroundColor: '#1565c0',
+                    },
+                  },
+                  '&:hover': {
+                    backgroundColor: 'rgba(25, 118, 210, 0.08)',
+                  },
+                },
+              }}
             >
               <ToggleButton value="table" aria-label="table entity">
                 Table
@@ -552,6 +572,17 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
                       margin="normal"
                       error={!!(errors as any).owner_entity_reference}
                       helperText={(errors as any).owner_entity_reference?.message}
+                      InputProps={{
+                        endAdornment: (
+                          <InputAdornment position="end">
+                            <Tooltip title="Enter the name of another team's table that owns this entity. This allows you to track their entity on your dashboard with custom notifications.">
+                              <IconButton edge="end" size="small">
+                                <InfoOutlined fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          </InputAdornment>
+                        ),
+                      }}
                     />
                   )}
                 />
@@ -889,6 +920,17 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
                       margin="normal"
                       error={!!(errors as any).owner_entity_reference}
                       helperText={(errors as any).owner_entity_reference?.message}
+                      InputProps={{
+                        endAdornment: (
+                          <InputAdornment position="end">
+                            <Tooltip title="Enter the name of another team's DAG that owns this entity. This allows you to track their entity on your dashboard with custom notifications.">
+                              <IconButton edge="end" size="small">
+                                <InfoOutlined fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          </InputAdornment>
+                        ),
+                      }}
                     />
                   )}
                 />
