@@ -234,9 +234,15 @@ const Summary = () => {
         }
       }
       
-      // Only refresh dashboard summary
+      // Only refresh dashboard summary for custom/Last 30 Days ranges
       if (selectedTenant) {
-        dispatch(fetchDashboardSummary({ tenantName: selectedTenant.name }));
+        const isCustomRange = summaryDateRange.label === 'Custom Range';
+        const isLast30Days = summaryDateRange.label === 'Last 30 Days';
+        
+        if (isCustomRange || isLast30Days) {
+          dispatch(fetchDashboardSummary({ tenantName: selectedTenant.name }));
+        }
+        // Preset ranges use cached data, no fetch needed
       }
     },
     onCacheUpdated: (data: any, cacheType?: string) => {
@@ -303,6 +309,7 @@ const Summary = () => {
       const endDate = summaryDateRange.endDate ? format(summaryDateRange.endDate, 'yyyy-MM-dd') : undefined;
 
       // Fetch dashboard summary with date range parameters
+      // Backend automatically uses pre-calculated cache for preset ranges (Today, Yesterday, etc.)
       dispatch(fetchDashboardSummary({ 
         tenantName: selectedTenant.name,
         startDate,
@@ -336,6 +343,7 @@ const Summary = () => {
         const endDate = summaryDateRange.endDate ? format(summaryDateRange.endDate, 'yyyy-MM-dd') : undefined;
         
         // Refresh dashboard summary with current date range
+        // Backend uses pre-calculated cache for preset ranges
         dispatch(fetchDashboardSummary({ 
           tenantName: selectedTenant.name,
           startDate,
