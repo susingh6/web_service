@@ -32,6 +32,7 @@ import { WEBSOCKET_CONFIG } from '../../../../shared/websocket-config';
 import { useEntityMutation } from '@/utils/cache-management';
 import { invalidateEntityCaches, invalidateTenantCaches } from '@/lib/cacheKeys';
 import { resolveEntityIdentifier } from '@shared/entity-utils';
+import { createPresetMap } from '@shared/preset-ranges';
 
 const Summary = () => {
   const dispatch = useAppDispatch();
@@ -70,6 +71,14 @@ const Summary = () => {
   };
 
   const { metrics, complianceTrends, isLoading: metricsLoading, lastFetchFailed } = useAppSelector((state) => state.dashboard);
+  
+  // Load all presets once using React Query
+  const { data: presetsData, isLoading: presetsLoading } = useQuery({
+    queryKey: ['/api/dashboard/presets', selectedTenant?.name],
+    enabled: !!selectedTenant,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    refetchOnWindowFocus: false
+  });
   
   // Helper to check if entity was recently updated (matches EntityTable logic)
   const isEntityRecent = (entity: Entity): boolean => {
@@ -304,17 +313,35 @@ const Summary = () => {
   // Fetch dashboard data when tenant or date range changes
   useEffect(() => {
     if (selectedTenant) {
-      // Format dates for API call
-      const startDate = summaryDateRange.startDate ? format(summaryDateRange.startDate, 'yyyy-MM-dd') : undefined;
-      const endDate = summaryDateRange.endDate ? format(summaryDateRange.endDate, 'yyyy-MM-dd') : undefined;
-
-      // Fetch dashboard summary with date range parameters
-      // Backend automatically uses pre-calculated cache for preset ranges (Today, Yesterday, etc.)
-      dispatch(fetchDashboardSummary({ 
-        tenantName: selectedTenant.name,
-        startDate,
-        endDate
-      }));
+      // Use centralized preset mapping (easy to extend with new presets)
+      const presetMap = createPresetMap();
+      const presetKey = presetMap[summaryDateRange.label];
+      
+      // If it's a preset and we have the data, use it (no API call)
+      if (presetKey && presetsData?.presets?.[presetKey]) {
+        const presetData = presetsData.presets[presetKey];
+        console.log(`[Summary] Using cached preset data for ${summaryDateRange.label} - NO API CALL`);
+        // Update Redux with preset data (no API call)
+        dispatch({ 
+          type: 'dashboard/setDashboardData', 
+          payload: {
+            metrics: presetData.metrics,
+            complianceTrends: presetData.complianceTrends,
+            isLoading: false
+          }
+        });
+      } else if (summaryDateRange.label === 'Custom Range') {
+        // Only make API call for custom ranges
+        const startDate = summaryDateRange.startDate ? format(summaryDateRange.startDate, 'yyyy-MM-dd') : undefined;
+        const endDate = summaryDateRange.endDate ? format(summaryDateRange.endDate, 'yyyy-MM-dd') : undefined;
+        
+        console.log(`[Summary] Fetching custom range data from API: ${startDate} to ${endDate}`);
+        dispatch(fetchDashboardSummary({ 
+          tenantName: selectedTenant.name,
+          startDate,
+          endDate
+        }));
+      }
 
       // Load entities for current tenant only (initial load for Summary dashboard)
       dispatch(fetchEntities({ tenant: selectedTenant.name })); // Load tenant-specific entities for summary dashboard
@@ -322,7 +349,7 @@ const Summary = () => {
       dispatch(fetchTeams());
       setTeamsLoaded(true);
     }
-  }, [dispatch, selectedTenant, summaryDateRange]);
+  }, [dispatch, selectedTenant, summaryDateRange, presetsData]);
 
   // Listen for team data refresh events (e.g., when tenant status changes cascade to teams)
   useEffect(() => {

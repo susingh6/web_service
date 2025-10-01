@@ -1799,8 +1799,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const isTeamDashboard = teamName && teamName !== '0';
-      const ranges: ('today' | 'yesterday' | 'last7Days' | 'last30Days' | 'thisMonth')[] = 
-        ['today', 'yesterday', 'last7Days', 'last30Days', 'thisMonth'];
+      
+      // Import centralized preset configuration
+      const { getPresetKeys } = await import('../shared/preset-ranges.js');
+      const ranges = getPresetKeys();
       
       const presets: Record<string, { metrics: any; complianceTrends: any }> = {};
       
@@ -1825,7 +1827,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const scope = isTeamDashboard ? `team=${teamName}` : 'tenant-wide';
-      console.log(`GET /api/dashboard/presets - Loaded all presets for tenant=${tenantName}, ${scope} - status: 200`);
+      console.log(`GET /api/dashboard/presets - Loaded ${ranges.length} presets for tenant=${tenantName}, ${scope} - status: 200`);
       
       res.json({
         presets,
