@@ -434,6 +434,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       queryClient.setQueryData(['auth-user-fallback'], null);
       queryClient.removeQueries();
       
+      // Clear dashboard UI state to start fresh on next login
+      sessionStorage.removeItem('dashboard_ui_state_v1');
+      
       // Use fallback logout for all auth methods
       try {
         await authFallback.logout();
