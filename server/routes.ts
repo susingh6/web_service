@@ -290,7 +290,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // FastAPI fallback route for creating new users
-  app.post("/api/v1/users", requireActiveUser, async (req: Request, res: Response) => {
+  app.post("/api/v1/users", async (req: Request, res: Response) => {
     try {
       // Validate request body with admin user schema
       const validationResult = adminUserSchema.safeParse(req.body);
@@ -330,7 +330,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // FastAPI fallback route for updating users
-  app.put("/api/v1/users/:userId", requireActiveUser, async (req: Request, res: Response) => {
+  app.put("/api/v1/users/:userId", async (req: Request, res: Response) => {
     try {
       const userId = parseInt(req.params.userId);
       if (isNaN(userId)) {
@@ -377,7 +377,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // PATCH endpoint for user updates (FastAPI)
-  app.patch("/api/v1/users/:userId", requireActiveUser, async (req: Request, res: Response) => {
+  app.patch("/api/v1/users/:userId", async (req: Request, res: Response) => {
     try {
       const userId = parseInt(req.params.userId);
       if (isNaN(userId)) {
