@@ -223,29 +223,53 @@ const TeamDashboard = ({
   // For team dashboard: show ALL entities (active and inactive) for team visibility
   const activeTeamEntities = teamEntities; // Show all entities, don't filter by is_active
 
-  // Fetch tenant-level summary for this team's selected date range (scoped to component)
-  const { data: teamSummaryData, isLoading: teamSummaryLoading, isError: teamSummaryError } = useQuery({
-    queryKey: cacheKeys.dashboardSummary(
-      tenantName,
-      team?.id,
-      format(teamDateRange.startDate, 'yyyy-MM-dd'),
-      format(teamDateRange.endDate, 'yyyy-MM-dd')
-    ),
-    queryFn: async () => {
-      if (!tenantName || !team?.id) return null;
-      const params = new URLSearchParams({
-        tenant: tenantName,
-        team: teamName,
-        startDate: format(teamDateRange.startDate, 'yyyy-MM-dd'),
-        endDate: format(teamDateRange.endDate, 'yyyy-MM-dd'),
+  // State for team summary data (managed by preset or API)
+  const [teamSummaryData, setTeamSummaryData] = useState<any>(null);
+  const [teamSummaryLoading, setTeamSummaryLoading] = useState(false);
+
+  // Fetch team summary data - use preset cache when available
+  useEffect(() => {
+    if (!tenantName || !team?.id) return;
+
+    const presetMap = createPresetMap();
+    const presetKey = presetMap[teamDateRange.label];
+
+    // If it's a preset and we have the cached data, use it (no API call)
+    if (presetKey && presetsData?.presets?.[presetKey]) {
+      const presetData = presetsData.presets[presetKey];
+      console.log(`[TeamDashboard ${teamName}] Using cached preset data for ${teamDateRange.label} - NO API CALL`);
+      setTeamSummaryData({
+        metrics: presetData.metrics,
+        complianceTrends: presetData.complianceTrends
       });
-      const generalUrl = `/api/dashboard/summary?${params.toString()}`;
-      const response = await apiRequest('GET', generalUrl);
-      return response.json();
-    },
-    enabled: !!tenantName && !!team?.id,
-    staleTime: 30 * 1000,
-  });
+      setTeamSummaryLoading(false);
+    } else {
+      // For custom ranges OR when preset data is not yet loaded, make API call
+      const fetchSummary = async () => {
+        setTeamSummaryLoading(true);
+        try {
+          const params = new URLSearchParams({
+            tenant: tenantName,
+            team: teamName,
+            startDate: format(teamDateRange.startDate, 'yyyy-MM-dd'),
+            endDate: format(teamDateRange.endDate, 'yyyy-MM-dd'),
+          });
+          const rangeType = teamDateRange.label === 'Custom Range' ? 'custom' : 'preset (fallback)';
+          console.log(`[TeamDashboard ${teamName}] Fetching ${rangeType} range data from API`);
+          const generalUrl = `/api/dashboard/summary?${params.toString()}`;
+          const response = await apiRequest('GET', generalUrl);
+          const data = await response.json();
+          setTeamSummaryData(data);
+        } catch (error) {
+          console.error('[TeamDashboard] Error fetching summary:', error);
+          setTeamSummaryData(null);
+        } finally {
+          setTeamSummaryLoading(false);
+        }
+      };
+      fetchSummary();
+    }
+  }, [tenantName, team?.id, teamName, teamDateRange, presetsData]);
 
   // Determine if server has any data for the selected range
   const hasRangeData = !!(
