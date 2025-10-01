@@ -49,21 +49,29 @@ export function SlackNotificationConfigComponent({ config, onChange, teamName, t
   const [selectedTeamSlacks, setSelectedTeamSlacks] = useState<string[]>([]);
   const [selectedOtherSlacks, setSelectedOtherSlacks] = useState<string[]>([]);
   const [selectedDropdownValue, setSelectedDropdownValue] = useState('');
+  const [additionalRecipientsSearch, setAdditionalRecipientsSearch] = useState('');
   
-  // Compute other team Slack handles from React Query data
+  // Compute other team Slack handles from React Query data (EXCLUDE EXPIRED USERS)
   const otherTeamSlacks = useMemo(() => {
     const allOtherSlacks: string[] = [];
+    const expiredUserSlacks = new Set(
+      users.filter(u => u.is_active === false && u.user_slack).flatMap(u => u.user_slack || [])
+    );
     
-    // Add ALL team Slack channels from OTHER teams
+    // Add ALL team Slack channels from OTHER teams (exclude expired users)
     allTeamsData.forEach((team: any) => {
       if (team.name !== teamName && team.team_slack) {
-        allOtherSlacks.push(...team.team_slack);
+        team.team_slack.forEach((slack: string) => {
+          if (!expiredUserSlacks.has(slack)) {
+            allOtherSlacks.push(slack);
+          }
+        });
       }
     });
     
-    // Add ALL user Slack handles not in current team
+    // Add ALL ACTIVE user Slack handles not in current team
     users.forEach((user: SystemUser) => {
-      if (user.user_slack && Array.isArray(user.user_slack) && !teamSlackChannels.some(channel => user.user_slack?.includes(channel))) {
+      if (user.user_slack && Array.isArray(user.user_slack) && user.is_active !== false && !teamSlackChannels.some(channel => user.user_slack?.includes(channel))) {
         allOtherSlacks.push(...user.user_slack);
       }
     });
@@ -261,6 +269,19 @@ export function SlackNotificationConfigComponent({ config, onChange, teamName, t
           <CardTitle className="text-sm">Additional Recipients</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
+          {/* Search Bar for Additional Recipients */}
+          <div className="space-y-2">
+            <Label htmlFor="slack-additional-recipients-search" className="text-xs text-muted-foreground">Search Recipients</Label>
+            <Input
+              id="slack-additional-recipients-search"
+              type="text"
+              placeholder="Search by Slack handle or name..."
+              value={additionalRecipientsSearch}
+              onChange={(e) => setAdditionalRecipientsSearch(e.target.value)}
+              className="text-sm"
+            />
+          </div>
+          
           {/* Other Team Slack channels and System Users - Multi-Select with Slider */}
           {isLoading ? (
             <div className="text-sm text-muted-foreground">Loading additional recipients...</div>
@@ -269,38 +290,56 @@ export function SlackNotificationConfigComponent({ config, onChange, teamName, t
               <Label className="text-xs text-muted-foreground">Other Team & System User Slack Channels</Label>
               <div className="border border-gray-300 rounded-md p-2 max-h-48 overflow-y-auto bg-white">
                 <div className="space-y-1">
-                  {/* Other team Slack channels */}
-                  {otherTeamSlacks.length > 0 && (
-                    <div>
-                      <div className="text-xs font-medium text-gray-600 mb-1 sticky top-0 bg-white py-1">Other Teams</div>
-                      {otherTeamSlacks.map((slack, index) => (
-                        <label key={`other-team-${index}`} className="flex items-center space-x-2 p-1 hover:bg-gray-50 cursor-pointer rounded">
-                          <input
-                            type="checkbox"
-                            checked={selectedOtherSlacks.includes(slack)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setSelectedOtherSlacks([...selectedOtherSlacks, slack]);
-                              } else {
-                                setSelectedOtherSlacks(selectedOtherSlacks.filter(s => s !== slack));
-                              }
-                            }}
-                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                          />
-                          <span className="text-sm">{slack}</span>
-                        </label>
-                      ))}
-                    </div>
-                  )}
+                  {/* Other team Slack channels (FILTERED BY SEARCH) */}
+                  {(() => {
+                    const searchLower = additionalRecipientsSearch.toLowerCase();
+                    const filteredOtherTeamSlacks = otherTeamSlacks.filter(slack => 
+                      slack.toLowerCase().includes(searchLower)
+                    );
+                    
+                    return filteredOtherTeamSlacks.length > 0 && (
+                      <div>
+                        <div className="text-xs font-medium text-gray-600 mb-1 sticky top-0 bg-white py-1">Other Teams</div>
+                        {filteredOtherTeamSlacks.map((slack, index) => (
+                          <label key={`other-team-${index}`} className="flex items-center space-x-2 p-1 hover:bg-gray-50 cursor-pointer rounded">
+                            <input
+                              type="checkbox"
+                              checked={selectedOtherSlacks.includes(slack)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedOtherSlacks([...selectedOtherSlacks, slack]);
+                                } else {
+                                  setSelectedOtherSlacks(selectedOtherSlacks.filter(s => s !== slack));
+                                }
+                              }}
+                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span className="text-sm">{slack}</span>
+                          </label>
+                        ))}
+                      </div>
+                    );
+                  })()}
                   
-                  {/* System user Slack handles */}
-                  {users.length > 0 && (
-                    <div className={otherTeamSlacks.length > 0 ? "mt-3 pt-3 border-t border-gray-200" : ""}>
-                      <div className="text-xs font-medium text-gray-600 mb-1 sticky top-0 bg-white py-1">System Users</div>
-                      {users
-                        .filter(user => user.user_slack && Array.isArray(user.user_slack) && user.team !== teamName)
-                        .map((user) => (
-                          user.user_slack?.map((slack) => (
+                  {/* System user Slack handles (FILTERED BY SEARCH AND EXCLUDED IF EXPIRED) */}
+                  {(() => {
+                    const searchLower = additionalRecipientsSearch.toLowerCase();
+                    const filteredUsers = users
+                      .filter(user => 
+                        user.user_slack && 
+                        Array.isArray(user.user_slack) && 
+                        user.team !== teamName &&
+                        user.is_active !== false && // EXCLUDE EXPIRED USERS
+                        (user.user_slack.some(slack => slack.toLowerCase().includes(searchLower)) ||
+                         (user.displayName || '').toLowerCase().includes(searchLower) ||
+                         (user.username || '').toLowerCase().includes(searchLower))
+                      );
+                    
+                    return filteredUsers.length > 0 && (
+                      <div className={otherTeamSlacks.length > 0 ? "mt-3 pt-3 border-t border-gray-200" : ""}>
+                        <div className="text-xs font-medium text-gray-600 mb-1 sticky top-0 bg-white py-1">System Users</div>
+                        {filteredUsers.map((user) => (
+                          user.user_slack?.filter(slack => slack.toLowerCase().includes(searchLower)).map((slack) => (
                             <label key={`${user.id}-${slack}`} className="flex items-center space-x-2 p-1 hover:bg-gray-50 cursor-pointer rounded">
                               <input
                                 type="checkbox"
@@ -321,8 +360,32 @@ export function SlackNotificationConfigComponent({ config, onChange, teamName, t
                             </label>
                           ))
                         ))}
-                    </div>
-                  )}
+                      </div>
+                    );
+                  })()}
+                  
+                  {/* No results message */}
+                  {(() => {
+                    const searchLower = additionalRecipientsSearch.toLowerCase();
+                    const hasOtherTeamResults = otherTeamSlacks.some(slack => 
+                      slack.toLowerCase().includes(searchLower)
+                    );
+                    const hasSystemUserResults = users.some(user => 
+                      user.user_slack && 
+                      Array.isArray(user.user_slack) && 
+                      user.team !== teamName &&
+                      user.is_active !== false &&
+                      (user.user_slack.some(slack => slack.toLowerCase().includes(searchLower)) ||
+                       (user.displayName || '').toLowerCase().includes(searchLower) ||
+                       (user.username || '').toLowerCase().includes(searchLower))
+                    );
+                    
+                    return !hasOtherTeamResults && !hasSystemUserResults && additionalRecipientsSearch && (
+                      <div className="text-sm text-muted-foreground text-center py-4">
+                        No recipients found matching "{additionalRecipientsSearch}"
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
               
@@ -333,10 +396,16 @@ export function SlackNotificationConfigComponent({ config, onChange, teamName, t
                   variant="outline"
                   size="sm"
                   onClick={() => {
+                    // Only select ACTIVE (non-expired) users
                     const allAvailableSlacks = [
                       ...otherTeamSlacks,
                       ...users
-                        .filter(user => user.user_slack && Array.isArray(user.user_slack) && user.team !== teamName)
+                        .filter(user => 
+                          user.user_slack && 
+                          Array.isArray(user.user_slack) && 
+                          user.team !== teamName &&
+                          user.is_active !== false // EXCLUDE EXPIRED USERS
+                        )
                         .flatMap(user => user.user_slack || [])
                     ];
                     setSelectedOtherSlacks(Array.from(new Set([...selectedOtherSlacks, ...allAvailableSlacks])));
