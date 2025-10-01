@@ -626,7 +626,7 @@ export class RedisCache {
     return notificationSent;
   }
 
-  private async refreshCacheWithWorker(): Promise<void> {
+  private async refreshCacheWithWorker(buildType: 'Regular' | 'Forced' = 'Regular'): Promise<void> {
     if (!this.useRedis || !this.redis) {
       await this.refreshFallbackData();
       return;
@@ -686,7 +686,10 @@ export class RedisCache {
         const workerUrl = new URL('./cache-worker-entry.ts', import.meta.url);
         this.cacheWorker = new Worker(workerUrl, {
           execArgv: ['--import', 'tsx/register'],
-          workerData: { redisUrl: process.env.REDIS_URL || 'redis://localhost:6379' }
+          workerData: { 
+            redisUrl: process.env.REDIS_URL || 'redis://localhost:6379',
+            buildType // Pass buildType to worker
+          }
         });
 
         // Set worker timeout to prevent hanging
@@ -2095,8 +2098,9 @@ export class RedisCache {
     mainCacheKeys?: (keyof typeof CACHE_KEYS)[];
     refreshAffectedData?: boolean;
     cacheTypes?: string[]; // Optional explicit cache types, auto-detected if not provided
+    buildType?: 'Regular' | 'Forced'; // Cache build type for FastAPI awareness
   }): Promise<void> {
-    const { keys = [], patterns = [], mainCacheKeys = [], refreshAffectedData = true, cacheTypes } = invalidationConfig;
+    const { keys = [], patterns = [], mainCacheKeys = [], refreshAffectedData = true, cacheTypes, buildType = 'Forced' } = invalidationConfig;
 
     try {
       // Invalidate specific cache keys
@@ -2116,7 +2120,7 @@ export class RedisCache {
 
       // Invalidate main cache entries and refresh them immediately
       if (mainCacheKeys.length > 0) {
-        await this.invalidateAndRefreshMainCache(mainCacheKeys, refreshAffectedData);
+        await this.invalidateAndRefreshMainCache(mainCacheKeys, refreshAffectedData, buildType);
       }
 
       // Auto-detect and broadcast cache update types based on what was invalidated
@@ -2193,7 +2197,8 @@ export class RedisCache {
 
   private async invalidateAndRefreshMainCache(
     mainCacheKeys: (keyof typeof CACHE_KEYS)[],
-    refreshData: boolean = true
+    refreshData: boolean = true,
+    buildType: 'Regular' | 'Forced' = 'Forced'
   ): Promise<void> {
     // Handle fallback mode when Redis is unavailable
     if (!this.useRedis || !this.redis) {
@@ -2210,7 +2215,7 @@ export class RedisCache {
 
       // Immediately refresh affected data if requested
       if (refreshData) {
-        await this.refreshAffectedMainCacheData(mainCacheKeys);
+        await this.refreshAffectedMainCacheData(mainCacheKeys, buildType);
       }
 
     } catch (error) {
@@ -2218,7 +2223,7 @@ export class RedisCache {
     }
   }
 
-  private async refreshAffectedMainCacheData(affectedKeys: (keyof typeof CACHE_KEYS)[]): Promise<void> {
+  private async refreshAffectedMainCacheData(affectedKeys: (keyof typeof CACHE_KEYS)[], buildType: 'Regular' | 'Forced' = 'Forced'): Promise<void> {
     const expireTime = Math.floor(this.CACHE_DURATION_MS / 1000) + 300; // Add 5 minute buffer
 
     try {

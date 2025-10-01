@@ -773,10 +773,13 @@ function generateComplianceTrend(entities: Entity[], tables: Entity[], dags: Ent
 
 // Worker thread message handler
 if (parentPort) {
+  // Extract buildType from workerData (defaults to 'Regular' if not provided)
+  const buildType: 'Regular' | 'Forced' = (workerData?.buildType as 'Regular' | 'Forced') || 'Regular';
+  
   parentPort.on('message', async (message: { type: string }) => {
     if (message.type === 'refresh') {
       try {
-        const cacheData = await refreshCacheData();
+        const cacheData = await refreshCacheData(buildType);
         parentPort!.postMessage({ type: 'success', data: cacheData });
       } catch (error) {
         parentPort!.postMessage({ 
