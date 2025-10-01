@@ -110,71 +110,82 @@ const Summary = () => {
     staleTime: 6 * 60 * 60 * 1000,
   });
 
+  // Persist/restore dashboard UI state across route navigations
+  const STORAGE_KEY = 'dashboard_ui_state_v1';
+  
+  // Initialize state from sessionStorage immediately to prevent flashing summary view on refresh
+  const getInitialState = () => {
+    try {
+      const raw = sessionStorage.getItem(STORAGE_KEY);
+      if (!raw) return null;
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  };
+  
+  const initialState = getInitialState();
+  
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
-  const [openTeamTabs, setOpenTeamTabs] = useState<string[]>([]);
-  const [activeTab, setActiveTab] = useState('summary');
+  const [openTeamTabs, setOpenTeamTabs] = useState<string[]>(
+    Array.isArray(initialState?.openTeamTabs) ? initialState.openTeamTabs : []
+  );
+  const [activeTab, setActiveTab] = useState(
+    typeof initialState?.activeTab === 'string' ? initialState.activeTab : 'summary'
+  );
   const [teamsLoaded, setTeamsLoaded] = useState(false);
 
   const { list: entities, isLoading: entitiesLoading } = useAppSelector((state) => state.entities);
   
-  const [teamDateRanges, setTeamDateRanges] = useState<Record<string, { startDate: Date; endDate: Date; label: string }>>({});
-  const [summaryDateRange, setSummaryDateRange] = useState({
-    startDate: startOfDay(subDays(new Date(), 29)),
-    endDate: endOfDay(new Date()),
-    label: 'Last 30 Days',
+  const [teamDateRanges, setTeamDateRanges] = useState<Record<string, { startDate: Date; endDate: Date; label: string }>>(
+    (() => {
+      if (!initialState?.teamDateRanges || typeof initialState.teamDateRanges !== 'object') return {};
+      const restoredRanges: Record<string, { startDate: Date; endDate: Date; label: string }> = {};
+      Object.entries(initialState.teamDateRanges).forEach(([teamName, range]: any) => {
+        if (range) {
+          restoredRanges[teamName] = {
+            startDate: range.startDate ? new Date(range.startDate) : startOfDay(subDays(new Date(), 29)),
+            endDate: range.endDate ? new Date(range.endDate) : endOfDay(new Date()),
+            label: range.label || 'Last 30 Days',
+          };
+        }
+      });
+      return restoredRanges;
+    })()
+  );
+  const [summaryDateRange, setSummaryDateRange] = useState(() => {
+    if (initialState?.summaryDateRange) {
+      return {
+        startDate: initialState.summaryDateRange.startDate ? new Date(initialState.summaryDateRange.startDate) : startOfDay(subDays(new Date(), 29)),
+        endDate: initialState.summaryDateRange.endDate ? new Date(initialState.summaryDateRange.endDate) : endOfDay(new Date()),
+        label: initialState.summaryDateRange.label || 'Last 30 Days',
+      };
+    }
+    return {
+      startDate: startOfDay(subDays(new Date(), 29)),
+      endDate: endOfDay(new Date()),
+      label: 'Last 30 Days',
+    };
   });
 
-  // Persist/restore dashboard UI state across route navigations
-  const STORAGE_KEY = 'dashboard_ui_state_v1';
   const [restored, setRestored] = useState(false);
 
-  // Restore when tenants are loaded (so we can match tenant by name)
+  // Restore selected tenant when tenants are loaded (needs tenant lookup by name)
   useEffect(() => {
     if (restored) return;
     if (!tenants || tenants.length === 0) return;
     try {
-      const raw = sessionStorage.getItem(STORAGE_KEY);
-      if (!raw) {
-        setRestored(true);
-        return;
-      }
-      const parsed = JSON.parse(raw);
-      // Restore selected tenant by name if it still exists
-      if (parsed?.selectedTenantName) {
-        const t = tenants.find(tn => tn.name === parsed.selectedTenantName);
+      // Only need to restore selected tenant - everything else is in initial state
+      if (initialState?.selectedTenantName) {
+        const t = tenants.find(tn => tn.name === initialState.selectedTenantName);
         if (t) setSelectedTenant(t);
       }
-      // Restore open team tabs and active tab
-      if (Array.isArray(parsed?.openTeamTabs)) setOpenTeamTabs(parsed.openTeamTabs);
-      if (typeof parsed?.activeTab === 'string') setActiveTab(parsed.activeTab);
-      // Restore summary date range
-      if (parsed?.summaryDateRange) {
-        setSummaryDateRange({
-          startDate: parsed.summaryDateRange.startDate ? new Date(parsed.summaryDateRange.startDate) : startOfDay(subDays(new Date(), 29)),
-          endDate: parsed.summaryDateRange.endDate ? new Date(parsed.summaryDateRange.endDate) : endOfDay(new Date()),
-          label: parsed.summaryDateRange.label || 'Last 30 Days',
-        });
-      }
-      // Restore team date ranges
-      if (parsed?.teamDateRanges && typeof parsed.teamDateRanges === 'object') {
-        const restoredRanges: Record<string, { startDate: Date; endDate: Date; label: string }>= {} as any;
-        Object.entries(parsed.teamDateRanges).forEach(([teamName, range]: any) => {
-          if (range) {
-            restoredRanges[teamName] = {
-              startDate: range.startDate ? new Date(range.startDate) : startOfDay(subDays(new Date(), 29)),
-              endDate: range.endDate ? new Date(range.endDate) : endOfDay(new Date()),
-              label: range.label || 'Last 30 Days',
-            };
-          }
-        });
-        setTeamDateRanges(restoredRanges);
-      }
     } catch (_e) {
-      // Ignore corrupt state
+      // Ignore errors
     } finally {
       setRestored(true);
     }
-  }, [tenants, restored]);
+  }, [tenants, restored, initialState?.selectedTenantName]);
 
   // Save on relevant state changes
   useEffect(() => {
