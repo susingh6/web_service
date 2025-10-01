@@ -335,10 +335,11 @@ const TeamDashboard = ({
 
       setAddMemberDialogOpen(false);
       setSelectedUserId('');
-    } catch (error) {
+    } catch (error: any) {
+      const errorMessage = error?.message || 'Failed to add team member';
       toast({
         title: 'Error',
-        description: 'Failed to add team member',
+        description: errorMessage,
         variant: 'destructive',
       });
     }
@@ -358,10 +359,11 @@ const TeamDashboard = ({
 
       setRemoveMemberDialogOpen(false);
       setSelectedMemberId('');
-    } catch (error) {
+    } catch (error: any) {
+      const errorMessage = error?.message || 'Failed to remove team member';
       toast({
         title: 'Error',
-        description: 'Failed to remove team member',
+        description: errorMessage,
         variant: 'destructive',
       });
     }

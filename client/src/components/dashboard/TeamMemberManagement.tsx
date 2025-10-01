@@ -147,10 +147,11 @@ const TeamMemberManagement: React.FC<TeamMemberManagementProps> = ({
       });
       
       await fetchTeamDetails();
-    } catch (error) {
+    } catch (error: any) {
+      const errorMessage = error?.message || 'Failed to remove team member';
       toast({
         title: 'Error',
-        description: 'Failed to remove team member',
+        description: errorMessage,
         variant: 'destructive',
       });
     }
@@ -176,10 +177,11 @@ const TeamMemberManagement: React.FC<TeamMemberManagementProps> = ({
       
       setDialogOpen(false);
       await fetchTeamDetails();
-    } catch (error) {
+    } catch (error: any) {
+      const errorMessage = error?.message || `Failed to ${editingMember ? 'update' : 'add'} team member`;
       toast({
         title: 'Error',
-        description: `Failed to ${editingMember ? 'update' : 'add'} team member`,
+        description: errorMessage,
         variant: 'destructive',
       });
     }

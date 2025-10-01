@@ -955,7 +955,12 @@ export function useEntityMutation() {
       const response = await apiRequest('POST', buildUrl(`/api/teams/${teamName}/${entityType}/${entityName}/rollback`), rollbackData);
       if (!response.ok) {
         const text = await response.text();
-        throw new Error(`Failed to rollback entity: ${text}`);
+        try {
+          const errorData = JSON.parse(text);
+          throw new Error(errorData.message || 'Failed to rollback entity');
+        } catch (parseError) {
+          throw new Error(text || 'Failed to rollback entity');
+        }
       }
       return response.json();
     },
@@ -1523,7 +1528,12 @@ export function useTeamMemberMutationV2() {
       
       if (!response.ok) {
         const text = await response.text();
-        throw new Error(`Failed to add team member: ${text}`);
+        try {
+          const errorData = JSON.parse(text);
+          throw new Error(errorData.message || 'Failed to add team member');
+        } catch (parseError) {
+          throw new Error(text || 'Failed to add team member');
+        }
       }
       return response.json();
     },
@@ -1608,7 +1618,12 @@ export function useTeamMemberMutationV2() {
       
       if (!response.ok) {
         const text = await response.text();
-        throw new Error(`Failed to remove team member: ${text}`);
+        try {
+          const errorData = JSON.parse(text);
+          throw new Error(errorData.message || 'Failed to remove team member');
+        } catch (parseError) {
+          throw new Error(text || 'Failed to remove team member');
+        }
       }
       return response.json();
     },
