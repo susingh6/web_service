@@ -1,23 +1,13 @@
 import React from 'react';
-import { useTheme } from '@mui/material/styles';
-import { Box, Typography } from '@mui/material';
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  TooltipProps,
-  Cell,
-} from 'recharts';
-import { format, subDays } from 'date-fns';
+import { Box, Typography, Chip, Paper } from '@mui/material';
+import { CheckCircle, Schedule, Cancel, AccessTime } from '@mui/icons-material';
+import { format, subDays, parseISO } from 'date-fns';
 
 interface SlaStatusData {
   date: string;
-  status: 'passed' | 'failed' | 'pending';
-  count?: number;
+  sla_status: 'passed' | 'failed' | 'pending';
+  expected_finish_time?: string;
+  actual_finish_time?: string;
 }
 
 interface SlaStatusChartProps {
@@ -29,7 +19,13 @@ interface SlaStatusChartProps {
 const STATUS_COLORS = {
   passed: '#4caf50', // Green
   failed: '#f44336', // Red
-  pending: '#ff9800', // Orange
+  pending: '#ff9800', // Amber/Orange
+};
+
+const STATUS_BG_COLORS = {
+  passed: '#e8f5e9', // Light green
+  failed: '#ffebee', // Light red
+  pending: '#fff3e0', // Light amber
 };
 
 // Generate demo data if no data provided
@@ -42,86 +38,72 @@ const generateDemoSlaStatusData = (days = 30): SlaStatusData[] => {
     
     // Generate random but realistic SLA status distribution
     const random = Math.random();
-    let status: 'passed' | 'failed' | 'pending';
+    let sla_status: 'passed' | 'failed' | 'pending';
     
     if (random < 0.75) {
-      status = 'passed'; // 75% passed
+      sla_status = 'passed'; // 75% passed
     } else if (random < 0.90) {
-      status = 'pending'; // 15% pending
+      sla_status = 'pending'; // 15% pending
     } else {
-      status = 'failed'; // 10% failed
+      sla_status = 'failed'; // 10% failed
+    }
+    
+    // Generate realistic times
+    const baseHour = 2 + Math.floor(Math.random() * 4); // 2-6 AM
+    const expectedTime = new Date(date);
+    expectedTime.setHours(baseHour, 0, 0, 0);
+    
+    let actualTime;
+    if (sla_status === 'passed') {
+      // Passed: actual is before or at expected
+      actualTime = new Date(expectedTime);
+      actualTime.setMinutes(actualTime.getMinutes() - Math.floor(Math.random() * 30));
+    } else if (sla_status === 'failed') {
+      // Failed: actual is after expected
+      actualTime = new Date(expectedTime);
+      actualTime.setMinutes(actualTime.getMinutes() + 30 + Math.floor(Math.random() * 60));
+    } else {
+      // Pending: no actual time yet
+      actualTime = null;
     }
     
     data.push({
       date: format(date, 'yyyy-MM-dd'),
-      status,
-      count: 1,
+      sla_status,
+      expected_finish_time: expectedTime.toISOString(),
+      actual_finish_time: actualTime ? actualTime.toISOString() : undefined,
     });
   }
   
   return data;
 };
 
-// Custom tooltip component
-const CustomTooltip = ({ active, payload, label }: TooltipProps<number, string>) => {
-  if (active && payload && payload.length) {
-    const data = payload[0]?.payload;
-    return (
-      <Box
-        sx={{
-          bgcolor: 'background.paper',
-          p: 2,
-          border: 1,
-          borderColor: 'divider',
-          borderRadius: 1,
-          boxShadow: 2,
-        }}
-      >
-        <Typography variant="body2" fontWeight={600}>
-          {format(new Date(label), 'MMM d, yyyy')}
-        </Typography>
-        <Typography 
-          variant="body2" 
-          sx={{ 
-            color: STATUS_COLORS[data?.status as keyof typeof STATUS_COLORS] || '#666',
-            textTransform: 'capitalize',
-          }}
-        >
-          Status: {data?.status}
-        </Typography>
-      </Box>
-    );
+const StatusIcon = ({ status }: { status: 'passed' | 'failed' | 'pending' }) => {
+  const iconProps = { sx: { fontSize: 20 } };
+  
+  if (status === 'passed') {
+    return <CheckCircle {...iconProps} sx={{ ...iconProps.sx, color: STATUS_COLORS.passed }} />;
+  } else if (status === 'failed') {
+    return <Cancel {...iconProps} sx={{ ...iconProps.sx, color: STATUS_COLORS.failed }} />;
+  } else {
+    return <Schedule {...iconProps} sx={{ ...iconProps.sx, color: STATUS_COLORS.pending }} />;
   }
-  return null;
 };
 
 const SlaStatusChart: React.FC<SlaStatusChartProps> = ({ data, days = 30 }) => {
-  const theme = useTheme();
-  
   // Use provided data or generate demo data
   const chartData = data && data.length > 0 ? data : generateDemoSlaStatusData(days);
   
-  // Transform data for chart - group by date and create stacked format
-  const processedData = chartData.reduce((acc, item) => {
-    const existingDay = acc.find(d => d.date === item.date);
-    
-    if (existingDay) {
-      existingDay[item.status] = (existingDay[item.status] || 0) + (item.count || 1);
-    } else {
-      acc.push({
-        date: item.date,
-        dateFormatted: format(new Date(item.date), 'MMM d'),
-        passed: item.status === 'passed' ? (item.count || 1) : 0,
-        failed: item.status === 'failed' ? (item.count || 1) : 0,
-        pending: item.status === 'pending' ? (item.count || 1) : 0,
-      });
-    }
-    
-    return acc;
-  }, [] as any[]);
+  // Sort by date (most recent first for timeline view)
+  const sortedData = [...chartData].sort((a, b) => 
+    new Date(b.date).getTime() - new Date(a.date).getTime()
+  );
   
-  // Sort by date
-  processedData.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  // Calculate summary stats
+  const stats = sortedData.reduce((acc, item) => {
+    acc[item.sla_status]++;
+    return acc;
+  }, { passed: 0, failed: 0, pending: 0 });
   
   if (!chartData || chartData.length === 0) {
     return (
@@ -134,66 +116,168 @@ const SlaStatusChart: React.FC<SlaStatusChartProps> = ({ data, days = 30 }) => {
   }
   
   return (
-    <Box sx={{ width: '100%', height: '100%' }}>
-      <ResponsiveContainer width="100%" height="100%">
-        <BarChart
-          data={processedData}
-          margin={{
-            top: 10,
-            right: 10,
-            left: 10,
-            bottom: 0,
-          }}
-        >
-          <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} />
-          <XAxis
-            dataKey="dateFormatted"
-            axisLine={false}
-            tickLine={false}
-            tick={{
-              fontSize: 12,
-              fill: theme.palette.text.secondary,
-            }}
-            interval="preserveStartEnd"
-          />
-          <YAxis
-            axisLine={false}
-            tickLine={false}
-            tick={{
-              fontSize: 12,
-              fill: theme.palette.text.secondary,
-            }}
-            width={30}
-          />
-          <Tooltip content={<CustomTooltip />} />
-          
-          {/* Stacked bars for each status */}
-          <Bar dataKey="passed" stackId="status" fill={STATUS_COLORS.passed} />
-          <Bar dataKey="pending" stackId="status" fill={STATUS_COLORS.pending} />
-          <Bar dataKey="failed" stackId="status" fill={STATUS_COLORS.failed} />
-        </BarChart>
-      </ResponsiveContainer>
+    <Box sx={{ width: '100%' }}>
+      {/* Summary Stats */}
+      <Box display="flex" justifyContent="center" gap={3} mb={2}>
+        <Box display="flex" alignItems="center" gap={1}>
+          <Box sx={{ 
+            width: 12, 
+            height: 12, 
+            bgcolor: STATUS_COLORS.passed, 
+            borderRadius: '50%' 
+          }} />
+          <Typography variant="body2" color="text.secondary">
+            Passed: <strong>{stats.passed}</strong>
+          </Typography>
+        </Box>
+        <Box display="flex" alignItems="center" gap={1}>
+          <Box sx={{ 
+            width: 12, 
+            height: 12, 
+            bgcolor: STATUS_COLORS.pending, 
+            borderRadius: '50%' 
+          }} />
+          <Typography variant="body2" color="text.secondary">
+            Pending: <strong>{stats.pending}</strong>
+          </Typography>
+        </Box>
+        <Box display="flex" alignItems="center" gap={1}>
+          <Box sx={{ 
+            width: 12, 
+            height: 12, 
+            bgcolor: STATUS_COLORS.failed, 
+            borderRadius: '50%' 
+          }} />
+          <Typography variant="body2" color="text.secondary">
+            Failed: <strong>{stats.failed}</strong>
+          </Typography>
+        </Box>
+      </Box>
       
-      {/* Legend */}
-      <Box display="flex" justifyContent="center" gap={3} mt={1}>
-        <Box display="flex" alignItems="center" gap={0.5}>
-          <Box sx={{ width: 12, height: 12, bgcolor: STATUS_COLORS.passed, borderRadius: 0.5 }} />
-          <Typography variant="caption" color="text.secondary">
-            Passed
-          </Typography>
-        </Box>
-        <Box display="flex" alignItems="center" gap={0.5}>
-          <Box sx={{ width: 12, height: 12, bgcolor: STATUS_COLORS.pending, borderRadius: 0.5 }} />
-          <Typography variant="caption" color="text.secondary">
-            Pending
-          </Typography>
-        </Box>
-        <Box display="flex" alignItems="center" gap={0.5}>
-          <Box sx={{ width: 12, height: 12, bgcolor: STATUS_COLORS.failed, borderRadius: 0.5 }} />
-          <Typography variant="caption" color="text.secondary">
-            Failed
-          </Typography>
-        </Box>
+      {/* Timeline View */}
+      <Box 
+        sx={{ 
+          maxHeight: 400, 
+          overflowY: 'auto',
+          border: 1,
+          borderColor: 'divider',
+          borderRadius: 1,
+        }}
+      >
+        {sortedData.map((item, index) => {
+          const itemDate = parseISO(item.date);
+          const expectedTime = item.expected_finish_time ? parseISO(item.expected_finish_time) : null;
+          const actualTime = item.actual_finish_time ? parseISO(item.actual_finish_time) : null;
+          
+          return (
+            <Box
+              key={item.date}
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                p: 1.5,
+                gap: 2,
+                borderBottom: index < sortedData.length - 1 ? 1 : 0,
+                borderColor: 'divider',
+                bgcolor: index % 2 === 0 ? 'background.paper' : 'action.hover',
+                '&:hover': {
+                  bgcolor: 'action.selected',
+                },
+              }}
+            >
+              {/* Date */}
+              <Box sx={{ minWidth: 90 }}>
+                <Typography variant="body2" fontWeight={500}>
+                  {format(itemDate, 'MMM d')}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {format(itemDate, 'yyyy')}
+                </Typography>
+              </Box>
+              
+              {/* Status Badge */}
+              <Box sx={{ minWidth: 100 }}>
+                <Chip
+                  icon={<StatusIcon status={item.sla_status} />}
+                  label={item.sla_status.toUpperCase()}
+                  size="small"
+                  sx={{
+                    bgcolor: STATUS_BG_COLORS[item.sla_status],
+                    color: STATUS_COLORS[item.sla_status],
+                    fontWeight: 600,
+                    fontSize: '0.75rem',
+                    borderRadius: 1,
+                  }}
+                />
+              </Box>
+              
+              {/* Expected Time */}
+              <Box sx={{ minWidth: 140, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <AccessTime sx={{ fontSize: 16, color: 'text.secondary' }} />
+                <Box>
+                  <Typography variant="caption" color="text.secondary" display="block">
+                    Expected
+                  </Typography>
+                  <Typography variant="body2" fontWeight={500}>
+                    {expectedTime ? format(expectedTime, 'h:mm a') : 'N/A'}
+                  </Typography>
+                </Box>
+              </Box>
+              
+              {/* Actual Time */}
+              <Box sx={{ minWidth: 140, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <AccessTime sx={{ fontSize: 16, color: 'text.secondary' }} />
+                <Box>
+                  <Typography variant="caption" color="text.secondary" display="block">
+                    Actual
+                  </Typography>
+                  <Typography 
+                    variant="body2" 
+                    fontWeight={500}
+                    sx={{
+                      color: item.sla_status === 'pending' 
+                        ? 'text.disabled' 
+                        : item.sla_status === 'passed'
+                        ? STATUS_COLORS.passed
+                        : STATUS_COLORS.failed
+                    }}
+                  >
+                    {actualTime ? format(actualTime, 'h:mm a') : 'Pending'}
+                  </Typography>
+                </Box>
+              </Box>
+              
+              {/* Time Difference Indicator */}
+              {actualTime && expectedTime && (
+                <Box sx={{ ml: 'auto' }}>
+                  {item.sla_status === 'passed' ? (
+                    <Chip
+                      label="On Time"
+                      size="small"
+                      sx={{
+                        bgcolor: STATUS_BG_COLORS.passed,
+                        color: STATUS_COLORS.passed,
+                        fontSize: '0.7rem',
+                        height: 20,
+                      }}
+                    />
+                  ) : item.sla_status === 'failed' ? (
+                    <Chip
+                      label="Late"
+                      size="small"
+                      sx={{
+                        bgcolor: STATUS_BG_COLORS.failed,
+                        color: STATUS_COLORS.failed,
+                        fontSize: '0.7rem',
+                        height: 20,
+                      }}
+                    />
+                  ) : null}
+                </Box>
+              )}
+            </Box>
+          );
+        })}
       </Box>
     </Box>
   );
