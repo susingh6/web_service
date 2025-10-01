@@ -29,6 +29,17 @@ export const SubscribeButton: React.FC<SubscribeButtonProps> = ({
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
+  // Fetch user profile to check for email/Slack configuration
+  const { data: userProfile } = useQuery({
+    queryKey: ['/api/user'],
+    queryFn: async () => {
+      const response = await apiRequest('GET', '/api/user');
+      if (!response.ok) return null;
+      return response.json();
+    },
+    enabled: !!user?.id,
+  });
+
   // Check if user is subscribed
   const { data: userSubscriptions = [], isLoading: isLoadingSubscriptions } = useQuery({
     queryKey: ['/api/me/subscriptions'],
@@ -65,10 +76,33 @@ export const SubscribeButton: React.FC<SubscribeButtonProps> = ({
       return response.json();
     },
     onSuccess: () => {
-      toast({
-        title: 'Subscribed',
-        description: `You will now receive notifications for "${timelineName}"`,
-      });
+      // Check if user has email or Slack configured
+      const hasEmail = userProfile?.email && userProfile.email.trim().length > 0;
+      const hasSlack = userProfile?.user_slack && Array.isArray(userProfile.user_slack) && userProfile.user_slack.length > 0;
+      
+      if (!hasEmail && !hasSlack) {
+        // No contact info at all
+        toast({
+          title: 'Subscribed - Action Required',
+          description: 'You are subscribed! Please update your email and Slack details in your profile to receive notifications.',
+          variant: 'default',
+        });
+      } else if (!hasEmail || !hasSlack) {
+        // Missing one of them
+        const missing = !hasEmail ? 'email' : 'Slack handle';
+        toast({
+          title: 'Subscribed - Profile Incomplete',
+          description: `You are subscribed! Consider adding your ${missing} in your profile for better notification delivery.`,
+          variant: 'default',
+        });
+      } else {
+        // All good
+        toast({
+          title: 'Subscribed',
+          description: `You will now receive notifications for "${timelineName}"`,
+        });
+      }
+      
       // Invalidate cache to refresh subscription status
       queryClient.invalidateQueries({ queryKey: ['/api/me/subscriptions'] });
       queryClient.invalidateQueries({ queryKey: [`/api/notification-timelines/${notificationTimelineId}/subscriptions`] });
