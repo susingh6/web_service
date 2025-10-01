@@ -666,9 +666,7 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
                 <CircularProgress size={32} />
               </Box>
             ) : (
-              <Box sx={{ height: 250 }}>
-                <SlaStatusChart data={slaStatusData || []} />
-              </Box>
+              <SlaStatusChart data={slaStatusData || []} />
             )}
           </Paper>
 
