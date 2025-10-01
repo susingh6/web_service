@@ -3553,6 +3553,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get all users for admin panel
   app.get("/api/admin/users", async (req, res) => {
     try {
+      // Prevent HTTP caching to ensure fresh data for expired user indicators
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      
       const users = await storage.getUsers();
       
       // Debug: Log actual user count
