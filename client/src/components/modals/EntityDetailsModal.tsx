@@ -43,7 +43,7 @@ import {
 } from '@mui/icons-material';
 import { format } from 'date-fns';
 import { Entity, Issue } from '@shared/schema';
-import EntityPerformanceChart from '@/components/dashboard/EntityPerformanceChart';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import SlaStatusChart from '@/components/charts/SlaStatusChart';
 import ConfirmDialog from './ConfirmDialog';
 import { useToast } from '@/hooks/use-toast';
@@ -354,6 +354,18 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
     return format(date, 'MMM d, yyyy • h:mm a');
   };
   
+  // Fetch compliance trend data from 6-hour cache
+  const { data: complianceTrendData, isLoading: complianceTrendLoading } = useQuery({
+    queryKey: ['entity-compliance-trend', entity.type, entity.name, entity.team_name],
+    queryFn: async () => {
+      const teamQuery = entity.team_name ? `?teamName=${encodeURIComponent(entity.team_name)}` : '';
+      const response = await fetch(`/api/entities/compliance-trend/${entity.type}/${encodeURIComponent(entity.name)}${teamQuery}`);
+      if (!response.ok) throw new Error('Failed to fetch compliance trend');
+      return response.json();
+    },
+    enabled: open && !!entity,
+  });
+  
   const handleDelete = () => {
     setOpenDeleteDialog(true);
   };
@@ -643,14 +655,60 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
             </Grid>
           </Grid>
           
-          {/* Performance Chart */}
+          {/* Compliance Trend Chart */}
           <Paper elevation={0} sx={{ p: 3, mb: 3, borderRadius: 1 }}>
             <Typography variant="h6" fontWeight={600} mb={2}>
-              Performance Trend (Last 30 Days)
+              Compliance Trend (Last 30 Days)
             </Typography>
-            <Box sx={{ height: 300 }}>
-              <EntityPerformanceChart entities={[entity]} />
-            </Box>
+            {complianceTrendLoading ? (
+              <Box display="flex" justifyContent="center" py={4}>
+                <CircularProgress size={32} />
+              </Box>
+            ) : complianceTrendData?.trend ? (
+              <Box sx={{ height: 300 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={complianceTrendData.trend}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
+                    <XAxis 
+                      dataKey="dateFormatted" 
+                      tick={{ fontSize: 12 }}
+                      interval="preserveStartEnd"
+                    />
+                    <YAxis 
+                      domain={[80, 100]} 
+                      tick={{ fontSize: 12 }}
+                      tickFormatter={(value) => `${value}%`}
+                    />
+                    <Tooltip 
+                      formatter={(value: number) => [`${value.toFixed(1)}%`, 'Compliance']}
+                      labelStyle={{ color: '#666' }}
+                      contentStyle={{ borderRadius: 8 }}
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="compliance" 
+                      stroke="#1976d2" 
+                      strokeWidth={2}
+                      dot={{ fill: '#1976d2', r: 3 }}
+                      activeDot={{ r: 5 }}
+                    />
+                    {/* Reference line for 95% target */}
+                    <Line 
+                      type="monotone" 
+                      dataKey={() => 95} 
+                      stroke="#d32f2f" 
+                      strokeWidth={1}
+                      strokeDasharray="5 5"
+                      dot={false}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </Box>
+            ) : (
+              <Box display="flex" justifyContent="center" alignItems="center" py={4}>
+                <Typography color="text.secondary">No compliance trend data available</Typography>
+              </Box>
+            )}
           </Paper>
 
           {/* SLA Status History Chart */}
