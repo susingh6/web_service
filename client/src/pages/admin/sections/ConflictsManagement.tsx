@@ -355,17 +355,6 @@ const ConflictsManagement = () => {
                      query.queryKey.includes('/api/dashboard');
             }
           });
-          
-          // Send WebSocket notification to users subscribed to this team/tenant combo
-          // This will be handled by the WebSocket system to notify specific subscribers
-          if (typeof window !== 'undefined' && (window as any).wsClient) {
-            (window as any).wsClient.send(JSON.stringify({
-              type: 'ENTITY_OWNERSHIP_UPDATED',
-              team: requestedBy,
-              conflictId: variables.conflictId,
-              action: variables.resolution.resolutionType
-            }));
-          }
         }
       }
       

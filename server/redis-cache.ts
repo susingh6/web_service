@@ -2121,9 +2121,6 @@ export class RedisCache {
     if (allPatterns.includes('entit')) {
       cacheTypes.add(WEBSOCKET_CONFIG.cacheUpdateTypes.ENTITIES);
     }
-    if (allPatterns.includes('owner')) {
-      cacheTypes.add(WEBSOCKET_CONFIG.cacheUpdateTypes.ENTITY_OWNERSHIP);
-    }
     if (allPatterns.includes('user')) {
       cacheTypes.add(WEBSOCKET_CONFIG.cacheUpdateTypes.USERS);
     }
