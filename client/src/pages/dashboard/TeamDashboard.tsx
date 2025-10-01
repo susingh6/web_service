@@ -309,6 +309,8 @@ const TeamDashboard = ({
       queryClient.invalidateQueries({ queryKey: cacheKeys.entitiesByTenantAndTeam(tenantName, team?.id) });
       // Also refresh dashboard summary
       queryClient.invalidateQueries({ queryKey: cacheKeys.dashboardSummary(tenantName, team?.id) });
+      // IMPORTANT: Invalidate team preset cache to refresh entity counts in badges
+      queryClient.invalidateQueries({ queryKey: ['/api/dashboard/presets', tenantName, teamName] });
       // Only refresh specific team entities via React Query, avoid Redux to prevent cross-contamination
       queryClient.refetchQueries({ queryKey: ['entities', 'team', team?.id] });
 
