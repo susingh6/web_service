@@ -268,8 +268,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Try to get user from cache first
-      const cachedUsers = await redisCache.getAllUsers();
-      const cachedUser = cachedUsers.find(u => u.id === req.user?.id);
+      const cachedUsers = await storage.getUsers();
+      const cachedUser = cachedUsers.find((u: any) => u.id === req.user?.id);
       
       if (cachedUser) {
         return res.json(cachedUser);
@@ -4597,7 +4597,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const users = await storage.getUsers();
         const ownerUser = users.find(u => u.email === ownerEmail);
         if (ownerUser) {
-          ownerIsActive = ownerUser.is_active !== undefined ? ownerUser.is_active : true;
+          ownerIsActive = ownerUser.is_active !== undefined && ownerUser.is_active !== null ? ownerUser.is_active : true;
         }
       } catch (userLookupError) {
         console.warn('Failed to lookup owner active status:', userLookupError);
@@ -5553,7 +5553,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const authenticatedSockets: Map<WebSocket, SocketData> = new Map();
   
   // Initialize WebSocket in cache system with the authenticatedSockets map
-  redisCache.setupWebSocket(wss, authenticatedSockets);
+  redisCache.setupWebSocket(wss, authenticatedSockets as any);
 
   // Heartbeat configuration
   const HEARTBEAT_INTERVAL = 30000; // 30 seconds
@@ -5707,7 +5707,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (socketData) {
         // Check if client is stuck (no pong response within timeout)
-        if (now - socketData.lastPong > IDLE_TIMEOUT) {
+        if (socketData.lastPong && now - socketData.lastPong > IDLE_TIMEOUT) {
           console.log(`Terminating idle client: ${socketData.userId}`);
           ws.terminate();
           authenticatedSockets.delete(ws);
@@ -5733,7 +5733,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     authenticatedSockets.forEach((socketData, ws) => {
       // Mark clients as stuck if they haven't responded to heartbeat
-      if (!socketData.isAlive && now - socketData.lastPong > IDLE_TIMEOUT) {
+      if (!socketData.isAlive && socketData.lastPong && now - socketData.lastPong > IDLE_TIMEOUT) {
         stuckClients.push(ws);
       }
     });
