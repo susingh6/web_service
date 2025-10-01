@@ -72,12 +72,27 @@ const Summary = () => {
 
   const { metrics, complianceTrends, isLoading: metricsLoading, lastFetchFailed } = useAppSelector((state) => state.dashboard);
   
-  // Load all presets once using React Query
+  // ============================================================================
+  // EFFICIENT PRESET LOADING SYSTEM
+  // ============================================================================
+  // Load all presets ONCE from Redis cache (no repeated API calls)
+  // 
+  // Flow:
+  // 1. Initial mount → Fetch all 5 presets in one call
+  // 2. Click "Today/Yesterday/etc" → Use cached data, NO API CALL
+  // 3. Click "Custom Range" → API call for calculation
+  // 4. Entity added/changed → Optimistic UI update (preset data stays stale until next cache refresh)
+  // 5. 6-hour cache refresh → WebSocket broadcasts → Query invalidated → Auto-refetch fresh presets
+  // 
+  // This ensures minimal API calls while keeping data fresh with WebSocket push updates
+  // ============================================================================
   const { data: presetsData, isLoading: presetsLoading } = useQuery({
     queryKey: ['/api/dashboard/presets', selectedTenant?.name],
     enabled: !!selectedTenant,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    refetchOnWindowFocus: false
+    staleTime: 6 * 60 * 60 * 1000, // 6 hours (matches cache refresh interval)
+    refetchOnWindowFocus: false,
+    refetchOnMount: false, // Only fetch once per session
+    refetchInterval: false // No polling, WebSocket handles invalidation
   });
   
   // Helper to check if entity was recently updated (matches EntityTable logic)
@@ -262,6 +277,13 @@ const Summary = () => {
         // Ignore unrelated cache updates (e.g., team-members-cache)
         return;
       }
+      
+      // IMPORTANT: Invalidate presets when 6-hour cache refreshes
+      // This ensures frontend gets latest preset data from Redis
+      console.log('[Summary] Cache updated - invalidating presets for fresh data');
+      queryClient.invalidateQueries({ 
+        queryKey: ['/api/dashboard/presets', selectedTenant?.name] 
+      });
       
       // Queue normalized tenant invalidation (debounced, single path)
       if (selectedTenant?.name) {
