@@ -359,6 +359,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json(createErrorResponse("User not found", "not_found"));
       }
 
+      // Invalidate user-related caches using centralized method
+      await redisCache.invalidateUserData();
+
       // Transform response to match admin panel format
       const transformedUser = {
         user_id: updatedUser.id,
@@ -416,7 +419,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         is_active: updatedUser.is_active
       };
 
-      // CRITICAL: Invalidate profile cache for this user so profile page shows updated data
+      // Invalidate user-related caches using centralized method
+      // This handles all_users cache, team_members_* patterns, and WebSocket broadcasting
+      await redisCache.invalidateUserData();
+      
+      // CRITICAL: Also invalidate profile cache for this user so profile page shows updated data
       await redisCache.invalidateCache({
         keys: [`profile_${updatedUser.id}`, `profile_${updatedUser.email}`],
         refreshAffectedData: true
