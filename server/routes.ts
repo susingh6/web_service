@@ -360,7 +360,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Invalidate user-related caches using centralized method
+      console.log('PUT /api/v1/users: Invalidating user data cache after updating user', userId);
       await redisCache.invalidateUserData();
+      console.log('PUT /api/v1/users: User data cache invalidated successfully');
 
       // Transform response to match admin panel format
       const transformedUser = {
@@ -421,7 +423,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Invalidate user-related caches using centralized method
       // This handles all_users cache, team_members_* patterns, and WebSocket broadcasting
+      console.log('PATCH /api/v1/users: Invalidating user data cache after updating user', userId);
       await redisCache.invalidateUserData();
+      console.log('PATCH /api/v1/users: User data cache invalidated successfully');
       
       // CRITICAL: Also invalidate profile cache for this user so profile page shows updated data
       await redisCache.invalidateCache({
