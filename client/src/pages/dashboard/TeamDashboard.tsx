@@ -95,11 +95,21 @@ const TeamDashboard = ({
   // Keep local state in sync with parent-provided dateRange
   useEffect(() => {
     if (dateRange && dateRange.startDate && dateRange.endDate) {
-      setTeamDateRange(prev => ({
-        startDate: dateRange.startDate,
-        endDate: dateRange.endDate,
-        label: dateRange.label || prev.label,
-      }));
+      // Only update if values actually changed to prevent infinite loops
+      setTeamDateRange(prev => {
+        const startTimeChanged = prev.startDate.getTime() !== dateRange.startDate.getTime();
+        const endTimeChanged = prev.endDate.getTime() !== dateRange.endDate.getTime();
+        const labelChanged = prev.label !== (dateRange.label || prev.label);
+        
+        if (startTimeChanged || endTimeChanged || labelChanged) {
+          return {
+            startDate: dateRange.startDate,
+            endDate: dateRange.endDate,
+            label: dateRange.label || prev.label,
+          };
+        }
+        return prev; // Return same object reference if nothing changed
+      });
     }
   }, [dateRange?.startDate?.getTime?.(), dateRange?.endDate?.getTime?.(), dateRange?.label]);
 

@@ -375,6 +375,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Azure admin validation successful - now authenticate with FastAPI
       queryClient.setQueryData([buildUrl(endpoints.auth.user)], response.user);
       
+      // Clear dashboard UI state on successful login to start fresh
+      sessionStorage.removeItem('dashboard_ui_state_v1');
+      
       try {
         // Extract user details for FastAPI
         const userDetails = {
