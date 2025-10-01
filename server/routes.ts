@@ -1788,6 +1788,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // GET /api/dashboard/presets - Load all preset ranges in one call for efficient caching
+  app.get("/api/dashboard/presets", async (req, res) => {
+    try {
+      const tenantName = req.query.tenant as string;
+      const teamName = req.query.team as string;
+      
+      if (!tenantName) {
+        return res.status(400).json({ message: "Tenant parameter is required" });
+      }
+      
+      const isTeamDashboard = teamName && teamName !== '0';
+      const ranges: ('today' | 'yesterday' | 'last7Days' | 'last30Days' | 'thisMonth')[] = 
+        ['today', 'yesterday', 'last7Days', 'last30Days', 'thisMonth'];
+      
+      const presets: Record<string, { metrics: any; complianceTrends: any }> = {};
+      
+      // Load all preset ranges from cache
+      for (const range of ranges) {
+        let metrics, complianceTrends;
+        
+        if (isTeamDashboard) {
+          // Team Dashboard: Get team-specific cached data for each range
+          metrics = await redisCache.getTeamMetricsByRange(tenantName, teamName, range);
+          complianceTrends = await redisCache.getTeamTrendsByRange(tenantName, teamName, range);
+        } else {
+          // Summary Dashboard: Get tenant-level cached data for each range
+          metrics = await redisCache.getMetricsByTenantAndRange(tenantName, range);
+          complianceTrends = await redisCache.getComplianceTrendsByTenantAndRange(tenantName, range);
+        }
+        
+        presets[range] = {
+          metrics: metrics || null,
+          complianceTrends: complianceTrends || null
+        };
+      }
+      
+      const scope = isTeamDashboard ? `team=${teamName}` : 'tenant-wide';
+      console.log(`GET /api/dashboard/presets - Loaded all presets for tenant=${tenantName}, ${scope} - status: 200`);
+      
+      res.json({
+        presets,
+        lastUpdated: new Date(),
+        cached: true,
+        scope: isTeamDashboard ? 'team' : 'tenant'
+      });
+    } catch (error) {
+      console.error('Dashboard presets error:', error);
+      res.status(500).json({ 
+        message: "Failed to fetch dashboard presets from cache",
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      });
+    }
+  });
+  
   app.post("/api/teams", requireActiveUser, async (req: Request, res: Response) => {
     try {
       const result = insertTeamSchema.safeParse(req.body);
