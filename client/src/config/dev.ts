@@ -28,12 +28,14 @@ export const devConfig = {
     tablesUpdate: (entityName: string) => `/api/v1/tables/${entityName}`, // Tables update by entity_name
     tablesGet: (entityName: string) => `/api/v1/tables/${entityName}`, // Tables get by entity_name
     tablesOwnerUpdate: (entityName: string) => `/api/v1/tables/${entityName}/owner`, // Tables owner update by entity_name
+    tablesOwnerSlaSettings: (teamName: string, entityName: string) => `/api/v1/teams/${teamName}/table/${entityName}/owner_sla_settings`, // Tables owner and SLA settings
     dags: '/api/v1/dags', // DAGs endpoint
     dagsBulk: '/api/v1/dags/bulk', // DAGs bulk endpoint
     dagsDelete: (entityName: string) => `/api/v1/dags/${entityName}`, // DAGs delete by entity_name
     dagsUpdate: (entityName: string) => `/api/v1/dags/${entityName}`, // DAGs update by entity_name
     dagsGet: (entityName: string) => `/api/v1/dags/${entityName}`, // DAGs get by entity_name
     dagsOwnerUpdate: (entityName: string) => `/api/v1/dags/${entityName}/owner`, // DAGs owner update by entity_name
+    dagsOwnerSlaSettings: (teamName: string, entityName: string) => `/api/v1/teams/${teamName}/dag/${entityName}/owner_sla_settings`, // DAGs owner and SLA settings
     // Express fallback endpoints (dev only)
     tablesFallback: '/api/tables',
     tablesBulkFallback: '/api/tables/bulk',
@@ -41,12 +43,14 @@ export const devConfig = {
     tablesUpdateFallback: (entityName: string) => `/api/tables/${entityName}`,
     tablesGetFallback: (entityName: string) => `/api/tables/${entityName}`,
     tablesOwnerUpdateFallback: (entityName: string) => `/api/tables/${entityName}/owner`,
+    tablesOwnerSlaSettingsFallback: (teamName: string, entityName: string) => `/api/teams/${teamName}/table/${entityName}/owner_sla_settings`,
     dagsFallback: '/api/dags',
     dagsBulkFallback: '/api/dags/bulk',
     dagsDeleteFallback: (entityName: string) => `/api/dags/${entityName}`,
     dagsUpdateFallback: (entityName: string) => `/api/dags/${entityName}`,
     dagsGetFallback: (entityName: string) => `/api/dags/${entityName}`,
     dagsOwnerUpdateFallback: (entityName: string) => `/api/dags/${entityName}/owner`,
+    dagsOwnerSlaSettingsFallback: (teamName: string, entityName: string) => `/api/teams/${teamName}/dag/${entityName}/owner_sla_settings`,
 
     // Generic builders for by-name Express routes and v1 typed routes
     byName: {

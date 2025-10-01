@@ -49,7 +49,7 @@ import ConfirmDialog from './ConfirmDialog';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 import { queryClient, apiRequest } from '@/lib/queryClient';
-import { buildUrl, endpoints } from '@/config';
+import { buildUrl, endpoints, config } from '@/config';
 import { useQuery } from '@tanstack/react-query';
 import { cacheKeys, invalidateEntityCaches } from '@/lib/cacheKeys';
 import { useEntityMutation } from '@/utils/cache-management';
@@ -109,27 +109,6 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
   const [availableUsers, setAvailableUsers] = useState<any[]>([]);
   const [selectedOwnerEmails, setSelectedOwnerEmails] = useState<string[]>([]);
   const [localOwnerEmails, setLocalOwnerEmails] = useState<string[] | null>(null);
-  
-  // Query to get all users for checking expired status
-  // Always refetch to ensure we show latest user status (active/inactive)
-  const { data: allUsers = [], isLoading: usersLoading, error: usersError } = useQuery<any[]>({
-    queryKey: ['/api/admin/users'],
-    enabled: open && !!entity,
-    staleTime: 0, // No stale time - always fetch fresh data
-    refetchOnMount: 'always', // Force refetch when modal opens
-  });
-  
-  // Debug logging
-  useEffect(() => {
-    if (open && entity) {
-      console.log('[EntityDetailsModal] Modal opened, users query state:', {
-        usersLoading,
-        usersError,
-        allUsersLength: allUsers.length,
-        enabled: open && !!entity
-      });
-    }
-  }, [open, entity, usersLoading, usersError, allUsers.length]);
   
   // Reset local owner emails when entity changes to prevent cross-entity contamination
   useEffect(() => {
@@ -257,77 +236,54 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
   };
 
   
-  // Fetch owner and SLA settings (combined API call)
-  const { data: ownerSlaSettings, isLoading: ownerSlaLoading } = useQuery({
+  // Fetch owner and SLA settings using type-specific endpoint
+  const { data: ownerSlaSettings, isLoading: ownerSlaLoading, error: ownerSlaError } = useQuery({
     queryKey: cacheKeys.entityDetails(entity?.id ?? 'new', `ownerSlaSettings-${entity?.type}-${teamName}-${entity?.name}`),
     queryFn: async () => {
       if (!entity || !teamName) return null;
+      
+      // Use type-specific endpoint
+      const endpoint = entity.type === 'table' 
+        ? config.endpoints.tablesOwnerSlaSettings(teamName, entity.name)
+        : config.endpoints.dagsOwnerSlaSettings(teamName, entity.name);
+      
       try {
-        const response = await apiRequest('GET', endpoints.entity.ownerAndSlaSettings(entity.type, teamName, entity.name));
+        const response = await apiRequest('GET', endpoint);
         return response.json();
-      } catch (error) {
-        console.warn('Owner/SLA settings API not available, using fallback data sourced from Admin Users');
-        // Fallback: build from Admin Users dataset for consistency
-        try {
-          const headers: Record<string, string> = {};
-          const sessionId = localStorage.getItem('fastapi_session_id');
-          if (sessionId) headers['X-Session-ID'] = sessionId;
-          const res = await fetch('/api/admin/users', { headers, credentials: 'include' });
-          const users = res.ok ? await res.json() : [];
-          const ownerUser = Array.isArray(users) && users.length > 0 ? users[0] : null;
-          const secondaryUser = Array.isArray(users) && users.length > 1 ? users[1] : ownerUser;
-
-          // Derive friendly owner name from admin user entry
-          const ownerName = ownerUser?.user_name || ownerUser?.displayName || entity.owner || 'Unknown Owner';
-          const ownerEmail = ownerUser?.user_email || ownerUser?.email || entity.ownerEmail || entity.owner_email || 'owner@company.com';
-          // Prefer logged-in user's email for userEmail if available
-          let fallbackUserEmail = ownerEmail;
-          try {
-            const userData = localStorage.getItem('fastapi_user');
-            if (userData) {
-              const parsed = JSON.parse(userData);
-              fallbackUserEmail = parsed?.email || fallbackUserEmail;
-            }
-          } catch {}
-          const userEmail = fallbackUserEmail || secondaryUser?.user_email || 'user@company.com';
-
-          return {
-            owner: ownerName,
-            ownerEmail,
-            userEmail,
-            entityName: entity.name,
-            team: teamName,
-            description: entity.description || `${entity.type} entity for data processing`,
-            schedule: entity.dag_schedule || entity.table_schedule || '0 2 * * *',
-            expectedRuntime: entity.expected_runtime_minutes || 45,
-            donemarkerLocation: entity.donemarker_location || `s3://analytics-${entity.type}s/${entity.name}/`,
-            donemarkerLookback: entity.donemarker_lookback || 2,
-            dependency: entity.dag_dependency || entity.table_dependency || 'upstream_dependencies',
-            isActive: entity.is_active !== undefined ? entity.is_active : true,
-            ...(entity.type === 'dag' && { serverName: 'airflow-prod-01' }),
-          };
-        } catch {
-          // Final fallback (should be rare)
-        return {
-          owner: entity.owner || 'Unknown Owner',
-            ownerEmail: entity.ownerEmail || entity.owner_email || 'owner@company.com',
-          userEmail: 'user@company.com',
+      } catch (error: any) {
+        console.error('[EntityDetailsModal] Failed to fetch owner SLA settings:', {
+          type: entity.type,
+          teamName,
           entityName: entity.name,
-          team: teamName,
-          description: entity.description || `${entity.type} entity for data processing`,
-          schedule: entity.dag_schedule || entity.table_schedule || '0 2 * * *',
-          expectedRuntime: entity.expected_runtime_minutes || 45,
-          donemarkerLocation: entity.donemarker_location || `s3://analytics-${entity.type}s/${entity.name}/`,
-          donemarkerLookback: entity.donemarker_lookback || 2,
-          dependency: entity.dag_dependency || entity.table_dependency || 'upstream_dependencies',
-          isActive: entity.is_active !== undefined ? entity.is_active : true,
-          ...(entity.type === 'dag' && { serverName: 'airflow-prod-01' }),
-        };
+          endpoint,
+          error: error.message
+        });
+        
+        // Fallback to Express endpoint if FastAPI fails (dev only)
+        if (config.endpoints.tablesOwnerSlaSettingsFallback && entity.type === 'table') {
+          try {
+            const fallbackEndpoint = config.endpoints.tablesOwnerSlaSettingsFallback(teamName, entity.name);
+            const response = await apiRequest('GET', fallbackEndpoint);
+            return response.json();
+          } catch (fallbackError: any) {
+            console.error('[EntityDetailsModal] Express fallback also failed:', fallbackError.message);
+          }
+        } else if (config.endpoints.dagsOwnerSlaSettingsFallback && entity.type === 'dag') {
+          try {
+            const fallbackEndpoint = config.endpoints.dagsOwnerSlaSettingsFallback(teamName, entity.name);
+            const response = await apiRequest('GET', fallbackEndpoint);
+            return response.json();
+          } catch (fallbackError: any) {
+            console.error('[EntityDetailsModal] Express fallback also failed:', fallbackError.message);
+          }
         }
+        
+        throw error; // Re-throw to show error state
       }
     },
     enabled: open && !!entity && !!teamName,
-    staleTime: 5 * 60 * 1000, // 5 minutes cache
+    staleTime: 0, // Always fetch fresh data to get latest ownerIsActive status
+    refetchOnMount: 'always',
   });
 
   // Fetch SLA status history for last 30 days
@@ -457,11 +413,16 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
   };
   
   // Check if an email belongs to an expired user
+  // Uses ownerIsActive from ownerSlaSettings which is looked up server-side
   const isEmailExpired = (email: string): boolean => {
-    const user = allUsers.find((u: any) => 
-      (u.email === email || u.user_email === email) && u.is_active === false
-    );
-    return !!user;
+    if (!ownerSlaSettings) return false;
+    
+    // Check if this email matches the owner email and if owner is inactive
+    const ownerEmail = ownerSlaSettings.ownerEmail || '';
+    const isOwnerEmail = ownerEmail === email;
+    const ownerIsActive = ownerSlaSettings.ownerIsActive !== undefined ? ownerSlaSettings.ownerIsActive : true;
+    
+    return isOwnerEmail && !ownerIsActive;
   };
   
   return (

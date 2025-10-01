@@ -32,23 +32,27 @@ interface ApiConfig {
     tablesGet: (entityName: string) => string;
     // Name-scoped owner update endpoints
     tablesOwnerUpdate?: (entityName: string) => string;
+    tablesOwnerSlaSettings: (teamName: string, entityName: string) => string;
     dags: string;
     dagsBulk: string;
     dagsDelete: (entityName: string) => string;
     dagsUpdate: (entityName: string) => string;
     dagsGet: (entityName: string) => string;
     dagsOwnerUpdate?: (entityName: string) => string;
+    dagsOwnerSlaSettings: (teamName: string, entityName: string) => string;
     // Optional Express fallback endpoints (development only)
     tablesFallback?: string;
     tablesBulkFallback?: string;
     tablesDeleteFallback?: (entityName: string) => string;
     tablesUpdateFallback?: (entityName: string) => string;
     tablesGetFallback?: (entityName: string) => string;
+    tablesOwnerSlaSettingsFallback?: (teamName: string, entityName: string) => string;
     dagsFallback?: string;
     dagsBulkFallback?: string;
     dagsDeleteFallback?: (entityName: string) => string;
     dagsUpdateFallback?: (entityName: string) => string;
     dagsGetFallback?: (entityName: string) => string;
+    dagsOwnerSlaSettingsFallback?: (teamName: string, entityName: string) => string;
     byName: {
       delete: (type: string, name: string, teamName?: string) => string;
       update: (type: string, name: string, teamName?: string) => string;
