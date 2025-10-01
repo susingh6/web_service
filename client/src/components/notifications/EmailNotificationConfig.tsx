@@ -47,6 +47,7 @@ export function EmailNotificationConfigComponent({ config, onChange, teamName, t
   const [selectedOtherEmails, setSelectedOtherEmails] = useState<string[]>([]);
   const [emailError, setEmailError] = useState('');
   const [selectedDropdownValue, setSelectedDropdownValue] = useState('');
+  const [additionalRecipientsSearch, setAdditionalRecipientsSearch] = useState('');
   
   // Loading state
   const isLoading = usersLoading || teamsLoading || teamMembersLoading;
@@ -79,20 +80,25 @@ export function EmailNotificationConfigComponent({ config, onChange, teamName, t
     return allTeamEmailsWithStatus.map(item => item.email);
   }, [allTeamEmailsWithStatus]);
   
-  // Compute other team emails from React Query data
+  // Compute other team emails from React Query data (EXCLUDE EXPIRED USERS)
   const otherTeamEmails = useMemo(() => {
     const allOtherEmails: string[] = [];
+    const expiredUserEmails = new Set(users.filter(u => u.is_active === false).map(u => u.email));
     
-    // Add ALL team emails from OTHER teams
+    // Add ALL team emails from OTHER teams (exclude expired users)
     allTeamsData.forEach((team: any) => {
       if (team.name !== teamName && team.team_email) {
-        allOtherEmails.push(...team.team_email);
+        team.team_email.forEach((email: string) => {
+          if (!expiredUserEmails.has(email)) {
+            allOtherEmails.push(email);
+          }
+        });
       }
     });
     
-    // Add ALL user emails not in current team
+    // Add ALL ACTIVE user emails not in current team
     users.forEach((user: SystemUser) => {
-      if (user.email && !allTeamEmails.includes(user.email)) {
+      if (user.email && !allTeamEmails.includes(user.email) && user.is_active !== false) {
         allOtherEmails.push(user.email);
       }
     });
@@ -220,6 +226,19 @@ export function EmailNotificationConfigComponent({ config, onChange, teamName, t
           <CardTitle className="text-sm">Additional Recipients</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
+          {/* Search Bar for Additional Recipients */}
+          <div className="space-y-2">
+            <Label htmlFor="additional-recipients-search" className="text-xs text-muted-foreground">Search Recipients</Label>
+            <Input
+              id="additional-recipients-search"
+              type="text"
+              placeholder="Search by email or name..."
+              value={additionalRecipientsSearch}
+              onChange={(e) => setAdditionalRecipientsSearch(e.target.value)}
+              className="text-sm"
+            />
+          </div>
+          
           {/* Other Team Emails and System Users - Multi-Select with Slider */}
           {isLoading ? (
             <div className="text-sm text-muted-foreground">Loading additional recipients...</div>
@@ -228,99 +247,107 @@ export function EmailNotificationConfigComponent({ config, onChange, teamName, t
               <Label className="text-xs text-muted-foreground">Other Team & System User Emails</Label>
               <div className="border border-gray-300 rounded-md p-2 max-h-48 overflow-y-auto bg-white">
                 <div className="space-y-1">
-                  {/* Other team emails */}
-                  {otherTeamEmails.length > 0 && (
-                    <div>
-                      <div className="text-xs font-medium text-gray-600 mb-1 sticky top-0 bg-white py-1">Other Teams</div>
-                      {otherTeamEmails.map((email, index) => (
-                        <label key={`other-team-${index}`} className="flex items-center space-x-2 p-1 hover:bg-gray-50 cursor-pointer rounded">
-                          <input
-                            type="checkbox"
-                            checked={selectedOtherEmails.includes(email)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setSelectedOtherEmails([...selectedOtherEmails, email]);
-                              } else {
-                                setSelectedOtherEmails(selectedOtherEmails.filter(e => e !== email));
-                              }
-                            }}
-                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                          />
-                          <span className="text-sm">{email}</span>
-                        </label>
-                      ))}
-                    </div>
-                  )}
-                  
-                  {/* System user emails */}
-                  {users.length > 0 && (
-                    <div className={otherTeamEmails.length > 0 ? "mt-3 pt-3 border-t border-gray-200" : ""}>
-                      <div className="text-xs font-medium text-gray-600 mb-1 sticky top-0 bg-white py-1">System Users</div>
-                      {users
-                        .filter(user => user.email && !allTeamEmails.includes(user.email) && !otherTeamEmails.includes(user.email))
-                        .map((user) => {
-                          const isExpired = user.is_active === false;
-                          return (
-                            <label 
-                              key={user.id} 
-                              className="flex items-center space-x-2 p-1 hover:bg-gray-50 cursor-pointer rounded"
-                              style={{
-                                opacity: isExpired ? 0.7 : 1,
-                                backgroundColor: isExpired ? '#ffebee' : 'transparent'
+                  {/* Other team emails (FILTERED BY SEARCH AND EXPIRED STATUS) */}
+                  {(() => {
+                    const searchLower = additionalRecipientsSearch.toLowerCase();
+                    const filteredOtherTeamEmails = otherTeamEmails.filter(email => 
+                      email.toLowerCase().includes(searchLower)
+                    );
+                    
+                    return filteredOtherTeamEmails.length > 0 && (
+                      <div>
+                        <div className="text-xs font-medium text-gray-600 mb-1 sticky top-0 bg-white py-1">Other Teams</div>
+                        {filteredOtherTeamEmails.map((email, index) => (
+                          <label key={`other-team-${index}`} className="flex items-center space-x-2 p-1 hover:bg-gray-50 cursor-pointer rounded">
+                            <input
+                              type="checkbox"
+                              checked={selectedOtherEmails.includes(email)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedOtherEmails([...selectedOtherEmails, email]);
+                                } else {
+                                  setSelectedOtherEmails(selectedOtherEmails.filter(e => e !== email));
+                                }
                               }}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={selectedOtherEmails.includes(user.email)}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    setSelectedOtherEmails([...selectedOtherEmails, user.email]);
-                                  } else {
-                                    setSelectedOtherEmails(selectedOtherEmails.filter(e => e !== user.email));
-                                  }
-                                }}
-                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                              />
-                              <span 
-                                className="text-sm"
-                                style={{
-                                  textDecoration: isExpired ? 'line-through' : 'none',
-                                  color: isExpired ? '#d32f2f' : 'inherit'
-                                }}
-                              >
-                                {user.email}
+                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span className="text-sm">{email}</span>
+                          </label>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                  
+                  {/* System user emails (FILTERED BY SEARCH AND EXCLUDED IF EXPIRED) */}
+                  {(() => {
+                    const searchLower = additionalRecipientsSearch.toLowerCase();
+                    const filteredUsers = users
+                      .filter(user => 
+                        user.email && 
+                        !allTeamEmails.includes(user.email) && 
+                        !otherTeamEmails.includes(user.email) &&
+                        user.is_active !== false && // EXCLUDE EXPIRED USERS
+                        (user.email.toLowerCase().includes(searchLower) ||
+                         (user.displayName || '').toLowerCase().includes(searchLower) ||
+                         (user.username || '').toLowerCase().includes(searchLower))
+                      );
+                    
+                    return filteredUsers.length > 0 && (
+                      <div className={otherTeamEmails.length > 0 ? "mt-3 pt-3 border-t border-gray-200" : ""}>
+                        <div className="text-xs font-medium text-gray-600 mb-1 sticky top-0 bg-white py-1">System Users</div>
+                        {filteredUsers.map((user) => (
+                          <label 
+                            key={user.id} 
+                            className="flex items-center space-x-2 p-1 hover:bg-gray-50 cursor-pointer rounded"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedOtherEmails.includes(user.email)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedOtherEmails([...selectedOtherEmails, user.email]);
+                                } else {
+                                  setSelectedOtherEmails(selectedOtherEmails.filter(e => e !== user.email));
+                                }
+                              }}
+                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span className="text-sm">
+                              {user.email}
+                            </span>
+                            {(user.displayName || user.username) && (
+                              <span className="text-xs text-gray-500">
+                                ({user.displayName || user.username})
                               </span>
-                              {(user.displayName || user.username) && (
-                                <span 
-                                  className="text-xs text-gray-500"
-                                  style={{
-                                    textDecoration: isExpired ? 'line-through' : 'none'
-                                  }}
-                                >
-                                  ({user.displayName || user.username})
-                                </span>
-                              )}
-                              {isExpired && (
-                                <span 
-                                  style={{
-                                    backgroundColor: '#dc3545',
-                                    color: 'white',
-                                    borderRadius: '3px',
-                                    padding: '1px 4px',
-                                    fontSize: '0.55rem',
-                                    fontWeight: 700,
-                                    letterSpacing: '0.02em',
-                                    marginLeft: '4px'
-                                  }}
-                                >
-                                  EXPIRED
-                                </span>
-                              )}
-                            </label>
-                          );
-                        })}
-                    </div>
-                  )}
+                            )}
+                          </label>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                  
+                  {/* No results message */}
+                  {(() => {
+                    const searchLower = additionalRecipientsSearch.toLowerCase();
+                    const hasOtherTeamResults = otherTeamEmails.some(email => 
+                      email.toLowerCase().includes(searchLower)
+                    );
+                    const hasSystemUserResults = users.some(user => 
+                      user.email && 
+                      !allTeamEmails.includes(user.email) && 
+                      !otherTeamEmails.includes(user.email) &&
+                      user.is_active !== false &&
+                      (user.email.toLowerCase().includes(searchLower) ||
+                       (user.displayName || '').toLowerCase().includes(searchLower) ||
+                       (user.username || '').toLowerCase().includes(searchLower))
+                    );
+                    
+                    return !hasOtherTeamResults && !hasSystemUserResults && additionalRecipientsSearch && (
+                      <div className="text-sm text-muted-foreground text-center py-4">
+                        No recipients found matching "{additionalRecipientsSearch}"
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
               
@@ -331,10 +358,16 @@ export function EmailNotificationConfigComponent({ config, onChange, teamName, t
                   variant="outline"
                   size="sm"
                   onClick={() => {
+                    // Only select ACTIVE (non-expired) users
                     const allAvailableEmails = [
                       ...otherTeamEmails,
                       ...users
-                        .filter(user => user.email && !allTeamEmails.includes(user.email) && !otherTeamEmails.includes(user.email))
+                        .filter(user => 
+                          user.email && 
+                          !allTeamEmails.includes(user.email) && 
+                          !otherTeamEmails.includes(user.email) &&
+                          user.is_active !== false // EXCLUDE EXPIRED USERS
+                        )
                         .map(user => user.email)
                     ];
                     setSelectedOtherEmails(Array.from(new Set([...selectedOtherEmails, ...allAvailableEmails])));
