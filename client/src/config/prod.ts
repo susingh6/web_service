@@ -105,15 +105,36 @@ export const prodConfig = {
       teams: '/api/v1/debug/teams',
     },
 
-    // Agent workspace endpoints
+    // Agent workspace endpoints (entity_name based)
     agent: {
       conversationSummaries: (dagId: number) => `/api/v1/agent/conversations/summaries/${dagId}`,
       fullConversation: (conversationId: string) => `/api/v1/agent/conversations/${conversationId}`,
       sendMessage: (dagId: number) => `/api/v1/agent/conversations/${dagId}/send`,
       chatWithIncident: (dagId: number) => `/api/v1/agent/chat/incident/${dagId}`,
-      chat: (dagId: number) => `/api/v1/agent/chat/${dagId}`,
-      loadHistory: (dagId: number) => `/api/v1/agent/history/${dagId}`,
-      saveConversation: (dagId: number) => `/api/v1/agent/save/${dagId}`,
+      chat: (entityName: string, dagName?: string, taskName?: string, date?: string) => {
+        const params = new URLSearchParams();
+        if (dagName) params.append('dag_name', dagName);
+        if (taskName) params.append('task_name', taskName);
+        if (date) params.append('date', date);
+        const query = params.toString();
+        return `/api/v1/agent/chat/${entityName}${query ? `?${query}` : ''}`;
+      },
+      loadHistory: (entityName: string, dagName?: string, taskName?: string, date?: string) => {
+        const params = new URLSearchParams();
+        if (dagName) params.append('dag_name', dagName);
+        if (taskName) params.append('task_name', taskName);
+        if (date) params.append('date', date);
+        const query = params.toString();
+        return `/api/v1/agent/history/${entityName}${query ? `?${query}` : ''}`;
+      },
+      saveConversation: (entityName: string, dagName?: string, taskName?: string, date?: string) => {
+        const params = new URLSearchParams();
+        if (dagName) params.append('dag_name', dagName);
+        if (taskName) params.append('task_name', taskName);
+        if (date) params.append('date', date);
+        const query = params.toString();
+        return `/api/v1/agent/save/${entityName}${query ? `?${query}` : ''}`;
+      },
     },
 
     // Missing properties from dev config

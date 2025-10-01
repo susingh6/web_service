@@ -183,11 +183,12 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
       setIsEditingOwner(false);
       setOwnerEmailInput('');
       setSelectedOwnerEmails([]);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating owner:', error);
+      const errorMessage = error?.message || 'Failed to update owner';
       toast({
         title: 'Error',
-        description: `Failed to update owner: ${error}`,
+        description: errorMessage,
         variant: 'destructive',
       });
     } finally {

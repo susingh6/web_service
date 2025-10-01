@@ -178,29 +178,31 @@ const saveToLocalStorage = (dagId: number, messages: ConversationMessage[]) => {
 };
 
 export const agentApi = {
-  // Load conversation history from FastAPI (on modal open)
-  loadConversationHistory: async (dagId: number, limit: number = 10): Promise<ConversationMessage[]> => {
+  // Load conversation history from FastAPI (on modal open) - entity_name based
+  loadConversationHistory: async (entityName: string, dagName?: string, taskName?: string, date?: string, limit: number = 10): Promise<ConversationMessage[]> => {
     try {
-      const res = await apiRequest('GET', `${config.endpoints.agent.loadHistory(dagId)}?limit=${limit}`);
+      const endpoint = config.endpoints.agent.loadHistory(entityName, dagName, taskName, date);
+      const url = `${endpoint}${endpoint.includes('?') ? '&' : '?'}limit=${limit}`;
+      const res = await apiRequest('GET', url);
       const data = await res.json();
       
-      // Save to localStorage for session use
+      // Save to localStorage for session use (using entityName as key)
       const messages = data.messages || [];
-      saveToLocalStorage(dagId, messages);
+      saveToLocalStorage(entityName, messages);
       
       return messages;
     } catch (error) {
       console.warn('Failed to load conversation history from FastAPI, using localStorage:', error);
-      return loadFromLocalStorage(dagId);
+      return loadFromLocalStorage(entityName);
     }
   },
 
-  // Save conversation to FastAPI (on modal close)
-  saveConversationHistory: async (dagId: number, messages: ConversationMessage[], userContext?: { email?: string; session_id?: string }): Promise<boolean> => {
+  // Save conversation to FastAPI (on modal close) - entity_name based
+  saveConversationHistory: async (entityName: string, messages: ConversationMessage[], dagName?: string, taskName?: string, date?: string, userContext?: { email?: string; session_id?: string }): Promise<boolean> => {
     if (messages.length === 0) return true;
     
     try {
-      await apiRequest('POST', config.endpoints.agent.saveConversation(dagId), {
+      await apiRequest('POST', config.endpoints.agent.saveConversation(entityName, dagName, taskName, date), {
         messages,
         user_context: userContext,
         last_updated: new Date().toISOString()
@@ -242,8 +244,8 @@ export const agentApi = {
     return await res.json();
   },
 
-  // Send message to Agent FastAPI with conversation history
-  sendMessage: async (dagId: number, message: string, conversationHistory?: ConversationMessage[], userContext?: { email?: string; session_id?: string }, incidentContext?: any): Promise<SendMessageResponse> => {
+  // Send message to Agent FastAPI with conversation history - entity_name based
+  sendMessage: async (entityName: string, message: string, dagName?: string, taskName?: string, date?: string, conversationHistory?: ConversationMessage[], userContext?: { email?: string; session_id?: string }, incidentContext?: any): Promise<SendMessageResponse> => {
     // First add user message to localStorage immediately
     const userMessage: ConversationMessage = {
       id: `user-${Date.now()}`,
@@ -252,22 +254,25 @@ export const agentApi = {
       timestamp: new Date()
     };
     
-    const currentHistory = conversationHistory || loadFromLocalStorage(dagId);
+    const currentHistory = conversationHistory || loadFromLocalStorage(entityName);
     const updatedHistory = [...currentHistory, userMessage];
-    saveToLocalStorage(dagId, updatedHistory);
+    saveToLocalStorage(entityName, updatedHistory);
 
     try {
       // Build request payload for your Agent FastAPI
-      const requestPayload: SendMessageRequest = {
+      const requestPayload: any = {
         message,
-        dag_id: dagId,
+        entity_name: entityName,
+        dag_name: dagName,
+        task_name: taskName,
+        date,
         conversation_history: updatedHistory,
         user_context: userContext,
         incident_context: incidentContext
       };
 
       // Call your Agent FastAPI
-      const res = await apiRequest('POST', config.endpoints.agent.chat(dagId), requestPayload);
+      const res = await apiRequest('POST', config.endpoints.agent.chat(entityName, dagName, taskName, date), requestPayload);
       const response = await res.json();
 
       // Add agent response to localStorage
@@ -281,7 +286,7 @@ export const agentApi = {
       };
 
       const finalHistory = [...updatedHistory, agentMessage];
-      saveToLocalStorage(dagId, finalHistory);
+      saveToLocalStorage(entityName, finalHistory);
 
       return {
         conversation_id: response.conversation_id || `conv-${Date.now()}`,
@@ -305,7 +310,7 @@ export const agentApi = {
       };
 
       const errorHistory = [...updatedHistory, errorMessage];
-      saveToLocalStorage(dagId, errorHistory);
+      saveToLocalStorage(entityName, errorHistory);
 
       return {
         conversation_id: `error-conv-${Date.now()}`,

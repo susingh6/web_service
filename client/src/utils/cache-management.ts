@@ -955,12 +955,20 @@ export function useEntityMutation() {
       const response = await apiRequest('POST', buildUrl(`/api/teams/${teamName}/${entityType}/${entityName}/rollback`), rollbackData);
       if (!response.ok) {
         const text = await response.text();
+        let errorMessage = 'Failed to rollback entity';
         try {
           const errorData = JSON.parse(text);
-          throw new Error(errorData.message || 'Failed to rollback entity');
+          errorMessage = errorData.message || errorMessage;
         } catch (parseError) {
-          throw new Error(text || 'Failed to rollback entity');
+          // If JSON parse fails, try to extract message from text
+          const messageMatch = text.match(/"message"\s*:\s*"([^"]+)"/);
+          if (messageMatch) {
+            errorMessage = messageMatch[1];
+          } else if (text && text.length < 200) {
+            errorMessage = text;
+          }
         }
+        throw new Error(errorMessage);
       }
       return response.json();
     },
@@ -1528,12 +1536,20 @@ export function useTeamMemberMutationV2() {
       
       if (!response.ok) {
         const text = await response.text();
+        let errorMessage = 'Failed to add team member';
         try {
           const errorData = JSON.parse(text);
-          throw new Error(errorData.message || 'Failed to add team member');
+          errorMessage = errorData.message || errorMessage;
         } catch (parseError) {
-          throw new Error(text || 'Failed to add team member');
+          // If JSON parse fails, try to extract message from text
+          const messageMatch = text.match(/"message"\s*:\s*"([^"]+)"/);
+          if (messageMatch) {
+            errorMessage = messageMatch[1];
+          } else if (text && text.length < 200) {
+            errorMessage = text;
+          }
         }
+        throw new Error(errorMessage);
       }
       return response.json();
     },
@@ -1618,12 +1634,20 @@ export function useTeamMemberMutationV2() {
       
       if (!response.ok) {
         const text = await response.text();
+        let errorMessage = 'Failed to remove team member';
         try {
           const errorData = JSON.parse(text);
-          throw new Error(errorData.message || 'Failed to remove team member');
+          errorMessage = errorData.message || errorMessage;
         } catch (parseError) {
-          throw new Error(text || 'Failed to remove team member');
+          // If JSON parse fails, try to extract message from text
+          const messageMatch = text.match(/"message"\s*:\s*"([^"]+)"/);
+          if (messageMatch) {
+            errorMessage = messageMatch[1];
+          } else if (text && text.length < 200) {
+            errorMessage = text;
+          }
         }
+        throw new Error(errorMessage);
       }
       return response.json();
     },

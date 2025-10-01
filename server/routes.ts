@@ -5695,3 +5695,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   return httpServer;
 }
+
+  // ===============================================================================
+  // AI AGENT CHAT ENDPOINTS - Express fallbacks with active user protection
+  // ===============================================================================
+  
+  // Send message to AI agent (entity_name based with query params)

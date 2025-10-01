@@ -167,18 +167,39 @@ export const devConfig = {
       resolve: (notificationId: string) => `/api/v1/incidents/${notificationId}/resolve`,
     },
 
-    // Agent workspace endpoints - FastAPI with incident support
+    // Agent workspace endpoints - FastAPI with incident support (entity_name based)
     agent: {
       conversationSummaries: (dagId: number) => `/api/v1/agent/conversations/summaries/${dagId}`,
       fullConversation: (conversationId: string) => `/api/v1/agent/conversations/${conversationId}`,
       sendMessage: (dagId: number) => `/api/v1/agent/conversations/${dagId}/send`,
       // Enhanced agent endpoint with incident context and OAuth claims
       chatWithIncident: (dagId: number) => `/api/v1/agent/dags/${dagId}/chat`,
-      // Direct FastAPI agent endpoint for real conversations
-      chat: (dagId: number) => `/api/v1/agent/chat/${dagId}`,
-      // Conversation persistence endpoints
-      loadHistory: (dagId: number) => `/api/v1/agent/conversations/${dagId}/recent`,
-      saveConversation: (dagId: number) => `/api/v1/agent/conversations/${dagId}/save`,
+      // Direct FastAPI agent endpoint for real conversations (entity_name based)
+      chat: (entityName: string, dagName?: string, taskName?: string, date?: string) => {
+        const params = new URLSearchParams();
+        if (dagName) params.append('dag_name', dagName);
+        if (taskName) params.append('task_name', taskName);
+        if (date) params.append('date', date);
+        const query = params.toString();
+        return `/api/v1/agent/chat/${entityName}${query ? `?${query}` : ''}`;
+      },
+      // Conversation persistence endpoints (entity_name based)
+      loadHistory: (entityName: string, dagName?: string, taskName?: string, date?: string) => {
+        const params = new URLSearchParams();
+        if (dagName) params.append('dag_name', dagName);
+        if (taskName) params.append('task_name', taskName);
+        if (date) params.append('date', date);
+        const query = params.toString();
+        return `/api/v1/agent/conversations/${entityName}/recent${query ? `?${query}` : ''}`;
+      },
+      saveConversation: (entityName: string, dagName?: string, taskName?: string, date?: string) => {
+        const params = new URLSearchParams();
+        if (dagName) params.append('dag_name', dagName);
+        if (taskName) params.append('task_name', taskName);
+        if (date) params.append('date', date);
+        const query = params.toString();
+        return `/api/v1/agent/conversations/${entityName}/save${query ? `?${query}` : ''}`;
+      },
     },
     
     // Admin endpoints - FastAPI with role-based access control
