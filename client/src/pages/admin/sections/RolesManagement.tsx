@@ -518,9 +518,9 @@ const RolesManagement = () => {
         </Box>
       </Box>
 
-      {/* Split View: Roles (Left) | Permissions (Right) */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 3 }}>
-        {/* LEFT SIDE: Roles */}
+      {/* Vertical Layout: Roles (Top) | Permissions (Bottom) */}
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+        {/* TOP: Roles */}
         <Box>
           <Card elevation={2} sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
             <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
@@ -636,7 +636,7 @@ const RolesManagement = () => {
           </Card>
         </Box>
 
-        {/* RIGHT SIDE: Permissions */}
+        {/* BOTTOM: Permissions */}
         <Box>
           <Card elevation={2} sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
             <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
