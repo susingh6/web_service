@@ -9,6 +9,22 @@ const FASTAPI_BASE_URL = process.env.FASTAPI_BASE_URL || 'http://localhost:8080'
 const USE_FASTAPI = process.env.ENABLE_FASTAPI_INTEGRATION === 'true';
 
 // Service account credentials for authentication
+// In production (K8s), these should be mounted from K8s secrets:
+// kubectl create secret generic fastapi-service-account \
+//   --from-literal=client-id=<your-client-id> \
+//   --from-literal=client-secret=<your-client-secret>
+// Then reference in deployment.yaml:
+//   env:
+//     - name: SERVICE_CLIENT_ID
+//       valueFrom:
+//         secretKeyRef:
+//           name: fastapi-service-account
+//           key: client-id
+//     - name: SERVICE_CLIENT_SECRET
+//       valueFrom:
+//         secretKeyRef:
+//           name: fastapi-service-account
+//           key: client-secret
 const SERVICE_CLIENT_ID = process.env.SERVICE_CLIENT_ID;
 const SERVICE_CLIENT_SECRET = process.env.SERVICE_CLIENT_SECRET;
 
@@ -27,13 +43,14 @@ async function authenticateServiceAccount(): Promise<string | null> {
   try {
     if (!SERVICE_CLIENT_ID || !SERVICE_CLIENT_SECRET) {
       console.warn('[Cache Worker] SERVICE_CLIENT_ID and SERVICE_CLIENT_SECRET environment variables are required for FastAPI authentication');
+      console.warn('[Cache Worker] In production, these should be mounted from K8s secrets as environment variables');
       return null;
     }
 
-    // Create basic auth header for service account
+    // Create basic auth header for service account (client credentials)
     const credentials = Buffer.from(`${SERVICE_CLIENT_ID}:${SERVICE_CLIENT_SECRET}`).toString('base64');
     
-    console.log('[Cache Worker] Authenticating service account with FastAPI');
+    console.log('[Cache Worker] Authenticating service account with FastAPI using client credentials');
     const response = await fetch(`${FASTAPI_BASE_URL}/api/v1/auth/login`, {
       method: 'POST',
       headers: {
@@ -55,9 +72,18 @@ async function authenticateServiceAccount(): Promise<string | null> {
       return null;
     }
     
-    // Store service session with expiration
+    // Use expiry time from FastAPI response if available, otherwise fallback to 1 hour
     const loginTime = new Date();
-    const expiresAt = new Date(loginTime.getTime() + (23 * 60 * 60 * 1000)); // 23 hours (before 24h expiry)
+    let expiresAt: Date;
+    
+    if (sessionData.session?.expires_at) {
+      expiresAt = new Date(sessionData.session.expires_at);
+      console.log(`[Cache Worker] Using session expiry from FastAPI: ${expiresAt.toISOString()}`);
+    } else {
+      // Fallback: Client credential sessions typically expire after 1 hour
+      expiresAt = new Date(loginTime.getTime() + (55 * 60 * 1000)); // 55 minutes (refresh before 1hr expiry)
+      console.log(`[Cache Worker] No expiry in response, using 55-minute fallback: ${expiresAt.toISOString()}`);
+    }
     
     serviceSession = {
       sessionId,
