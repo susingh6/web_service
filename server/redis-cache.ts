@@ -780,6 +780,7 @@ export class RedisCache {
     multi.setex(CACHE_KEYS.ENTITIES, expireTime, JSON.stringify(data.entities));
     multi.setex(CACHE_KEYS.TEAMS, expireTime, JSON.stringify(data.teams));
     multi.setex(CACHE_KEYS.TENANTS, expireTime, JSON.stringify(data.tenants));
+    multi.setex(CACHE_KEYS.PERMISSIONS, expireTime, JSON.stringify(data.permissions || []));
     multi.setex(CACHE_KEYS.METRICS, expireTime, JSON.stringify(data.metrics));
     multi.setex(CACHE_KEYS.LAST_30_DAY_METRICS, expireTime, JSON.stringify(data.last30DayMetrics));
     multi.setex(CACHE_KEYS.COMPLIANCE_TRENDS, expireTime, JSON.stringify(data.complianceTrends || {}));
@@ -904,6 +905,9 @@ export class RedisCache {
     // Build allTasksData from DAG entities using mock service
     const { mockTaskService } = await import('../client/src/features/sla/mockService.js');
     const allTasksData = mockTaskService.getAllTasksData();
+    
+    // Get permissions from storage
+    const permissions = await storage.getPermissions();
 
     return {
       entities,
@@ -913,6 +917,7 @@ export class RedisCache {
       entitiesByName,
       teams,
       tenants,
+      permissions,
       // Backward compatibility - use last30DayMetrics as default metrics
       metrics: last30DayMetrics,
       last30DayMetrics,
@@ -1315,7 +1320,7 @@ export class RedisCache {
         // Update fallback data for in-memory cache
         if (!this.fallbackData) {
           this.fallbackData = {
-            entities: [], teams: [], tenants: [], metrics: {}, complianceTrends: {},
+            entities: [], teams: [], tenants: [], permissions: [], metrics: {}, complianceTrends: {},
             // Initialize new type-segregated Maps for proper cache isolation
             entitiesById: new Map(),
             entitiesByTeamType: new Map(),
