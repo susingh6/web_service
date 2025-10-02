@@ -491,6 +491,38 @@ export type Role = typeof roles.$inferSelect;
 export type InsertRole = z.infer<typeof insertRoleSchema>;
 export type UpdateRole = z.infer<typeof updateRoleSchema>;
 
+// Permissions schema for SLA system permission management
+export const permissions = pgTable("permissions", {
+  id: serial("id").primaryKey(),
+  permission_name: text("permission_name").notNull().unique(),
+  description: text("description"),
+  category: text("category").notNull(), // 'Table', 'DAG', 'Notification', 'Agentic', 'Notification Subscription'
+  is_active: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Permission validation schemas
+export const insertPermissionSchema = createInsertSchema(permissions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  permission_name: z.string().min(1, "Permission name is required"),
+  description: z.string().optional(),
+  category: z.enum(['Table', 'DAG', 'Notification', 'Agentic', 'Notification Subscription']),
+  is_active: z.boolean().default(true),
+});
+
+export const updatePermissionSchema = insertPermissionSchema.partial().extend({
+  permission_name: z.string().min(1, "Permission name is required").optional(),
+});
+
+// Permission types
+export type Permission = typeof permissions.$inferSelect;
+export type InsertPermission = z.infer<typeof insertPermissionSchema>;
+export type UpdatePermission = z.infer<typeof updatePermissionSchema>;
+
 // Entity Subscriptions validation schemas
 export const insertEntitySubscriptionSchema = createInsertSchema(entitySubscriptions).omit({
   id: true,
