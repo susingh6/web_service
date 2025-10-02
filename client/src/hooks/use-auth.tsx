@@ -480,6 +480,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         variant: "default",
       });
       
+      // Call FastAPI logout endpoint with X-Session-ID header if we have a session
+      const savedSessionId = localStorage.getItem('fastapi_session_id');
+      if (savedSessionId) {
+        try {
+          const config = await import('../config');
+          const fastApiConfig = config.endpoints.fastapi || {
+            baseUrl: "http://localhost:8080",
+            auth: {
+              login: config.endpoints.auth.login,
+              logout: config.endpoints.auth.logout
+            }
+          };
+          
+          await fetch(`${fastApiConfig.baseUrl}${fastApiConfig.auth.logout}`, {
+            method: 'POST',
+            headers: {
+              'X-Session-ID': savedSessionId,
+              'Accept': 'application/json'
+            }
+          });
+          console.log('FastAPI session invalidated successfully');
+        } catch (err) {
+          console.warn('FastAPI logout failed, but clearing local session:', err);
+        }
+      }
+      
+      // Clear FastAPI localStorage - THIS WAS MISSING!
+      localStorage.removeItem('fastapi_session_id');
+      localStorage.removeItem('fastapi_session_expiry');
+      localStorage.removeItem('fastapi_user');
+      
       // Clear React Query cache to prevent stale data
       queryClient.clear();
       queryClient.setQueryData(['auth-user-fallback'], null);
@@ -488,11 +519,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Clear dashboard UI state to start fresh on next login
       sessionStorage.removeItem('dashboard_ui_state_v1');
       
-      // Use fallback logout for all auth methods
+      // Use fallback logout for all auth methods (Express)
       try {
         await authFallback.logout();
       } catch (err) {
-        console.warn('Logout request failed, but clearing local session:', err);
+        console.warn('Express logout request failed, but clearing local session:', err);
       }
       
       // Clear all auth state regardless of auth method
