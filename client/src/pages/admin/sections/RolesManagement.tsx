@@ -566,93 +566,68 @@ const RolesManagement = () => {
                   <Table stickyHeader size="small">
                     <TableHead>
                       <TableRow>
-                        <TableCell>Role Name</TableCell>
-                        <TableCell>Description</TableCell>
-                        <TableCell>Tenant</TableCell>
-                        <TableCell>Team</TableCell>
+                        <TableCell>Role</TableCell>
                         <TableCell>Type</TableCell>
-                        <TableCell>Permissions</TableCell>
+                        <TableCell>Perms</TableCell>
                         <TableCell>Status</TableCell>
                         <TableCell align="right">Actions</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {filteredRoles.map((role) => {
-                        const roleType = role.is_system_role 
-                          ? 'System' 
-                          : role.team_name 
-                            ? 'Team-specific' 
-                            : 'Custom';
-                        
-                        return (
-                          <TableRow key={role.id} hover>
-                            <TableCell>
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                <SecurityIcon color="primary" fontSize="small" />
+                      {filteredRoles.map((role) => (
+                        <TableRow key={role.id} hover>
+                          <TableCell>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <SecurityIcon color="primary" fontSize="small" />
+                              <Box>
                                 <Typography variant="body2" fontWeight="medium">
                                   {role.role_name}
                                 </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  {role.description}
+                                </Typography>
                               </Box>
-                            </TableCell>
-                            <TableCell>
-                              <Typography variant="body2" color="text.secondary">
-                                {role.description}
-                              </Typography>
-                            </TableCell>
-                            <TableCell>
-                              {role.tenant_name ? (
-                                <Chip label={role.tenant_name} size="small" variant="outlined" />
-                              ) : (
-                                <Typography variant="body2" color="text.secondary">--</Typography>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              {role.team_name ? (
-                                <Chip label={role.team_name} size="small" variant="outlined" />
-                              ) : (
-                                <Typography variant="body2" color="text.secondary">--</Typography>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              <Chip 
-                                label={roleType} 
-                                size="small" 
-                                color={role.is_system_role ? 'primary' : 'default'}
-                                variant={role.is_system_role ? 'filled' : 'outlined'}
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <Chip 
-                                label={`${(role.role_permissions || []).length} permissions`} 
-                                size="small" 
-                                variant="outlined"
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <Chip 
-                                label={role.is_active ? 'Active' : 'Inactive'} 
-                                size="small" 
-                                color={role.is_active ? 'success' : 'default'}
-                                variant={role.is_active ? 'filled' : 'outlined'}
-                              />
-                            </TableCell>
-                            <TableCell align="right">
-                              <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
-                                <Tooltip title="Edit Role">
-                                  <IconButton size="small" color="primary" onClick={() => handleEditRole(role)}>
-                                    <EditIcon fontSize="small" />
-                                  </IconButton>
-                                </Tooltip>
-                                <Tooltip title="Delete Role">
-                                  <IconButton size="small" color="error" onClick={() => handleAskDeleteRole(role)}>
-                                    <DeleteIcon fontSize="small" />
-                                  </IconButton>
-                                </Tooltip>
-                              </Box>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
+                            </Box>
+                          </TableCell>
+                          <TableCell>
+                            <Chip 
+                              label={role.is_system_role ? 'System' : 'Custom'} 
+                              size="small" 
+                              color={role.is_system_role ? 'primary' : 'default'}
+                              variant={role.is_system_role ? 'filled' : 'outlined'}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Chip 
+                              label={`${(role.role_permissions || []).length}`} 
+                              size="small" 
+                              variant="outlined"
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Chip 
+                              label={role.is_active ? 'Active' : 'Inactive'} 
+                              size="small" 
+                              color={role.is_active ? 'success' : 'default'}
+                              variant={role.is_active ? 'filled' : 'outlined'}
+                            />
+                          </TableCell>
+                          <TableCell align="right">
+                            <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
+                              <Tooltip title="Edit Role">
+                                <IconButton size="small" color="primary" onClick={() => handleEditRole(role)}>
+                                  <EditIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="Delete Role">
+                                <IconButton size="small" color="error" onClick={() => handleAskDeleteRole(role)}>
+                                  <DeleteIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            </Box>
+                          </TableCell>
+                        </TableRow>
+                      ))}
                     </TableBody>
                   </Table>
                 </TableContainer>
