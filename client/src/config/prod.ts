@@ -206,6 +206,12 @@ export const prodConfig = {
         update: (roleName: string) => `/api/v1/roles/${roleName}`,
         delete: (roleName: string) => `/api/v1/roles/${roleName}`,
       },
+      permissions: {
+        getAll: '/api/v1/get_all_permissions',
+        create: '/api/v1/permissions',
+        update: (permissionName: string) => `/api/v1/permissions/${permissionName}`,
+        delete: (permissionName: string) => `/api/v1/permissions/${permissionName}`,
+      },
       alerts: {
         getAll: '/api/v1/alerts',
         create: '/api/v1/alerts',
