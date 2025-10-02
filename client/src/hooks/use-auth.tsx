@@ -120,6 +120,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAzureLoading, setIsAzureLoading] = useState<boolean>(false);
   const [azureError, setAzureError] = useState<string | null>(null);
 
+  // Automatic session refresh (silent, no toast) - defined early to use in effects
+  const refreshSessionAutomatically = async (): Promise<boolean> => {
+    try {
+      console.log('[Auto-Refresh] Starting silent session refresh...');
+      
+      // Get current user from FastAPI user or try to fetch from Express
+      const currentUser = fastApiUser || await authFallback.getCurrentUser();
+      if (!currentUser) {
+        console.error('[Auto-Refresh] No current user found, cannot refresh');
+        return false;
+      }
+      
+      // Prepare user details for FastAPI
+      const userDetails = {
+        email: currentUser.email || (currentUser as any).user_email,
+        name: currentUser.name || (currentUser as any).displayName || (currentUser as any).username,
+        roles: (currentUser as any).roles || ((currentUser as any).role ? [(currentUser as any).role] : ['admin']),
+        oid: (currentUser as any).oid || (currentUser as any).azureObjectId || (currentUser as any).id
+      };
+      
+      // Re-authenticate with FastAPI silently (no toast)
+      await authenticateWithFastAPI("mock-azure-token", userDetails, true);
+      
+      console.log('[Auto-Refresh] Session refreshed successfully');
+      return true;
+    } catch (error) {
+      console.error('[Auto-Refresh] Failed to refresh session:', error);
+      // Clear expired session
+      localStorage.removeItem('fastapi_session_id');
+      localStorage.removeItem('fastapi_session_expiry');
+      localStorage.removeItem('fastapi_user');
+      setSessionId(null);
+      setFastApiUser(null);
+      return false;
+    }
+  };
+  
   // Check for session expiry and auto re-authenticate  
   const checkSessionExpiry = async (): Promise<boolean> => {
     const sessionExpiry = localStorage.getItem('fastapi_session_expiry');
@@ -134,25 +171,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     if (timeUntilExpiry < fiveMinutes) {
       console.log('Session expiring soon, attempting to refresh...');
-      try {
-        // Try to re-authenticate with Azure
-        await loginWithAzure();
-        return true;
-      } catch (error) {
-        console.error('Failed to refresh session:', error);
-        // Clear expired session
-        localStorage.removeItem('fastapi_session_id');
-        localStorage.removeItem('fastapi_session_expiry');
-        localStorage.removeItem('fastapi_user');
-        setSessionId(null);
-        setFastApiUser(null);
-        setAuthMethod(null);
-        return false;
-      }
+      return await refreshSessionAutomatically();
     }
     
     return true;
   };
+
+  // Register refresh handler with FastAPIClient
+  useEffect(() => {
+    fastApiClient.setRefreshHandler(refreshSessionAutomatically);
+  }, []);
 
   // Load session from localStorage on mount with expiry check
   useEffect(() => {
@@ -284,7 +312,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   // FastAPI authentication with Azure token
-  const authenticateWithFastAPI = async (azureToken: string, userDetails?: any): Promise<void> => {
+  const authenticateWithFastAPI = async (azureToken: string, userDetails?: any, silent = false): Promise<void> => {
     try {
       // Get FastAPI config from centralized config
       const config = await import('../config');
@@ -318,8 +346,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const authResponse: FastAPIAuthResponse = await response.json();
       
-      // Store session and user info with 6-hour expiry timestamp
-      const sessionExpiry = new Date(Date.now() + 6 * 60 * 60 * 1000); // 6 hours from now
+      // Use expiry time from FastAPI response (session.expires_at) if available
+      // Otherwise fallback to 6-hour calculation
+      let sessionExpiry: Date;
+      if (authResponse.session?.expires_at) {
+        sessionExpiry = new Date(authResponse.session.expires_at);
+      } else {
+        sessionExpiry = new Date(Date.now() + 6 * 60 * 60 * 1000); // 6 hours fallback
+      }
+      
       setSessionId(sessionId);
       setFastApiUser(authResponse.user);
       setAuthMethod('fastapi');
@@ -327,16 +362,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Initialize FastAPI client with session
       fastApiClient.setSessionId(sessionId);
       
-      // Persist to localStorage with expiry
+      // Persist to localStorage with expiry from FastAPI
       localStorage.setItem('fastapi_session_id', sessionId);
       localStorage.setItem('fastapi_session_expiry', sessionExpiry.toISOString());
       localStorage.setItem('fastapi_user', JSON.stringify(authResponse.user));
       
-      toast({
-        title: "Authentication successful",
-        description: `Welcome, ${authResponse.user.name}!`,
-        variant: "default",
-      });
+      // Schedule automatic refresh 5 minutes before expiry
+      const timeUntilExpiry = sessionExpiry.getTime() - Date.now();
+      const refreshTime = Math.max(0, timeUntilExpiry - 5 * 60 * 1000); // 5 min before expiry
+      
+      if (refreshTime > 0) {
+        setTimeout(() => {
+          console.log('Session expiring soon, auto-refreshing...');
+          refreshSessionAutomatically();
+        }, refreshTime);
+      }
+      
+      if (!silent) {
+        toast({
+          title: "Authentication successful",
+          description: `Welcome, ${authResponse.user.name}!`,
+          variant: "default",
+        });
+      }
     } catch (error) {
       console.error('FastAPI authentication error:', error);
       throw error;

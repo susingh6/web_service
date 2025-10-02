@@ -6,6 +6,8 @@ import { endpoints } from "@/config/index";
 export class FastAPIClient {
   private sessionId: string | null = null;
   private baseUrl: string;
+  private refreshHandler: (() => Promise<boolean>) | null = null;
+  private isRefreshing: boolean = false;
 
   constructor() {
     const fastApiConfig = endpoints.fastapi || {
@@ -33,11 +35,19 @@ export class FastAPIClient {
   }
 
   /**
-   * Make authenticated API request to FastAPI backend
+   * Set the refresh handler for automatic session renewal
+   */
+  setRefreshHandler(handler: () => Promise<boolean>) {
+    this.refreshHandler = handler;
+  }
+
+  /**
+   * Make authenticated API request to FastAPI backend with automatic retry on 401
    */
   async request(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
+    isRetry: boolean = false
   ): Promise<Response> {
     const url = `${this.baseUrl}${endpoint}`;
     const headers = new Headers(options.headers || {});
@@ -57,10 +67,32 @@ export class FastAPIClient {
       headers,
     });
 
-    // Handle session expiration
-    if (response.status === 401 && this.sessionId) {
-      // Session expired, clear local storage and redirect to login
+    // Handle session expiration with automatic refresh and retry
+    if (response.status === 401 && this.sessionId && !isRetry) {
+      console.log('[FastAPI Client] Received 401, attempting session refresh...');
+      
+      // Try to refresh the session if handler is available
+      if (this.refreshHandler && !this.isRefreshing) {
+        this.isRefreshing = true;
+        try {
+          const refreshSuccess = await this.refreshHandler();
+          this.isRefreshing = false;
+          
+          if (refreshSuccess) {
+            console.log('[FastAPI Client] Session refreshed, retrying request...');
+            // Retry the request with new session
+            return this.request(endpoint, options, true);
+          }
+        } catch (error) {
+          this.isRefreshing = false;
+          console.error('[FastAPI Client] Refresh failed:', error);
+        }
+      }
+      
+      // If refresh failed or not available, clear session and redirect
+      console.log('[FastAPI Client] Session refresh failed, redirecting to login...');
       localStorage.removeItem('fastapi_session_id');
+      localStorage.removeItem('fastapi_session_expiry');
       localStorage.removeItem('fastapi_user');
       this.sessionId = null;
       window.location.href = '/auth';
