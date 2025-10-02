@@ -2,8 +2,8 @@ import { useEffect, useRef, useCallback } from 'react';
 import { useAuth } from './use-auth';
 import { useToast } from './use-toast';
 
-const INACTIVITY_TIMEOUT = 20 * 60 * 1000; // 20 minutes in milliseconds
-const WARNING_TIME = 2 * 60 * 1000; // Show warning 2 minutes before logout
+const INACTIVITY_TIMEOUT = 30 * 60 * 1000; // 30 minutes in milliseconds
+const WARNING_TIME = 2 * 60 * 1000; // Show warning 2 minutes before logout (at 28 minutes)
 
 export function useInactivityTimeout() {
   const { isAuthenticated, logout } = useAuth();
@@ -27,7 +27,7 @@ export function useInactivityTimeout() {
     // Reset warning flag
     warningShownRef.current = false;
 
-    // Set warning timeout (18 minutes)
+    // Set warning timeout (28 minutes)
     warningTimeoutRef.current = setTimeout(() => {
       if (!warningShownRef.current && isAuthenticated) {
         warningShownRef.current = true;
@@ -39,12 +39,12 @@ export function useInactivityTimeout() {
       }
     }, INACTIVITY_TIMEOUT - WARNING_TIME);
 
-    // Set logout timeout (20 minutes)
+    // Set logout timeout (30 minutes)
     timeoutRef.current = setTimeout(() => {
       if (isAuthenticated) {
         toast({
           title: "Session Expired",
-          description: "You have been logged out due to 20 minutes of inactivity.",
+          description: "You have been logged out due to 30 minutes of inactivity.",
           variant: "destructive",
         });
         logout();
