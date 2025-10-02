@@ -104,7 +104,14 @@ const RolesManagement = () => {
   const { data: permissions = [], isLoading: permissionsLoading } = useQuery<Permission[]>({
     queryKey: ['admin', 'permissions'],
     queryFn: async () => {
-      const res = await fetch(buildUrl(endpoints.admin.permissions.getAll));
+      // Try FastAPI first
+      let res = await fetch(buildUrl(endpoints.admin.permissions.getAll), { credentials: 'include' });
+      
+      // Fallback to Express if FastAPI fails (development)
+      if (!res.ok && endpoints.admin.permissions.getAllFallback) {
+        res = await fetch(buildUrl(endpoints.admin.permissions.getAllFallback), { credentials: 'include' });
+      }
+      
       if (!res.ok) throw new Error('Failed to fetch permissions');
       return res.json();
     },
