@@ -627,6 +627,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // GET /api/v1/get_all_permissions - FastAPI fallback for getting all permissions
+  app.get("/api/v1/get_all_permissions", async (req, res) => {
+    try {
+      const permissions = await storage.getPermissions();
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+      res.json(permissions);
+    } catch (error) {
+      console.error('Error fetching permissions from /api/v1/get_all_permissions:', error);
+      res.status(500).json({ message: "Failed to fetch permissions" });
+    }
+  });
+
   // GET /api/permissions - Get all permissions (Express fallback for /api/v1/get_all_permissions)
   app.get("/api/permissions", async (req, res) => {
     try {
