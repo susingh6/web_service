@@ -627,6 +627,81 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // GET /api/permissions - Get all permissions (Express fallback for /api/v1/get_all_permissions)
+  app.get("/api/permissions", async (req, res) => {
+    try {
+      const permissions = await storage.getPermissions();
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+      res.json(permissions);
+    } catch (error) {
+      console.error('Error fetching permissions:', error);
+      res.status(500).json({ message: "Failed to fetch permissions" });
+    }
+  });
+
+  // POST /api/permissions - Create new permission
+  app.post("/api/permissions", requireActiveUser, async (req: Request, res: Response) => {
+    try {
+      const permissionData = req.body;
+      
+      console.log('POST /api/permissions - creating new permission:', permissionData);
+      
+      const newPermission = await storage.createPermission(permissionData);
+      
+      console.log('New permission created successfully:', newPermission);
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+      res.status(201).json(newPermission);
+    } catch (error) {
+      console.error('Error creating permission:', error);
+      res.status(500).json({ message: "Failed to create permission" });
+    }
+  });
+
+  // PATCH /api/permissions/:name - Update permission by name
+  app.patch("/api/permissions/:name", requireActiveUser, async (req: Request, res: Response) => {
+    try {
+      const { name } = req.params;
+      const permissionData = req.body;
+      
+      console.log(`PATCH /api/permissions/${name} - updating permission:`, permissionData);
+      
+      const updatedPermission = await storage.updatePermission(name, permissionData);
+      
+      if (!updatedPermission) {
+        return res.status(404).json({ message: `Permission '${name}' not found` });
+      }
+      
+      console.log(`Permission '${name}' updated successfully`);
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+      res.json(updatedPermission);
+    } catch (error) {
+      console.error(`Error updating permission '${req.params.name}':`, error);
+      res.status(500).json({ message: "Failed to update permission" });
+    }
+  });
+
+  // DELETE /api/permissions/:name - Delete permission by name
+  app.delete("/api/permissions/:name", requireActiveUser, async (req: Request, res: Response) => {
+    try {
+      const { name } = req.params;
+      
+      console.log(`DELETE /api/permissions/${name} - deleting permission`);
+      
+      const success = await storage.deletePermission(name);
+      
+      if (!success) {
+        return res.status(404).json({ message: `Permission '${name}' not found` });
+      }
+      
+      console.log(`Permission '${name}' deleted successfully from storage`);
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+      res.json({ success: true, message: `Permission '${name}' deleted` });
+    } catch (error) {
+      console.error(`Error deleting permission '${req.params.name}':`, error);
+      res.status(500).json({ message: "Failed to delete permission" });
+    }
+  });
+
   // GET /api/v1/alerts - System alerts endpoint for notification bell
   app.get("/api/v1/alerts", async (req, res) => {
     try {
