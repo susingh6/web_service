@@ -651,6 +651,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // POST /api/v1/permissions - FastAPI fallback for creating permissions
+  app.post("/api/v1/permissions", checkActiveUserDev, async (req: Request, res: Response) => {
+    try {
+      const permissionData = req.body;
+      console.log('POST /api/v1/permissions - creating new permission:', permissionData);
+      const newPermission = await storage.createPermission(permissionData);
+      console.log('New permission created successfully:', newPermission);
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+      res.status(201).json(newPermission);
+    } catch (error) {
+      console.error('Error creating permission from /api/v1/permissions:', error);
+      res.status(500).json({ message: "Failed to create permission" });
+    }
+  });
+
+  // PATCH /api/v1/permissions/:name - FastAPI fallback for updating permissions
+  app.patch("/api/v1/permissions/:name", checkActiveUserDev, async (req: Request, res: Response) => {
+    try {
+      const { name } = req.params;
+      const permissionData = req.body;
+      console.log(`PATCH /api/v1/permissions/${name} - updating permission:`, permissionData);
+      const updatedPermission = await storage.updatePermission(name, permissionData);
+      if (!updatedPermission) {
+        return res.status(404).json({ message: `Permission '${name}' not found` });
+      }
+      console.log(`Permission '${name}' updated successfully from /api/v1/permissions`);
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+      res.json(updatedPermission);
+    } catch (error) {
+      console.error(`Error updating permission '${req.params.name}' from /api/v1/permissions:`, error);
+      res.status(500).json({ message: "Failed to update permission" });
+    }
+  });
+
+  // DELETE /api/v1/permissions/:name - FastAPI fallback for deleting permissions
+  app.delete("/api/v1/permissions/:name", checkActiveUserDev, async (req: Request, res: Response) => {
+    try {
+      const { name } = req.params;
+      console.log(`DELETE /api/v1/permissions/${name} - deleting permission`);
+      const success = await storage.deletePermission(name);
+      if (!success) {
+        return res.status(404).json({ message: `Permission '${name}' not found` });
+      }
+      console.log(`Permission '${name}' deleted successfully from /api/v1/permissions`);
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+      res.json({ success: true, message: `Permission '${name}' deleted` });
+    } catch (error) {
+      console.error(`Error deleting permission '${req.params.name}' from /api/v1/permissions:`, error);
+      res.status(500).json({ message: "Failed to delete permission" });
+    }
+  });
+
   // POST /api/permissions - Create new permission
   app.post("/api/permissions", requireActiveUser, async (req: Request, res: Response) => {
     try {
