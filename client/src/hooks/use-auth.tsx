@@ -316,13 +316,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       // Get FastAPI config from centralized config
       const config = await import('../config');
-      const fastApiConfig = config.endpoints.fastapi || {
-        baseUrl: "http://localhost:8080",
-        auth: {
-          login: config.endpoints.auth.login,
-          logout: config.endpoints.auth.logout
-        }
-      };
+      const fastApiConfig = config.endpoints.fastapi;
 
       // Use Bearer token as expected by FastAPI with user details
       const response = await fetch(`${fastApiConfig.baseUrl}${fastApiConfig.auth.login}`, {
@@ -485,13 +479,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (savedSessionId) {
         try {
           const config = await import('../config');
-          const fastApiConfig = config.endpoints.fastapi || {
-            baseUrl: "http://localhost:8080",
-            auth: {
-              login: config.endpoints.auth.login,
-              logout: config.endpoints.auth.logout
-            }
-          };
+          const fastApiConfig = config.endpoints.fastapi;
           
           await fetch(`${fastApiConfig.baseUrl}${fastApiConfig.auth.logout}`, {
             method: 'POST',
