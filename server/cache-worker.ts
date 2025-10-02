@@ -204,6 +204,10 @@ async function fetchAllTasksFromFastAPI(buildType: 'Regular' | 'Forced' = 'Regul
   return await fastApiRequest('/api/v1/sla/all_tasks', { cache_build_type: buildType });
 }
 
+async function fetchPermissionsFromFastAPI(buildType: 'Regular' | 'Forced' = 'Regular'): Promise<any[]> {
+  return await fastApiRequest('/api/v1/get_all_permissions', { cache_build_type: buildType });
+}
+
 // Worker thread main function
 async function refreshCacheData(buildType: 'Regular' | 'Forced' = 'Regular'): Promise<CacheRefreshData> {
   try {
@@ -237,7 +241,7 @@ async function refreshFromFastAPI(buildType: 'Regular' | 'Forced' = 'Regular'): 
   
   try {
     // Call all FastAPI endpoints in parallel for better performance with cache_build_type parameter
-    const [tenantsData, teamsData, presetsData, complianceData, slaData, usersData, rolesData, conflictsData, allTasksData] = await Promise.all([
+    const [tenantsData, teamsData, presetsData, complianceData, slaData, usersData, rolesData, conflictsData, allTasksData, permissionsData] = await Promise.all([
       fetchTenantsFromFastAPI(buildType),
       fetchTeamsFromFastAPI(buildType),
       fetchPresetsFromFastAPI(buildType),
@@ -247,6 +251,7 @@ async function refreshFromFastAPI(buildType: 'Regular' | 'Forced' = 'Regular'): 
       fetchRolesFromFastAPI(buildType),
       fetchConflictsFromFastAPI(buildType),
       fetchAllTasksFromFastAPI(buildType),
+      fetchPermissionsFromFastAPI(buildType),
     ]);
 
     // Map FastAPI data to our cache structure
@@ -256,6 +261,7 @@ async function refreshFromFastAPI(buildType: 'Regular' | 'Forced' = 'Regular'): 
     const users = mapFastAPIUsersToUsers(usersData);
     const roles = mapFastAPIRolesToRoles(rolesData);
     const conflicts = mapFastAPIConflictsToConflicts(conflictsData);
+    const permissions = mapFastAPIPermissionsToPermissions(permissionsData);
     
     // Extract metrics and trends from presets and compliance data (with fallback calculation)
     const { last30DayMetrics, complianceTrends, teamMetrics, teamTrends } = extractMetricsAndTrends(presetsData, complianceData, entities, tenants);
@@ -270,6 +276,7 @@ async function refreshFromFastAPI(buildType: 'Regular' | 'Forced' = 'Regular'): 
       entities,
       teams,
       tenants,
+      permissions,
       users,
       roles,
       conflicts,
@@ -498,6 +505,24 @@ function mapFastAPIRolesToRoles(rolesData: any[]): any[] {
     label: item.label || item.display_name || item.role || item.name,
     description: item.description || `Role: ${item.role || item.name}`,
     emails: Array.isArray(item.emails) ? item.emails : [],
+  }));
+}
+
+// Map permissions data from FastAPI to cache format
+function mapFastAPIPermissionsToPermissions(permissionsData: any[]): any[] {
+  if (!Array.isArray(permissionsData)) {
+    console.warn('[Cache Worker] Permissions data is not an array, returning empty permissions');
+    return [];
+  }
+
+  return permissionsData.map((item: any, index: number) => ({
+    id: item.id || index + 1,
+    permission_name: item.permission_name || item.name || `permission${index + 1}`,
+    description: item.description || '',
+    category: item.category || 'Table',
+    is_active: item.is_active !== false,
+    createdAt: item.created_at ? new Date(item.created_at) : new Date(),
+    updatedAt: item.updated_at ? new Date(item.updated_at) : new Date(),
   }));
 }
 
