@@ -74,7 +74,12 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
       const environment = import.meta.env.MODE || 'development';
       const forceSecure = environment === 'staging' || environment === 'production';
       const protocol = (window.location.protocol === 'https:' || forceSecure) ? 'wss:' : 'ws:';
-      const host = window.location.host || 'localhost:5000';
+      const host = window.location.host;
+      
+      if (!host) {
+        throw new Error('Unable to determine WebSocket host from window.location.host');
+      }
+      
       const wsUrl = `${protocol}//${host}${config.websocket.path}`;
       
       log.info('[WebSocket Singleton] Connecting to:', wsUrl);

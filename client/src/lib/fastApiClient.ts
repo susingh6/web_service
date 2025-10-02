@@ -10,14 +10,10 @@ export class FastAPIClient {
   private isRefreshing: boolean = false;
 
   constructor() {
-    const fastApiConfig = endpoints.fastapi || {
-      baseUrl: "http://localhost:8080",
-      auth: {
-        login: "/api/v1/auth/login",
-        logout: "/api/v1/auth/logout"
-      }
-    };
-    this.baseUrl = fastApiConfig.baseUrl;
+    if (!endpoints.fastapi) {
+      throw new Error('FastAPI configuration is missing from endpoints config');
+    }
+    this.baseUrl = endpoints.fastapi.baseUrl;
   }
 
   /**

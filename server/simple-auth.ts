@@ -10,10 +10,12 @@ import { structuredLogger, logAuthenticationEvent } from "./middleware/structure
 // FastAPI authentication function
 async function authenticateWithFastAPI(username: string, password: string): Promise<any> {
   try {
+    const FASTAPI_BASE_URL = process.env.FASTAPI_BASE_URL || 'http://localhost:8080';
+    
     // Create basic auth header
     const credentials = Buffer.from(`${username}:${password}`).toString('base64');
     
-    const response = await fetch('http://localhost:8080/api/v1/auth/login', {
+    const response = await fetch(`${FASTAPI_BASE_URL}/api/v1/auth/login`, {
       method: 'POST',
       headers: {
         'Authorization': `Basic ${credentials}`,
@@ -41,7 +43,9 @@ export async function authorizeRollbackWithFastAPI(
   entityName: string
 ): Promise<{ authorized: boolean; user?: any; error?: string }> {
   try {
-    const response = await fetch('http://localhost:8080/api/v1/auth/authorize-rollback', {
+    const FASTAPI_BASE_URL = process.env.FASTAPI_BASE_URL || 'http://localhost:8080';
+    
+    const response = await fetch(`${FASTAPI_BASE_URL}/api/v1/auth/authorize-rollback`, {
       method: 'POST',
       headers: {
         'X-Session-ID': sessionId,
