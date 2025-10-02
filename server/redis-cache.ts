@@ -54,7 +54,8 @@ export const CACHE_KEYS = {
   CHANGES_CHANNEL: 'sla:changes',
   ALERTS: 'sla:alerts',
   ADMIN_MESSAGES: 'sla:adminMessages',
-  TASKS: 'sla:tasks'
+  TASKS: 'sla:tasks',
+  PERMISSIONS: 'sla:permissions'
 };
 
 export class RedisCache {

@@ -1,4 +1,4 @@
-import { Entity, Team } from './schema';
+import { Entity, Team, Permission } from './schema';
 
 export interface DashboardMetrics {
   overallCompliance: number;
@@ -63,6 +63,7 @@ export interface CachedData {
   entitiesByName: Map<string, number>; // Key: `${teamId}:${entityType}:${name}`
   teams: Team[];
   tenants: Array<{ id: number; name: string; description?: string }>;
+  permissions: Permission[];
   // Backward compatibility - map to last30DayMetrics
   metrics: Record<string, DashboardMetrics>;
   last30DayMetrics: Record<string, DashboardMetrics>;
@@ -91,6 +92,7 @@ export interface CacheRefreshData {
   entities: Entity[];
   teams: Team[];
   tenants: Array<{ id: number; name: string; description?: string }>;
+  permissions: Permission[];
   // Backward compatibility
   metrics: Record<string, DashboardMetrics>;
   last30DayMetrics: Record<string, DashboardMetrics>;
