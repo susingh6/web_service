@@ -496,7 +496,7 @@ export const permissions = pgTable("permissions", {
   id: serial("id").primaryKey(),
   permission_name: text("permission_name").notNull().unique(),
   description: text("description"),
-  category: text("category").notNull(), // 'Table', 'DAG', 'Notification', 'Agentic', 'Notification Subscription'
+  category: text("category").notNull(), // 'Table', 'DAG', 'Notification', 'Agentic', 'Notification Subscription', 'Admin'
   is_active: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -510,7 +510,7 @@ export const insertPermissionSchema = createInsertSchema(permissions).omit({
 }).extend({
   permission_name: z.string().min(1, "Permission name is required"),
   description: z.string().optional(),
-  category: z.enum(['Table', 'DAG', 'Notification', 'Agentic', 'Notification Subscription']),
+  category: z.enum(['Table', 'DAG', 'Notification', 'Agentic', 'Notification Subscription', 'Admin']),
   is_active: z.boolean().default(true),
 });
 

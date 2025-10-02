@@ -1937,36 +1937,74 @@ export class MemStorage implements IStorage {
     const now = new Date();
     
     const mockPermissions = [
-      // Table Permissions
+      // DAG Permissions - Status/SLA/Progress Editors
       {
-        permission_name: 'view_tables',
-        description: 'View table entities and their details',
+        permission_name: 'dag-status-editor',
+        description: 'Edit DAG status fields',
+        category: 'DAG' as const,
+        is_active: true
+      },
+      {
+        permission_name: 'dag-sla-editor',
+        description: 'Edit DAG SLA settings',
+        category: 'DAG' as const,
+        is_active: true
+      },
+      {
+        permission_name: 'dag-progress-editor',
+        description: 'Edit DAG progress tracking',
+        category: 'DAG' as const,
+        is_active: true
+      },
+      // Table Permissions - Status/SLA/Progress Editors
+      {
+        permission_name: 'table-status-editor',
+        description: 'Edit table status fields',
         category: 'Table' as const,
         is_active: true
       },
+      {
+        permission_name: 'table-sla-editor',
+        description: 'Edit table SLA settings',
+        category: 'Table' as const,
+        is_active: true
+      },
+      {
+        permission_name: 'table-progress-editor',
+        description: 'Edit table progress tracking',
+        category: 'Table' as const,
+        is_active: true
+      },
+      // Entity View Permissions
+      {
+        permission_name: 'view_entities',
+        description: 'View entity details and information',
+        category: 'Table' as const,
+        is_active: true
+      },
+      {
+        permission_name: 'edit_own_entities',
+        description: 'Edit entities owned by user',
+        category: 'Table' as const,
+        is_active: true
+      },
+      {
+        permission_name: 'view_team_entities',
+        description: 'View entities within user team',
+        category: 'Table' as const,
+        is_active: true
+      },
+      {
+        permission_name: 'view_all_entities',
+        description: 'View all entities across all teams',
+        category: 'Table' as const,
+        is_active: true
+      },
+      // CRUD Permissions
       {
         permission_name: 'create_tables',
         description: 'Create new table entities',
         category: 'Table' as const,
-        is_active: true
-      },
-      {
-        permission_name: 'update_tables',
-        description: 'Update existing table entities',
-        category: 'Table' as const,
-        is_active: true
-      },
-      {
-        permission_name: 'delete_tables',
-        description: 'Delete table entities',
-        category: 'Table' as const,
-        is_active: true
-      },
-      // DAG Permissions
-      {
-        permission_name: 'view_dags',
-        description: 'View DAG entities and their details',
-        category: 'DAG' as const,
         is_active: true
       },
       {
@@ -1976,9 +2014,9 @@ export class MemStorage implements IStorage {
         is_active: true
       },
       {
-        permission_name: 'update_dags',
-        description: 'Update existing DAG entities',
-        category: 'DAG' as const,
+        permission_name: 'delete_tables',
+        description: 'Delete table entities',
+        category: 'Table' as const,
         is_active: true
       },
       {
@@ -1987,6 +2025,7 @@ export class MemStorage implements IStorage {
         category: 'DAG' as const,
         is_active: true
       },
+      // DAG Task Management
       {
         permission_name: 'manage_dag_tasks',
         description: 'Manage DAG tasks including priority zones',
@@ -1995,20 +2034,8 @@ export class MemStorage implements IStorage {
       },
       // Notification Permissions
       {
-        permission_name: 'view_notifications',
-        description: 'View notification configurations',
-        category: 'Notification' as const,
-        is_active: true
-      },
-      {
         permission_name: 'create_notifications',
         description: 'Create new notification configurations',
-        category: 'Notification' as const,
-        is_active: true
-      },
-      {
-        permission_name: 'update_notifications',
-        description: 'Update notification configurations',
         category: 'Notification' as const,
         is_active: true
       },
@@ -2018,38 +2045,7 @@ export class MemStorage implements IStorage {
         category: 'Notification' as const,
         is_active: true
       },
-      // Notification Subscription Permissions
-      {
-        permission_name: 'subscribe_to_entities',
-        description: 'Subscribe to entity notifications',
-        category: 'Notification Subscription' as const,
-        is_active: true
-      },
-      {
-        permission_name: 'unsubscribe_from_entities',
-        description: 'Unsubscribe from entity notifications',
-        category: 'Notification Subscription' as const,
-        is_active: true
-      },
-      {
-        permission_name: 'view_subscriptions',
-        description: 'View entity subscription lists',
-        category: 'Notification Subscription' as const,
-        is_active: true
-      },
       // Agentic Permissions
-      {
-        permission_name: 'use_agentic_workspace',
-        description: 'Access and use the AI agent workspace',
-        category: 'Agentic' as const,
-        is_active: true
-      },
-      {
-        permission_name: 'view_agent_conversations',
-        description: 'View agent conversation history',
-        category: 'Agentic' as const,
-        is_active: true
-      },
       {
         permission_name: 'manage_agent_sessions',
         description: 'Manage and save agent conversation sessions',
@@ -2060,25 +2056,25 @@ export class MemStorage implements IStorage {
       {
         permission_name: 'manage_users',
         description: 'Create, update, and manage user accounts',
-        category: 'Table' as const,
+        category: 'Admin' as const,
         is_active: true
       },
       {
         permission_name: 'manage_teams',
         description: 'Create, update, and manage teams',
-        category: 'Table' as const,
+        category: 'Admin' as const,
         is_active: true
       },
       {
         permission_name: 'manage_tenants',
         description: 'Create, update, and manage tenants',
-        category: 'Table' as const,
+        category: 'Admin' as const,
         is_active: true
       },
       {
         permission_name: 'manage_roles',
         description: 'Create, update, and manage user roles',
-        category: 'Table' as const,
+        category: 'Admin' as const,
         is_active: true
       },
       {
@@ -2088,15 +2084,29 @@ export class MemStorage implements IStorage {
         is_active: true
       },
       {
-        permission_name: 'view_all_entities',
-        description: 'View all entities across all teams',
+        permission_name: 'manage_system_settings',
+        description: 'Manage system-wide settings and configurations',
+        category: 'Admin' as const,
+        is_active: true
+      },
+      // Viewer Permissions
+      {
+        permission_name: 'viewer',
+        description: 'Read-only viewer access',
         category: 'Table' as const,
         is_active: true
       },
       {
-        permission_name: 'manage_system_settings',
-        description: 'Manage system-wide settings and configurations',
+        permission_name: 'webview',
+        description: 'Web view access for dashboards',
         category: 'Table' as const,
+        is_active: true
+      },
+      // Admin super permission
+      {
+        permission_name: 'admin',
+        description: 'Full administrative access to all system features',
+        category: 'Admin' as const,
         is_active: true
       }
     ];
