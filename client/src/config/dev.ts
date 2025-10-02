@@ -253,6 +253,17 @@ export const devConfig = {
         update: (roleName: string) => `/api/v1/roles/${roleName}`,
         delete: (roleName: string) => `/api/v1/roles/${roleName}`,
       },
+      permissions: {
+        getAll: '/api/v1/get_all_permissions',
+        create: '/api/v1/permissions',
+        update: (permissionName: string) => `/api/v1/permissions/${permissionName}`,
+        delete: (permissionName: string) => `/api/v1/permissions/${permissionName}`,
+        // Express fallback endpoints
+        getAllFallback: '/api/permissions',
+        createFallback: '/api/permissions',
+        updateFallback: (permissionName: string) => `/api/permissions/${permissionName}`,
+        deleteFallback: (permissionName: string) => `/api/permissions/${permissionName}`,
+      },
       alerts: {
         getAll: '/api/v1/alerts',
         create: '/api/v1/alerts',
