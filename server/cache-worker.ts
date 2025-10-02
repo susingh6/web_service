@@ -309,12 +309,13 @@ async function refreshFromFastAPI(buildType: 'Regular' | 'Forced' = 'Regular'): 
 async function refreshFromStorage(): Promise<CacheRefreshData> {
   console.log('[Cache Worker] Refreshing cache from storage');
   
-  // Load all entities, teams, tenants, users, roles, and conflicts
+  // Load all entities, teams, tenants, users, roles, permissions, and conflicts
   const entities = await storage.getEntities();
   const teams = await storage.getTeams();
   const tenants = await storage.getTenants();
   const users = await storage.getUsers();
   const roles = await storage.getUserRoles();
+  const permissions = await storage.getPermissions();
   const conflicts: any[] = []; // TODO: Implement getConflictNotifications in storage interface or use alternative method
 
   // Calculate metrics for each tenant (default 30-day cache)
@@ -336,6 +337,7 @@ async function refreshFromStorage(): Promise<CacheRefreshData> {
     entities,
     teams,
     tenants,
+    permissions,
     users,
     roles,
     conflicts,

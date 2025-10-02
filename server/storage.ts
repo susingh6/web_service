@@ -11,7 +11,8 @@ import {
   incidents, type Incident, type InsertIncident,
   alerts, type Alert, type InsertAlert,
   adminBroadcastMessages, type AdminBroadcastMessage, type InsertAdminBroadcastMessage,
-  roles, type Role, type InsertRole, type UpdateRole
+  roles, type Role, type InsertRole, type UpdateRole,
+  permissions, type Permission, type InsertPermission, type UpdatePermission
 } from "@shared/schema";
 import { resolveEntityIdentifier } from '@shared/entity-utils';
 
@@ -44,6 +45,13 @@ export interface IStorage {
   createRole(role: InsertRole): Promise<Role>;
   updateRole(roleName: string, role: Partial<Role>): Promise<Role | undefined>;
   deleteRole(roleName: string): Promise<boolean>;
+  
+  // Permission operations
+  getPermissions(): Promise<Permission[]>;
+  getPermission(permissionName: string): Promise<Permission | undefined>;
+  createPermission(permission: InsertPermission): Promise<Permission>;
+  updatePermission(permissionName: string, permission: Partial<Permission>): Promise<Permission | undefined>;
+  deletePermission(permissionName: string): Promise<boolean>;
   
   // Team operations
   getTeams(): Promise<Team[]>;
@@ -136,6 +144,8 @@ export class MemStorage implements IStorage {
   private adminBroadcastMessagesData: Map<number, AdminBroadcastMessage>; // Admin broadcast messages
   private rolesData: Map<string, Role>; // keyed by role_name
   private rolesVersion: number; // Version counter for cache invalidation
+  private permissionsData: Map<string, Permission>; // keyed by permission_name
+  private permissionsVersion: number; // Version counter for cache invalidation
   private entitySubscriptionsData: Map<number, EntitySubscription>; // Entity subscriptions
   
   private userId: number;
@@ -167,6 +177,8 @@ export class MemStorage implements IStorage {
     this.adminBroadcastMessagesData = new Map();
     this.rolesData = new Map();
     this.rolesVersion = 1;
+    this.permissionsData = new Map();
+    this.permissionsVersion = 1;
     this.entitySubscriptionsData = new Map();
     
     this.userId = 1;
@@ -1166,6 +1178,68 @@ export class MemStorage implements IStorage {
     const success = this.rolesData.delete(roleName);
     if (success) {
       this.rolesVersion++; // Increment version for cache invalidation
+    }
+    return success;
+  }
+
+  // Permission operations
+  async getPermissions(): Promise<Permission[]> {
+    await this.ensureInitialized();
+    return Array.from(this.permissionsData.values());
+  }
+
+  async getPermission(permissionName: string): Promise<Permission | undefined> {
+    await this.ensureInitialized();
+    return this.permissionsData.get(permissionName);
+  }
+
+  async createPermission(insertPermission: InsertPermission): Promise<Permission> {
+    await this.ensureInitialized();
+    const now = new Date();
+    const permission: Permission = {
+      id: this.permissionsVersion++,
+      permission_name: insertPermission.permission_name,
+      description: insertPermission.description || null,
+      category: insertPermission.category,
+      is_active: insertPermission.is_active ?? true,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.permissionsData.set(insertPermission.permission_name, permission);
+    this.permissionsVersion++;
+    return permission;
+  }
+
+  async updatePermission(permissionName: string, updatePermission: Partial<Permission>): Promise<Permission | undefined> {
+    await this.ensureInitialized();
+    const existingPermission = this.permissionsData.get(permissionName);
+    if (!existingPermission) {
+      return undefined;
+    }
+    
+    const updatedPermission: Permission = {
+      ...existingPermission,
+      ...updatePermission,
+      permission_name: updatePermission.permission_name || existingPermission.permission_name,
+      updatedAt: new Date(),
+    };
+    
+    if (updatePermission.permission_name && updatePermission.permission_name !== permissionName) {
+      this.permissionsData.delete(permissionName);
+      this.permissionsData.set(updatePermission.permission_name, updatedPermission);
+    } else {
+      this.permissionsData.set(permissionName, updatedPermission);
+    }
+    
+    this.permissionsVersion++;
+    return updatedPermission;
+  }
+
+  async deletePermission(permissionName: string): Promise<boolean> {
+    await this.ensureInitialized();
+    const success = this.permissionsData.delete(permissionName);
+    if (success) {
+      this.permissionsVersion++;
     }
     return success;
   }
