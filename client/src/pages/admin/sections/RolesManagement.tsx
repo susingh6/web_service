@@ -566,8 +566,7 @@ const RolesManagement = () => {
                   <Table stickyHeader size="small">
                     <TableHead>
                       <TableRow>
-                        <TableCell>Role Name</TableCell>
-                        <TableCell>Description</TableCell>
+                        <TableCell>Role</TableCell>
                         <TableCell>Tenant</TableCell>
                         <TableCell>Team</TableCell>
                         <TableCell>Type</TableCell>
@@ -589,15 +588,15 @@ const RolesManagement = () => {
                             <TableCell>
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                 <SecurityIcon color="primary" fontSize="small" />
-                                <Typography variant="body2" fontWeight="medium">
-                                  {role.role_name}
-                                </Typography>
+                                <Box>
+                                  <Typography variant="body2" fontWeight="medium">
+                                    {role.role_name}
+                                  </Typography>
+                                  <Typography variant="caption" color="text.secondary">
+                                    {role.description}
+                                  </Typography>
+                                </Box>
                               </Box>
-                            </TableCell>
-                            <TableCell>
-                              <Typography variant="body2" color="text.secondary">
-                                {role.description}
-                              </Typography>
                             </TableCell>
                             <TableCell>
                               {role.tenant_name ? (
