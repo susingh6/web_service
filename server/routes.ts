@@ -562,7 +562,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // POST /api/v1/roles - Create new role
-  app.post("/api/v1/roles", requireActiveUser, async (req: Request, res: Response) => {
+  app.post("/api/v1/roles", checkActiveUserDev, async (req: Request, res: Response) => {
     try {
       const roleData = req.body;
       
@@ -581,7 +581,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // PATCH /api/v1/roles/{roleName} - Update role by name
-  app.patch("/api/v1/roles/:roleName", requireActiveUser, async (req: Request, res: Response) => {
+  app.patch("/api/v1/roles/:roleName", checkActiveUserDev, async (req: Request, res: Response) => {
     try {
       const { roleName } = req.params;
       const roleData = req.body;
@@ -605,7 +605,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // DELETE /api/v1/roles/{roleName} - Delete role by name
-  app.delete("/api/v1/roles/:roleName", requireActiveUser, async (req: Request, res: Response) => {
+  app.delete("/api/v1/roles/:roleName", checkActiveUserDev, async (req: Request, res: Response) => {
     try {
       const { roleName } = req.params;
       
