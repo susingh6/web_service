@@ -462,6 +462,9 @@ export class MemStorage implements IStorage {
     // Calculate and update team counts for tenants after teams are created
     this.updateTenantTeamCounts();
     
+    // Initialize mock permissions data
+    this.initMockPermissions();
+    
     // Load mock DAG data using FS instead of require
     await this.loadMockDags();
     
@@ -1925,6 +1928,194 @@ export class MemStorage implements IStorage {
     // Store audit data in maps
     mockDagAudit.forEach(audit => this.dagAudit.set(audit.id, audit));
     mockTableAudit.forEach(audit => this.tableAudit.set(audit.id, audit));
+  }
+
+  /**
+   * Initialize mock permissions data
+   */
+  private initMockPermissions(): void {
+    const now = new Date();
+    
+    const mockPermissions = [
+      // Table Permissions
+      {
+        permission_name: 'view_tables',
+        description: 'View table entities and their details',
+        category: 'Table' as const,
+        is_active: true
+      },
+      {
+        permission_name: 'create_tables',
+        description: 'Create new table entities',
+        category: 'Table' as const,
+        is_active: true
+      },
+      {
+        permission_name: 'update_tables',
+        description: 'Update existing table entities',
+        category: 'Table' as const,
+        is_active: true
+      },
+      {
+        permission_name: 'delete_tables',
+        description: 'Delete table entities',
+        category: 'Table' as const,
+        is_active: true
+      },
+      // DAG Permissions
+      {
+        permission_name: 'view_dags',
+        description: 'View DAG entities and their details',
+        category: 'DAG' as const,
+        is_active: true
+      },
+      {
+        permission_name: 'create_dags',
+        description: 'Create new DAG entities',
+        category: 'DAG' as const,
+        is_active: true
+      },
+      {
+        permission_name: 'update_dags',
+        description: 'Update existing DAG entities',
+        category: 'DAG' as const,
+        is_active: true
+      },
+      {
+        permission_name: 'delete_dags',
+        description: 'Delete DAG entities',
+        category: 'DAG' as const,
+        is_active: true
+      },
+      {
+        permission_name: 'manage_dag_tasks',
+        description: 'Manage DAG tasks including priority zones',
+        category: 'DAG' as const,
+        is_active: true
+      },
+      // Notification Permissions
+      {
+        permission_name: 'view_notifications',
+        description: 'View notification configurations',
+        category: 'Notification' as const,
+        is_active: true
+      },
+      {
+        permission_name: 'create_notifications',
+        description: 'Create new notification configurations',
+        category: 'Notification' as const,
+        is_active: true
+      },
+      {
+        permission_name: 'update_notifications',
+        description: 'Update notification configurations',
+        category: 'Notification' as const,
+        is_active: true
+      },
+      {
+        permission_name: 'delete_notifications',
+        description: 'Delete notification configurations',
+        category: 'Notification' as const,
+        is_active: true
+      },
+      // Notification Subscription Permissions
+      {
+        permission_name: 'subscribe_to_entities',
+        description: 'Subscribe to entity notifications',
+        category: 'Notification Subscription' as const,
+        is_active: true
+      },
+      {
+        permission_name: 'unsubscribe_from_entities',
+        description: 'Unsubscribe from entity notifications',
+        category: 'Notification Subscription' as const,
+        is_active: true
+      },
+      {
+        permission_name: 'view_subscriptions',
+        description: 'View entity subscription lists',
+        category: 'Notification Subscription' as const,
+        is_active: true
+      },
+      // Agentic Permissions
+      {
+        permission_name: 'use_agentic_workspace',
+        description: 'Access and use the AI agent workspace',
+        category: 'Agentic' as const,
+        is_active: true
+      },
+      {
+        permission_name: 'view_agent_conversations',
+        description: 'View agent conversation history',
+        category: 'Agentic' as const,
+        is_active: true
+      },
+      {
+        permission_name: 'manage_agent_sessions',
+        description: 'Manage and save agent conversation sessions',
+        category: 'Agentic' as const,
+        is_active: true
+      },
+      // Admin Permissions
+      {
+        permission_name: 'manage_users',
+        description: 'Create, update, and manage user accounts',
+        category: 'Table' as const,
+        is_active: true
+      },
+      {
+        permission_name: 'manage_teams',
+        description: 'Create, update, and manage teams',
+        category: 'Table' as const,
+        is_active: true
+      },
+      {
+        permission_name: 'manage_tenants',
+        description: 'Create, update, and manage tenants',
+        category: 'Table' as const,
+        is_active: true
+      },
+      {
+        permission_name: 'manage_roles',
+        description: 'Create, update, and manage user roles',
+        category: 'Table' as const,
+        is_active: true
+      },
+      {
+        permission_name: 'resolve_conflicts',
+        description: 'Resolve notification conflicts',
+        category: 'Notification' as const,
+        is_active: true
+      },
+      {
+        permission_name: 'view_all_entities',
+        description: 'View all entities across all teams',
+        category: 'Table' as const,
+        is_active: true
+      },
+      {
+        permission_name: 'manage_system_settings',
+        description: 'Manage system-wide settings and configurations',
+        category: 'Table' as const,
+        is_active: true
+      }
+    ];
+
+    // Create all permissions with incremental IDs
+    mockPermissions.forEach((permData, index) => {
+      const permission: Permission = {
+        id: index + 1,
+        permission_name: permData.permission_name,
+        description: permData.description,
+        category: permData.category,
+        is_active: permData.is_active,
+        createdAt: now,
+        updatedAt: now
+      };
+      this.permissionsData.set(permission.permission_name, permission);
+    });
+    
+    this.permissionsVersion = mockPermissions.length + 1;
   }
 
   private initMockAlertData(): void {
