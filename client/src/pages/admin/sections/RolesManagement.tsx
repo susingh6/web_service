@@ -153,6 +153,12 @@ const RolesManagement = () => {
     return permissions.filter(p => p.is_active).map(p => p.permission_name).sort();
   }, [permissions]);
 
+  // Get unique categories from existing permissions for the category dropdown
+  const categoryOptions = useMemo(() => {
+    const uniqueCategories = new Set(permissions.map(p => p.category));
+    return Array.from(uniqueCategories).sort();
+  }, [permissions]);
+
   const getPermissionLabel = (permission: string) => {
     const labels: Record<string, string> = {
       'manage_users': 'Manage Users',
@@ -906,20 +912,25 @@ const RolesManagement = () => {
               multiline 
               rows={3} 
             />
-            <FormControl fullWidth required>
-              <InputLabel>Category</InputLabel>
-              <Select
-                label="Category"
-                value={permissionForm.category || 'Table'}
-                onChange={(e) => setPermissionForm({ ...permissionForm, category: e.target.value as any })}
-              >
-                <MenuItem value="Table">Table</MenuItem>
-                <MenuItem value="DAG">DAG</MenuItem>
-                <MenuItem value="Notification">Notification</MenuItem>
-                <MenuItem value="Agentic">Agentic</MenuItem>
-                <MenuItem value="Notification Subscription">Notification Subscription</MenuItem>
-              </Select>
-            </FormControl>
+            <Autocomplete
+              freeSolo
+              options={categoryOptions}
+              value={permissionForm.category || ''}
+              onChange={(event, newValue) => {
+                setPermissionForm({ ...permissionForm, category: (newValue || '') as any });
+              }}
+              onInputChange={(event, newInputValue) => {
+                setPermissionForm({ ...permissionForm, category: newInputValue as any });
+              }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Category"
+                  required
+                  helperText="Select existing category or type a new one"
+                />
+              )}
+            />
             <FormControlLabel 
               control={
                 <Switch 
