@@ -163,6 +163,17 @@ interface ApiConfig {
         update: (roleName: string) => string;
         delete?: (roleName: string) => string;
       };
+      permissions: {
+        getAll: string;
+        create: string;
+        update: (permissionName: string) => string;
+        delete: (permissionName: string) => string;
+        // Optional Express fallbacks (development only)
+        getAllFallback?: string;
+        createFallback?: string;
+        updateFallback?: (permissionName: string) => string;
+        deleteFallback?: (permissionName: string) => string;
+      };
       alerts: {
         getAll: string;
         create: string;
