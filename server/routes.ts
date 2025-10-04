@@ -5359,17 +5359,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json(createErrorResponse('Deleted entity not found in audit history or rollback failed', 'not_found'));
       }
 
-      // Success response with actual rollback result
-      const rollbackResult = {
-        success: true,
-        entity_id: rolledBackEntity.id.toString(),
-        entity_name: rolledBackEntity.name,
-        entity_type: rolledBackEntity.type,
-        restored_at: new Date().toISOString(),
-        restored_by: user_email,
-        reason: reason || 'Rollback requested via admin interface'
-      };
-
       // Invalidate relevant caches after rollback using conditional patterns
       await invalidateRollbackCaches(rolledBackEntity);
 
@@ -5388,13 +5377,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       structuredLogger.info('AUDIT_ROLLBACK_COMPLETED', req.sessionContext, req.requestId, {
         ...auditLog,
-        rollback_result: rollbackResult
+        entity_id: rolledBackEntity.id,
+        entity_name: rolledBackEntity.name
       });
 
       res.json({
         success: true,
         message: `Entity ${entity_name} has been successfully restored`,
-        rollback_details: rollbackResult,
+        entity: rolledBackEntity,
         cache_invalidated: true,
         timestamp: new Date().toISOString()
       });
@@ -5432,16 +5422,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json(createErrorResponse('Deleted entity not found in audit history or rollback failed', 'not_found'));
       }
 
-      const rollbackResult = {
-        success: true,
-        entity_id: rolledBackEntity.id.toString(),
-        entity_name: rolledBackEntity.name,
-        entity_type: rolledBackEntity.type,
-        restored_at: new Date().toISOString(),
-        restored_by: user_email,
-        reason: reason || 'Rollback requested via admin interface'
-      };
-
       // Invalidate relevant caches using conditional patterns
       await invalidateRollbackCaches(rolledBackEntity);
 
@@ -5461,7 +5441,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({
         success: true,
         message: `Entity ${entity_name} has been successfully restored`,
-        rollback_details: rollbackResult,
+        entity: rolledBackEntity,
         cache_invalidated: true,
         timestamp: new Date().toISOString()
       });
