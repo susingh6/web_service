@@ -59,6 +59,11 @@ interface DeletedEntity {
   entity_id: string;
   tenant_id: string;
   team_id: string;
+  schema_name?: string;
+  table_name?: string;
+  table_schedule?: string;
+  dag_name?: string;
+  dag_schedule?: string;
 }
 
 const RollbackManagement = () => {
