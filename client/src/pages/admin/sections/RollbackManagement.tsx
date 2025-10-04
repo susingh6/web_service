@@ -621,104 +621,176 @@ const RollbackManagement = () => {
                     Showing {page * rowsPerPage + 1}–{Math.min(searchResults.length, (page + 1) * rowsPerPage)} of {searchResults.length} result{searchResults.length !== 1 ? 's' : ''}
                   </Typography>
 
-                  <TableContainer component={Paper} elevation={0}>
-                    <Table>
-                      <TableHead>
-                        <TableRow>
-                          <TableCell>Entity</TableCell>
-                          <TableCell>Table/DAG Name</TableCell>
-                          <TableCell>Schedule</TableCell>
-                          <TableCell>Type</TableCell>
-                          <TableCell>Deleted Date</TableCell>
-                          <TableCell>Deleted By</TableCell>
-                          <TableCell>Actions</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {paginatedResults.map((entity) => (
-                          <TableRow key={entity.id} data-testid={`row-entity-${entity.id}`}>
-                            <TableCell>
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                {getEntityTypeIcon(entity.entity_type)}
-                                <Typography variant="body2" fontWeight="medium">
-                                  {entity.entity_name}
-                                </Typography>
-                              </Box>
-                            </TableCell>
-                            <TableCell>
-                              <Typography variant="body2">
-                                {entity.entity_type === 'table' 
-                                  ? (entity.schema_name && entity.table_name 
-                                      ? `${entity.schema_name}.${entity.table_name}` 
-                                      : entity.table_name || '-')
-                                  : entity.dag_name || '-'
-                                }
-                              </Typography>
-                            </TableCell>
-                            <TableCell>
-                              <Typography variant="body2" color="text.secondary">
-                                {entity.entity_type === 'table' 
-                                  ? entity.table_schedule || '-'
-                                  : entity.dag_schedule || '-'
-                                }
-                              </Typography>
-                            </TableCell>
-                            <TableCell>
-                              <Chip 
-                                label={entity.entity_type.toUpperCase()} 
-                                size="small" 
-                                variant="outlined"
-                                color={entity.entity_type === 'dag' ? 'primary' : 'secondary'}
-                                data-testid={`chip-type-${entity.id}`}
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <Typography variant="body2" color="text.secondary">
-                                {formatDate(entity.deleted_date)}
-                              </Typography>
-                            </TableCell>
-                            <TableCell>
-                              <Typography variant="body2" color="text.secondary">
-                                {entity.deleted_by}
-                              </Typography>
-                            </TableCell>
-                            <TableCell>
-                              <Tooltip title={`Restore ${entity.entity_name}`}>
-                                <Button
-                                  variant="contained"
-                                  color="primary"
-                                  size="small"
-                                  startIcon={<RestoreIcon />}
-                                  onClick={() => handleRollbackEntity(entity)}
-                                  disabled={rollbackMutation.isPending}
-                                  data-testid={`button-rollback-${entity.id}`}
-                                >
-                                  Rollback
-                                </Button>
-                              </Tooltip>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
+                  {/* Table Entities Section */}
+                  {(() => {
+                    const tableEntities = paginatedResults.filter(e => e.entity_type === 'table');
+                    return tableEntities.length > 0 && (
+                      <Box sx={{ mb: 4 }}>
+                        <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 2 }}>
+                          Table Entities
+                        </Typography>
+                        <TableContainer component={Paper} elevation={0}>
+                          <Table>
+                            <TableHead>
+                              <TableRow>
+                                <TableCell>Entity</TableCell>
+                                <TableCell>Table Name</TableCell>
+                                <TableCell>Schedule</TableCell>
+                                <TableCell>Deleted Date</TableCell>
+                                <TableCell>Deleted By</TableCell>
+                                <TableCell>Actions</TableCell>
+                              </TableRow>
+                            </TableHead>
+                            <TableBody>
+                              {tableEntities.map((entity) => (
+                                <TableRow key={entity.id} data-testid={`row-entity-${entity.id}`}>
+                                  <TableCell>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                      {getEntityTypeIcon(entity.entity_type)}
+                                      <Typography variant="body2" fontWeight="medium">
+                                        {entity.entity_name}
+                                      </Typography>
+                                    </Box>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Typography variant="body2">
+                                      {entity.schema_name && entity.table_name 
+                                        ? `${entity.schema_name}.${entity.table_name}` 
+                                        : entity.table_name || '-'}
+                                    </Typography>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Typography variant="body2" color="text.secondary">
+                                      {entity.table_schedule || '-'}
+                                    </Typography>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Typography variant="body2" color="text.secondary">
+                                      {formatDate(entity.deleted_date)}
+                                    </Typography>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Typography variant="body2" color="text.secondary">
+                                      {entity.deleted_by}
+                                    </Typography>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Tooltip title={`Restore ${entity.entity_name}`}>
+                                      <Button
+                                        variant="contained"
+                                        color="primary"
+                                        size="small"
+                                        startIcon={<RestoreIcon />}
+                                        onClick={() => handleRollbackEntity(entity)}
+                                        disabled={rollbackMutation.isPending}
+                                        data-testid={`button-rollback-${entity.id}`}
+                                      >
+                                        Rollback
+                                      </Button>
+                                    </Tooltip>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
+                      </Box>
+                    );
+                  })()}
+
+                  {/* DAG Entities Section */}
+                  {(() => {
+                    const dagEntities = paginatedResults.filter(e => e.entity_type === 'dag');
+                    return dagEntities.length > 0 && (
+                      <Box>
+                        <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 2 }}>
+                          DAG Entities
+                        </Typography>
+                        <TableContainer component={Paper} elevation={0}>
+                          <Table>
+                            <TableHead>
+                              <TableRow>
+                                <TableCell>Entity</TableCell>
+                                <TableCell>DAG Name</TableCell>
+                                <TableCell>Schedule</TableCell>
+                                <TableCell>Deleted Date</TableCell>
+                                <TableCell>Deleted By</TableCell>
+                                <TableCell>Actions</TableCell>
+                              </TableRow>
+                            </TableHead>
+                            <TableBody>
+                              {dagEntities.map((entity) => (
+                                <TableRow key={entity.id} data-testid={`row-entity-${entity.id}`}>
+                                  <TableCell>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                      {getEntityTypeIcon(entity.entity_type)}
+                                      <Typography variant="body2" fontWeight="medium">
+                                        {entity.entity_name}
+                                      </Typography>
+                                    </Box>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Typography variant="body2">
+                                      {entity.dag_name || '-'}
+                                    </Typography>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Typography variant="body2" color="text.secondary">
+                                      {entity.dag_schedule || '-'}
+                                    </Typography>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Typography variant="body2" color="text.secondary">
+                                      {formatDate(entity.deleted_date)}
+                                    </Typography>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Typography variant="body2" color="text.secondary">
+                                      {entity.deleted_by}
+                                    </Typography>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Tooltip title={`Restore ${entity.entity_name}`}>
+                                      <Button
+                                        variant="contained"
+                                        color="primary"
+                                        size="small"
+                                        startIcon={<RestoreIcon />}
+                                        onClick={() => handleRollbackEntity(entity)}
+                                        disabled={rollbackMutation.isPending}
+                                        data-testid={`button-rollback-${entity.id}`}
+                                      >
+                                        Rollback
+                                      </Button>
+                                    </Tooltip>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
+                      </Box>
+                    );
+                  })()}
 
                   {searchResults.length > rowsPerPage && (
-                    <TablePagination
-                      component="div"
-                      count={searchResults.length}
-                      page={page}
-                      onPageChange={(event, newPage) => setPage(newPage)}
-                      rowsPerPage={rowsPerPage}
-                      onRowsPerPageChange={(event) => {
-                        setRowsPerPage(parseInt(event.target.value, 10));
-                        setPage(0);
-                      }}
-                      rowsPerPageOptions={[10, 25, 50]}
-                      showFirstButton
-                      showLastButton
-                      data-testid="pagination-results"
-                    />
+                    <Box sx={{ mt: 2 }}>
+                      <TablePagination
+                        component="div"
+                        count={searchResults.length}
+                        page={page}
+                        onPageChange={(event, newPage) => setPage(newPage)}
+                        rowsPerPage={rowsPerPage}
+                        onRowsPerPageChange={(event) => {
+                          setRowsPerPage(parseInt(event.target.value, 10));
+                          setPage(0);
+                        }}
+                        rowsPerPageOptions={[10, 25, 50]}
+                        showFirstButton
+                        showLastButton
+                        data-testid="pagination-results"
+                      />
+                    </Box>
                   )}
                 </>
               )}
