@@ -93,8 +93,8 @@ export interface IStorage {
   deleteNotificationTimeline(id: string): Promise<boolean>;
   
   // Audit operations for rollback management
-  getDeletedEntitiesByName(entityName: string): Promise<Array<{ id: string; entity_name: string; entity_type: 'dag' | 'table'; tenant_name: string; team_name: string; deleted_date: string; deleted_by: string; entity_id: string; tenant_id: string; team_id: string }>>;
-  getDeletedEntitiesByTeamTenant(tenantId: number, teamId: number): Promise<Array<{ id: string; entity_name: string; entity_type: 'dag' | 'table'; tenant_name: string; team_name: string; deleted_date: string; deleted_by: string; entity_id: string; tenant_id: string; team_id: string }>>;
+  getDeletedEntitiesByName(entityName: string): Promise<Array<{ id: string; entity_name: string; entity_type: 'dag' | 'table'; tenant_name: string; team_name: string; deleted_date: string; deleted_by: string; entity_id: string; tenant_id: string; team_id: string; schema_name?: string; table_name?: string; table_schedule?: string; dag_name?: string; dag_schedule?: string }>>;
+  getDeletedEntitiesByTeamTenant(tenantId: number, teamId: number): Promise<Array<{ id: string; entity_name: string; entity_type: 'dag' | 'table'; tenant_name: string; team_name: string; deleted_date: string; deleted_by: string; entity_id: string; tenant_id: string; team_id: string; schema_name?: string; table_name?: string; table_schedule?: string; dag_name?: string; dag_schedule?: string }>>;
   performEntityRollback(auditId: string, entityType: 'dag' | 'table'): Promise<Entity | null>;
   
   // Incident operations for AI agent integration
@@ -2226,9 +2226,9 @@ export class MemStorage implements IStorage {
   }
   
   // Audit operations for rollback management
-  async getDeletedEntitiesByName(entityName: string): Promise<Array<{ id: string; entity_name: string; entity_type: 'dag' | 'table'; tenant_name: string; team_name: string; deleted_date: string; deleted_by: string; entity_id: string; tenant_id: string; team_id: string }>> {
+  async getDeletedEntitiesByName(entityName: string): Promise<Array<{ id: string; entity_name: string; entity_type: 'dag' | 'table'; tenant_name: string; team_name: string; deleted_date: string; deleted_by: string; entity_id: string; tenant_id: string; team_id: string; schema_name?: string; table_name?: string; table_schedule?: string; dag_name?: string; dag_schedule?: string }>> {
     await this.ensureInitialized();
-    const results: Array<{ id: string; entity_name: string; entity_type: 'dag' | 'table'; tenant_name: string; team_name: string; deleted_date: string; deleted_by: string; entity_id: string; tenant_id: string; team_id: string }> = [];
+    const results: Array<{ id: string; entity_name: string; entity_type: 'dag' | 'table'; tenant_name: string; team_name: string; deleted_date: string; deleted_by: string; entity_id: string; tenant_id: string; team_id: string; schema_name?: string; table_name?: string; table_schedule?: string; dag_name?: string; dag_schedule?: string }> = [];
     
     // Search DAG audit records
     Array.from(this.dagAudit.values()).forEach(audit => {
@@ -2248,7 +2248,9 @@ export class MemStorage implements IStorage {
             deleted_by: deletedByUser?.email || deletedByUser?.username || 'Unknown User',
             entity_id: `dag_${rowBefore.id || audit.id}`,
             tenant_id: audit.tenantId.toString(),
-            team_id: audit.teamId.toString()
+            team_id: audit.teamId.toString(),
+            dag_name: rowBefore.dag_name,
+            dag_schedule: rowBefore.dag_schedule
           });
         }
       }
@@ -2272,7 +2274,10 @@ export class MemStorage implements IStorage {
             deleted_by: deletedByUser?.email || deletedByUser?.username || 'Unknown User',
             entity_id: `table_${rowBefore.id || audit.id}`,
             tenant_id: audit.tenantId.toString(),
-            team_id: audit.teamId.toString()
+            team_id: audit.teamId.toString(),
+            schema_name: rowBefore.schema_name,
+            table_name: rowBefore.table_name,
+            table_schedule: rowBefore.table_schedule
           });
         }
       }
@@ -2281,9 +2286,9 @@ export class MemStorage implements IStorage {
     return results;
   }
   
-  async getDeletedEntitiesByTeamTenant(tenantId: number, teamId: number): Promise<Array<{ id: string; entity_name: string; entity_type: 'dag' | 'table'; tenant_name: string; team_name: string; deleted_date: string; deleted_by: string; entity_id: string; tenant_id: string; team_id: string }>> {
+  async getDeletedEntitiesByTeamTenant(tenantId: number, teamId: number): Promise<Array<{ id: string; entity_name: string; entity_type: 'dag' | 'table'; tenant_name: string; team_name: string; deleted_date: string; deleted_by: string; entity_id: string; tenant_id: string; team_id: string; schema_name?: string; table_name?: string; table_schedule?: string; dag_name?: string; dag_schedule?: string }>> {
     await this.ensureInitialized();
-    const results: Array<{ id: string; entity_name: string; entity_type: 'dag' | 'table'; tenant_name: string; team_name: string; deleted_date: string; deleted_by: string; entity_id: string; tenant_id: string; team_id: string }> = [];
+    const results: Array<{ id: string; entity_name: string; entity_type: 'dag' | 'table'; tenant_name: string; team_name: string; deleted_date: string; deleted_by: string; entity_id: string; tenant_id: string; team_id: string; schema_name?: string; table_name?: string; table_schedule?: string; dag_name?: string; dag_schedule?: string }> = [];
     
     // Search DAG audit records for specific tenant/team
     Array.from(this.dagAudit.values()).forEach(audit => {
@@ -2303,7 +2308,9 @@ export class MemStorage implements IStorage {
             deleted_by: deletedByUser?.email || deletedByUser?.username || 'Unknown User',
             entity_id: `dag_${rowBefore.id || audit.id}`,
             tenant_id: audit.tenantId.toString(),
-            team_id: audit.teamId.toString()
+            team_id: audit.teamId.toString(),
+            dag_name: rowBefore.dag_name,
+            dag_schedule: rowBefore.dag_schedule
           });
         }
       }
@@ -2327,7 +2334,10 @@ export class MemStorage implements IStorage {
             deleted_by: deletedByUser?.email || deletedByUser?.username || 'Unknown User',
             entity_id: `table_${rowBefore.id || audit.id}`,
             tenant_id: audit.tenantId.toString(),
-            team_id: audit.teamId.toString()
+            team_id: audit.teamId.toString(),
+            schema_name: rowBefore.schema_name,
+            table_name: rowBefore.table_name,
+            table_schedule: rowBefore.table_schedule
           });
         }
       }
