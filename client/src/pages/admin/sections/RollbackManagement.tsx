@@ -647,11 +647,27 @@ const RollbackManagement = () => {
                               {tableEntities.map((entity) => (
                                 <TableRow key={entity.id} data-testid={`row-entity-${entity.id}`}>
                                   <TableCell>
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                      {getEntityTypeIcon(entity.entity_type)}
-                                      <Typography variant="body2" fontWeight="medium">
-                                        {entity.entity_name}
-                                      </Typography>
+                                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                        {getEntityTypeIcon(entity.entity_type)}
+                                        <Typography variant="body2" fontWeight="medium">
+                                          {entity.entity_name}
+                                        </Typography>
+                                      </Box>
+                                      <Box sx={{ display: 'flex', gap: 0.5, ml: 4 }}>
+                                        <Chip 
+                                          label={entity.tenant_name} 
+                                          size="small" 
+                                          variant="outlined"
+                                          sx={{ height: '20px', fontSize: '0.7rem' }}
+                                        />
+                                        <Chip 
+                                          label={entity.team_name} 
+                                          size="small" 
+                                          variant="outlined"
+                                          sx={{ height: '20px', fontSize: '0.7rem' }}
+                                        />
+                                      </Box>
                                     </Box>
                                   </TableCell>
                                   <TableCell>
@@ -724,11 +740,27 @@ const RollbackManagement = () => {
                               {dagEntities.map((entity) => (
                                 <TableRow key={entity.id} data-testid={`row-entity-${entity.id}`}>
                                   <TableCell>
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                      {getEntityTypeIcon(entity.entity_type)}
-                                      <Typography variant="body2" fontWeight="medium">
-                                        {entity.entity_name}
-                                      </Typography>
+                                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                        {getEntityTypeIcon(entity.entity_type)}
+                                        <Typography variant="body2" fontWeight="medium">
+                                          {entity.entity_name}
+                                        </Typography>
+                                      </Box>
+                                      <Box sx={{ display: 'flex', gap: 0.5, ml: 4 }}>
+                                        <Chip 
+                                          label={entity.tenant_name} 
+                                          size="small" 
+                                          variant="outlined"
+                                          sx={{ height: '20px', fontSize: '0.7rem' }}
+                                        />
+                                        <Chip 
+                                          label={entity.team_name} 
+                                          size="small" 
+                                          variant="outlined"
+                                          sx={{ height: '20px', fontSize: '0.7rem' }}
+                                        />
+                                      </Box>
                                     </Box>
                                   </TableCell>
                                   <TableCell>
