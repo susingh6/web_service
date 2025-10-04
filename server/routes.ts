@@ -257,6 +257,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.status(401).json({ message: "Unauthorized" });
   };
   
+  // Middleware to validate scheduler API token
+  const validateSchedulerToken = (req: Request, res: Response, next: NextFunction) => {
+    const token = req.headers['x-scheduler-token'];
+    const expectedToken = process.env.SCHEDULER_API_TOKEN;
+    
+    if (!expectedToken) {
+      structuredLogger.error('SCHEDULER_TOKEN_NOT_CONFIGURED', req.sessionContext, req.requestId, { 
+        logger: 'app.scheduler.security' 
+      });
+      return res.status(500).json(createErrorResponse('Scheduler token not configured', 'configuration_error'));
+    }
+    
+    if (!token || token !== expectedToken) {
+      structuredLogger.warn('SCHEDULER_INVALID_TOKEN', req.sessionContext, req.requestId, { 
+        logger: 'app.scheduler.security',
+        provided_token: token ? 'present' : 'missing'
+      });
+      return res.status(401).json(createErrorResponse('Invalid or missing scheduler token', 'unauthorized'));
+    }
+    
+    next();
+  };
+  
   
   // API Routes
   
