@@ -209,8 +209,9 @@ const RollbackManagement = () => {
       console.log('🔍 Searching for deleted entities by team/tenant:', { tenantId, teamId });
       return await rollbackApi.getDeletedEntitiesByTeamTenant(tenantId, teamId);
     },
-    onSuccess: (results: any[]) => {
-      setSearchResults(results);
+    onSuccess: (results: any) => {
+      const entities = results.entities || [];
+      setSearchResults(entities);
       setShowResults(true);
       setPage(0);
       
@@ -219,7 +220,7 @@ const RollbackManagement = () => {
       const selectedTeamName = availableTeams.find((t: any) => t.id === selectedTeam)?.name;
       const selectedTenantName = tenants.find((t: any) => t.id === selectedTenant)?.name;
       
-      if (results.length === 0) {
+      if (entities.length === 0) {
         toast({
           title: 'No Results',
           description: `No deleted entities found for ${selectedTeamName} in ${selectedTenantName}`,
@@ -227,7 +228,7 @@ const RollbackManagement = () => {
       } else {
         toast({
           title: 'Search Complete',
-          description: `Found ${results.length} deleted entity${results.length !== 1 ? 'ies' : ''} for ${selectedTeamName}`,
+          description: `Found ${entities.length} deleted entity${entities.length !== 1 ? 'ies' : ''} for ${selectedTeamName}`,
         });
       }
     },
