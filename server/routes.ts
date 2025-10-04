@@ -3026,11 +3026,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Notification Timeline endpoints
 
-  // Get notification timelines for an entity - bypass auth in development
-  app.get("/api/entities/:id/notification-timelines", ...(isDevelopment ? [] : [isAuthenticated]), async (req: Request, res: Response) => {
+  // Get notification timelines for an entity by name - bypass auth in development
+  app.get("/api/entities/:entityType/:entityName/notification-timelines", ...(isDevelopment ? [] : [isAuthenticated]), async (req: Request, res: Response) => {
     try {
-      const entityId = parseInt(req.params.id);
-      const timelines = await storage.getNotificationTimelines(entityId);
+      const { entityType, entityName } = req.params;
+      const teamName = typeof req.query.teamName === 'string' ? req.query.teamName : undefined;
+      
+      const normalizedType = (entityType === 'table' || entityType === 'dag') ? (entityType as Entity['type']) : undefined;
+      
+      const entity = await redisCache.getEntityByName({ name: entityName, type: normalizedType, teamName });
+      if (!entity) {
+        return res.status(404).json({ message: "Entity not found" });
+      }
+      
+      const timelines = await storage.getNotificationTimelines(entity.id);
       res.json(timelines);
     } catch (error) {
       console.error("Error fetching notification timelines:", error);

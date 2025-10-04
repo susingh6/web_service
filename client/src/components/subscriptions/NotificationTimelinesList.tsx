@@ -54,9 +54,9 @@ export const NotificationTimelinesList: React.FC<NotificationTimelinesListProps>
 
   // Fetch notification timelines for this entity
   const { data: timelines = [], isLoading, error } = useQuery<NotificationTimeline[]>({
-    queryKey: [`/api/entities/${entity.id}/notification-timelines`],
+    queryKey: [`/api/entities/${entity.type}/${entity.name}/notification-timelines`],
     queryFn: async () => {
-      const response = await apiRequest('GET', `/api/entities/${entity.id}/notification-timelines`);
+      const response = await apiRequest('GET', `/api/entities/${entity.type}/${entity.name}/notification-timelines?teamName=${encodeURIComponent(entity.team_name || '')}`);
       if (!response.ok) {
         throw new Error('Failed to fetch notification timelines');
       }
