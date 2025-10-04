@@ -629,8 +629,6 @@ const RollbackManagement = () => {
                           <TableCell>Table/DAG Name</TableCell>
                           <TableCell>Schedule</TableCell>
                           <TableCell>Type</TableCell>
-                          <TableCell>Tenant</TableCell>
-                          <TableCell>Team</TableCell>
                           <TableCell>Deleted Date</TableCell>
                           <TableCell>Deleted By</TableCell>
                           <TableCell>Actions</TableCell>
@@ -672,24 +670,6 @@ const RollbackManagement = () => {
                                 variant="outlined"
                                 color={entity.entity_type === 'dag' ? 'primary' : 'secondary'}
                                 data-testid={`chip-type-${entity.id}`}
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <Chip 
-                                label={entity.tenant_name} 
-                                size="small" 
-                                variant="outlined"
-                                color="primary"
-                                data-testid={`chip-tenant-${entity.id}`}
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <Chip 
-                                label={entity.team_name} 
-                                size="small" 
-                                variant="outlined"
-                                color="default"
-                                data-testid={`chip-team-${entity.id}`}
                               />
                             </TableCell>
                             <TableCell>
