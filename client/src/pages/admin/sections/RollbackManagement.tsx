@@ -179,14 +179,15 @@ const RollbackManagement = () => {
       console.log('🔍 Searching for entity by name:', entityName);
       return await rollbackApi.getDeletedEntitiesByName(entityName);
     },
-    onSuccess: (results: any[]) => {
-      setSearchResults(results);
+    onSuccess: (results: any) => {
+      const entities = results.entities || [];
+      setSearchResults(entities);
       setShowResults(true);
       setPage(0);
       
       console.log('✅ Entity name search results:', results);
       
-      if (results.length === 0) {
+      if (entities.length === 0) {
         toast({
           title: 'No Results',
           description: `No deleted entities found matching "${entityNameSearch}"`,
@@ -194,7 +195,7 @@ const RollbackManagement = () => {
       } else {
         toast({
           title: 'Search Complete',
-          description: `Found ${results.length} deleted entity${results.length !== 1 ? 'ies' : ''} matching "${entityNameSearch}"`,
+          description: `Found ${entities.length} deleted entity${entities.length !== 1 ? 'ies' : ''} matching "${entityNameSearch}"`,
         });
       }
     },
