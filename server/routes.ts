@@ -185,7 +185,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const coreSystemPaths = [
       '/health',
       '/cache/status',
-      '/cache/refresh'
+      '/cache/refresh',
+      '/scheduler/entity-updates'  // Scheduler API for incremental updates
     ];
     
     // Authentication fallback endpoints - environment-specific
@@ -1723,7 +1724,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Invalidate team caches for all affected teams
-      for (const teamName of affectedTeams) {
+      const affectedTeamsArray = Array.from(affectedTeams);
+      for (const teamName of affectedTeamsArray) {
         try {
           await redisCache.invalidateTeamData(teamName);
         } catch (error) {
@@ -1731,12 +1733,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Broadcast cache update to all connected clients (reuse existing infrastructure)
-      await redisCache.broadcastCacheUpdate('entities', {
-        source: 'scheduler',
-        updatedCount: updateResults.filter(r => r.status === 'updated').length,
-        affectedTeams: Array.from(affectedTeams)
-      });
+      // Broadcast entity updates to all connected clients (reuse existing infrastructure)
+      // Use the same pattern as rollback to notify all clients of entity changes
+      const updatedResults = updateResults.filter(r => r.status === 'updated');
+      for (const result of updatedResults) {
+        const allEntities = await redisCache.getAllEntities();
+        const entity = allEntities.find((e: Entity) => e.id === result.id);
+        
+        if (entity) {
+          await redisCache.broadcastEntityRollback({
+            entityId: result.id.toString(),
+            entityName: result.entity_name,
+            entityType: result.entity_type,
+            teamName: entity.team_name || '',
+            tenantName: entity.tenant_name || '',
+            toVersion: 0, // Not applicable for scheduler updates
+            userEmail: 'scheduler@system',
+            reason: 'Scheduled incremental update'
+          });
+        }
+      }
 
       structuredLogger.info('SCHEDULER_UPDATE_COMPLETED', req.sessionContext, req.requestId, {
         logger: 'app.scheduler',
