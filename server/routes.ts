@@ -271,8 +271,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     if (!token || token !== expectedToken) {
       structuredLogger.warn('SCHEDULER_INVALID_TOKEN', req.sessionContext, req.requestId, { 
-        logger: 'app.scheduler.security',
-        provided_token: token ? 'present' : 'missing'
+        logger: 'app.scheduler.security'
       });
       return res.status(401).json(createErrorResponse('Invalid or missing scheduler token', 'unauthorized'));
     }
@@ -1637,6 +1636,127 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch teams for debug" });
+    }
+  });
+
+  // Scheduler endpoint for incremental entity updates
+  app.post("/api/scheduler/entity-updates", validateSchedulerToken, async (req: Request, res: Response) => {
+    try {
+      const { changes } = req.body;
+      
+      if (!Array.isArray(changes) || changes.length === 0) {
+        return res.status(400).json(createErrorResponse('Invalid payload: changes array required', 'validation_error'));
+      }
+
+      structuredLogger.info('SCHEDULER_UPDATE_RECEIVED', req.sessionContext, req.requestId, {
+        logger: 'app.scheduler',
+        status_code: 200
+      });
+
+      const updateResults: any[] = [];
+      const affectedTeams = new Set<string>();
+
+      // Process each entity change
+      for (const change of changes) {
+        const { entity_type, entity_name, ...updates } = change;
+        
+        if (!entity_type || !entity_name) {
+          updateResults.push({ 
+            entity_type, 
+            entity_name, 
+            status: 'skipped', 
+            reason: 'Missing entity_type or entity_name' 
+          });
+          continue;
+        }
+
+        try {
+          // Get all entities from cache
+          const allEntities = await redisCache.getAllEntities();
+          const entity = allEntities.find(
+            (e: Entity) => e.type === entity_type && e.name === entity_name
+          );
+
+          if (!entity) {
+            updateResults.push({ 
+              entity_type, 
+              entity_name, 
+              status: 'not_found' 
+            });
+            continue;
+          }
+
+          // Update entity with new data + set lastRefreshed to trigger NEW badge
+          const updatedEntity = await redisCache.updateEntityById(entity.id, {
+            ...updates,
+            lastRefreshed: new Date() // Triggers NEW badge for 6 hours
+          });
+
+          if (updatedEntity) {
+            // Track affected team for cache invalidation
+            if (entity.team_name) {
+              affectedTeams.add(entity.team_name);
+            }
+
+            updateResults.push({ 
+              entity_type, 
+              entity_name, 
+              status: 'updated',
+              id: entity.id
+            });
+          } else {
+            updateResults.push({ 
+              entity_type, 
+              entity_name, 
+              status: 'update_failed' 
+            });
+          }
+        } catch (error) {
+          console.error(`Scheduler update error for ${entity_type}/${entity_name}:`, error);
+          updateResults.push({ 
+            entity_type, 
+            entity_name, 
+            status: 'error',
+            error: error instanceof Error ? error.message : 'Unknown error'
+          });
+        }
+      }
+
+      // Invalidate team caches for all affected teams
+      for (const teamName of affectedTeams) {
+        try {
+          await redisCache.invalidateTeamData(teamName);
+        } catch (error) {
+          console.error(`Failed to invalidate team cache for ${teamName}:`, error);
+        }
+      }
+
+      // Broadcast cache update to all connected clients (reuse existing infrastructure)
+      await redisCache.broadcastCacheUpdate('entities', {
+        source: 'scheduler',
+        updatedCount: updateResults.filter(r => r.status === 'updated').length,
+        affectedTeams: Array.from(affectedTeams)
+      });
+
+      structuredLogger.info('SCHEDULER_UPDATE_COMPLETED', req.sessionContext, req.requestId, {
+        logger: 'app.scheduler',
+        status_code: 200
+      });
+
+      res.json({
+        success: true,
+        processed: changes.length,
+        results: updateResults,
+        affectedTeams: Array.from(affectedTeams),
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      console.error('Scheduler update endpoint error:', error);
+      structuredLogger.error('SCHEDULER_UPDATE_ERROR', req.sessionContext, req.requestId, {
+        logger: 'app.scheduler'
+      });
+      res.status(500).json(createErrorResponse('Failed to process scheduler updates', 'server_error'));
     }
   });
 
