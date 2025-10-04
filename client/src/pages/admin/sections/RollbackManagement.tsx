@@ -626,6 +626,8 @@ const RollbackManagement = () => {
                       <TableHead>
                         <TableRow>
                           <TableCell>Entity</TableCell>
+                          <TableCell>Table/DAG Name</TableCell>
+                          <TableCell>Schedule</TableCell>
                           <TableCell>Type</TableCell>
                           <TableCell>Tenant</TableCell>
                           <TableCell>Team</TableCell>
@@ -646,6 +648,24 @@ const RollbackManagement = () => {
                               </Box>
                             </TableCell>
                             <TableCell>
+                              <Typography variant="body2">
+                                {entity.entity_type === 'table' 
+                                  ? (entity.schema_name && entity.table_name 
+                                      ? `${entity.schema_name}.${entity.table_name}` 
+                                      : entity.table_name || '-')
+                                  : entity.dag_name || '-'
+                                }
+                              </Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Typography variant="body2" color="text.secondary">
+                                {entity.entity_type === 'table' 
+                                  ? entity.table_schedule || '-'
+                                  : entity.dag_schedule || '-'
+                                }
+                              </Typography>
+                            </TableCell>
+                            <TableCell>
                               <Chip 
                                 label={entity.entity_type.toUpperCase()} 
                                 size="small" 
@@ -664,9 +684,13 @@ const RollbackManagement = () => {
                               />
                             </TableCell>
                             <TableCell>
-                              <Typography variant="body2">
-                                {entity.team_name}
-                              </Typography>
+                              <Chip 
+                                label={entity.team_name} 
+                                size="small" 
+                                variant="outlined"
+                                color="default"
+                                data-testid={`chip-team-${entity.id}`}
+                              />
                             </TableCell>
                             <TableCell>
                               <Typography variant="body2" color="text.secondary">
