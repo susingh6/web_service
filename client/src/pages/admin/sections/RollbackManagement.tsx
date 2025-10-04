@@ -46,12 +46,13 @@ import { cacheKeys, invalidateAdminCaches, invalidateEntityCaches } from '@/lib/
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { WEBSOCKET_CONFIG } from '../../../../../shared/websocket-config';
 import { buildUrl, endpoints } from '@/config';
+import type { Entity } from '@shared/schema';
 
 
 interface DeletedEntity {
   id: string;
   entity_name: string;
-  entity_type: 'dag' | 'table';
+  entity_type: Entity['type'];
   tenant_name: string;
   team_name: string;
   deleted_date: string;

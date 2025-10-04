@@ -28,6 +28,25 @@ export interface Tenant {
   updatedAt: string;
 }
 
+// Type alias for deleted entity results from audit logs
+export interface DeletedEntityResult {
+  id: string;
+  entity_name: string;
+  entity_type: Entity['type'];
+  tenant_name: string;
+  team_name: string;
+  deleted_date: string;
+  deleted_by: string;
+  entity_id: string;
+  tenant_id: string;
+  team_id: string;
+  schema_name?: string;
+  table_name?: string;
+  table_schedule?: string;
+  dag_name?: string;
+  dag_schedule?: string;
+}
+
 // Define the storage interface
 export interface IStorage {
   // User operations
@@ -93,9 +112,9 @@ export interface IStorage {
   deleteNotificationTimeline(id: string): Promise<boolean>;
   
   // Audit operations for rollback management
-  getDeletedEntitiesByName(entityName: string): Promise<Array<{ id: string; entity_name: string; entity_type: 'dag' | 'table'; tenant_name: string; team_name: string; deleted_date: string; deleted_by: string; entity_id: string; tenant_id: string; team_id: string; schema_name?: string; table_name?: string; table_schedule?: string; dag_name?: string; dag_schedule?: string }>>;
-  getDeletedEntitiesByTeamTenant(tenantId: number, teamId: number): Promise<Array<{ id: string; entity_name: string; entity_type: 'dag' | 'table'; tenant_name: string; team_name: string; deleted_date: string; deleted_by: string; entity_id: string; tenant_id: string; team_id: string; schema_name?: string; table_name?: string; table_schedule?: string; dag_name?: string; dag_schedule?: string }>>;
-  performEntityRollback(auditId: string, entityType: 'dag' | 'table'): Promise<Entity | null>;
+  getDeletedEntitiesByName(entityName: string): Promise<DeletedEntityResult[]>;
+  getDeletedEntitiesByTeamTenant(tenantId: number, teamId: number): Promise<DeletedEntityResult[]>;
+  performEntityRollback(auditId: string, entityType: Entity['type']): Promise<Entity | null>;
   
   // Incident operations for AI agent integration
   createIncident(incident: InsertIncident): Promise<Incident>;
@@ -2226,9 +2245,9 @@ export class MemStorage implements IStorage {
   }
   
   // Audit operations for rollback management
-  async getDeletedEntitiesByName(entityName: string): Promise<Array<{ id: string; entity_name: string; entity_type: 'dag' | 'table'; tenant_name: string; team_name: string; deleted_date: string; deleted_by: string; entity_id: string; tenant_id: string; team_id: string; schema_name?: string; table_name?: string; table_schedule?: string; dag_name?: string; dag_schedule?: string }>> {
+  async getDeletedEntitiesByName(entityName: string): Promise<DeletedEntityResult[]> {
     await this.ensureInitialized();
-    const results: Array<{ id: string; entity_name: string; entity_type: 'dag' | 'table'; tenant_name: string; team_name: string; deleted_date: string; deleted_by: string; entity_id: string; tenant_id: string; team_id: string; schema_name?: string; table_name?: string; table_schedule?: string; dag_name?: string; dag_schedule?: string }> = [];
+    const results: DeletedEntityResult[] = [];
     
     // Search DAG audit records
     Array.from(this.dagAudit.values()).forEach(audit => {
@@ -2286,9 +2305,9 @@ export class MemStorage implements IStorage {
     return results;
   }
   
-  async getDeletedEntitiesByTeamTenant(tenantId: number, teamId: number): Promise<Array<{ id: string; entity_name: string; entity_type: 'dag' | 'table'; tenant_name: string; team_name: string; deleted_date: string; deleted_by: string; entity_id: string; tenant_id: string; team_id: string; schema_name?: string; table_name?: string; table_schedule?: string; dag_name?: string; dag_schedule?: string }>> {
+  async getDeletedEntitiesByTeamTenant(tenantId: number, teamId: number): Promise<DeletedEntityResult[]> {
     await this.ensureInitialized();
-    const results: Array<{ id: string; entity_name: string; entity_type: 'dag' | 'table'; tenant_name: string; team_name: string; deleted_date: string; deleted_by: string; entity_id: string; tenant_id: string; team_id: string; schema_name?: string; table_name?: string; table_schedule?: string; dag_name?: string; dag_schedule?: string }> = [];
+    const results: DeletedEntityResult[] = [];
     
     // Search DAG audit records for specific tenant/team
     Array.from(this.dagAudit.values()).forEach(audit => {
@@ -2346,7 +2365,7 @@ export class MemStorage implements IStorage {
     return results;
   }
   
-  async performEntityRollback(auditId: string, entityType: 'dag' | 'table'): Promise<Entity | null> {
+  async performEntityRollback(auditId: string, entityType: Entity['type']): Promise<Entity | null> {
     await this.ensureInitialized();
     
     let auditRecord: SlaDagAudit | SlaTableAudit | undefined;
