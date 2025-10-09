@@ -2327,17 +2327,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         if (tenantName) {
           // Find team by BOTH name AND tenant
-          const allTeams = await storage.getTeams();
-          const tenant = allTeams.find(t => t.name === teamName);
+          const tenants = await storage.getTenants();
+          const tenantObj = tenants.find(t => t.name === tenantName);
           
-          if (tenant) {
-            // Get the tenant object to find tenant_id
-            const tenants = await storage.getTenants();
-            const tenantObj = tenants.find(t => t.name === tenantName);
-            
-            if (tenantObj) {
-              team = allTeams.find(t => t.name === teamName && t.tenant_id === tenantObj.id);
-            }
+          if (tenantObj) {
+            const allTeams = await storage.getTeams();
+            team = allTeams.find(t => t.name === teamName && t.tenant_id === tenantObj.id);
           }
         }
         
