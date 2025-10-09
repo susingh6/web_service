@@ -680,7 +680,8 @@ export function useTeamMemberMutation() {
         // This ensures EmailNotificationConfig shows updated team members immediately
         queryClient.invalidateQueries({ queryKey: ['/api/users'] });
         queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
-        queryClient.invalidateQueries({ queryKey: ['team-notification-settings', teamName] });
+        // Invalidate all team-notification-settings since we don't have tenant context in old API
+        queryClient.invalidateQueries({ queryKey: ['team-notification-settings'] });
         // CRITICAL: Also invalidate notification component team member cache
         queryClient.invalidateQueries({ queryKey: [`/api/get_team_members/${teamName}`] });
         
@@ -737,7 +738,8 @@ export function useTeamMemberMutation() {
         // This ensures EmailNotificationConfig shows updated team members immediately
         queryClient.invalidateQueries({ queryKey: ['/api/users'] });
         queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
-        queryClient.invalidateQueries({ queryKey: ['team-notification-settings', teamName] });
+        // Invalidate all team-notification-settings since we don't have tenant context in old API
+        queryClient.invalidateQueries({ queryKey: ['team-notification-settings'] });
         // CRITICAL: Also invalidate notification component team member cache
         queryClient.invalidateQueries({ queryKey: [`/api/get_team_members/${teamName}`] });
         
@@ -1586,7 +1588,7 @@ export function useTeamMemberMutationV2() {
       await invalidateAdminCaches(queryClient);
       await queryClient.invalidateQueries({ queryKey: ['/api/users'] });
       await queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
-      await queryClient.invalidateQueries({ queryKey: ['team-notification-settings', teamName] });
+      await queryClient.invalidateQueries({ queryKey: ['team-notification-settings', tenantName, teamName] });
       await queryClient.invalidateQueries({ queryKey: ['admin', 'teams'] });
       // CRITICAL: Also invalidate notification component team member cache
       await queryClient.invalidateQueries({ queryKey: [`/api/get_team_members/${teamName}`] });
@@ -1687,7 +1689,7 @@ export function useTeamMemberMutationV2() {
       await invalidateAdminCaches(queryClient);
       await queryClient.invalidateQueries({ queryKey: ['/api/users'] });
       await queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
-      await queryClient.invalidateQueries({ queryKey: ['team-notification-settings', teamName] });
+      await queryClient.invalidateQueries({ queryKey: ['team-notification-settings', tenantName, teamName] });
       await queryClient.invalidateQueries({ queryKey: ['admin', 'teams'] });
       // CRITICAL: Also invalidate notification component team member cache
       await queryClient.invalidateQueries({ queryKey: [`/api/get_team_members/${teamName}`] });

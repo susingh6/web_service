@@ -100,7 +100,7 @@ export function TeamNotificationSettings({ team, tenantName, variant = 'default'
       
       // Invalidate team-specific caches following centralized pattern
       await queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
-      await queryClient.invalidateQueries({ queryKey: ['team-notification-settings', team.name] });
+      await queryClient.invalidateQueries({ queryKey: ['team-notification-settings', tenantName, team.name] });
       await queryClient.invalidateQueries({ queryKey: ['teamMembers', tenantName, team.id] });
       
       // CRITICAL: Invalidate team details cache so notification dropdowns refresh immediately
