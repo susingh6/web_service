@@ -2409,6 +2409,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/teams/:teamName/members", checkActiveUserDev, async (req: Request, res: Response) => {
     try {
       const { teamName } = req.params;
+      const tenantFromQuery = req.query.tenant as string;
       
       // Simple validation for team member operations - match frontend exactly
       const memberSchema = z.object({
@@ -2429,9 +2430,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const memberData = req.body;
 
       // Get OAuth context (team, tenant, username from session or headers)
+      // Priority: query param > header > default
       const oauthContext = {
         team: teamName,
-        tenant: (Array.isArray(req.headers['x-tenant']) ? req.headers['x-tenant'][0] : req.headers['x-tenant']) || 'Data Engineering',
+        tenant: tenantFromQuery || (Array.isArray(req.headers['x-tenant']) ? req.headers['x-tenant'][0] : req.headers['x-tenant']) || 'Data Engineering',
         username: (Array.isArray(req.headers['x-username']) ? req.headers['x-username'][0] : req.headers['x-username']) || 'azure_test_user'
       };
 

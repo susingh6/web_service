@@ -39,7 +39,7 @@ Preferred communication style: Simple, everyday language.
 - **Compliance Trend**: Entity-specific 30-day compliance trend with 95% target reference, based on cached data.
 - **Extensible Entity Types**: Refactored entity type handling for easy addition of new entity types.
 - **Real-time Updates**: WebSocket-based real-time updates for team members, notifications, and entities with granular cache update filtering.
-- **Multi-Tenant Isolation**: Team members, notifications, and cache keys properly isolated by tenant to support teams with identical names across different tenants (e.g., PGM under Data Engineering vs PGM under Analytics).
+- **Multi-Tenant Isolation**: Team members, notifications, and cache keys properly isolated by tenant to support teams with identical names across different tenants (e.g., PGM under Data Engineering vs PGM under Analytics). All CRUD operations (add, update, remove) on team members are tenant-aware via query parameters.
 
 ## External Dependencies
 

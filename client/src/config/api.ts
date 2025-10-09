@@ -38,8 +38,10 @@ export const apiClient = {
       return apiRequest('GET', tenantName ? `${url}?tenant=${encodeURIComponent(tenantName)}` : url);
     },
     
-    updateMembers: (teamName: string, memberData: any) =>
-      apiRequest('POST', buildUrl(endpoints.teamMembers, teamName), memberData),
+    updateMembers: (teamName: string, memberData: any, tenantName?: string) => {
+      const url = buildUrl(endpoints.teamMembers, teamName);
+      return apiRequest('POST', tenantName ? `${url}?tenant=${encodeURIComponent(tenantName)}` : url, memberData);
+    },
   },
 
   // Users

@@ -139,7 +139,7 @@ const TeamMemberManagement: React.FC<TeamMemberManagementProps> = ({
         memberId,
       };
 
-      await apiClient.teams.updateMembers(teamName, memberData);
+      await apiClient.teams.updateMembers(teamName, memberData, tenantName);
       
       toast({
         title: 'Success',
@@ -168,7 +168,7 @@ const TeamMemberManagement: React.FC<TeamMemberManagementProps> = ({
         memberId: editingMember?.id,
       };
 
-      await apiClient.teams.updateMembers(teamName, memberData);
+      await apiClient.teams.updateMembers(teamName, memberData, tenantName);
       
       toast({
         title: 'Success',
