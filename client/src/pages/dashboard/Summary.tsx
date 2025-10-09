@@ -515,16 +515,16 @@ const Summary = () => {
     }
   };
 
-  const handleAddTeamTab = (teamName: string) => {
-    if (!openTeamTabs.includes(teamName)) {
-      setOpenTeamTabs([...openTeamTabs, teamName]);
+  const handleAddTeamTab = (compositeKey: string) => {
+    if (!openTeamTabs.includes(compositeKey)) {
+      setOpenTeamTabs([...openTeamTabs, compositeKey]);
       // Initialize date range for this team if not already set
       setTeamDateRanges((prev) => (
-        prev[teamName]
+        prev[compositeKey]
           ? prev
           : {
               ...prev,
-              [teamName]: {
+              [compositeKey]: {
                 startDate: startOfDay(subDays(new Date(), 29)),
                 endDate: endOfDay(new Date()),
                 label: 'Last 30 Days',
@@ -532,14 +532,14 @@ const Summary = () => {
             }
       ));
     }
-    setActiveTab(teamName);
+    setActiveTab(compositeKey);
   };
 
-  const handleCloseTeamTab = (teamName: string) => {
-    const newOpenTabs = openTeamTabs.filter(tab => tab !== teamName);
+  const handleCloseTeamTab = (compositeKey: string) => {
+    const newOpenTabs = openTeamTabs.filter(tab => tab !== compositeKey);
     setOpenTeamTabs(newOpenTabs);
     // If we're closing the active tab, switch to summary or first available tab
-    if (activeTab === teamName) {
+    if (activeTab === compositeKey) {
       setActiveTab(newOpenTabs.length > 0 ? newOpenTabs[0] : 'summary');
     }
   };
@@ -548,11 +548,12 @@ const Summary = () => {
     setActiveTab(tabName);
     // Prefetch team dashboard data when switching tabs for snappier UX
     if (tabName !== 'summary') {
-      const team = teams.find(t => t.name === tabName);
-      if (team && selectedTenant) {
+      const { tenantName, teamName } = parseCompositeKey(tabName);
+      const team = teams.find(t => t.name === teamName && t.tenant_name === tenantName);
+      if (team && tenantName) {
         // Prefetch entities list for team
         queryClient.prefetchQuery({
-          queryKey: cacheKeys.entitiesByTenantAndTeam(selectedTenant.name, team.id),
+          queryKey: cacheKeys.entitiesByTenantAndTeam(tenantName, team.id),
           queryFn: async () => {
             const res = await fetch(`/api/entities?teamId=${team.id}`);
             if (!res.ok) throw new Error('Failed to prefetch team entities');
@@ -592,13 +593,21 @@ const Summary = () => {
     setOpenNotificationModal(true);
   };
 
-  // Helper function to find the tenant name for a team
-  const getTeamTenantName = (teamName: string): string | undefined => {
-    const team = teams.find(t => t.name === teamName);
-    if (!team || !team.tenant_id) return undefined;
-    
-    const tenant = tenants.find(t => t.id === team.tenant_id);
-    return tenant?.name;
+  // Helper function to parse composite key and get tenant/team names
+  const parseCompositeKey = (compositeKey: string): { tenantName: string; teamName: string } => {
+    const parts = compositeKey.split('::');
+    if (parts.length === 2) {
+      return { tenantName: parts[0], teamName: parts[1] };
+    }
+    // Fallback for old format (just team name)
+    const team = teams.find(t => t.name === compositeKey);
+    const tenant = team?.tenant_id ? tenants.find(t => t.id === team.tenant_id) : null;
+    return { tenantName: tenant?.name || '', teamName: compositeKey };
+  };
+
+  // Helper function to find the tenant name for a team (backward compatibility)
+  const getTeamTenantName = (teamIdentifier: string): string | undefined => {
+    return parseCompositeKey(teamIdentifier).tenantName;
   };
 
   const handleViewTasks = (entity: Entity) => {
@@ -734,40 +743,43 @@ const Summary = () => {
             />
 
             {/* Dynamic Team Tabs with Close Buttons */}
-            {openTeamTabs.map((teamName) => (
-              <Tab
-                key={teamName}
-                value={teamName}
-                label={
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    {teamName}
-                    <IconButton
-                      size="small"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleCloseTeamTab(teamName);
-                      }}
-                      component="span"
-                      sx={{ 
-                        ml: 0.5,
-                        p: 0.25,
-                        '&:hover': { bgcolor: 'action.hover' }
-                      }}
-                    >
-                      <CloseIcon fontSize="small" />
-                    </IconButton>
-                  </Box>
-                }
-                sx={{ 
-                  fontWeight: 500, 
-                  textTransform: 'none',
-                  fontSize: '1rem',
-                  minHeight: 48,
-                  px: 3,
-                  '&.Mui-selected': { fontWeight: 600 } 
-                }}
-              />
-            ))}
+            {openTeamTabs.map((compositeKey) => {
+              const { teamName } = parseCompositeKey(compositeKey);
+              return (
+                <Tab
+                  key={compositeKey}
+                  value={compositeKey}
+                  label={
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      {teamName}
+                      <IconButton
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleCloseTeamTab(compositeKey);
+                        }}
+                        component="span"
+                        sx={{ 
+                          ml: 0.5,
+                          p: 0.25,
+                          '&:hover': { bgcolor: 'action.hover' }
+                        }}
+                      >
+                        <CloseIcon fontSize="small" />
+                      </IconButton>
+                    </Box>
+                  }
+                  sx={{ 
+                    fontWeight: 500, 
+                    textTransform: 'none',
+                    fontSize: '1rem',
+                    minHeight: 48,
+                    px: 3,
+                    '&.Mui-selected': { fontWeight: 600 } 
+                  }}
+                />
+              );
+            })}
           </Tabs>
 
           {/* Team Selector - + Button - Right next to tabs */}
@@ -951,25 +963,28 @@ const Summary = () => {
         </Box>
 
         {/* Team Tab Content */}
-        {openTeamTabs.map((teamName) => (
-          <Box key={teamName} role="tabpanel" hidden={activeTab !== teamName}>
-            {activeTab === teamName && (
-              <TeamDashboard
-                teamName={teamName}
-                tenantName={getTeamTenantName(teamName) || selectedTenant?.name || ''}
-                dateRange={teamDateRanges[teamName]}
-                onDateRangeChange={(range) => setTeamDateRanges((prev) => ({ ...prev, [teamName]: range }))}
-                onEditEntity={handleEditEntity}
-                onDeleteEntity={handleDeleteEntity}
-                onViewDetails={handleViewDetails}
-                onAddEntity={() => setOpenAddModal(true)}
-                onBulkUpload={() => setOpenBulkModal(true)}
-                onNotificationTimeline={handleNotificationTimeline}
-                onViewTasks={handleViewTasks}
-              />
-            )}
-          </Box>
-        ))}
+        {openTeamTabs.map((compositeKey) => {
+          const { tenantName, teamName } = parseCompositeKey(compositeKey);
+          return (
+            <Box key={compositeKey} role="tabpanel" hidden={activeTab !== compositeKey}>
+              {activeTab === compositeKey && (
+                <TeamDashboard
+                  teamName={teamName}
+                  tenantName={tenantName}
+                  dateRange={teamDateRanges[compositeKey]}
+                  onDateRangeChange={(range) => setTeamDateRanges((prev) => ({ ...prev, [compositeKey]: range }))}
+                  onEditEntity={handleEditEntity}
+                  onDeleteEntity={handleDeleteEntity}
+                  onViewDetails={handleViewDetails}
+                  onAddEntity={() => setOpenAddModal(true)}
+                  onBulkUpload={() => setOpenBulkModal(true)}
+                  onNotificationTimeline={handleNotificationTimeline}
+                  onViewTasks={handleViewTasks}
+                />
+              )}
+            </Box>
+          );
+        })}
       </Box>
 
       {/* Modals */}
@@ -977,12 +992,13 @@ const Summary = () => {
         open={openAddModal}
         onClose={() => setOpenAddModal(false)}
         teams={teams}
-        initialTenantName={activeTab !== 'summary' ? getTeamTenantName(activeTab) : selectedTenant?.name}
-        initialTeamName={activeTab !== 'summary' ? activeTab : undefined}
+        initialTenantName={activeTab !== 'summary' ? parseCompositeKey(activeTab).tenantName : selectedTenant?.name}
+        initialTeamName={activeTab !== 'summary' ? parseCompositeKey(activeTab).teamName : undefined}
         onSubmitted={(type) => {
           // Only team dashboards handle adds; switch their internal sub-tab
           if (activeTab !== 'summary') {
-            window.dispatchEvent(new CustomEvent('switch-team-subtab', { detail: { teamName: activeTab, type } }));
+            const { teamName } = parseCompositeKey(activeTab);
+            window.dispatchEvent(new CustomEvent('switch-team-subtab', { detail: { teamName, type } }));
           }
         }}
       />

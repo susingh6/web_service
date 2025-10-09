@@ -32,14 +32,19 @@ const TeamSelector = ({ teams, openTeamTabs, onAddTeamTab, onLoadTeams }: TeamSe
     setAnchorEl(null);
   };
 
-  const handleSelectTeam = (teamName: string) => {
-    onAddTeamTab(teamName);
+  const handleSelectTeam = (team: any) => {
+    // Create composite key: tenant::teamName
+    const compositeKey = `${team.tenant_name}::${team.name}`;
+    onAddTeamTab(compositeKey);
     handleClose();
   };
 
   // Filter out teams that are already open and sort by tenant
   const availableTeams = teams
-    .filter(team => !openTeamTabs.includes(team.name))
+    .filter(team => {
+      const compositeKey = `${team.tenant_name}::${team.name}`;
+      return !openTeamTabs.includes(compositeKey);
+    })
     .sort((a, b) => {
       // First sort by tenant name
       if (a.tenant_name !== b.tenant_name) {
@@ -92,7 +97,7 @@ const TeamSelector = ({ teams, openTeamTabs, onAddTeamTab, onLoadTeams }: TeamSe
           availableTeams.map((team) => (
             <MenuItem 
               key={team.id} 
-              onClick={() => handleSelectTeam(team.name)}
+              onClick={() => handleSelectTeam(team)}
               sx={{ 
                 minWidth: 150,
                 display: 'flex',
