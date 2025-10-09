@@ -89,23 +89,27 @@ const TeamSelector = ({ teams, openTeamTabs, onAddTeamTab, onLoadTeams }: TeamSe
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                gap: 1
+                gap: 0.5
               }}
             >
               <Typography variant="body2" sx={{ flex: 1 }}>{team.name}</Typography>
               {team.tenant_name && (
-                <Chip 
-                  label={team.tenant_name} 
-                  size="small"
-                  variant="outlined"
+                <Box
                   sx={{ 
-                    height: 20,
-                    fontSize: '0.7rem',
+                    px: 0.75,
+                    py: 0.25,
+                    borderRadius: '10px',
+                    backgroundColor: 'rgba(25, 118, 210, 0.08)',
+                    border: '1px solid rgba(25, 118, 210, 0.2)',
+                    fontSize: '0.65rem',
                     fontWeight: 500,
-                    borderColor: 'primary.light',
-                    color: 'primary.main'
+                    color: 'primary.main',
+                    lineHeight: 1.2,
+                    whiteSpace: 'nowrap'
                   }}
-                />
+                >
+                  {team.tenant_name}
+                </Box>
               )}
             </MenuItem>
           ))
