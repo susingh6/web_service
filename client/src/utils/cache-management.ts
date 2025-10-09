@@ -1527,7 +1527,8 @@ export function useTeamMemberMutationV2() {
       const sessionId = localStorage.getItem('fastapi_session_id');
       if (sessionId) headers['X-Session-ID'] = sessionId;
       
-      const response = await fetch(`/api/teams/${teamName}/members`, {
+      const url = `/api/teams/${teamName}/members${tenantName ? `?tenant=${encodeURIComponent(tenantName)}` : ''}`;
+      const response = await fetch(url, {
         method: 'POST',
         headers,
         body: JSON.stringify({ action: 'add', memberId: userId }),
@@ -1625,7 +1626,8 @@ export function useTeamMemberMutationV2() {
       const sessionId = localStorage.getItem('fastapi_session_id');
       if (sessionId) headers['X-Session-ID'] = sessionId;
       
-      const response = await fetch(`/api/teams/${teamName}/members`, {
+      const url = `/api/teams/${teamName}/members${tenantName ? `?tenant=${encodeURIComponent(tenantName)}` : ''}`;
+      const response = await fetch(url, {
         method: 'POST',
         headers,
         body: JSON.stringify({ action: 'remove', memberId: userId }),
