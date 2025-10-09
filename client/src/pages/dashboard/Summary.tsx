@@ -549,7 +549,10 @@ const Summary = () => {
     // Prefetch team dashboard data when switching tabs for snappier UX
     if (tabName !== 'summary') {
       const { tenantName, teamName } = parseCompositeKey(tabName);
-      const team = teams.find(t => t.name === teamName && t.tenant_name === tenantName);
+      const team = teams.find(t => {
+        const teamObj = t as any; // Cast to any to access tenant_name if it exists
+        return t.name === teamName && (teamObj.tenant_name === tenantName || !teamObj.tenant_name);
+      });
       if (team && tenantName) {
         // Prefetch entities list for team
         queryClient.prefetchQuery({

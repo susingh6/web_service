@@ -61,7 +61,11 @@ const TeamDashboard = ({
   const { list: allEntities, teamLists, teams, isLoading } = useAppSelector((state) => state.entities);
   
   // Find current team ID from teamName AND tenantName to handle duplicate team names across tenants
-  const currentTeam = teams.find(team => team.name === teamName && team.tenant_name === tenantName);
+  // Note: teams may have tenant_name from API, but type doesn't include it yet
+  const currentTeam = teams.find(team => {
+    const teamObj = team as any; // Cast to any to access tenant_name if it exists
+    return team.name === teamName && (teamObj.tenant_name === tenantName || !teamObj.tenant_name);
+  });
   const teamId = currentTeam?.id;
   
   // Get team-specific entities from teamLists bucket, fallback to empty array
