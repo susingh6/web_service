@@ -1376,7 +1376,13 @@ export class MemStorage implements IStorage {
   }
 
   async updateTeamMembers(teamName: string, memberData: any, oauthContext: any): Promise<Team | undefined> {
-    const team = await this.getTeamByName(teamName);
+    await this.ensureInitialized();
+    
+    // CRITICAL: Must find team by BOTH name AND tenant to support multi-tenant isolation
+    const team = Array.from(this.teams.values()).find(t => 
+      t.name === teamName && t.tenant_name === oauthContext.tenant
+    );
+    
     if (!team) return undefined;
 
     const { action, member, memberId } = memberData;
