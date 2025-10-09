@@ -1379,8 +1379,13 @@ export class MemStorage implements IStorage {
     await this.ensureInitialized();
     
     // CRITICAL: Must find team by BOTH name AND tenant to support multi-tenant isolation
+    // First, get the tenant_id from the tenant name
+    const tenant = Array.from(this.tenants.values()).find(t => t.name === oauthContext.tenant);
+    if (!tenant) return undefined;
+    
+    // Now find the team by name and tenant_id
     const team = Array.from(this.teams.values()).find(t => 
-      t.name === teamName && t.tenant_name === oauthContext.tenant
+      t.name === teamName && t.tenant_id === tenant.id
     );
     
     if (!team) return undefined;
