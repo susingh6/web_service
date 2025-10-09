@@ -1433,7 +1433,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await redisCache.invalidateCache({
         keys: ['all_teams', 'teams_summary', 'all_tenants'],
         patterns: [
-          'team_details:*',
+          'team_details_*',  // Fixed: use underscore to match actual cache keys
+          'team_members_*',   // Fixed: use underscore to match actual cache keys
           'team_entities:*',
           'team_metrics:*',
           'team_trends:*',
@@ -1493,7 +1494,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await redisCache.invalidateCache({
         keys: ['all_teams', 'teams_summary', 'all_tenants'],
         patterns: [
-          'team_details:*',
+          'team_details_*',  // Fixed: use underscore to match actual cache keys
+          'team_members_*',   // Fixed: use underscore to match actual cache keys
           'team_entities:*',
           'team_metrics:*',
           'team_trends:*',
@@ -1550,7 +1552,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await redisCache.invalidateCache({
         keys: ['all_teams', 'teams_summary', 'all_tenants'],
         patterns: [
-          'team_details:*',
+          'team_details_*',  // Fixed: use underscore to match actual cache keys
+          'team_members_*',   // Fixed: use underscore to match actual cache keys
           'team_entities:*',
           'team_metrics:*',
           'team_trends:*',
@@ -2171,7 +2174,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await redisCache.invalidateCache({
         keys: ['all_teams', 'teams_summary', 'all_tenants'],
         patterns: [
-          'team_details:*',
+          'team_details_*',  // Fixed: use underscore to match actual cache keys
+          'team_members_*',   // Fixed: use underscore to match actual cache keys
           'team_entities:*',
           'team_metrics:*',
           'team_trends:*',
@@ -2229,7 +2233,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await redisCache.invalidateCache({
         keys: ['all_teams', 'teams_summary', 'all_tenants'],
         patterns: [
-          'team_details:*',
+          'team_details_*',  // Fixed: use underscore to match actual cache keys
+          'team_members_*',   // Fixed: use underscore to match actual cache keys
           'team_entities:*',
           'team_metrics:*',
           'team_trends:*',
@@ -2333,12 +2338,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (tenantObj) {
             const allTeams = await storage.getTeams();
             team = allTeams.find(t => t.name === teamName && t.tenant_id === tenantObj.id);
+            console.log(`[TENANT-AWARE] Found team ${teamName} for tenant ${tenantName}:`, team ? `ID=${team.id}, tenant_id=${team.tenant_id}` : 'NOT FOUND');
           }
         }
         
         // Fallback: if no tenant specified or team not found with tenant, try by name only
         if (!team) {
           team = await storage.getTeamByName(teamName);
+          console.log(`[FALLBACK] Using getTeamByName for ${teamName}:`, team ? `ID=${team.id}, tenant_id=${team.tenant_id}` : 'NOT FOUND');
         }
         
         if (!team) {
