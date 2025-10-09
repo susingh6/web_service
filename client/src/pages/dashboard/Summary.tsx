@@ -551,7 +551,7 @@ const Summary = () => {
       const { tenantName, teamName } = parseCompositeKey(tabName);
       const team = teams.find(t => {
         const teamObj = t as any; // Cast to any to access tenant_name if it exists
-        return t.name === teamName && (teamObj.tenant_name === tenantName || !teamObj.tenant_name);
+        return t.name === teamName && teamObj.tenant_name === tenantName;
       });
       if (team && tenantName) {
         // Prefetch entities list for team

@@ -64,7 +64,7 @@ const TeamDashboard = ({
   // Note: teams may have tenant_name from API, but type doesn't include it yet
   const currentTeam = teams.find(team => {
     const teamObj = team as any; // Cast to any to access tenant_name if it exists
-    return team.name === teamName && (teamObj.tenant_name === tenantName || !teamObj.tenant_name);
+    return team.name === teamName && teamObj.tenant_name === tenantName;
   });
   const teamId = currentTeam?.id;
   
