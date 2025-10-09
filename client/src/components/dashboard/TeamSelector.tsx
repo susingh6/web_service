@@ -5,7 +5,8 @@ import {
   Menu, 
   MenuItem, 
   Typography, 
-  Tooltip 
+  Tooltip,
+  Chip
 } from '@mui/material';
 import { Add as AddIcon } from '@mui/icons-material';
 
@@ -73,7 +74,7 @@ const TeamSelector = ({ teams, openTeamTabs, onAddTeamTab, onLoadTeams }: TeamSe
         PaperProps={{
           style: {
             maxHeight: 300, // Limit height to show scrollbar
-            width: 200, // Set fixed width for better UX
+            width: 320, // Increased width for tenant chips
             overflowY: 'auto', // Enable vertical scrolling
           },
         }}
@@ -83,9 +84,29 @@ const TeamSelector = ({ teams, openTeamTabs, onAddTeamTab, onLoadTeams }: TeamSe
             <MenuItem 
               key={team.id} 
               onClick={() => handleSelectTeam(team.name)}
-              sx={{ minWidth: 150 }}
+              sx={{ 
+                minWidth: 150,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: 1
+              }}
             >
-              <Typography variant="body2">{team.name}</Typography>
+              <Typography variant="body2" sx={{ flex: 1 }}>{team.name}</Typography>
+              {team.tenant_name && (
+                <Chip 
+                  label={team.tenant_name} 
+                  size="small"
+                  variant="outlined"
+                  sx={{ 
+                    height: 20,
+                    fontSize: '0.7rem',
+                    fontWeight: 500,
+                    borderColor: 'primary.light',
+                    color: 'primary.main'
+                  }}
+                />
+              )}
             </MenuItem>
           ))
         ) : (
