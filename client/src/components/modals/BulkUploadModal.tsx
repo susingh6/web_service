@@ -148,6 +148,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
   // State for dynamic options
   const [tenantOptions, setTenantOptions] = useState<string[]>(['Ad Engineering', 'Data Engineering']);
   const [teamOptions, setTeamOptions] = useState<string[]>([]);
+  const [teams, setTeams] = useState<{ id: number; name: string; tenant_name: string }[]>([]);
   const [dagOptions, setDagOptions] = useState<string[]>([]);
   
   // Loading states
@@ -193,12 +194,14 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
     setLoadingTeams(true);
     try {
       const response = await apiRequest('GET', buildUrl(endpoints.teams));
-      const teams = await response.json();
-      const teamNames = teams.map((team: any) => team.name);
+      const teamsData = await response.json();
+      const teamNames = teamsData.map((team: any) => team.name);
       setTeamOptions(teamNames);
+      setTeams(teamsData); // Store full team objects for tenant-aware lookup
     } catch (error) {
       console.error('Error fetching team options:', error);
       setTeamOptions([]);
+      setTeams([]);
     } finally {
       setLoadingTeams(false);
     }
@@ -577,6 +580,11 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
       
       for (const entity of validEntities) {
         try {
+          // Find the team ID from the team name AND tenant (multi-tenant isolation)
+          const team = teams.find(t => t.name === entity.team_name && t.tenant_name === entity.tenant_name);
+          if (!team) {
+            throw new Error(`Team not found: ${entity.team_name} in tenant ${entity.tenant_name}`);
+          }
 
           // Format entity data the same way AddEntityModal does
           const entityType = tabValue === 'dags' ? 'dag' : 'table';
@@ -589,7 +597,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
               ? ('dag_description' in entity ? entity.dag_description : '')
               : ('table_description' in entity ? entity.table_description : ''),
             type: entityType,
-            teamId: 1, // Will be determined by backend from team_name
+            teamId: team.id, // Use correct tenant-aware team ID
             
             is_entity_owner: entity.is_entity_owner || false,
             // Ensure required fields are included for both table and DAG entities
