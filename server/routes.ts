@@ -1113,12 +1113,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
             return true;
           });
 
+      // Add tenant_name to each team for display purposes
+      const teamsWithTenantName = filteredByActive.map(team => {
+        const tenant = tenantMap.get(team.tenant_id);
+        return {
+          ...team,
+          tenant_name: tenant?.name || 'Unknown'
+        };
+      });
+
       if (teamName) {
-        const filteredTeams = filteredByActive.filter(team => team.name === teamName);
+        const filteredTeams = teamsWithTenantName.filter(team => team.name === teamName);
         return res.json(filteredTeams);
       }
 
-      return res.json(filteredByActive);
+      return res.json(teamsWithTenantName);
     } catch (error) {
       console.error('Error fetching teams:', error);
       res.status(500).json({ message: "Failed to fetch teams from cache" });
@@ -1387,12 +1396,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
             return true;
           });
 
+      // Add tenant_name to each team for display purposes
+      const teamsWithTenantName = filteredByActive.map(team => {
+        const tenant = tenantMap.get(team.tenant_id);
+        return {
+          ...team,
+          tenant_name: tenant?.name || 'Unknown'
+        };
+      });
+
       if (teamName) {
-        const filteredTeams = filteredByActive.filter(team => team.name === teamName);
+        const filteredTeams = teamsWithTenantName.filter(team => team.name === teamName);
         return res.json(filteredTeams);
       }
 
-      return res.json(filteredByActive);
+      return res.json(teamsWithTenantName);
     } catch (error) {
       console.error('Error fetching teams (FastAPI fallback):', error);
       res.status(500).json({ message: "Failed to fetch teams from FastAPI fallback" });
