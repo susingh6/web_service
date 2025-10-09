@@ -218,6 +218,22 @@ export class RedisCache {
     // Fallback cache system initialized successfully
   }
 
+  // Wait for cache initialization to complete (for endpoints to prevent race conditions)
+  public async waitForInitialization(timeoutMs: number = 30000): Promise<void> {
+    if (this.isInitialized) {
+      return;
+    }
+    
+    const startTime = Date.now();
+    while (!this.isInitialized) {
+      if (Date.now() - startTime > timeoutMs) {
+        throw new Error('Cache initialization timeout');
+      }
+      // Wait 100ms before checking again
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+  }
+
   private async refreshFallbackData(): Promise<void> {
     try {
       // Reuse the cache refresh data logic

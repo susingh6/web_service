@@ -1903,6 +1903,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   //
   app.get("/api/dashboard/summary", async (req, res) => {
     try {
+      // Wait for cache initialization to prevent race conditions on startup
+      await redisCache.waitForInitialization();
+      
       const tenantName = req.query.tenant as string;
       const teamName = req.query.team as string;
       const startDate = req.query.startDate as string;
