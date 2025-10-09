@@ -280,8 +280,8 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
       
       // All pre-validations passed, proceed with submission using entity mutation
       
-      // Find the team ID from the team name
-      const team = teams.find(t => t.name === data.team_name);
+      // Find the team ID from the team name AND tenant (multi-tenant isolation)
+      const team = teams.find(t => t.name === data.team_name && (t as any).tenant_name === data.tenant_name);
       if (!team) {
         setValidationError('Team not found');
         return;
