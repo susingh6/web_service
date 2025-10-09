@@ -138,6 +138,13 @@ const Summary = () => {
 
   const { list: entities, isLoading: entitiesLoading } = useAppSelector((state) => state.entities);
   
+  // DEBUG: Log entities and teams
+  console.log('[DEBUG] Summary - entities and teams:', {
+    entitiesCount: entities?.length || 0,
+    teamsCount: teams?.length || 0,
+    selectedTenantName: selectedTenant?.name
+  });
+  
   const [teamDateRanges, setTeamDateRanges] = useState<Record<string, { startDate: Date; endDate: Date; label: string }>>(
     (() => {
       if (!initialState?.teamDateRanges || typeof initialState.teamDateRanges !== 'object') return {};

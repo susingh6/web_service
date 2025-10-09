@@ -71,6 +71,16 @@ const TeamComparisonChart = ({
 }: TeamComparisonChartProps) => {
   const theme = useTheme();
   
+  // DEBUG: Log what data we're receiving
+  console.log('[TeamComparisonChart] Props:', {
+    entitiesCount: entities.length,
+    teamsCount: teams.length,
+    selectedTenant,
+    loading,
+    hasMetrics,
+    dataProvided: !!data
+  });
+  
   // Show loading state
   if (loading) {
     return (
