@@ -118,8 +118,8 @@ const TeamDashboard = ({
     }
   }, [dateRange?.startDate?.getTime?.(), dateRange?.endDate?.getTime?.(), dateRange?.label]);
 
-  // Get current team info by name
-  const team = teams.find((t: Team) => t.name === teamName);
+  // Get current team info by name AND tenant (multi-tenant isolation)
+  const team = teams.find((t: Team) => t.name === teamName && (t as any).tenant_name === tenantName);
 
   // Local state for team entities to avoid affecting Summary dashboard
   const [teamEntities, setTeamEntities] = useState<Entity[]>([]);
