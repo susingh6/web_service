@@ -1379,31 +1379,25 @@ export class MemStorage implements IStorage {
     await this.ensureInitialized();
     
     // CRITICAL: Must find team by BOTH name AND tenant to support multi-tenant isolation
-    // First, get the tenant_id from the tenant name
-    console.log('[updateTeamMembers] Looking for tenant:', oauthContext.tenant);
-    console.log('[updateTeamMembers] Available tenants:', Array.from(this.tenants.values()).map(t => t.name));
+    // First, get the tenant_id from the tenant name (with fallback for backwards compatibility)
+    let team: Team | undefined;
     
-    const tenant = Array.from(this.tenants.values()).find(t => t.name === oauthContext.tenant);
-    if (!tenant) {
-      console.log('[updateTeamMembers] Tenant not found:', oauthContext.tenant);
-      return undefined;
+    if (oauthContext.tenant) {
+      const tenant = Array.from(this.tenants.values()).find(t => t.name === oauthContext.tenant);
+      if (tenant) {
+        // Find team by name AND tenant_id for proper multi-tenant isolation
+        team = Array.from(this.teams.values()).find(t => 
+          t.name === teamName && t.tenant_id === tenant.id
+        );
+      }
     }
     
-    console.log('[updateTeamMembers] Found tenant:', tenant.name, 'ID:', tenant.id);
-    console.log('[updateTeamMembers] Looking for team:', teamName, 'with tenant_id:', tenant.id);
-    console.log('[updateTeamMembers] Available teams:', Array.from(this.teams.values()).map(t => ({ name: t.name, tenant_id: t.tenant_id })));
-    
-    // Now find the team by name and tenant_id
-    const team = Array.from(this.teams.values()).find(t => 
-      t.name === teamName && t.tenant_id === tenant.id
-    );
-    
+    // Fallback: if tenant not found or team not found, try finding by name only
     if (!team) {
-      console.log('[updateTeamMembers] Team not found:', teamName, 'for tenant_id:', tenant.id);
-      return undefined;
+      team = await this.getTeamByName(teamName);
     }
     
-    console.log('[updateTeamMembers] Found team:', team.name, 'ID:', team.id);
+    if (!team) return undefined;
 
     const { action, member, memberId } = memberData;
     const now = new Date();
