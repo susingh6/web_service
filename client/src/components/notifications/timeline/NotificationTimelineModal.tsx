@@ -628,6 +628,7 @@ export const NotificationTimelineModal: React.FC<NotificationTimelineModalProps>
                   setNotificationSettings(settings);
                 }}
                 teamName={entity?.team_name || undefined}
+                tenantName={entity?.tenant_name || undefined}
               />
             </Box>
 

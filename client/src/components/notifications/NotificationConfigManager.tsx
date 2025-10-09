@@ -25,6 +25,7 @@ interface NotificationConfigManagerProps {
   value: string[]; // Array of enabled notification types from form
   onChange: (enabledTypes: string[], settings: NotificationSettings) => void;
   teamName?: string;
+  tenantName?: string; // CRITICAL: For multi-tenant isolation
 }
 
 interface TeamData {
@@ -33,18 +34,18 @@ interface TeamData {
   team_pagerduty: string[];
 }
 
-export function NotificationConfigManager({ value, onChange, teamName }: NotificationConfigManagerProps) {
+export function NotificationConfigManager({ value, onChange, teamName, tenantName }: NotificationConfigManagerProps) {
   const [enabledChannels, setEnabledChannels] = useState<string[]>(value || []);
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({});
   const [expandedChannels, setExpandedChannels] = useState<Set<string>>(new Set());
 
   // Fetch team data to get team notification settings
   const { data: teamData } = useQuery<TeamData>({
-    queryKey: ['team-notification-settings', teamName],
+    queryKey: ['team-notification-settings', tenantName, teamName],
     queryFn: async () => {
       if (!teamName) return { team_email: [], team_slack: [], team_pagerduty: [] };
       
-      const response = await apiClient.teams.getDetails(teamName);
+      const response = await apiClient.teams.getDetails(teamName, tenantName);
       if (!response.ok) {
         throw new Error(`API call failed: ${response.status} ${response.statusText}`);
       }

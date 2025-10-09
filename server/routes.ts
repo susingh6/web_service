@@ -2315,20 +2315,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/v1/get_team_details/:teamName", async (req, res) => {
     try {
       const { teamName } = req.params;
+      const tenantName = req.query.tenant as string;
       
-      // Use cache key for team details
-      const cacheKey = `team_details_${teamName}`;
+      // Include tenant in cache key for proper multi-tenant isolation
+      const cacheKey = tenantName ? `team_details_${tenantName}_${teamName}` : `team_details_${teamName}`;
       let teamDetails = await redisCache.get(cacheKey);
       
       if (!teamDetails) {
-        const team = await storage.getTeamByName(teamName);
+        // CRITICAL: Use tenant-aware lookup for multi-tenant isolation
+        let team;
+        
+        if (tenantName) {
+          // Find team by BOTH name AND tenant
+          const allTeams = await storage.getTeams();
+          const tenant = allTeams.find(t => t.name === teamName);
+          
+          if (tenant) {
+            // Get the tenant object to find tenant_id
+            const tenants = await storage.getTenants();
+            const tenantObj = tenants.find(t => t.name === tenantName);
+            
+            if (tenantObj) {
+              team = allTeams.find(t => t.name === teamName && t.tenant_id === tenantObj.id);
+            }
+          }
+        }
+        
+        // Fallback: if no tenant specified or team not found with tenant, try by name only
+        if (!team) {
+          team = await storage.getTeamByName(teamName);
+        }
         
         if (!team) {
           return res.status(404).json({ message: "Team not found" });
         }
 
-        // Get actual team members from storage
-        const members = await storage.getTeamMembers(teamName);
+        // Get actual team members from storage (tenant-aware)
+        const members = await storage.getTeamMembers(teamName, tenantName);
 
         teamDetails = {
           ...team,
