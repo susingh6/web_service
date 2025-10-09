@@ -89,10 +89,21 @@ const TeamSelector = ({ teams, openTeamTabs, onAddTeamTab, onLoadTeams }: TeamSe
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                gap: 0.5
+                gap: 0.75,
+                py: 1
               }}
             >
-              <Typography variant="body2" sx={{ flex: 1 }}>{team.name}</Typography>
+              <Typography 
+                variant="body2" 
+                sx={{ 
+                  flex: 1,
+                  fontWeight: 500,
+                  color: 'text.primary',
+                  fontSize: '0.9rem'
+                }}
+              >
+                {team.name}
+              </Typography>
               {team.tenant_name && (
                 <Box
                   sx={{ 
@@ -105,7 +116,8 @@ const TeamSelector = ({ teams, openTeamTabs, onAddTeamTab, onLoadTeams }: TeamSe
                     fontWeight: 500,
                     color: 'primary.main',
                     lineHeight: 1.2,
-                    whiteSpace: 'nowrap'
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0
                   }}
                 >
                   {team.tenant_name}
