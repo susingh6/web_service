@@ -19,22 +19,23 @@ interface EmailConfigProps {
   config: EmailNotificationConfig;
   onChange: (config: EmailNotificationConfig) => void;
   teamName?: string;
+  tenantName?: string;
   teamEmails?: string[];
 }
 
-export function EmailNotificationConfigComponent({ config, onChange, teamName, teamEmails = [] }: EmailConfigProps) {
+export function EmailNotificationConfigComponent({ config, onChange, teamName, tenantName, teamEmails = [] }: EmailConfigProps) {
   // Use React Query for data fetching - this replaces localStorage cache
   const { data: users = [], isLoading: usersLoading } = useQuery<SystemUser[]>({ queryKey: ['/api/users'] });
   const { data: allTeamsData = [], isLoading: teamsLoading } = useQuery<any[]>({ queryKey: ['/api/teams'] });
   
   // CRITICAL: Fetch team members for the current team to get individual member emails
   const { data: teamMembers = [], isLoading: teamMembersLoading, error: teamMembersError } = useQuery({
-    queryKey: [`/api/get_team_members/${teamName}`], // Use CACHE_PATTERNS.TEAMS.MEMBERS pattern
+    queryKey: tenantName ? [`/api/get_team_members/${tenantName}/${teamName}`] : [`/api/get_team_members/${teamName}`],
     queryFn: async () => {
       if (!teamName) return [];
       // Use the correct API client method
       const { apiClient } = await import('@/config/api');
-      const response = await apiClient.teams.getMembers(teamName);
+      const response = await apiClient.teams.getMembers(teamName, tenantName);
       return response.json();
     },
     enabled: !!teamName,

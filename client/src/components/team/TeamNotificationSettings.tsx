@@ -106,6 +106,8 @@ export function TeamNotificationSettings({ team, tenantName, variant = 'default'
       // CRITICAL: Invalidate team details cache so notification dropdowns refresh immediately
       await queryClient.invalidateQueries({ queryKey: [`/api/v1/get_team_details/${team.name}`] });
       await queryClient.invalidateQueries({ queryKey: [`/api/get_team_details/${team.name}`] });
+      // Tenant-aware team members cache invalidation
+      await queryClient.invalidateQueries({ queryKey: [`/api/get_team_members/${tenantName}/${team.name}`] });
       await queryClient.invalidateQueries({ queryKey: [`/api/get_team_members/${team.name}`] });
       
       // Refresh Redux teams so NotificationSummary reflects new emails immediately

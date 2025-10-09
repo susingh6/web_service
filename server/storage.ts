@@ -1085,15 +1085,31 @@ export class MemStorage implements IStorage {
     return Array.from(this.users.values());
   }
 
-  async getTeamMembers(teamName: string): Promise<User[]> {
+  async getTeamMembers(teamName: string, tenantName?: string): Promise<User[]> {
     await this.ensureInitialized();
-    const team = await this.getTeamByName(teamName);
+    
+    // Find team by tenant + name for proper multi-tenant isolation
+    let team: Team | undefined;
+    if (tenantName) {
+      // Look up tenant by name first
+      const tenant = Array.from(this.tenants.values()).find(t => t.name === tenantName);
+      if (tenant) {
+        // Find team matching both tenant_id and name
+        team = Array.from(this.teams.values()).find(t => 
+          t.name === teamName && t.tenant_id === tenant.id
+        );
+      }
+    } else {
+      // Fallback to name-only lookup for backward compatibility
+      team = await this.getTeamByName(teamName);
+    }
+    
     if (!team || !team.team_members_ids) {
       return [];
     }
     
     const allUsers = await this.getUsers();
-    return allUsers.filter(user => team.team_members_ids!.includes(user.username));
+    return allUsers.filter(user => team!.team_members_ids!.includes(user.username));
   }
 
   async getUserRoles(): Promise<UserRole[]> {

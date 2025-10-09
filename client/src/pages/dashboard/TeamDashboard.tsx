@@ -135,10 +135,10 @@ const TeamDashboard = ({
     queryKey: cacheKeys.teamMembers(tenantName, team?.id),
     queryFn: async () => {
       if (!team?.name) return [];
-      const response = await apiClient.teams.getMembers(team.name);
+      const response = await apiClient.teams.getMembers(team.name, tenantName);
       return await response.json();
     },
-    enabled: !!team?.name && !!team?.id,
+    enabled: !!team?.name && !!team?.id && !!tenantName,
     refetchOnMount: 'always',
   });
 

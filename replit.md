@@ -32,13 +32,14 @@ Preferred communication style: Simple, everyday language.
 - **Dashboards**: Summary and team-specific dashboards with real-time monitoring.
 - **Entity Management**: CRUD operations for data tables and DAGs, bulk management, real-time status. Uses name-based routing for API operations.
 - **Task Management (DAGs)**: Priority zones, status tracking, dependency management, performance metrics.
-- **Notification Configuration**: Extensible system for email, Slack, PagerDuty, with type-specific triggers and channel configurations. Filters out inactive users from recipients.
+- **Notification Configuration**: Extensible system for email, Slack, PagerDuty, with type-specific triggers and channel configurations. Filters out inactive users from recipients. Tenant-aware team member fetching for proper multi-tenant isolation.
 - **User Management**: Self-service profile page, user deactivation with visual indicators for inactive users across dashboards and configurations.
 - **Standardized CRUD**: Unified optimistic update pattern, operation queuing, automatic reconciliation.
 - **Scheduler Integration**: External scheduler can update entities every 10 minutes via POST /api/scheduler/entity-updates (authenticated with X-Scheduler-Token header). Updates cache with new entity data, sets lastRefreshed timestamp (triggers automatic NEW badge for 6 hours), broadcasts via WebSocket, and invalidates team caches.
 - **Compliance Trend**: Entity-specific 30-day compliance trend with 95% target reference, based on cached data.
 - **Extensible Entity Types**: Refactored entity type handling for easy addition of new entity types.
 - **Real-time Updates**: WebSocket-based real-time updates for team members, notifications, and entities with granular cache update filtering.
+- **Multi-Tenant Isolation**: Team members, notifications, and cache keys properly isolated by tenant to support teams with identical names across different tenants (e.g., PGM under Data Engineering vs PGM under Analytics).
 
 ## External Dependencies
 

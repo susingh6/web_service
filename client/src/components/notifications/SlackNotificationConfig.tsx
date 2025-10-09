@@ -19,22 +19,23 @@ interface SlackConfigProps {
   config: SlackNotificationConfig;
   onChange: (config: SlackNotificationConfig) => void;
   teamName?: string;
+  tenantName?: string;
   teamSlackChannels?: string[];
 }
 
-export function SlackNotificationConfigComponent({ config, onChange, teamName, teamSlackChannels = [] }: SlackConfigProps) {
+export function SlackNotificationConfigComponent({ config, onChange, teamName, tenantName, teamSlackChannels = [] }: SlackConfigProps) {
   // Use React Query for data fetching - same pattern as EmailNotificationConfig
   const { data: users = [], isLoading: usersLoading } = useQuery<SystemUser[]>({ queryKey: ['/api/users'] });
   const { data: allTeamsData = [], isLoading: teamsLoading } = useQuery<any[]>({ queryKey: ['/api/teams'] });
   
   // CRITICAL: Fetch team members for the current team to get individual member Slack handles
   const { data: teamMembers = [], isLoading: teamMembersLoading } = useQuery({
-    queryKey: [`/api/get_team_members/${teamName}`], // Use CACHE_PATTERNS.TEAMS.MEMBERS pattern
+    queryKey: tenantName ? [`/api/get_team_members/${tenantName}/${teamName}`] : [`/api/get_team_members/${teamName}`],
     queryFn: async () => {
       if (!teamName) return [];
       // Use the correct API client method
       const { apiClient } = await import('@/config/api');
-      const response = await apiClient.teams.getMembers(teamName);
+      const response = await apiClient.teams.getMembers(teamName, tenantName);
       return response.json();
     },
     enabled: !!teamName,

@@ -2349,15 +2349,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/v1/get_team_members/:teamName", async (req, res) => {
     try {
       const { teamName } = req.params;
+      const tenantName = req.query.tenant as string;
+      
       // Prevent HTTP 304s so members refresh immediately after renames/updates
       res.removeHeader('ETag');
       res.removeHeader('Last-Modified');
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-      const cacheKey = `team_members_${teamName}`;
+      
+      // Include tenant in cache key for proper isolation
+      const cacheKey = tenantName ? `team_members_${tenantName}_${teamName}` : `team_members_${teamName}`;
       let members = await redisCache.get(cacheKey);
 
       if (!members) {
-        members = await storage.getTeamMembers(teamName);
+        members = await storage.getTeamMembers(teamName, tenantName);
         await redisCache.set(cacheKey, members, 6 * 60 * 60);
       }
 
