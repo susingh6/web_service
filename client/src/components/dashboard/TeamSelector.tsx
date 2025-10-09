@@ -37,8 +37,17 @@ const TeamSelector = ({ teams, openTeamTabs, onAddTeamTab, onLoadTeams }: TeamSe
     handleClose();
   };
 
-  // Filter out teams that are already open
-  const availableTeams = teams.filter(team => !openTeamTabs.includes(team.name));
+  // Filter out teams that are already open and sort by tenant
+  const availableTeams = teams
+    .filter(team => !openTeamTabs.includes(team.name))
+    .sort((a, b) => {
+      // First sort by tenant name
+      if (a.tenant_name !== b.tenant_name) {
+        return (a.tenant_name || '').localeCompare(b.tenant_name || '');
+      }
+      // Then sort by team name within the same tenant
+      return a.name.localeCompare(b.name);
+    });
 
   return (
     <Box>
