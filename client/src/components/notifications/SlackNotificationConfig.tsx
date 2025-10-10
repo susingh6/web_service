@@ -39,7 +39,8 @@ export function SlackNotificationConfigComponent({ config, onChange, teamName, t
       return response.json();
     },
     enabled: !!teamName,
-    staleTime: 30 * 1000, // 30 seconds
+    staleTime: 5 * 1000, // 5 seconds for faster refresh after member changes
+    refetchOnMount: true, // Always refetch when component mounts
   });
   
   const [channelName, setChannelName] = useState(config?.channelName || '');

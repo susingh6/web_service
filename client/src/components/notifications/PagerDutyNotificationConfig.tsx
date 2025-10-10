@@ -38,7 +38,8 @@ export function PagerDutyNotificationConfigComponent({ config, onChange, teamNam
       return response.json();
     },
     enabled: !!teamName,
-    staleTime: 30 * 1000, // 30 seconds
+    staleTime: 5 * 1000, // 5 seconds for faster refresh after member changes
+    refetchOnMount: true, // Always refetch when component mounts
   });
   
   const [customServiceKeyInput, setCustomServiceKeyInput] = useState('');
