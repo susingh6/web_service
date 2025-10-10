@@ -151,6 +151,7 @@ export function NotificationConfigManager({ value, onChange, teamName, tenantNam
             config={notificationSettings.email as EmailNotificationConfig || { roleBasedRecipients: [], customEmails: [] }}
             onChange={(config) => handleChannelConfigChange('email', config)}
             teamName={teamName}
+            tenantName={tenantName}
             teamEmails={teamData?.team_email || []}
           />
         );
@@ -160,6 +161,7 @@ export function NotificationConfigManager({ value, onChange, teamName, tenantNam
             config={notificationSettings.slack as SlackNotificationConfig || { channelName: '' }}
             onChange={(config) => handleChannelConfigChange('slack', config)}
             teamName={teamName}
+            tenantName={tenantName}
             teamSlackChannels={teamData?.team_slack || []}
           />
         );
@@ -169,6 +171,7 @@ export function NotificationConfigManager({ value, onChange, teamName, tenantNam
             config={notificationSettings.pagerduty as PagerDutyNotificationConfig || { serviceKey: '' }}
             onChange={(config) => handleChannelConfigChange('pagerduty', config)}
             teamName={teamName}
+            tenantName={tenantName}
             teamPagerDutyKeys={teamData?.team_pagerduty || []}
           />
         );

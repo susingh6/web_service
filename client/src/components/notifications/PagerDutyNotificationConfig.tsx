@@ -18,22 +18,23 @@ interface PagerDutyConfigProps {
   config: PagerDutyNotificationConfig;
   onChange: (config: PagerDutyNotificationConfig) => void;
   teamName?: string;
+  tenantName?: string;
   teamPagerDutyKeys?: string[];
 }
 
-export function PagerDutyNotificationConfigComponent({ config, onChange, teamName, teamPagerDutyKeys = [] }: PagerDutyConfigProps) {
+export function PagerDutyNotificationConfigComponent({ config, onChange, teamName, tenantName, teamPagerDutyKeys = [] }: PagerDutyConfigProps) {
   // Use React Query for data fetching - exact same pattern as Email/Slack
   const { data: users = [], isLoading: usersLoading } = useQuery<SystemUser[]>({ queryKey: ['/api/users'] });
   const { data: allTeamsData = [], isLoading: teamsLoading } = useQuery<any[]>({ queryKey: ['/api/teams'] });
   
-  // CRITICAL: Fetch team members for the current team to get individual member PagerDuty services
+  // CRITICAL: Fetch team members for the current team to get individual member PagerDuty services (tenant-aware)
   const { data: teamMembers = [], isLoading: teamMembersLoading } = useQuery({
-    queryKey: [`/api/get_team_members/${teamName}`], // Use CACHE_PATTERNS.TEAMS.MEMBERS pattern
+    queryKey: tenantName ? [`/api/get_team_members/${tenantName}/${teamName}`] : [`/api/get_team_members/${teamName}`],
     queryFn: async () => {
       if (!teamName) return [];
       // Use the correct API client method
       const { apiClient } = await import('@/config/api');
-      const response = await apiClient.teams.getMembers(teamName);
+      const response = await apiClient.teams.getMembers(teamName, tenantName);
       return response.json();
     },
     enabled: !!teamName,
