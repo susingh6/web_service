@@ -95,14 +95,7 @@ const TeamFormDialog = ({ open, onClose, team, tenants, activeTenants, onSubmit 
         credentials: 'include'
       });
       if (!response.ok) {
-        // Fallback to mock data if admin endpoint not available - matches API structure
-        return [
-          { user_id: '1', user_email: 'john.doe@company.com', user_name: 'John Doe' },
-          { user_id: '2', user_email: 'jane.smith@company.com', user_name: 'Jane Smith' },
-          { user_id: '3', user_email: 'mike.wilson@company.com', user_name: 'Mike Wilson' },
-          { user_id: '4', user_email: 'sarah.johnson@company.com', user_name: 'Sarah Johnson' },
-          { user_id: '5', user_email: 'david.brown@company.com', user_name: 'David Brown' },
-        ];
+        throw new Error('Failed to fetch users');
       }
       return response.json();
     },
