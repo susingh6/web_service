@@ -702,7 +702,6 @@ export class RedisCache {
       const refreshPromise = new Promise((resolve, reject) => {
         const workerUrl = new URL('./cache-worker-entry.ts', import.meta.url);
         this.cacheWorker = new Worker(workerUrl, {
-          execArgv: ['--import', 'tsx/register'],
           workerData: { 
             redisUrl: process.env.REDIS_URL || 'redis://localhost:6379',
             buildType // Pass buildType to worker
