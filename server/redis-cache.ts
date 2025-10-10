@@ -1485,6 +1485,8 @@ export class RedisCache {
       // CRITICAL FIX: Save to persistent storage first
       const storedEntity = await storage.createEntity(entity);
       
+      console.log(`[DEBUG] createEntity - Created entity: id=${storedEntity.id}, teamId=${storedEntity.teamId}, type=${storedEntity.type}, name=${storedEntity.name}`);
+      
       entities.push(storedEntity);
       
       // Update fallback data with persisted entity (deep clone to prevent shared references)
@@ -1501,6 +1503,8 @@ export class RedisCache {
           this.fallbackData.entitiesByTeamType.set(teamTypeKey, []);
         }
         this.fallbackData.entitiesByTeamType.get(teamTypeKey)!.push(storedEntity.id);
+        
+        console.log(`[DEBUG] createEntity - Updated fallback cache Maps: teamTypeKey=${teamTypeKey}, entitiesByTeamType size=${this.fallbackData.entitiesByTeamType.get(teamTypeKey)?.length}`);
         
         // Update entitiesByName
         const nameKey = `${storedEntity.teamId}:${storedEntity.type}:${storedEntity.name}`;
@@ -2449,9 +2453,13 @@ export class RedisCache {
     try {
       // Get fresh entities for this specific team and type from storage
       const allEntities = await storage.getEntities();
+      console.log(`[DEBUG] invalidateFallbackCacheByType - All entities count: ${allEntities.length}, looking for teamId=${teamId}, type=${entityType}`);
+      
       const teamEntities = allEntities
         .filter(e => e.teamId === teamId && e.type === entityType)
         .map(entity => structuredClone(entity));
+      
+      console.log(`[DEBUG] invalidateFallbackCacheByType - Found ${teamEntities.length} entities for team ${teamId}, type ${entityType}`);
       
       // Update only the specific team+type entries in the segregated Maps
       const teamTypeKey = `${teamId}:${entityType}`;
