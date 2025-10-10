@@ -689,61 +689,6 @@ const Summary = () => {
     <Box sx={{ p: 3 }}>
       {/* Integrated Header and Tabs System */}
       <Paper elevation={0} sx={{ borderRadius: 2, mb: 4, overflow: 'hidden' }}>
-        {/* Only show header when Summary tab is active */}
-        {activeTab === 'summary' && (
-          <Box sx={{ p: 3, pb: 2 }}>
-            <Box display="flex" justifyContent="space-between" alignItems="flex-start">
-              <Box>
-                <Box display="flex" alignItems="center" gap={1.5}>
-                  <Typography variant="h4" component="h1" fontWeight={600} fontFamily="Inter, sans-serif">
-                    Overall SLA Performance
-                  </Typography>
-                  {selectedTenant && (
-                    <Chip 
-                      label={selectedTenant.name}
-                      size="small"
-                      variant="outlined"
-                      sx={{ 
-                        borderColor: 'primary.main',
-                        color: 'primary.main',
-                        fontWeight: 500,
-                        fontSize: '0.75rem',
-                        height: '24px',
-                        '& .MuiChip-label': {
-                          px: 1.5
-                        }
-                      }}
-                    />
-                  )}
-                </Box>
-                <Typography variant="body1" color="text.secondary" sx={{ mt: 1 }}>
-                  Monitor SLA compliance across all teams and entities
-                </Typography>
-              </Box>
-
-              <Box display="flex" alignItems="center" gap={2}>
-                <FormControl variant="outlined" size="small" sx={{ minWidth: 200 }}>
-                  <InputLabel id="tenant-filter-label">Tenant</InputLabel>
-                  <Select
-                    labelId="tenant-filter-label"
-                    id="tenant-filter"
-                    value={selectedTenant?.name || ''}
-                    onChange={handleTenantChange}
-                    label="Tenant"
-                  >
-                    {tenants && tenants.map((tenant) => (
-                      <MenuItem key={tenant.id} value={tenant.name}>
-                        {tenant.name}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-                <DateRangePicker value={summaryDateRange} onChange={setSummaryDateRange} />
-              </Box>
-            </Box>
-          </Box>
-        )}
-
         {/* Dynamic Tabs System */}
         <Box sx={{ display: 'flex', alignItems: 'center', borderBottom: 1, borderColor: 'divider' }}>
           <Tabs 
@@ -820,6 +765,57 @@ const Summary = () => {
         <Box role="tabpanel" hidden={activeTab !== 'summary'}>
           {activeTab === 'summary' && (
             <Box sx={{ p: 3 }}>
+              {/* Header Section */}
+              <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={4}>
+                <Box>
+                  <Box display="flex" alignItems="center" gap={1.5}>
+                    <Typography variant="h4" component="h1" fontWeight={600} fontFamily="Inter, sans-serif">
+                      Overall SLA Performance
+                    </Typography>
+                    {selectedTenant && (
+                      <Chip 
+                        label={selectedTenant.name}
+                        size="small"
+                        variant="outlined"
+                        sx={{ 
+                          borderColor: 'primary.main',
+                          color: 'primary.main',
+                          fontWeight: 500,
+                          fontSize: '0.75rem',
+                          height: '24px',
+                          '& .MuiChip-label': {
+                            px: 1.5
+                          }
+                        }}
+                      />
+                    )}
+                  </Box>
+                  <Typography variant="body1" color="text.secondary" sx={{ mt: 1 }}>
+                    Monitor SLA compliance across all teams and entities
+                  </Typography>
+                </Box>
+
+                <Box display="flex" alignItems="center" gap={2}>
+                  <FormControl variant="outlined" size="small" sx={{ minWidth: 200 }}>
+                    <InputLabel id="tenant-filter-label">Tenant</InputLabel>
+                    <Select
+                      labelId="tenant-filter-label"
+                      id="tenant-filter"
+                      value={selectedTenant?.name || ''}
+                      onChange={handleTenantChange}
+                      label="Tenant"
+                    >
+                      {tenants && tenants.map((tenant) => (
+                        <MenuItem key={tenant.id} value={tenant.name}>
+                          {tenant.name}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  <DateRangePicker value={summaryDateRange} onChange={setSummaryDateRange} />
+                </Box>
+              </Box>
+
               {/* Metrics Cards */}
               <Box display="flex" flexWrap="wrap" gap={3} mb={4}>
                 {(() => {
