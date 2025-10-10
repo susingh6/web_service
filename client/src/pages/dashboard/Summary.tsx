@@ -687,10 +687,11 @@ const Summary = () => {
 
   return (
     <Box sx={{ p: 3 }}>
-      {/* Only show header when Summary tab is active */}
-      {activeTab === 'summary' && (
-        <Box mb={4}>
-          <Paper elevation={0} sx={{ p: 3, borderRadius: 2, mb: 4 }}>
+      {/* Integrated Header and Tabs System */}
+      <Paper elevation={0} sx={{ borderRadius: 2, mb: 4, overflow: 'hidden' }}>
+        {/* Only show header when Summary tab is active */}
+        {activeTab === 'summary' && (
+          <Box sx={{ p: 3, pb: 2 }}>
             <Box display="flex" justifyContent="space-between" alignItems="flex-start">
               <Box>
                 <Box display="flex" alignItems="center" gap={1.5}>
@@ -740,12 +741,10 @@ const Summary = () => {
                 <DateRangePicker value={summaryDateRange} onChange={setSummaryDateRange} />
               </Box>
             </Box>
-          </Paper>
-        </Box>
-      )}
+          </Box>
+        )}
 
-      {/* Dynamic Tabs System */}
-      <Box sx={{ mb: 4, bgcolor: 'background.paper', borderRadius: 1 }}>
+        {/* Dynamic Tabs System */}
         <Box sx={{ display: 'flex', alignItems: 'center', borderBottom: 1, borderColor: 'divider' }}>
           <Tabs 
             value={activeTab} 
@@ -1009,7 +1008,7 @@ const Summary = () => {
             </Box>
           );
         })}
-      </Box>
+      </Paper>
 
       {/* Modals */}
       <AddEntityModal
