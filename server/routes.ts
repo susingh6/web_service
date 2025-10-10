@@ -2445,7 +2445,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const result = memberSchema.safeParse(req.body);
       if (!result.success) {
-        console.log('Team member validation failed:', result.error.format());
         return res.status(400).json({ 
           message: "Invalid team member data", 
           errors: result.error.format() 
