@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { startOfDay, endOfDay, subDays, format } from 'date-fns';
-import { Box, Grid, Button, Typography, Tabs, Tab, Select, MenuItem, FormControl, InputLabel, IconButton, Chip } from '@mui/material';
+import { Box, Grid, Button, Typography, Tabs, Tab, Select, MenuItem, FormControl, InputLabel, IconButton, Chip, Paper } from '@mui/material';
 import { Add as AddIcon, Upload as UploadIcon, Close as CloseIcon } from '@mui/icons-material';
 import { useAppDispatch, useAppSelector } from '@/lib/store';
 import { fetchDashboardSummary } from '@/features/sla/slices/dashboardSlice';
@@ -686,52 +686,61 @@ const Summary = () => {
 
 
   return (
-    <Box>
-      {/* Only show title and filters when Summary tab is active */}
+    <Box sx={{ p: 3 }}>
+      {/* Only show header when Summary tab is active */}
       {activeTab === 'summary' && (
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
-          <Box display="flex" alignItems="center" gap={1.5}>
-            <Typography variant="h4" component="h1" fontWeight={600} fontFamily="Inter, sans-serif">
-              Overall SLA Performance
-            </Typography>
-            {selectedTenant && (
-              <Chip 
-                label={selectedTenant.name}
-                size="small"
-                variant="outlined"
-                sx={{ 
-                  borderColor: 'primary.main',
-                  color: 'primary.main',
-                  fontWeight: 500,
-                  fontSize: '0.75rem',
-                  height: '24px',
-                  '& .MuiChip-label': {
-                    px: 1.5
-                  }
-                }}
-              />
-            )}
-          </Box>
+        <Box mb={4}>
+          <Paper elevation={0} sx={{ p: 3, borderRadius: 2, mb: 4 }}>
+            <Box display="flex" justifyContent="space-between" alignItems="flex-start">
+              <Box>
+                <Box display="flex" alignItems="center" gap={1.5}>
+                  <Typography variant="h4" component="h1" fontWeight={600} fontFamily="Inter, sans-serif">
+                    Overall SLA Performance
+                  </Typography>
+                  {selectedTenant && (
+                    <Chip 
+                      label={selectedTenant.name}
+                      size="small"
+                      variant="outlined"
+                      sx={{ 
+                        borderColor: 'primary.main',
+                        color: 'primary.main',
+                        fontWeight: 500,
+                        fontSize: '0.75rem',
+                        height: '24px',
+                        '& .MuiChip-label': {
+                          px: 1.5
+                        }
+                      }}
+                    />
+                  )}
+                </Box>
+                <Typography variant="body1" color="text.secondary" sx={{ mt: 1 }}>
+                  Monitor SLA compliance across all teams and entities
+                </Typography>
+              </Box>
 
-          <Box display="flex" alignItems="center" gap={2}>
-            <FormControl variant="outlined" size="small" sx={{ minWidth: 200 }}>
-              <InputLabel id="tenant-filter-label">Tenant</InputLabel>
-              <Select
-                labelId="tenant-filter-label"
-                id="tenant-filter"
-                value={selectedTenant?.name || ''}
-                onChange={handleTenantChange}
-                label="Tenant"
-              >
-                {tenants && tenants.map((tenant) => (
-                  <MenuItem key={tenant.id} value={tenant.name}>
-                    {tenant.name}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            <DateRangePicker value={summaryDateRange} onChange={setSummaryDateRange} />
-          </Box>
+              <Box display="flex" alignItems="center" gap={2}>
+                <FormControl variant="outlined" size="small" sx={{ minWidth: 200 }}>
+                  <InputLabel id="tenant-filter-label">Tenant</InputLabel>
+                  <Select
+                    labelId="tenant-filter-label"
+                    id="tenant-filter"
+                    value={selectedTenant?.name || ''}
+                    onChange={handleTenantChange}
+                    label="Tenant"
+                  >
+                    {tenants && tenants.map((tenant) => (
+                      <MenuItem key={tenant.id} value={tenant.name}>
+                        {tenant.name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                <DateRangePicker value={summaryDateRange} onChange={setSummaryDateRange} />
+              </Box>
+            </Box>
+          </Paper>
         </Box>
       )}
 
