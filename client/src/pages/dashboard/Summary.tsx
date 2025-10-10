@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { startOfDay, endOfDay, subDays, format } from 'date-fns';
-import { Box, Grid, Button, Typography, Tabs, Tab, Select, MenuItem, FormControl, InputLabel, IconButton } from '@mui/material';
+import { Box, Grid, Button, Typography, Tabs, Tab, Select, MenuItem, FormControl, InputLabel, IconButton, Chip } from '@mui/material';
 import { Add as AddIcon, Upload as UploadIcon, Close as CloseIcon } from '@mui/icons-material';
 import { useAppDispatch, useAppSelector } from '@/lib/store';
 import { fetchDashboardSummary } from '@/features/sla/slices/dashboardSlice';
@@ -690,9 +690,28 @@ const Summary = () => {
       {/* Only show title and filters when Summary tab is active */}
       {activeTab === 'summary' && (
         <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
-          <Typography variant="h4" component="h1" fontWeight={600} fontFamily="Inter, sans-serif">
-            Overall SLA Performance
-          </Typography>
+          <Box display="flex" alignItems="center" gap={1.5}>
+            <Typography variant="h4" component="h1" fontWeight={600} fontFamily="Inter, sans-serif">
+              Overall SLA Performance
+            </Typography>
+            {selectedTenant && (
+              <Chip 
+                label={selectedTenant.name}
+                size="small"
+                variant="outlined"
+                sx={{ 
+                  borderColor: 'primary.main',
+                  color: 'primary.main',
+                  fontWeight: 500,
+                  fontSize: '0.75rem',
+                  height: '24px',
+                  '& .MuiChip-label': {
+                    px: 1.5
+                  }
+                }}
+              />
+            )}
+          </Box>
 
           <Box display="flex" alignItems="center" gap={2}>
             <FormControl variant="outlined" size="small" sx={{ minWidth: 200 }}>
