@@ -376,6 +376,10 @@ const EntityDetailsModal = ({ open, onClose, entity, teams }: EntityDetailsModal
     try {
       const entityType = entity.type as 'table' | 'dag';
       
+      console.log('[EntityDetailsModal] DELETE - Full entity object:', entity);
+      console.log('[EntityDetailsModal] DELETE - tenant_name:', entity.tenant_name);
+      console.log('[EntityDetailsModal] DELETE - teamId:', entity.teamId);
+      console.log('[EntityDetailsModal] DELETE - team_name:', entity.team_name);
       
       // Use modern cache-management approach with automatic cache invalidation
       await deleteEntity(entity.name, entityType, {
