@@ -1023,6 +1023,7 @@ const Summary = () => {
         onClose={() => setOpenDetailsDrawer(false)}
         entity={selectedEntity}
         teams={teams}
+        tenantName={selectedTenant?.name}
       />
 
       <EditEntityModal
