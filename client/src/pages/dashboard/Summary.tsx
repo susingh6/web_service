@@ -650,11 +650,22 @@ const Summary = () => {
         throw new Error(`Missing ${selectedEntity.type} identifier for entity ${selectedEntity.name}`);
       }
 
+      // CRITICAL FIX: Determine the correct tenant based on active tab context
+      // If we're on a team dashboard, use that team's tenant, not the summary dropdown tenant
+      let effectiveTenantName = selectedTenant?.name;
+      if (activeTab !== 'summary') {
+        // We're on a team dashboard, parse the composite key to get the correct tenant
+        const { tenantName: teamTenantName } = parseCompositeKey(activeTab);
+        effectiveTenantName = teamTenantName;
+      }
+
       console.log('[Summary][Delete] Initiating delete', {
         entityDisplayName: selectedEntity.name,
         entityNameForApi,
         entityType: selectedEntity.type,
-        tenantName: selectedTenant?.name,
+        activeTab,
+        selectedTenantName: selectedTenant?.name,
+        effectiveTenantName,
         teamId: selectedEntity.teamId,
         teamName: selectedEntity.team_name,
       });
@@ -662,13 +673,13 @@ const Summary = () => {
       console.log('[Summary][Delete] Calling deleteEntity with params', {
         entityNameForApi,
         entityType: selectedEntity.type,
-        tenantName: selectedTenant?.name,
+        tenantName: effectiveTenantName,
         teamId: selectedEntity.teamId,
         teamName: selectedEntity.team_name
       });
 
       await deleteEntity(entityNameForApi, selectedEntity.type as Entity['type'], {
-        tenantName: selectedTenant?.name,
+        tenantName: effectiveTenantName,
         teamId: selectedEntity.teamId,
         teamName: selectedEntity.team_name || undefined
       });
