@@ -1490,6 +1490,21 @@ export class RedisCache {
       // Update fallback data with persisted entity (deep clone to prevent shared references)
       if (this.fallbackData) {
         this.fallbackData.entities = structuredClone(entities);
+        
+        // CRITICAL FIX: Also update the indexed Maps for cache invalidation to work
+        // Update entitiesById
+        this.fallbackData.entitiesById.set(storedEntity.id, storedEntity);
+        
+        // Update entitiesByTeamType
+        const teamTypeKey = `${storedEntity.teamId}:${storedEntity.type}`;
+        if (!this.fallbackData.entitiesByTeamType.has(teamTypeKey)) {
+          this.fallbackData.entitiesByTeamType.set(teamTypeKey, []);
+        }
+        this.fallbackData.entitiesByTeamType.get(teamTypeKey)!.push(storedEntity.id);
+        
+        // Update entitiesByName
+        const nameKey = `${storedEntity.teamId}:${storedEntity.type}:${storedEntity.name}`;
+        this.fallbackData.entitiesByName.set(nameKey, storedEntity.id);
       }
       
       // Direct WebSocket broadcast in fallback mode with race condition protection
