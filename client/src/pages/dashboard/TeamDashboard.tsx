@@ -530,9 +530,26 @@ const TeamDashboard = ({
         <Paper elevation={0} sx={{ p: 3, borderRadius: 2, mb: 4 }}>
           <Box display="flex" justifyContent="space-between" alignItems="flex-start">
             <Box>
-              <Typography variant="h4" component="h1" fontWeight={600} fontFamily="Inter, sans-serif">
-                {team.name}
-              </Typography>
+              <Box display="flex" alignItems="center" gap={1.5}>
+                <Typography variant="h4" component="h1" fontWeight={600} fontFamily="Inter, sans-serif">
+                  {team.name}
+                </Typography>
+                <Chip 
+                  label={tenantName}
+                  size="small"
+                  variant="outlined"
+                  sx={{ 
+                    borderColor: 'primary.main',
+                    color: 'primary.main',
+                    fontWeight: 500,
+                    fontSize: '0.75rem',
+                    height: '24px',
+                    '& .MuiChip-label': {
+                      px: 1.5
+                    }
+                  }}
+                />
+              </Box>
               <Typography variant="body1" color="text.secondary" sx={{ mt: 1 }}>
                 {team.description || `Team dashboard for ${team.name}`}
               </Typography>
