@@ -1004,7 +1004,9 @@ export function useEntityMutation() {
     },
     onMutate: async ({ entityName, entityType, tenant, teamId, teamName }) => {
       log.debug('[useEntityMutation][delete] onMutate', { entityName, entityType, tenant, teamId, teamName });
+      console.log('[DELETE DEBUG] RAW tenant value:', tenant, 'typeof:', typeof tenant, 'teamName:', teamName);
       const effectiveTenant = tenant || 'Data Engineering';
+      console.log('[DELETE DEBUG] effectiveTenant after fallback:', effectiveTenant);
       const key = cacheKeys.entitiesByTenantAndTeam(effectiveTenant, teamId);
       console.log('[DELETE DEBUG] onMutate - cache key:', key, 'tenant:', effectiveTenant, 'teamId:', teamId);
       await queryClient.cancelQueries({ queryKey: key });
