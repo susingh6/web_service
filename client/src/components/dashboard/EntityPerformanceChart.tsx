@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useTheme } from '@mui/material/styles';
 import { Box, Typography } from '@mui/material';
 import {
@@ -117,6 +118,7 @@ interface EntityPerformanceChartProps {
 
 const EntityPerformanceChart = ({ entities, days = 30, filter = 'all', dateRange }: EntityPerformanceChartProps) => {
   const theme = useTheme();
+  const [hiddenEntities, setHiddenEntities] = useState<Set<number>>(new Set());
   
   if (!entities || entities.length === 0) {
     return (
@@ -135,6 +137,19 @@ const EntityPerformanceChart = ({ entities, days = 30, filter = 'all', dateRange
     if (filter === 'dags') return entity.type === 'dag';
     return true;
   });
+  
+  // Toggle entity visibility
+  const toggleEntityVisibility = (entityId: number) => {
+    setHiddenEntities(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(entityId)) {
+        newSet.delete(entityId);
+      } else {
+        newSet.add(entityId);
+      }
+      return newSet;
+    });
+  };
 
   if (filteredEntities.length === 0) {
     return (
@@ -276,6 +291,7 @@ const EntityPerformanceChart = ({ entities, days = 30, filter = 'all', dateRange
                 activeDot={{ r: 4 }}
                 connectNulls
                 name={entity.name}
+                hide={hiddenEntities.has(entity.id)}
               />
             ))}
           </LineChart>
@@ -310,20 +326,38 @@ const EntityPerformanceChart = ({ entities, days = 30, filter = 'all', dateRange
         </Box>
         
         {/* Entity legends */}
-        {filteredEntities.map((entity, index) => (
-          <Box key={entity.id} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        {filteredEntities.map((entity, index) => {
+          const isHidden = hiddenEntities.has(entity.id);
+          return (
             <Box 
+              key={entity.id} 
               sx={{ 
-                width: 20, 
-                height: 2, 
-                backgroundColor: colors[index % colors.length],
-              }} 
-            />
-            <Typography variant="body2" color="text.secondary">
-              {entity.name}
-            </Typography>
-          </Box>
-        ))}
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: 1,
+                cursor: 'pointer',
+                opacity: isHidden ? 0.3 : 1,
+                transition: 'opacity 0.2s',
+                '&:hover': {
+                  opacity: isHidden ? 0.5 : 0.8,
+                }
+              }}
+              onClick={() => toggleEntityVisibility(entity.id)}
+              data-testid={`legend-${entity.name}`}
+            >
+              <Box 
+                sx={{ 
+                  width: 20, 
+                  height: 2, 
+                  backgroundColor: colors[index % colors.length],
+                }} 
+              />
+              <Typography variant="body2" color="text.secondary">
+                {entity.name}
+              </Typography>
+            </Box>
+          );
+        })}
       </Box>
     </Box>
   );
