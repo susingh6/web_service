@@ -1004,25 +1004,17 @@ export function useEntityMutation() {
     },
     onMutate: async ({ entityName, entityType, tenant, teamId, teamName }) => {
       log.debug('[useEntityMutation][delete] onMutate', { entityName, entityType, tenant, teamId, teamName });
-      console.log('[DELETE DEBUG] RAW tenant value:', tenant, 'typeof:', typeof tenant, 'teamName:', teamName);
       const effectiveTenant = tenant || 'Data Engineering';
-      console.log('[DELETE DEBUG] effectiveTenant after fallback:', effectiveTenant);
       const key = cacheKeys.entitiesByTenantAndTeam(effectiveTenant, teamId);
-      console.log('[DELETE DEBUG] onMutate - cache key:', key, 'tenant:', effectiveTenant, 'teamId:', teamId);
       await queryClient.cancelQueries({ queryKey: key });
       const previous = queryClient.getQueryData<any[]>(key);
-      console.log('[DELETE DEBUG] Previous entities in cache:', previous?.length || 0);
       queryClient.setQueryData<any[]>(key, (old) => {
         const filtered = old ? old.filter(e => {
           const candidate = resolveEntityIdentifier(e, { fallback: e.name ?? e.entity_name ?? undefined });
           // CRITICAL: Check both name AND type since entity names can duplicate across types
           const shouldKeep = !(candidate === entityName && e.type === entityType);
-          if (!shouldKeep) {
-            console.log('[DELETE DEBUG] Removing entity from cache:', candidate, entityType);
-          }
           return shouldKeep;
         }) : [];
-        console.log('[DELETE DEBUG] New entities count after filter:', filtered.length);
         return filtered;
       });
       return {

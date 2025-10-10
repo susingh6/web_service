@@ -700,8 +700,9 @@ export class RedisCache {
 
       // Use worker thread for heavy cache refresh work with timeout
       const refreshPromise = new Promise((resolve, reject) => {
-        const workerUrl = new URL('./cache-worker-entry.ts', import.meta.url);
+        const workerUrl = new URL('./cache-worker-entry.cjs', import.meta.url);
         this.cacheWorker = new Worker(workerUrl, {
+          execArgv: ['--import', 'tsx'],
           workerData: { 
             redisUrl: process.env.REDIS_URL || 'redis://localhost:6379',
             buildType // Pass buildType to worker

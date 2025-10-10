@@ -659,25 +659,6 @@ const Summary = () => {
         effectiveTenantName = teamTenantName;
       }
 
-      console.log('[Summary][Delete] Initiating delete', {
-        entityDisplayName: selectedEntity.name,
-        entityNameForApi,
-        entityType: selectedEntity.type,
-        activeTab,
-        selectedTenantName: selectedTenant?.name,
-        effectiveTenantName,
-        teamId: selectedEntity.teamId,
-        teamName: selectedEntity.team_name,
-      });
-
-      console.log('[Summary][Delete] Calling deleteEntity with params', {
-        entityNameForApi,
-        entityType: selectedEntity.type,
-        tenantName: effectiveTenantName,
-        teamId: selectedEntity.teamId,
-        teamName: selectedEntity.team_name
-      });
-
       await deleteEntity(entityNameForApi, selectedEntity.type as Entity['type'], {
         tenantName: effectiveTenantName,
         teamId: selectedEntity.teamId,
@@ -690,12 +671,6 @@ const Summary = () => {
         entityType: selectedEntity.type as 'table' | 'dag',
         teamId: selectedEntity.teamId
       }));
-
-      console.log('[Summary][Delete] Completed delete mutation and dispatched removeEntity', {
-        entityNameForApi,
-        entityType: selectedEntity.type,
-        teamId: selectedEntity.teamId,
-      });
 
       setOpenDeleteDialog(false);
       setSelectedEntity(null);
