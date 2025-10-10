@@ -1637,6 +1637,28 @@ export class RedisCache {
       // Update fallback data (deep clone to prevent shared references)
       this.fallbackData.entities = structuredClone(entities);
       
+      // CRITICAL FIX: Also remove from the indexed Maps to keep cache consistent
+      // Remove from entitiesById
+      this.fallbackData.entitiesById.delete(entityToDelete.id);
+      
+      // Remove from entitiesByTeamType
+      const teamTypeKey = `${entityToDelete.teamId}:${entityToDelete.type}`;
+      if (this.fallbackData.entitiesByTeamType.has(teamTypeKey)) {
+        const entityIds = this.fallbackData.entitiesByTeamType.get(teamTypeKey)!;
+        const updatedIds = entityIds.filter(id => id !== entityToDelete.id);
+        if (updatedIds.length > 0) {
+          this.fallbackData.entitiesByTeamType.set(teamTypeKey, updatedIds);
+        } else {
+          this.fallbackData.entitiesByTeamType.delete(teamTypeKey);
+        }
+      }
+      
+      // Remove from entitiesByName
+      const nameKey = `${entityToDelete.teamId}:${entityToDelete.type}:${entityToDelete.name}`;
+      this.fallbackData.entitiesByName.delete(nameKey);
+      
+      console.log(`[DEBUG] deleteEntity - Removed entity from fallback cache Maps: id=${entityToDelete.id}, teamTypeKey=${teamTypeKey}`);
+      
       // Direct WebSocket broadcast in fallback mode (standard envelope)
       const changeEvent: EntityChangeEvent = {
         event: 'entity-updated',
