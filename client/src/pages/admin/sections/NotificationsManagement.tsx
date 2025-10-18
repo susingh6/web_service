@@ -147,7 +147,7 @@ const NotificationsManagement = () => {
 
   // Fetch alerts
   const { data: alerts = [], isLoading: alertsLoading } = useQuery<Alert[]>({
-    queryKey: ['admin', 'alerts', 'v2'],
+    queryKey: ['admin', 'alerts', 'v3'], // Changed to v3 to force cache refresh after Redis-first update
     queryFn: async () => {
       // Fetch from both FastAPI and Express, then merge unique alerts
       const fastUrl = buildUrl(endpoints.admin.alerts.getAll) + `?t=${Date.now()}`;

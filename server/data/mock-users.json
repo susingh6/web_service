@@ -1,0 +1,16 @@
+[
+  {"username":"azure_test_user","password":"fd8c4a1ca56057251afbd0fd4b308a15113651c3e557c44eb58b8284e6d7fd4c1212a99dc7784c5cbb5072a2c138185c806394074e6c5f599209185e9576ea2e.e33fe34bf418a28b","email":"azure_test_user@example.com","displayName":"Azure Test User","team":"Core","role":"admin","azureObjectId":"test-azure-object-id","user_slack":["@azure.tester","@testuser"],"user_pagerduty":["azure_test@pagerduty.com"],"is_active":true},
+  {"username":"john.smith","password":"dummy-hash","email":"john.smith@company.com","displayName":"John Smith","team":"PGM","role":"developer"},
+  {"username":"sarah.johnson","password":"dummy-hash","email":"sarah.johnson@company.com","displayName":"Sarah Johnson","team":"PGM","role":"manager"},
+  {"username":"david.wilson","password":"dummy-hash","email":"david.wilson@company.com","displayName":"David Wilson","team":"Core","role":"lead"},
+  {"username":"michael.brown","password":"dummy-hash","email":"michael.brown@company.com","displayName":"Michael Brown","team":"Core","role":"developer","is_active":false},
+  {"username":"emily.davis","password":"dummy-hash","email":"emily.davis@company.com","displayName":"Emily Davis","team":"Viewer Product","role":"analyst"},
+  {"username":"alex.chen","password":"dummy-hash","email":"alex.chen@company.com","displayName":"Alex Chen","team":"IOT","role":"developer"},
+  {"username":"maria.garcia","password":"dummy-hash","email":"maria.garcia@company.com","displayName":"Maria Garcia","team":"IOT","role":"ops","is_active":false},
+  {"username":"robert.taylor","password":"dummy-hash","email":"robert.taylor@company.com","displayName":"Robert Taylor","team":"CDM","role":"developer"},
+  {"username":"lisa.anderson","password":"dummy-hash","email":"lisa.anderson@company.com","displayName":"Lisa Anderson","team":"CDM","role":"manager"},
+  {"username":"carlos.martinez","password":"dummy-hash","email":"carlos.martinez@company.com","displayName":"Carlos Martinez","team":"Ad Serving","role":"lead"},
+  {"username":"jennifer.wilson","password":"dummy-hash","email":"jennifer.wilson@company.com","displayName":"Jennifer Wilson","team":null,"role":"developer"},
+  {"username":"kevin.moore","password":"dummy-hash","email":"kevin.moore@company.com","displayName":"Kevin Moore","team":null,"role":"analyst","is_active":false},
+  {"username":"rachel.kim","password":"dummy-hash","email":"rachel.kim@company.com","displayName":"Rachel Kim","team":null,"role":"manager"}
+]

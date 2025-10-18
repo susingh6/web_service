@@ -2620,6 +2620,87 @@ export class MemStorage implements IStorage {
     return messages;
   }
 
+  async getConflicts(): Promise<any[]> {
+    // Return mock conflicts data when Redis is not available
+    return [
+      {
+        id: 1,
+        notificationId: 'CONF-2025-001',
+        entityType: 'dag',
+        conflictingTeams: ['PGM', 'Core'],
+        entityName: 'daily_revenue_processing',
+        originalPayload: {
+          name: 'daily_revenue_dag',
+          dag_name: 'daily_revenue_processing',
+          dag_schedule: '0 2 * * *',
+          team: 'Core',
+          description: 'Daily revenue aggregation pipeline'
+        },
+        conflictDetails: {
+          existingOwner: 'PGM',
+          requestedBy: 'sarah.lee@company.com',
+          reason: 'DAG name already exists with different ownership'
+        },
+        status: 'pending',
+        createdAt: new Date('2025-09-07'),
+        resolvedAt: null,
+        resolutionType: null,
+        resolutionNotes: null,
+        resolvedBy: null
+      },
+      {
+        id: 2,
+        notificationId: 'CONF-2025-002',
+        entityType: 'table',
+        conflictingTeams: ['CDM', 'Viewer Product'],
+        entityName: 'analytics.customer_daily_metrics',
+        originalPayload: {
+          name: 'customer_metrics',
+          table_name: 'customer_daily_metrics',
+          schema_name: 'analytics',
+          team: 'Viewer Product',
+          description: 'Customer behavior metrics table'
+        },
+        conflictDetails: {
+          existingOwner: 'CDM',
+          requestedBy: 'mike.johnson@company.com',
+          reason: 'Table schema conflicts with existing CDM table'
+        },
+        status: 'pending',
+        createdAt: new Date('2025-09-08'),
+        resolvedAt: null,
+        resolutionType: null,
+        resolutionNotes: null,
+        resolvedBy: null
+      },
+      {
+        id: 3,
+        notificationId: 'CONF-2025-003',
+        entityType: 'dag',
+        conflictingTeams: ['IOT', 'Ad Serving'],
+        entityName: 'core_etl_pipeline',
+        originalPayload: {
+          name: 'core_etl',
+          dag_name: 'core_etl_pipeline',
+          dag_schedule: '0 */6 * * *',
+          team: 'Ad Serving',
+          description: 'Core ETL data processing pipeline'
+        },
+        conflictDetails: {
+          existingOwner: 'IOT',
+          requestedBy: 'alice.wong@company.com',
+          reason: 'Pipeline name conflicts with existing Core DAG'
+        },
+        status: 'pending',
+        createdAt: new Date('2025-09-09'),
+        resolvedAt: null,
+        resolutionType: null,
+        resolutionNotes: null,
+        resolvedBy: null
+      }
+    ];
+  }
+
   async getActiveAdminBroadcastMessages(dateKey?: string): Promise<AdminBroadcastMessage[]> {
     await this.ensureInitialized();
     

@@ -232,7 +232,16 @@ const ConflictsManagement = () => {
     staleTime: 6 * 60 * 60 * 1000, // Cache for 6 hours
     gcTime: 6 * 60 * 60 * 1000,    // Keep in memory for 6 hours
     queryFn: async () => {
-      // Mock data for now - replace with real API
+      // Fetch from server (returns empty if Redis connected, mock if Redis unavailable)
+      const res = await fetch('/api/v1/conflicts');
+      if (!res.ok) {
+        console.warn('Failed to fetch conflicts, returning empty array');
+        return [];
+      }
+      return res.json();
+      
+      // Old mock data (kept as reference):
+      /*
       const mockConflicts = [
         {
           id: 1,
@@ -312,6 +321,7 @@ const ConflictsManagement = () => {
       ];
       
       return mockConflicts as unknown as ConflictNotification[];
+      */
     },
   });
 

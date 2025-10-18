@@ -87,55 +87,13 @@ const AdminOverview = () => {
     staleTime: 6 * 60 * 60 * 1000, // Cache for 6 hours
     gcTime: 6 * 60 * 60 * 1000,    // Keep in memory for 6 hours
     queryFn: async () => {
-      // Use same detailed mock data as ConflictsManagement component
-      const mockConflicts = [
-        {
-          id: 1,
-          notificationId: 'CONF-2025-001',
-          entityType: 'dag',
-          entityName: 'daily_revenue_processing',
-          conflictingTeams: ['PGM', 'Core'],
-          conflictDetails: {
-            existingOwner: 'PGM',
-            requestedBy: 'sarah.lee@company.com',
-            reason: 'DAG name already exists with different ownership'
-          },
-          status: 'pending',
-          createdAt: new Date('2025-09-07')
-        },
-        {
-          id: 2,
-          notificationId: 'CONF-2025-002',
-          entityType: 'table',
-          entityName: 'analytics.customer_daily_metrics',
-          conflictingTeams: ['CDM', 'Viewer Product'],
-          conflictDetails: {
-            existingOwner: 'CDM',
-            requestedBy: 'mike.johnson@company.com',
-            reason: 'Table schema conflicts with existing CDM table'
-          },
-          status: 'pending',
-          createdAt: new Date('2025-09-08')
-        },
-        {
-          id: 3,
-          notificationId: 'CONF-2025-003',
-          entityType: 'dag',
-          entityName: 'core_etl_pipeline',
-          conflictingTeams: ['IOT', 'Ad Serving'],
-          conflictDetails: {
-            existingOwner: 'IOT',
-            requestedBy: 'alice.wong@company.com',
-            reason: 'Pipeline name conflicts with existing Core DAG'
-          },
-          status: 'pending',
-          createdAt: new Date('2025-09-09')
-        }
-      ];
-      
-      console.log('Overview conflicts mock data:', mockConflicts);
-      console.log('Overview conflicts length:', mockConflicts.length);
-      return mockConflicts;
+      // Fetch from server (returns empty if Redis connected, mock if Redis unavailable)
+      const res = await fetch('/api/v1/conflicts');
+      if (!res.ok) {
+        console.warn('Failed to fetch conflicts for overview, returning empty array');
+        return [];
+      }
+      return res.json();
     },
   });
 

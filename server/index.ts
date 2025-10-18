@@ -129,7 +129,7 @@ app.use((req, res, next) => {
   // ALWAYS serve the app on port 5000
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
-  const port = 5000;
+  const port = 5050;
   // CRITICAL FIX: Bind to 0.0.0.0 instead of 127.0.0.1 to allow external WebSocket connections
   server.listen(port, '0.0.0.0', () => {
     log(`serving on port ${port} (binding to 0.0.0.0 for WebSocket support)`);

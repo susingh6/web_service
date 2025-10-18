@@ -148,6 +148,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Set up test routes for development
   setupTestRoutes(app);
   
+  // Health check endpoint - returns 503 when FastAPI integration is disabled
+  app.get("/api/v1/health", (_req: Request, res: Response) => {
+    const USE_FASTAPI = process.env.ENABLE_FASTAPI_INTEGRATION === 'true';
+    if (USE_FASTAPI) {
+      // When enabled, this would proxy to FastAPI
+      return res.status(200).json({ status: 'ok', service: 'fastapi' });
+    }
+    // FastAPI integration disabled - return 503 so client knows to use Express fallback
+    return res.status(503).json({ status: 'unavailable', service: 'fastapi', fallback: 'express' });
+  });
+  
   // Environment-aware Express API routing middleware
   // In development: Allow auth fallback routes for testing
   // In production: Block legacy Express routes except critical fallbacks to prevent RBAC bypass
@@ -321,18 +332,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // FastAPI fallback route for admin users endpoint
+  // FastAPI fallback route for admin users endpoint - Redis-first; fallback to mock when Redis unavailable
   app.get("/api/v1/users", async (req, res) => {
     try {
+      const status = await redisCache.getCacheStatus();
+      const redisConnected = status && status.mode === 'redis';
+
+      if (redisConnected) {
+        // No Redis-backed users collection – intentionally return empty when Redis is present
+        return res.json([]);
+      }
+
+      // Redis not available: return mock users from storage
       const users = await storage.getUsers();
-      // Transform user data to match FastAPI format expected by admin pages
       const transformedUsers = users.map(user => ({
         user_id: user.id,
         user_name: user.username,
         user_email: user.email,
         user_slack: user.user_slack || [],
         user_pagerduty: user.user_pagerduty || [],
-        is_active: user.is_active !== undefined ? user.is_active : true // Use actual status or default to active
+        is_active: user.is_active !== undefined ? user.is_active : true
       }));
       res.json(transformedUsers);
     } catch (error) {
@@ -573,12 +592,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // GET /api/v1/roles - Get all roles from real storage
+  // GET /api/v1/roles - Redis-first; fallback to mock when Redis unavailable
   app.get("/api/v1/roles", async (req, res) => {
     try {
-      const roles = await storage.getRoles();
+      const status = await redisCache.getCacheStatus();
+      const redisConnected = status && status.mode === 'redis';
+
       res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
-      res.json(roles);
+      if (redisConnected) {
+        // No Redis-backed roles collection – intentionally return empty when Redis is present
+        return res.json([]);
+      }
+
+      const roles = await storage.getRoles();
+      return res.json(roles);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch roles" });
     }
@@ -650,11 +677,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // GET /api/v1/get_all_permissions - FastAPI fallback for getting all permissions
+  // GET /api/v1/get_all_permissions - Redis-first; fallback to mock storage when Redis unavailable
   app.get("/api/v1/get_all_permissions", async (req, res) => {
     try {
-      const permissions = await storage.getPermissions();
+      const status = await redisCache.getCacheStatus();
+      const redisConnected = status && status.mode === 'redis';
       res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+      
+      if (redisConnected) {
+        // No Redis-backed permissions collection – intentionally return empty when Redis is present
+        return res.json([]);
+      }
+      
+      // Redis not available: return mock permissions from storage
+      const permissions = await storage.getPermissions();
       res.json(permissions);
     } catch (error) {
       console.error('Error fetching permissions from /api/v1/get_all_permissions:', error);
@@ -662,11 +698,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // GET /api/permissions - Get all permissions (Express fallback for /api/v1/get_all_permissions)
+  // GET /api/permissions - Redis-first; fallback to mock storage when Redis unavailable
   app.get("/api/permissions", async (req, res) => {
     try {
-      const permissions = await storage.getPermissions();
+      const status = await redisCache.getCacheStatus();
+      const redisConnected = status && status.mode === 'redis';
       res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+      
+      if (redisConnected) {
+        // No Redis-backed permissions collection – intentionally return empty when Redis is present
+        return res.json([]);
+      }
+      
+      // Redis not available: return mock permissions from storage
+      const permissions = await storage.getPermissions();
       res.json(permissions);
     } catch (error) {
       console.error('Error fetching permissions:', error);
@@ -789,52 +834,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // GET /api/v1/alerts - System alerts endpoint for notification bell
+  // GET /api/v1/alerts - Redis-first for admin notification bell; fallback to mock when Redis unavailable
   app.get("/api/v1/alerts", async (req, res) => {
     try {
-      // Mock alert data for system notifications
+      const status = await redisCache.getCacheStatus();
+      const redisConnected = status && status.mode === 'redis';
       const now = new Date();
-      const mockAlerts = [
-        {
-          id: 1,
-          title: "System Maintenance Scheduled",
-          message: "Scheduled maintenance window on Sunday 3:00 AM - 6:00 AM EST. Some features may be temporarily unavailable.",
-          alertType: "maintenance",
-          severity: "medium",
-          dateKey: new Date().toISOString().split('T')[0],
-          isActive: true,
-          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
-          createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
-          updatedAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
-        },
-        {
-          id: 2,
-          title: "New Role Management Features",
-          message: "Enhanced role management system is now available in the admin panel. Check out the new role creation and permissions management features.",
-          alertType: "info",
-          severity: "low",
-          dateKey: new Date().toISOString().split('T')[0],
-          isActive: true,
-          expiresAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), // 3 days from now
-          createdAt: new Date(Date.now() - 30 * 60 * 1000), // 30 minutes ago
-          updatedAt: new Date(Date.now() - 30 * 60 * 1000),
-        },
-        {
-          id: 3,
-          title: "Performance Monitoring Alert",
-          message: "Higher than usual response times detected on entity operations. Engineering team is investigating. No action required from users.",
-          alertType: "warning",
-          severity: "high",
-          dateKey: new Date().toISOString().split('T')[0],
-          isActive: true,
-          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 1 day from now
-          createdAt: new Date(Date.now() - 45 * 60 * 1000), // 45 minutes ago
-          updatedAt: new Date(Date.now() - 15 * 60 * 1000), // Updated 15 minutes ago
-        }
-      ];
 
-      // Filter only active alerts that haven't expired
-      const activeAlerts = mockAlerts.filter(alert => 
+      let alerts: any[] = [];
+      if (redisConnected) {
+        alerts = await redisCache.get('sla:alerts') || [];
+      } else {
+        // Mock alert data when Redis is not available
+        alerts = [
+          {
+            id: 1,
+            title: "System Maintenance Scheduled",
+            message: "Scheduled maintenance window on Sunday 3:00 AM - 6:00 AM EST. Some features may be temporarily unavailable.",
+            alertType: "maintenance",
+            severity: "medium",
+            dateKey: new Date().toISOString().split('T')[0],
+            isActive: true,
+            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+            createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+            updatedAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+          },
+          {
+            id: 2,
+            title: "New Role Management Features",
+            message: "Enhanced role management system is now available in the admin panel. Check out the new role creation and permissions management features.",
+            alertType: "info",
+            severity: "low",
+            dateKey: new Date().toISOString().split('T')[0],
+            isActive: true,
+            expiresAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
+            createdAt: new Date(Date.now() - 30 * 60 * 1000),
+            updatedAt: new Date(Date.now() - 30 * 60 * 1000),
+          },
+          {
+            id: 3,
+            title: "Performance Monitoring Alert",
+            message: "Higher than usual response times detected on entity operations. Engineering team is investigating. No action required from users.",
+            alertType: "warning",
+            severity: "high",
+            dateKey: new Date().toISOString().split('T')[0],
+            isActive: true,
+            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+            createdAt: new Date(Date.now() - 45 * 60 * 1000),
+            updatedAt: new Date(Date.now() - 15 * 60 * 1000),
+          }
+        ];
+      }
+
+      const activeAlerts = (alerts || []).filter(alert => 
         alert.isActive && (!alert.expiresAt || new Date(alert.expiresAt) > now)
       );
 
@@ -900,9 +952,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // GET /api/v1/admin/broadcast-messages - Get admin broadcast messages
   app.get("/api/v1/admin/broadcast-messages", requireActiveUser, async (req: Request, res: Response) => {
     try {
-      const messages = await storage.getAdminBroadcastMessages();
+      const status = await redisCache.getCacheStatus();
+      const redisConnected = status && status.mode === 'redis';
+
       res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
-      res.json(messages);
+      if (redisConnected) {
+        // No Redis-backed broadcast messages store available – return empty list when Redis is present
+        return res.json([]);
+      }
+
+      const messages = await storage.getAdminBroadcastMessages();
+      return res.json(messages);
     } catch (error) {
       console.error('Failed to fetch broadcast messages:', error);
       res.status(500).json({ message: "Failed to fetch broadcast messages" });
@@ -971,9 +1031,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // GET /api/v1/conflicts - Redis-first; fallback to mock storage when Redis unavailable
+  app.get("/api/v1/conflicts", async (_req: Request, res: Response) => {
+    try {
+      const status = await redisCache.getCacheStatus();
+      const redisConnected = status && status.mode === 'redis';
+      
+      if (redisConnected) {
+        // No Redis-backed conflicts collection – return empty when Redis is present
+        return res.json([]);
+      }
+      
+      // Redis not available: return mock conflicts from storage
+      const conflicts = await storage.getConflicts();
+      return res.json(conflicts);
+    } catch (error) {
+      console.error('Failed to fetch conflicts:', error);
+      return res.status(500).json({ message: "Failed to fetch conflicts" });
+    }
+  });
+
   // Express fallback endpoints for alerts (following the correct pattern)
   app.get("/api/alerts", async (req, res) => {
     try {
+      const status = await redisCache.getCacheStatus();
+      const redisConnected = status && status.mode === 'redis';
+      
+      if (redisConnected) {
+        // Redis connected: return from Redis or empty if key missing
+        const alerts = await redisCache.get('sla:alerts') || [];
+        return res.json(alerts);
+      }
+      
+      // Redis not available: return mock alerts from storage
       const alerts = await storage.getActiveAlerts();
       res.json(alerts);
     } catch (error) {
@@ -1134,47 +1224,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Tenants endpoints - use cache
+  // Tenants endpoints - Redis-first: only show data from Redis when available; fallback to mock storage when Redis is unavailable
   app.get("/api/tenants", async (req, res) => {
     try {
       const { active_only } = req.query;
-      const cacheKey = 'all_tenants';
-      let tenants = await redisCache.get(cacheKey);
-      
-      if (!tenants) {
+      const status = await redisCache.getCacheStatus();
+      const redisConnected = status && status.mode === 'redis';
+
+      let tenants: any[] = [];
+      if (redisConnected) {
+        // Read strictly from Redis-backed getters; do not fall back to storage when Redis is connected
+        tenants = await redisCache.getAllTenants();
+      } else {
+        // Redis not available: fall back to mock storage
         tenants = await storage.getTenants();
-        await redisCache.set(cacheKey, tenants, 6 * 60 * 60); // 6 hour cache
       }
 
-      // Filter by active status if requested
       if (active_only === 'true') {
-        tenants = tenants.filter((tenant: any) => tenant.isActive === true);
+        tenants = (tenants || []).filter((tenant: any) => tenant.isActive === true);
       }
 
-      res.json(tenants);
+      res.json(tenants || []);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch tenants" });
     }
   });
 
-  // FastAPI fallback route for admin tenants endpoint - use cache with HTTP versioning
+  // FastAPI fallback route for admin tenants endpoint - Redis-first with HTTP headers; fallback to mock when Redis unavailable
   app.get("/api/v1/tenants", async (req, res) => {
     try {
       const { active_only } = req.query;
-      const cacheKey = 'all_tenants';
-      let tenants = await redisCache.get(cacheKey);
-      
-      if (!tenants) {
+      const status = await redisCache.getCacheStatus();
+      const redisConnected = status && status.mode === 'redis';
+
+      let tenants: any[] = [];
+      if (redisConnected) {
+        tenants = await redisCache.getAllTenants();
+      } else {
         tenants = await storage.getTenants();
-        await redisCache.set(cacheKey, tenants, 6 * 60 * 60); // 6 hour cache
       }
 
-      // Filter by active status if requested
       if (active_only === 'true') {
-        tenants = tenants.filter((tenant: any) => tenant.isActive === true);
+        tenants = (tenants || []).filter((tenant: any) => tenant.isActive === true);
       }
 
-      // Add HTTP caching headers with versioning to avoid 304 on stale data
       const lastUpdatedRaw = await (redisCache as any).get ? await (redisCache as any).get('sla:LAST_UPDATED') : null;
       const lastUpdated = lastUpdatedRaw || new Date();
       const version = Date.now();
@@ -1184,7 +1277,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         'Cache-Control': 'no-cache'
       });
 
-      res.json(tenants);
+      res.json(tenants || []);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch tenants from FastAPI fallback" });
     }
