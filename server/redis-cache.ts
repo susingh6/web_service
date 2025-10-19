@@ -55,7 +55,8 @@ export const CACHE_KEYS = {
   ALERTS: 'sla:alerts',
   ADMIN_MESSAGES: 'sla:adminMessages',
   TASKS: 'sla:tasks',
-  PERMISSIONS: 'sla:permissions'
+  PERMISSIONS: 'sla:permissions',
+  ROLES: 'sla:roles'
 };
 
 export class RedisCache {
@@ -555,7 +556,7 @@ export class RedisCache {
   }
 
   // Centralized cache update broadcast with granular filtering
-  private broadcastCacheUpdate(cacheType: string, data: any): void {
+  public broadcastCacheUpdate(cacheType: string, data: any): void {
     if (!this.wss) {
       return;
     }
