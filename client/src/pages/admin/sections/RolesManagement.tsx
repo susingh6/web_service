@@ -40,6 +40,8 @@ import { useToast } from '@/hooks/use-toast';
 import { invalidateAdminCaches } from '@/lib/cacheKeys';
 import { FormControl, InputLabel, Select, MenuItem } from '@mui/material';
 import Autocomplete from '@mui/material/Autocomplete';
+import { useWebSocket } from '@/hooks/useWebSocket';
+import { WEBSOCKET_CONFIG } from '../../../../../shared/websocket-config';
 
 interface Role {
   id: number;
@@ -209,6 +211,25 @@ const RolesManagement = () => {
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
+
+  // WebSocket integration for real-time updates
+  const sessionId = localStorage.getItem('fastapi_session_id');
+  useWebSocket({
+    componentType: WEBSOCKET_CONFIG.componentTypes.ROLES_MANAGEMENT,
+    sessionId: sessionId || undefined,
+    onCacheUpdated: async (data) => {
+      console.log('📡 Roles Management received cache update via WebSocket:', data);
+      // Handle cache updates for roles and permissions
+      if (data.cacheType === WEBSOCKET_CONFIG.cacheUpdateTypes.ROLES) {
+        await queryClient.invalidateQueries({ queryKey: ['admin', 'roles'] });
+        await invalidateAdminCaches(queryClient);
+      }
+      if (data.cacheType === WEBSOCKET_CONFIG.cacheUpdateTypes.PERMISSIONS) {
+        await queryClient.invalidateQueries({ queryKey: ['admin', 'permissions'] });
+        await invalidateAdminCaches(queryClient);
+      }
+    },
+  });
 
   // ============ ROLE MUTATIONS ============
   const createRoleMutation = useMutation({

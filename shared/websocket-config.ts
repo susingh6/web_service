@@ -8,6 +8,7 @@ export const WEBSOCKET_CONFIG = {
     ROLLBACK_MANAGEMENT: 'rollback-management',
     CONFLICTS_MANAGEMENT: 'conflicts-management',
     USERS_MANAGEMENT: 'users-management',
+    ROLES_MANAGEMENT: 'roles-management',
   },
   
   // Cache update types for granular filtering
@@ -20,6 +21,8 @@ export const WEBSOCKET_CONFIG = {
     TENANTS: 'tenants-cache',
     CONFLICTS: 'conflicts-cache',
     METRICS: 'metrics-cache',
+    ROLES: 'roles-cache',
+    PERMISSIONS: 'permissions-cache',
     GENERAL: 'general-cache', // Fallback for operations affecting multiple areas
   },
   
@@ -40,6 +43,8 @@ export const WEBSOCKET_CONFIG = {
     'tenants-cache': ['teams-management', 'summary-dashboard', 'singleton'],
     'conflicts-cache': ['conflicts-management', 'singleton'],
     'metrics-cache': ['summary-dashboard', 'team-dashboard', 'singleton'],
+    'roles-cache': ['roles-management', 'singleton'],
+    'permissions-cache': ['roles-management', 'singleton'],
     'general-cache': ['summary-dashboard', 'team-dashboard', 'teams-management', 'singleton'], // Broad updates
   } as Record<string, string[]>,
   

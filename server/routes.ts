@@ -628,7 +628,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await redisCache.set(CACHE_KEYS.ROLES, updatedRoles, 6 * 60 * 60);
         
         // Broadcast update to connected clients
-        await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.GENERAL, {
+        await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.ROLES, {
           timestamp: new Date().toISOString()
         });
       } else {
@@ -671,7 +671,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await redisCache.set(CACHE_KEYS.ROLES, updatedRoles, 6 * 60 * 60);
         
         // Broadcast update to connected clients
-        await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.GENERAL, {
+        await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.ROLES, {
           timestamp: new Date().toISOString()
         });
       } else {
@@ -713,7 +713,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await redisCache.set(CACHE_KEYS.ROLES, updatedRoles, 6 * 60 * 60);
         
         // Broadcast update to connected clients
-        await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.GENERAL, {
+        await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.ROLES, {
           timestamp: new Date().toISOString()
         });
       } else {
@@ -793,7 +793,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await redisCache.set(CACHE_KEYS.PERMISSIONS, updatedPermissions, 6 * 60 * 60);
         
         // Broadcast update to connected clients
-        await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.GENERAL, {
+        await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.PERMISSIONS, {
           timestamp: new Date().toISOString()
         });
       } else {
@@ -835,7 +835,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await redisCache.set(CACHE_KEYS.PERMISSIONS, updatedPermissions, 6 * 60 * 60);
         
         // Broadcast update to connected clients
-        await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.GENERAL, {
+        await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.PERMISSIONS, {
           timestamp: new Date().toISOString()
         });
       } else {
@@ -876,7 +876,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await redisCache.set(CACHE_KEYS.PERMISSIONS, updatedPermissions, 6 * 60 * 60);
         
         // Broadcast update to connected clients
-        await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.GENERAL, {
+        await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.PERMISSIONS, {
           timestamp: new Date().toISOString()
         });
       } else {
@@ -955,7 +955,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await redisCache.set(CACHE_KEYS.PERMISSIONS, updatedPermissions, 6 * 60 * 60);
         
         // Broadcast update to connected clients
-        await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.GENERAL, {
+        await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.PERMISSIONS, {
           timestamp: new Date().toISOString()
         });
       } else {
@@ -997,7 +997,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await redisCache.set(CACHE_KEYS.PERMISSIONS, updatedPermissions, 6 * 60 * 60);
         
         // Broadcast update to connected clients
-        await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.GENERAL, {
+        await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.PERMISSIONS, {
           timestamp: new Date().toISOString()
         });
       } else {
