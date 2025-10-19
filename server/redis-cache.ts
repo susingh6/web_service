@@ -2747,7 +2747,7 @@ export class RedisCache {
   async broadcastAdminMessage(messageData: {
     id: number;
     message: string;
-    deliveryType: 'immediate' | 'login_triggered';
+    deliveryType: 'immediate' | 'login_triggered' | 'immediate_and_login_triggered';
     createdAt: Date;
     expiresAt: Date | null;
   }): Promise<void> {

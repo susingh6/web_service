@@ -369,7 +369,6 @@ export class MemStorage implements IStorage {
         const summary = Object.entries(entityCounts)
           .map(([type, count]) => `${count} ${type}${count > 1 ? 's' : ''}`)
           .join(', ');
-        console.log(`[Storage] Loaded ${mockEntities.length} entities from mock-entities.json: ${summary}`);
       }
     } catch (error) {
       console.error('Failed to load mock entities data:', error);
@@ -1211,7 +1210,6 @@ export class MemStorage implements IStorage {
         // Update ID counter to avoid collisions
         this.dagAuditId = Math.max(this.dagAuditId, audit.id + 1);
       });
-      console.log(`[initMockAuditData] Loaded ${dagAuditData.length} DAG audit records from JSON`);
     } else {
       console.warn('[initMockAuditData] No DAG audit data loaded from JSON');
     }
@@ -1229,7 +1227,6 @@ export class MemStorage implements IStorage {
         // Update ID counter to avoid collisions
         this.tableAuditId = Math.max(this.tableAuditId, audit.id + 1);
       });
-      console.log(`[initMockAuditData] Loaded ${tableAuditData.length} Table audit records from JSON`);
     } else {
       console.warn('[initMockAuditData] No Table audit data loaded from JSON');
     }
@@ -1266,7 +1263,6 @@ export class MemStorage implements IStorage {
       this.rolesData.set(role.role_name, role);
     });
     
-    console.log(`[Storage] Loaded ${mockRoles.length} roles from mock-user-roles.json`);
     this.rolesVersion = mockRoles.length + 1;
   }
 
@@ -1298,7 +1294,6 @@ export class MemStorage implements IStorage {
       this.permissionsData.set(permission.permission_name, permission);
     });
     
-    console.log(`[Storage] Loaded ${mockPermissions.length} permissions from mock-permissions.json`);
     this.permissionsVersion = mockPermissions.length + 1;
   }
 
@@ -1318,7 +1313,6 @@ export class MemStorage implements IStorage {
       this.alertsData.set(alert.id, alert);
     });
     
-    console.log(`[Storage] Loaded ${mockAlerts.length} alerts from mock-alerts.json`);
 
     // Load broadcast messages from JSON file
     const mockBroadcastMessages = this.loadJsonFileSync<any[]>('mock-broadcast-messages.json') || [];
@@ -1335,7 +1329,6 @@ export class MemStorage implements IStorage {
       this.adminBroadcastMessagesData.set(message.id, message);
     });
     
-    console.log(`[Storage] Loaded ${mockBroadcastMessages.length} broadcast messages from mock-broadcast-messages.json`);
   }
   
   // Audit operations for rollback management

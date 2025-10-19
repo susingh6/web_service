@@ -977,8 +977,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Use storage to create broadcast message
       const newMessage = await storage.createAdminBroadcastMessage(req.body);
 
-      // Broadcast to connected clients if delivery type is immediate or login_triggered
-      if (newMessage.deliveryType === 'immediate' || newMessage.deliveryType === 'login_triggered') {
+      // Broadcast to connected clients if delivery type is immediate, login_triggered, or immediate_and_login_triggered
+      if (newMessage.deliveryType === 'immediate' || newMessage.deliveryType === 'login_triggered' || newMessage.deliveryType === 'immediate_and_login_triggered') {
         await redisCache.broadcastAdminMessage({
           id: newMessage.id,
           message: newMessage.message,
