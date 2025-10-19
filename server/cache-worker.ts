@@ -298,7 +298,7 @@ async function refreshFromFastAPI(buildType: 'Regular' | 'Forced' = 'Regular'): 
       lastUpdated: new Date()
     } : null;
 
-    const cacheData: CacheRefreshData & { users: any[], roles: any[], conflicts: any[] } = {
+    const cacheData: CacheRefreshData & { users: any[], roles: any[], conflicts: any[], source: 'fastapi' | 'express' } = {
       entities,
       teams,
       tenants,
@@ -319,7 +319,8 @@ async function refreshFromFastAPI(buildType: 'Regular' | 'Forced' = 'Regular'): 
       last30DayTrends: {}, // Fix: Add missing required property
       thisMonthTrends: {},
       allTasksData: processedAllTasksData,
-      lastUpdated: new Date()
+      lastUpdated: new Date(),
+      source: 'fastapi'
     };
 
     console.log('[Cache Worker] FastAPI cache refresh completed');
@@ -334,6 +335,41 @@ async function refreshFromFastAPI(buildType: 'Regular' | 'Forced' = 'Regular'): 
 // Storage-based data refresh (original logic)
 async function refreshFromStorage(): Promise<CacheRefreshData> {
   console.log('[Cache Worker] Refreshing cache from storage');
+  
+  // If Redis is connected in primary mode, do NOT seed from storage.
+  // Return an empty payload for cache write so reads stay empty until FastAPI is available
+  // (Express endpoints can still serve storage directly when Redis is unavailable).
+  try {
+    const { redisCache } = await import('./redis-cache');
+    const status = await redisCache.getCacheStatus();
+    if (status && status.mode === 'redis') {
+      console.warn('[Cache Worker] Redis connected; skipping storage seeding to honor Redis-first policy');
+      return {
+        entities: [],
+        teams: [],
+        tenants: [],
+        permissions: [],
+        users: [],
+        roles: [],
+        conflicts: [],
+        metrics: {},
+        last30DayMetrics: {},
+        complianceTrends: {},
+        todayMetrics: {},
+        yesterdayMetrics: {},
+        last7DayMetrics: {},
+        thisMonthMetrics: {},
+        todayTrends: {},
+        yesterdayTrends: {},
+        last7DayTrends: {},
+        last30DayTrends: {},
+        thisMonthTrends: {},
+        allTasksData: null,
+        lastUpdated: new Date(),
+        source: 'express'
+      } as any;
+    }
+  } catch {}
   
   // Load all entities, teams, tenants, users, roles, permissions, and conflicts
   const entities = await storage.getEntities();

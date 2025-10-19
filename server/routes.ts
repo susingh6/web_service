@@ -2,12 +2,13 @@ import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
-import { redisCache } from "./redis-cache";
+import { redisCache, CACHE_KEYS } from "./redis-cache";
 import { insertEntitySchema, insertTeamSchema, updateTeamSchema, insertEntityHistorySchema, insertIssueSchema, insertUserSchema, insertNotificationTimelineSchema, insertEntitySubscriptionSchema, adminUserSchema, Entity, InsertNotificationTimeline } from "@shared/schema";
 import { z } from "zod";
 import { SocketData } from "@shared/websocket-config";
 import { logAuthenticationEvent, structuredLogger } from "./middleware/structured-logging";
 import { requireActiveUser, checkActiveUserDev } from "./middleware/check-active-user";
+import { WEBSOCKET_CONFIG } from "@shared/websocket-config";
 
 // Zod validation schema for rollback requests
 const rollbackRequestSchema = z.object({
@@ -843,47 +844,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       let alerts: any[] = [];
       if (redisConnected) {
-        alerts = await redisCache.get('sla:alerts') || [];
+        // Redis-first: read from Redis only, return empty if key doesn't exist
+        alerts = await redisCache.get(CACHE_KEYS.ALERTS) || [];
       } else {
-        // Mock alert data when Redis is not available
-        alerts = [
-          {
-            id: 1,
-            title: "System Maintenance Scheduled",
-            message: "Scheduled maintenance window on Sunday 3:00 AM - 6:00 AM EST. Some features may be temporarily unavailable.",
-            alertType: "maintenance",
-            severity: "medium",
-            dateKey: new Date().toISOString().split('T')[0],
-            isActive: true,
-            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
-            updatedAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
-          },
-          {
-            id: 2,
-            title: "New Role Management Features",
-            message: "Enhanced role management system is now available in the admin panel. Check out the new role creation and permissions management features.",
-            alertType: "info",
-            severity: "low",
-            dateKey: new Date().toISOString().split('T')[0],
-            isActive: true,
-            expiresAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
-            createdAt: new Date(Date.now() - 30 * 60 * 1000),
-            updatedAt: new Date(Date.now() - 30 * 60 * 1000),
-          },
-          {
-            id: 3,
-            title: "Performance Monitoring Alert",
-            message: "Higher than usual response times detected on entity operations. Engineering team is investigating. No action required from users.",
-            alertType: "warning",
-            severity: "high",
-            dateKey: new Date().toISOString().split('T')[0],
-            isActive: true,
-            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-            createdAt: new Date(Date.now() - 45 * 60 * 1000),
-            updatedAt: new Date(Date.now() - 15 * 60 * 1000),
-          }
-        ];
+        // Redis unavailable: fallback to Express/mock storage
+        alerts = await storage.getAlerts();
       }
 
       const activeAlerts = (alerts || []).filter(alert => 
@@ -901,10 +866,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // POST /api/v1/alerts - Create system alert
   app.post("/api/v1/alerts", requireActiveUser, async (req: Request, res: Response) => {
     try {
-      console.log('Creating alert with data:', req.body);
-      
-      // Use storage to create alert
+      // Create alert in storage
       const newAlert = await storage.createAlert(req.body);
+
+      // Update cache based on mode
+      const status = await redisCache.getCacheStatus();
+      if (status && status.mode === 'redis') {
+        // Redis mode: write directly to Redis
+        const existingAlerts = await redisCache.get(CACHE_KEYS.ALERTS) || [];
+        const updatedAlerts = Array.isArray(existingAlerts) ? [...existingAlerts, newAlert] : [newAlert];
+        await redisCache.set(CACHE_KEYS.ALERTS, updatedAlerts, 6 * 60 * 60);
+      } else {
+        // In-memory mode: invalidate cache so next GET fetches fresh data from storage
+        await redisCache.invalidateCache({
+          keys: ['all_alerts', 'system_alerts'],
+          patterns: ['alert_*'],
+          mainCacheKeys: ['ALERTS'],
+          refreshAffectedData: true
+        });
+      }
 
       res.status(201).json({
         success: true,
@@ -925,13 +905,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/v1/alerts/:id", requireActiveUser, async (req: Request, res: Response) => {
     try {
       const alertId = parseInt(req.params.id);
-      console.log('Deactivating alert:', alertId);
       
+      // Deactivate alert in storage
       const success = await storage.deactivateAlert(alertId);
       if (!success) {
         return res.status(404).json({ 
           success: false,
           message: "Alert not found" 
+        });
+      }
+
+      // Update cache based on mode
+      const status = await redisCache.getCacheStatus();
+      if (status && status.mode === 'redis') {
+        // Redis mode: write directly to Redis
+        const existingAlerts = await redisCache.get(CACHE_KEYS.ALERTS) || [];
+        const updatedAlerts = Array.isArray(existingAlerts) 
+          ? existingAlerts.map((alert: any) => alert.id === alertId ? { ...alert, isActive: false } : alert)
+          : [];
+        await redisCache.set(CACHE_KEYS.ALERTS, updatedAlerts, 6 * 60 * 60);
+      } else {
+        // In-memory mode: invalidate cache so next GET fetches fresh data from storage
+        await redisCache.invalidateCache({
+          keys: ['all_alerts', 'system_alerts'],
+          patterns: ['alert_*'],
+          mainCacheKeys: ['ALERTS'],
+          refreshAffectedData: true
         });
       }
 
@@ -956,12 +955,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const redisConnected = status && status.mode === 'redis';
 
       res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+      
+      let messages: any[] = [];
       if (redisConnected) {
-        // No Redis-backed broadcast messages store available – return empty list when Redis is present
-        return res.json([]);
+        // Redis-first: read from Redis only, return empty if key doesn't exist
+        messages = await redisCache.get(CACHE_KEYS.ADMIN_MESSAGES) || [];
+      } else {
+        // Redis unavailable: fallback to Express/mock storage
+        messages = await storage.getAdminBroadcastMessages();
       }
 
-      const messages = await storage.getAdminBroadcastMessages();
       return res.json(messages);
     } catch (error) {
       console.error('Failed to fetch broadcast messages:', error);
@@ -972,10 +975,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // POST /api/v1/admin/broadcast-messages - Create admin broadcast message
   app.post("/api/v1/admin/broadcast-messages", requireActiveUser, async (req: Request, res: Response) => {
     try {
-      console.log('Creating broadcast message with data:', req.body);
-      
-      // Use storage to create broadcast message
+      // Create broadcast message in storage
       const newMessage = await storage.createAdminBroadcastMessage(req.body);
+
+      // Update cache based on mode
+      const status = await redisCache.getCacheStatus();
+      if (status && status.mode === 'redis') {
+        // Redis mode: write directly to Redis
+        const existingMessages = await redisCache.get(CACHE_KEYS.ADMIN_MESSAGES) || [];
+        const updatedMessages = Array.isArray(existingMessages) ? [...existingMessages, newMessage] : [newMessage];
+        await redisCache.set(CACHE_KEYS.ADMIN_MESSAGES, updatedMessages, 6 * 60 * 60);
+      } else {
+        // In-memory mode: invalidate cache so next GET fetches fresh data from storage
+        await redisCache.invalidateCache({
+          keys: ['all_broadcast_messages', 'admin_messages'],
+          patterns: ['broadcast_*'],
+          mainCacheKeys: ['ADMIN_MESSAGES'],
+          refreshAffectedData: true
+        });
+      }
 
       // Broadcast to connected clients if delivery type is immediate, login_triggered, or immediate_and_login_triggered
       if (newMessage.deliveryType === 'immediate' || newMessage.deliveryType === 'login_triggered' || newMessage.deliveryType === 'immediate_and_login_triggered') {
@@ -1007,13 +1025,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/v1/admin/broadcast-messages/:id", requireActiveUser, async (req: Request, res: Response) => {
     try {
       const messageId = parseInt(req.params.id);
-      console.log('Deactivating broadcast message:', messageId);
       
+      // Deactivate broadcast message in storage
       const success = await storage.deactivateAdminBroadcastMessage(messageId);
       if (!success) {
         return res.status(404).json({ 
           success: false,
           message: "Broadcast message not found" 
+        });
+      }
+
+      // Update cache based on mode
+      const status = await redisCache.getCacheStatus();
+      if (status && status.mode === 'redis') {
+        // Redis mode: write directly to Redis
+        const existingMessages = await redisCache.get(CACHE_KEYS.ADMIN_MESSAGES) || [];
+        const updatedMessages = Array.isArray(existingMessages) 
+          ? existingMessages.filter((msg: any) => msg.id !== messageId)
+          : [];
+        await redisCache.set(CACHE_KEYS.ADMIN_MESSAGES, updatedMessages, 6 * 60 * 60);
+      } else {
+        // In-memory mode: invalidate cache so next GET fetches fresh data from storage
+        await redisCache.invalidateCache({
+          keys: ['all_broadcast_messages', 'admin_messages'],
+          patterns: ['broadcast_*'],
+          mainCacheKeys: ['ADMIN_MESSAGES'],
+          refreshAffectedData: true
         });
       }
 
@@ -1074,7 +1111,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/alerts", requireActiveUser, async (req: Request, res: Response) => {
     try {
-      console.log('Creating alert via Express fallback:', req.body);
+      
       const newAlert = await storage.createAlert(req.body);
       res.status(201).json({
         success: true,
@@ -1094,7 +1131,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/alerts/:id", requireActiveUser, async (req: Request, res: Response) => {
     try {
       const alertId = parseInt(req.params.id);
-      console.log('Deactivating alert via Express fallback:', alertId);
+      
       
       const success = await storage.deactivateAlert(alertId);
       if (!success) {
@@ -1121,7 +1158,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Express fallback endpoints for broadcast messages
   app.post("/api/broadcast-messages", requireActiveUser, async (req: Request, res: Response) => {
     try {
-      console.log('Creating broadcast message via Express fallback:', req.body);
+      
       const newMessage = await storage.createAdminBroadcastMessage(req.body);
 
       // Broadcast to connected clients if delivery type is immediate
@@ -1153,7 +1190,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/broadcast-messages/:id", requireActiveUser, async (req: Request, res: Response) => {
     try {
       const messageId = parseInt(req.params.id);
-      console.log('Deactivating broadcast message via Express fallback:', messageId);
+      
       
       const success = await storage.deactivateAdminBroadcastMessage(messageId);
       if (!success) {
@@ -1294,11 +1331,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { name, description } = validationResult.data;
 
-      // Create tenant
+      // Create tenant in storage
       const newTenant = await storage.createTenant({ name, description });
 
-      // Invalidate tenants cache comprehensively
-      await redisCache.invalidateTenants();
+      // Update cache based on mode
+      const status = await redisCache.getCacheStatus();
+      if (status && status.mode === 'redis') {
+        // Redis mode: write directly to Redis
+        const existing = await redisCache.getAllTenants();
+        const updatedTenants = Array.isArray(existing) ? [...existing, newTenant] : [newTenant];
+        await redisCache.set(CACHE_KEYS.TENANTS, updatedTenants, 6 * 60 * 60);
+      } else {
+        // In-memory mode: invalidate cache so next GET fetches fresh data from storage
+        await redisCache.invalidateCache({
+          keys: ['all_tenants', 'tenants_summary'],
+          patterns: [
+            'tenant_details:*',
+            'tenant_teams:*',
+            'tenant_metrics:*',
+            'dashboard_summary:*',
+            'entities:*'
+          ],
+          mainCacheKeys: ['TENANTS'],
+          refreshAffectedData: true
+        });
+      }
 
       res.status(201).json(newTenant);
     } catch (error) {
@@ -1308,57 +1365,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // FastAPI fallback route for updating tenants
-  app.put("/api/v1/tenants/:tenantId", requireActiveUser, async (req: Request, res: Response) => {
-    try {
-      const tenantId = parseInt(req.params.tenantId);
-      if (isNaN(tenantId)) {
-        return res.status(400).json(createErrorResponse("Invalid tenant ID", "validation_error"));
-      }
-
-      // Validate request body
-      const validationResult = updateTenantSchema.safeParse(req.body);
-      if (!validationResult.success) {
-        return res.status(400).json(createValidationErrorResponse(validationResult.error));
-      }
-
-      const updateData = validationResult.data;
-
-      // Update tenant (may cascade to teams if tenant becomes inactive)
-      const updatedTenant = await storage.updateTenant(tenantId, updateData);
-      if (!updatedTenant) {
-        return res.status(404).json(createErrorResponse("Tenant not found", "not_found"));
-      }
-
-      // If tenant name changed, propagate to entities so fallback metrics filter by new name
-      const beforeTenants = await redisCache.getAllTenants();
-      const beforeTenant = beforeTenants.find((t: any) => t.id === tenantId);
-      if (updateData.name && beforeTenant && updateData.name !== beforeTenant.name) {
-        await storage.updateEntitiesTenantName(tenantId, updateData.name);
-      }
-
-      // Invalidate both tenant and team caches since tenant status/name changes can affect teams
-      await redisCache.invalidateTenants();
-      await redisCache.invalidateCache({
-        keys: ['all_teams', 'teams_summary'],
-        patterns: [
-          'team_details:*',
-          'team_entities:*',
-          'team_metrics:*',
-          'team_trends:*',
-          'dashboard_summary:*'
-        ],
-        // Rebuild TEAMS and METRICS so summaries for the new tenant name are immediately available
-        mainCacheKeys: ['TEAMS', 'METRICS'],
-        refreshAffectedData: true
-      });
-
-      res.json(updatedTenant);
-    } catch (error) {
-      console.error('Tenant update error:', error);
-      res.status(500).json(createErrorResponse("Failed to update tenant", "update_error"));
-    }
-  });
-
   // PATCH endpoint for tenant updates (FastAPI)
   app.patch("/api/v1/tenants/:tenantId", requireActiveUser, async (req: Request, res: Response) => {
     try {
@@ -1388,21 +1394,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await storage.updateEntitiesTenantName(tenantId, updateData.name);
       }
 
-      // Invalidate both tenant and team caches since tenant status/name changes can affect teams
-      await redisCache.invalidateTenants();
-      await redisCache.invalidateCache({
-        keys: ['all_tenants', 'tenants_summary'],
-        patterns: [
-          'tenant_details:*',
-          'tenant_teams:*',
-          'tenant_metrics:*',
-          'dashboard_summary:*',
-          'entities:*'
-        ],
-        // Rebuild TEAMS and METRICS so summaries for the new tenant name are immediately available
-        mainCacheKeys: ['TEAMS', 'METRICS'],
-        refreshAffectedData: true
-      });
+      // Update cache based on mode
+      const status = await redisCache.getCacheStatus();
+      if (status && status.mode === 'redis') {
+        // Redis mode: write directly to Redis
+        const existingTenants = await redisCache.getAllTenants();
+        const updatedList = Array.isArray(existingTenants)
+          ? existingTenants.map((t: any) => (t.id === updatedTenant.id ? updatedTenant : t))
+          : [updatedTenant];
+        await redisCache.set(CACHE_KEYS.TENANTS, updatedList, 6 * 60 * 60);
+
+        // CASCADE: If tenant became inactive, also update teams in Redis
+        if (beforeTenant && beforeTenant.isActive && updatedTenant.isActive === false) {
+          const existingTeams = await redisCache.getAllTeams();
+          const updatedTeams = Array.isArray(existingTeams)
+            ? existingTeams.map((team: any) => 
+                team.tenant_id === updatedTenant.id 
+                  ? { ...team, isActive: false, updatedAt: new Date().toISOString() }
+                  : team
+              )
+            : [];
+          await redisCache.set(CACHE_KEYS.TEAMS, updatedTeams, 6 * 60 * 60);
+        }
+      } else {
+        // In-memory mode: invalidate cache so next GET fetches fresh data from storage
+        await redisCache.invalidateTenants();
+        await redisCache.invalidateCache({
+          keys: ['all_tenants', 'tenants_summary'],
+          patterns: [
+            'tenant_details:*',
+            'tenant_teams:*',
+            'tenant_metrics:*',
+            'dashboard_summary:*',
+            'entities:*'
+          ],
+          mainCacheKeys: ['TEAMS', 'METRICS'],
+          refreshAffectedData: true
+        });
+      }
 
       res.json(updatedTenant);
     } catch (error) {
@@ -1510,7 +1539,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // FastAPI fallback route for creating new teams
+  // FastAPI fallback route for creating new teams (Redis-first write)
   app.post("/api/v1/teams", requireActiveUser, async (req: Request, res: Response) => {
     try {
       // Validate request body
@@ -1522,25 +1551,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Create team
       const newTeam = await storage.createTeam(validationResult.data);
 
-      // Invalidate all team-related caches using correct main cache keys
-      await redisCache.invalidateCache({
-        keys: ['all_teams', 'teams_summary', 'all_tenants'],
-        patterns: [
-          'team_details_*',  // Fixed: use underscore to match actual cache keys
-          'team_members_*',   // Fixed: use underscore to match actual cache keys
-          'team_entities:*',
-          'team_metrics:*',
-          'team_trends:*',
-          'dashboard_summary:*',
-          'entities:*'
-        ],
-        // Refresh both TEAMS and TENANTS so tenant teamsCount reflects changes immediately
-        mainCacheKeys: ['TEAMS', 'TENANTS'],
-        refreshAffectedData: true
-      });
+      // Update cache based on mode
+      const status = await redisCache.getCacheStatus();
+      if (status && status.mode === 'redis') {
+        // Redis mode: write directly to Redis
+        const existingTeams = await redisCache.getAllTeams();
+        const updatedTeams = Array.isArray(existingTeams) ? [...existingTeams, newTeam] : [newTeam];
+        await redisCache.set(CACHE_KEYS.TEAMS, updatedTeams, 6 * 60 * 60);
 
-      // Explicitly invalidate tenants cache to ensure team count updates
-      await redisCache.invalidateTenants();
+        // Also update TENANTS cache teamsCount for the team's tenant
+        const existingTenants = await redisCache.getAllTenants();
+        if (Array.isArray(existingTenants) && existingTenants.length > 0) {
+          const updatedTenants = existingTenants.map((t: any) =>
+            t.id === newTeam.tenant_id
+              ? { ...t, teamsCount: (t.teamsCount || 0) + 1 }
+              : t
+          );
+          await redisCache.set(CACHE_KEYS.TENANTS, updatedTenants, 6 * 60 * 60);
+        }
+      } else {
+        // In-memory mode: invalidate cache so next GET fetches fresh data from storage
+        await redisCache.invalidateCache({
+          keys: ['all_teams', 'teams_summary', 'all_tenants'],
+          patterns: [
+            'team_details_*',
+            'team_members_*',
+            'team_entities:*',
+            'team_metrics:*',
+            'team_trends:*',
+            'dashboard_summary:*',
+            'entities:*'
+          ],
+          mainCacheKeys: ['TEAMS', 'TENANTS'],
+          refreshAffectedData: true
+        });
+      }
 
       res.status(201).json(newTeam);
     } catch (error) {
@@ -1549,8 +1594,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // FastAPI fallback route for updating teams
-  app.put("/api/v1/teams/:teamId", ...(isDevelopment ? [checkActiveUserDev] : [requireActiveUser]), async (req: Request, res: Response) => {
+  // FastAPI fallback route for updating teams (Redis-first write)
+  app.put("/api/v1/teams/:teamId", requireActiveUser, async (req: Request, res: Response) => {
     try {
       const teamId = parseInt(req.params.teamId);
       if (isNaN(teamId)) {
@@ -1583,24 +1628,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await redisCache.invalidateTeamMetricsCache(beforeTeam.tenant_id ? String(beforeTeam.tenant_id) : 'UnknownTenant', updateData.name);
       }
 
-      // Invalidate all team-related caches
-      await redisCache.invalidateCache({
-        keys: ['all_teams', 'teams_summary', 'all_tenants'],
-        patterns: [
-          'team_details_*',  // Fixed: use underscore to match actual cache keys
-          'team_members_*',   // Fixed: use underscore to match actual cache keys
-          'team_entities:*',
-          'team_metrics:*',
-          'team_trends:*',
-          'dashboard_summary:*',
-          'entities:*'
-        ],
-        mainCacheKeys: ['TEAMS', 'TENANTS'],
-        refreshAffectedData: true
-      });
-
-      // Explicitly invalidate tenants cache to ensure team count updates
-      await redisCache.invalidateTenants();
+      // Update cache based on mode
+      const status2 = await redisCache.getCacheStatus();
+      if (status2 && status2.mode === 'redis') {
+        // Redis mode: write directly to Redis
+        const existingTeams = await redisCache.getAllTeams();
+        const updatedList = Array.isArray(existingTeams)
+          ? existingTeams.map((t: any) => (t.id === updatedTeam.id ? updatedTeam : t))
+          : [updatedTeam];
+        await redisCache.set(CACHE_KEYS.TEAMS, updatedList, 6 * 60 * 60);
+      } else {
+        // In-memory mode: invalidate cache so next GET fetches fresh data from storage
+        await redisCache.invalidateCache({
+          keys: ['all_teams', 'teams_summary', 'all_tenants'],
+          patterns: [
+            'team_details_*',
+            'team_members_*',
+            'team_entities:*',
+            'team_metrics:*',
+            'team_trends:*',
+            'dashboard_summary:*',
+            'entities:*'
+          ],
+          mainCacheKeys: ['TEAMS', 'TENANTS'],
+          refreshAffectedData: true
+        });
+      }
 
       res.json(updatedTeam);
     } catch (error) {
@@ -1683,7 +1736,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   //
   app.get("/api/v1/entities", async (req, res) => {
     try {
-      console.log("EXPRESS_FASTAPI_FALLBACK_DEV", req.sessionID);
+      
       
       const { teamId, type, tenant } = req.query;
       // Prevent stale 304 Not Modified responses for entity lists
@@ -2263,24 +2316,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await redisCache.invalidateTeamMetricsCache(beforeTeam.tenant_id ? String(beforeTeam.tenant_id) : 'UnknownTenant', updateData.name);
       }
 
-      // Invalidate all team-related caches
-      await redisCache.invalidateCache({
-        keys: ['all_teams', 'teams_summary', 'all_tenants'],
-        patterns: [
-          'team_details_*',  // Fixed: use underscore to match actual cache keys
-          'team_members_*',   // Fixed: use underscore to match actual cache keys
-          'team_entities:*',
-          'team_metrics:*',
-          'team_trends:*',
-          'dashboard_summary:*',
-          'entities:*'
-        ],
-        mainCacheKeys: ['TEAMS', 'TENANTS'],
-        refreshAffectedData: true
-      });
+      // Update cache based on mode
+      const status2 = await redisCache.getCacheStatus();
+      if (status2 && status2.mode === 'redis') {
+        // Redis mode: write directly to Redis
+        const existingTeams = await redisCache.getAllTeams();
+        const updatedList = Array.isArray(existingTeams)
+          ? existingTeams.map((t: any) => (t.id === updatedTeam.id ? updatedTeam : t))
+          : [updatedTeam];
+        await redisCache.set(CACHE_KEYS.TEAMS, updatedList, 6 * 60 * 60);
 
-      // Explicitly invalidate tenants cache to ensure team count updates
-      await redisCache.invalidateTenants();
+        // If team's isActive status changed, update tenant's teamsCount
+        if (beforeTeam && beforeTeam.isActive !== updatedTeam.isActive) {
+          const existingTenants = await redisCache.getAllTenants();
+          if (Array.isArray(existingTenants) && existingTenants.length > 0) {
+            // Recalculate active teams count for this tenant
+            const activeTeamsForTenant = updatedList.filter((t: any) => 
+              t.tenant_id === updatedTeam.tenant_id && t.isActive !== false
+            ).length;
+            
+            const updatedTenants = existingTenants.map((tenant: any) =>
+              tenant.id === updatedTeam.tenant_id
+                ? { ...tenant, teamsCount: activeTeamsForTenant }
+                : tenant
+            );
+            await redisCache.set(CACHE_KEYS.TENANTS, updatedTenants, 6 * 60 * 60);
+          }
+        }
+      } else {
+        // In-memory mode: invalidate cache so next GET fetches fresh data from storage
+        await redisCache.invalidateCache({
+          keys: ['all_teams', 'teams_summary', 'all_tenants'],
+          patterns: [
+            'team_details_*',
+            'team_members_*',
+            'team_entities:*',
+            'team_metrics:*',
+            'team_trends:*',
+            'dashboard_summary:*',
+            'entities:*'
+          ],
+          mainCacheKeys: ['TEAMS', 'TENANTS'],
+          refreshAffectedData: true
+        });
+        // Explicitly invalidate tenants cache to ensure team count updates
+        await redisCache.invalidateTenants();
+      }
 
       res.json(updatedTeam);
     } catch (error) {
@@ -2415,7 +2496,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { teamName } = req.params;
       const tenantName = req.query.tenant as string;
       
-      // Include tenant in cache key for proper multi-tenant isolation
+      const status = await redisCache.getCacheStatus();
+      
+      if (status && status.mode === 'redis') {
+        // Redis-first: read from Redis only, no Express/mock backfill
+        const allTeams = await redisCache.getAllTeams();
+        let team: any = null;
+        
+        if (tenantName) {
+          // Find team by BOTH name AND tenant
+          const allTenants = await redisCache.getAllTenants();
+          const tenantObj = allTenants.find((t: any) => t.name === tenantName);
+          
+          if (tenantObj) {
+            team = allTeams.find((t: any) => t.name === teamName && t.tenant_id === tenantObj.id);
+          }
+        } else {
+          // Fallback: find by name only
+          team = allTeams.find((t: any) => t.name === teamName);
+        }
+        
+        if (!team) {
+          return res.status(404).json({ message: "Team not found" });
+        }
+
+        // Members: only from team.team_members_ids (no derivation from users)
+        const members = (team.team_members_ids && Array.isArray(team.team_members_ids)) 
+          ? team.team_members_ids 
+          : [];
+
+        const teamDetails = {
+          ...team,
+          members: members
+        };
+
+        return res.json(teamDetails);
+      }
+      
+      // Redis unavailable: fallback to Express/mock
       const cacheKey = tenantName ? `team_details_${tenantName}_${teamName}` : `team_details_${teamName}`;
       let teamDetails = await redisCache.get(cacheKey);
       
@@ -2431,14 +2549,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (tenantObj) {
             const allTeams = await storage.getTeams();
             team = allTeams.find(t => t.name === teamName && t.tenant_id === tenantObj.id);
-            console.log(`[TENANT-AWARE] Found team ${teamName} for tenant ${tenantName}:`, team ? `ID=${team.id}, tenant_id=${team.tenant_id}` : 'NOT FOUND');
           }
         }
         
         // Fallback: if no tenant specified or team not found with tenant, try by name only
         if (!team) {
           team = await storage.getTeamByName(teamName);
-          console.log(`[FALLBACK] Using getTeamByName for ${teamName}:`, team ? `ID=${team.id}, tenant_id=${team.tenant_id}` : 'NOT FOUND');
         }
         
         if (!team) {
@@ -2474,7 +2590,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.removeHeader('Last-Modified');
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       
-      // Include tenant in cache key for proper isolation
+      const status = await redisCache.getCacheStatus();
+      
+      if (status && status.mode === 'redis') {
+        // Redis-first: derive members only from team.team_members_ids
+        const allTeams = await redisCache.getAllTeams();
+        let team: any = null;
+        
+        if (tenantName) {
+          // Find team by BOTH name AND tenant
+          const allTenants = await redisCache.getAllTenants();
+          const tenantObj = allTenants.find((t: any) => t.name === tenantName);
+          
+          if (tenantObj) {
+            team = allTeams.find((t: any) => t.name === teamName && t.tenant_id === tenantObj.id);
+          }
+        } else {
+          // Fallback: find by name only
+          team = allTeams.find((t: any) => t.name === teamName);
+        }
+        
+        if (!team) {
+          return res.status(404).json({ message: "Team not found" });
+        }
+
+        // Members: only from team.team_members_ids (no user-derived inference)
+        const members = (team.team_members_ids && Array.isArray(team.team_members_ids)) 
+          ? team.team_members_ids 
+          : [];
+
+        return res.json(members);
+      }
+      
+      // Redis unavailable: fallback to Express/mock
       const cacheKey = tenantName ? `team_members_${tenantName}_${teamName}` : `team_members_${teamName}`;
       let members = await redisCache.get(cacheKey);
 
@@ -3852,15 +4000,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get all tenants for admin (with caching)
   app.get("/api/admin/tenants", async (req, res) => {
     try {
-      const cacheKey = 'admin_tenants';
-      let tenants = await redisCache.get(cacheKey);
-      
-      if (!tenants) {
-        tenants = await storage.getTenants();
-        await redisCache.set(cacheKey, tenants, 6 * 60 * 60); // 6 hour cache
-      }
-
-      res.json(tenants);
+      res.status(410).json({
+        error: 'LEGACY_ENDPOINT_DISABLED',
+        message: 'Legacy Express endpoint /admin/tenants is disabled. Use FastAPI /api/v1/* endpoints instead.',
+        fastapi_endpoint: '/admin/tenants',
+        environment: process.env.NODE_ENV || 'development',
+        timestamp: new Date().toISOString()
+      });
     } catch (error) {
       console.error('Admin tenants fetch error:', error);
       res.status(500).json({ message: "Failed to fetch tenants" });
@@ -3891,7 +4037,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Invalidate all tenant-related caches (same pattern as team updates)
       await redisCache.invalidateCache({
         keys: [
-          'admin_tenants',           // Admin tenant list
+          // legacy admin_tenants key removed
           'all_tenants',             // Main app tenant list  
           `tenant_${newTenant.id}`,  // Individual tenant cache
         ],
@@ -3910,56 +4056,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update tenant with optimistic update support
-  app.put("/api/admin/tenants/:id", requireActiveUser, async (req: Request, res: Response) => {
-    try {
-      const tenantId = parseInt(req.params.id);
-      if (isNaN(tenantId)) {
-        return res.status(400).json({ message: "Invalid tenant ID" });
-      }
-
-      const tenantSchema = z.object({
-        name: z.string().min(1).optional(),
-        description: z.string().optional(),
-        isActive: z.boolean().optional(),
-      });
-      
-      const result = tenantSchema.safeParse(req.body);
-      if (!result.success) {
-        return res.status(400).json({ 
-          message: "Invalid tenant data", 
-          errors: result.error.format() 
-        });
-      }
-      
-      const tenantData = result.data;
-      
-      // Update tenant
-      const updatedTenant = await storage.updateTenant(tenantId, tenantData);
-      
-      if (!updatedTenant) {
-        return res.status(404).json({ message: "Tenant not found" });
-      }
-      
-      // Invalidate all tenant-related caches
-      await redisCache.invalidateCache({
-        keys: [
-          'admin_tenants',           // Admin tenant list
-          'all_tenants',             // Main app tenant list  
-          `tenant_${tenantId}`,      // Individual tenant cache
-        ],
-        patterns: [
-          'team_*',      // Teams that might reference this tenant
-          'dashboard_*'  // Dashboard data that uses tenant filters
-        ]
-      });
-
-      res.json(updatedTenant);
-    } catch (error) {
-      console.error('Tenant update error:', error);
-      res.status(500).json({ message: "Failed to update tenant" });
-    }
-  });
-  
   // ============================================
   // ADMIN TEAM MANAGEMENT ENDPOINTS
   // ============================================
@@ -4807,7 +4903,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Invalidate caches
         await redisCache.invalidateEntityData((updated as any).teamId);
 
-        console.log('EXPRESS FALLBACK: Table owner update successful for', entityName);
+        
         return res.json({ success: true, owner_email: (updated as any).owner_email || (updated as any).ownerEmail || null });
       } catch (error) {
         console.error('Update table owner fallback error:', error);
@@ -4854,7 +4950,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Invalidate caches
         await redisCache.invalidateEntityData((updated as any).teamId);
 
-        console.log('EXPRESS FALLBACK: DAG owner update successful for', entityName);
+        
         return res.json({ success: true, owner_email: (updated as any).owner_email || (updated as any).ownerEmail || null });
       } catch (error) {
         console.error('Update DAG owner fallback error:', error);
