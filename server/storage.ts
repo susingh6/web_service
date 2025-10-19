@@ -1198,133 +1198,41 @@ export class MemStorage implements IStorage {
    * Initialize mock audit data for rollback management
    */
   private initMockAuditData(): void {
-    const now = new Date();
+    // Load DAG audit data from JSON file
+    const dagAuditData = this.loadJsonFileSync<any[]>('mock-dag-audit.json');
+    if (dagAuditData && Array.isArray(dagAuditData)) {
+      dagAuditData.forEach((auditData: any) => {
+        const audit = {
+          ...auditData,
+          actionType: auditData.actionType as 'DELETE',
+          actionTimestamp: new Date(auditData.createdAt)
+        };
+        this.dagAudit.set(audit.id, audit);
+        // Update ID counter to avoid collisions
+        this.dagAuditId = Math.max(this.dagAuditId, audit.id + 1);
+      });
+      console.log(`[initMockAuditData] Loaded ${dagAuditData.length} DAG audit records from JSON`);
+    } else {
+      console.warn('[initMockAuditData] No DAG audit data loaded from JSON');
+    }
     
-    // Mock DAG audit data (deleted entities)
-    const mockDagAudit = [
-      {
-        id: this.dagAuditId++,
-        entityName: 'user_analytics_pipeline',
-        tenantId: 1, // Data Engineering
-        teamId: 3, // Viewer Product
-        auditSequenceId: 1,
-        auditUuidId: 'dag-audit-001',
-        actionType: 'DELETE' as const,
-        rowBefore: {
-          id: 999,
-          name: 'user_analytics_pipeline',
-          type: 'dag',
-          teamId: 3,
-          description: 'User analytics processing pipeline',
-          slaTarget: 95.0,
-          currentSla: 92.3,
-          status: 'Passed',
-          refreshFrequency: 'Daily',
-          tenant_name: 'Data Engineering',
-          team_name: 'Viewer Product',
-          dag_name: 'user_analytics_daily'
-        },
-        rowAfter: null,
-        changes: { deleted: true },
-        revertedFromAuditId: null,
-        actionByUserId: 1,
-        actionTimestamp: new Date('2025-09-15T10:30:00Z')
-      },
-      {
-        id: this.dagAuditId++,
-        entityName: 'sales_reporting_dag',
-        tenantId: 2, // Ad Engineering
-        teamId: 6, // Ad Serving
-        auditSequenceId: 2,
-        auditUuidId: 'dag-audit-002',
-        actionType: 'DELETE' as const,
-        rowBefore: {
-          id: 1000,
-          name: 'sales_reporting_dag',
-          type: 'dag',
-          teamId: 6,
-          description: 'Sales reporting and analytics DAG',
-          slaTarget: 88.0,
-          currentSla: 89.5,
-          status: 'Passed',
-          refreshFrequency: 'Daily',
-          tenant_name: 'Ad Engineering',
-          team_name: 'Ad Serving',
-          dag_name: 'sales_reporting_daily'
-        },
-        rowAfter: null,
-        changes: { deleted: true },
-        revertedFromAuditId: null,
-        actionByUserId: 2,
-        actionTimestamp: new Date('2025-09-13T09:15:00Z')
-      }
-    ];
-    
-    // Mock Table audit data (deleted entities)
-    const mockTableAudit = [
-      {
-        id: this.tableAuditId++,
-        entityName: 'customer_data_table',
-        tenantId: 1, // Data Engineering
-        teamId: 1, // PGM
-        auditSequenceId: 1,
-        auditUuidId: 'table-audit-001',
-        actionType: 'DELETE' as const,
-        rowBefore: {
-          id: 1001,
-          name: 'customer_data_table',
-          type: 'table',
-          teamId: 1,
-          description: 'Customer data and insights table',
-          slaTarget: 96.0,
-          currentSla: 94.2,
-          status: 'Passed',
-          refreshFrequency: 'Hourly',
-          tenant_name: 'Data Engineering',
-          team_name: 'PGM',
-          schema_name: 'customer_analytics',
-          table_name: 'customer_insights_hourly'
-        },
-        rowAfter: null,
-        changes: { deleted: true },
-        revertedFromAuditId: null,
-        actionByUserId: 3,
-        actionTimestamp: new Date('2025-09-14T15:45:00Z')
-      },
-      {
-        id: this.tableAuditId++,
-        entityName: 'inventory_tracking_table',
-        tenantId: 1, // Data Engineering
-        teamId: 5, // CDM
-        auditSequenceId: 2,
-        auditUuidId: 'table-audit-002',
-        actionType: 'DELETE' as const,
-        rowBefore: {
-          id: 1002,
-          name: 'inventory_tracking_table',
-          type: 'table',
-          teamId: 5,
-          description: 'Inventory tracking and management table',
-          slaTarget: 93.0,
-          currentSla: 95.1,
-          status: 'Passed',
-          refreshFrequency: 'Daily',
-          tenant_name: 'Data Engineering',
-          team_name: 'CDM',
-          schema_name: 'supply_chain',
-          table_name: 'inventory_tracking_daily'
-        },
-        rowAfter: null,
-        changes: { deleted: true },
-        revertedFromAuditId: null,
-        actionByUserId: 4,
-        actionTimestamp: new Date('2025-09-12T14:20:00Z')
-      }
-    ];
-    
-    // Store audit data in maps
-    mockDagAudit.forEach(audit => this.dagAudit.set(audit.id, audit));
-    mockTableAudit.forEach(audit => this.tableAudit.set(audit.id, audit));
+    // Load Table audit data from JSON file
+    const tableAuditData = this.loadJsonFileSync<any[]>('mock-table-audit.json');
+    if (tableAuditData && Array.isArray(tableAuditData)) {
+      tableAuditData.forEach((auditData: any) => {
+        const audit = {
+          ...auditData,
+          actionType: auditData.actionType as 'DELETE',
+          actionTimestamp: new Date(auditData.createdAt)
+        };
+        this.tableAudit.set(audit.id, audit);
+        // Update ID counter to avoid collisions
+        this.tableAuditId = Math.max(this.tableAuditId, audit.id + 1);
+      });
+      console.log(`[initMockAuditData] Loaded ${tableAuditData.length} Table audit records from JSON`);
+    } else {
+      console.warn('[initMockAuditData] No Table audit data loaded from JSON');
+    }
   }
 
   /**
@@ -1397,7 +1305,7 @@ export class MemStorage implements IStorage {
   private initMockAlertData(): void {
     // Load alerts from JSON file
     const mockAlerts = this.loadJsonFileSync<any[]>('mock-alerts.json') || [];
-    
+
     // Store mock alerts
     mockAlerts.forEach(alertData => {
       const alert = {
@@ -1414,7 +1322,7 @@ export class MemStorage implements IStorage {
 
     // Load broadcast messages from JSON file
     const mockBroadcastMessages = this.loadJsonFileSync<any[]>('mock-broadcast-messages.json') || [];
-    
+
     // Store mock admin broadcast messages
     mockBroadcastMessages.forEach(messageData => {
       const message = {

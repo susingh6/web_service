@@ -203,8 +203,8 @@ const RollbackManagement = () => {
     onError: (error: any) => {
       console.error('❌ Entity name search error:', error);
       toast({
-        title: 'FastAPI unavailable',
-        description: error?.message || 'Search requires FastAPI. Please start the backend or try later.',
+        title: 'Search Failed',
+        description: error?.message || 'Failed to search for deleted entities. Please try again.',
         variant: 'destructive'
       });
     }
@@ -242,8 +242,8 @@ const RollbackManagement = () => {
     onError: (error: any) => {
       console.error('❌ Team/tenant search error:', error);
       toast({
-        title: 'FastAPI unavailable',
-        description: error?.message || 'Search requires FastAPI. Please start the backend or try later.',
+        title: 'Search Failed',
+        description: error?.message || 'Failed to search for deleted entities. Please try again.',
         variant: 'destructive'
       });
     }

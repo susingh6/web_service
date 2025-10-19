@@ -466,29 +466,33 @@ export const dashboardApi = {
 };
 
 export const rollbackApi = {
-  // FastAPI only (no Express/mock fallback). Surfaces clear error if unavailable.
+  // 2-tier fallback: FastAPI → Express (using mock JSON data). NOT cached in Redis.
   getDeletedEntitiesByName: async (entityName: string) => {
-    const res = await apiRequest('GET', endpoints.audit.getDeletedEntitiesByName(entityName));
+    const res = await environmentAwareApiRequest('GET', endpoints.audit.getDeletedEntitiesByName(entityName));
     if (!res.ok) {
       const text = await res.text().catch(() => '');
-      throw new Error(text || `FastAPI returned ${res.status}`);
+      throw new Error(text || `Failed to fetch deleted entities: ${res.status}`);
     }
     return await res.json();
   },
   
-  // FastAPI only (no Express/mock fallback). Surfaces clear error if unavailable.
+  // 2-tier fallback: FastAPI → Express (using mock JSON data). NOT cached in Redis.
   getDeletedEntitiesByTeamTenant: async (tenantId: number, teamId: number) => {
-    const res = await apiRequest('GET', endpoints.audit.getDeletedEntitiesByTeamTenant(tenantId, teamId));
+    const res = await environmentAwareApiRequest('GET', endpoints.audit.getDeletedEntitiesByTeamTenant(tenantId, teamId));
     if (!res.ok) {
       const text = await res.text().catch(() => '');
-      throw new Error(text || `FastAPI returned ${res.status}`);
+      throw new Error(text || `Failed to fetch deleted entities: ${res.status}`);
     }
     return await res.json();
   },
   
-  // 2-tier fallback: FastAPI → Express → NO mock fallback (write operation)
+  // 2-tier fallback: FastAPI → Express. Write operation with fallback.
   performRollback: async (entityData: any) => {
     const res = await environmentAwareApiRequest('POST', endpoints.audit.performRollback, entityData);
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(text || `Failed to perform rollback: ${res.status}`);
+    }
     return await res.json();
   },
 };
