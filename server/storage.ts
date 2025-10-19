@@ -246,151 +246,8 @@ export class MemStorage implements IStorage {
   
   private async initDemoData() {
     
-    // Create a test user for Azure AD login simulation
-    // In a real environment, this would be handled by Azure AD
-    this.createUser({
-      username: "azure_test_user",
-      // Pre-hashed password for "Azure123!" - this is the correct format for the auth.ts comparePassword function
-      password: "fd8c4a1ca56057251afbd0fd4b308a15113651c3e557c44eb58b8284e6d7fd4c1212a99dc7784c5cbb5072a2c138185c806394074e6c5f599209185e9576ea2e.e33fe34bf418a28b",
-      email: "azure_test_user@example.com", // Fixed: Match OAuth email
-      displayName: "Azure Test User",
-      team: "Core",
-      role: "admin", // Set admin role for test user
-      azureObjectId: "test-azure-object-id",
-      user_slack: ["@azure.tester", "@testuser"], // Test Slack handles
-      user_pagerduty: ["azure_test@pagerduty.com"] // Test PagerDuty email
-    });
-
-    // Create mock users for all team members
-    const mockUsers = [
-      // PGM Team Members
-      {
-        username: "john.smith",
-        password: "dummy-hash",
-        email: "john.smith@company.com",
-        displayName: "John Smith",
-        team: "PGM",
-        role: "developer",
-        azureObjectId: null
-      },
-      {
-        username: "sarah.johnson",
-        password: "dummy-hash",
-        email: "sarah.johnson@company.com",
-        displayName: "Sarah Johnson",
-        team: "PGM",
-        role: "manager",
-        azureObjectId: null
-      },
-      // Core Team Members
-      {
-        username: "david.wilson",
-        password: "dummy-hash",
-        email: "david.wilson@company.com",
-        displayName: "David Wilson",
-        team: "Core",
-        role: "lead",
-        azureObjectId: null
-      },
-      {
-        username: "michael.brown",
-        password: "dummy-hash",
-        email: "michael.brown@company.com",
-        displayName: "Michael Brown",
-        team: "Core",
-        role: "developer",
-        azureObjectId: null,
-        is_active: false // Inactive user for testing
-      },
-      // Viewer Product Team Members
-      {
-        username: "emily.davis",
-        password: "dummy-hash",
-        email: "emily.davis@company.com",
-        displayName: "Emily Davis",
-        team: "Viewer Product",
-        role: "analyst",
-        azureObjectId: null
-      },
-      // IOT Team Members
-      {
-        username: "alex.chen",
-        password: "dummy-hash",
-        email: "alex.chen@company.com",
-        displayName: "Alex Chen",
-        team: "IOT",
-        role: "developer",
-        azureObjectId: null
-      },
-      {
-        username: "maria.garcia",
-        password: "dummy-hash",
-        email: "maria.garcia@company.com",
-        displayName: "Maria Garcia",
-        team: "IOT",
-        role: "ops",
-        azureObjectId: null,
-        is_active: false // Inactive user for testing
-      },
-      // CDM Team Members
-      {
-        username: "robert.taylor",
-        password: "dummy-hash",
-        email: "robert.taylor@company.com",
-        displayName: "Robert Taylor",
-        team: "CDM",
-        role: "developer",
-        azureObjectId: null
-      },
-      {
-        username: "lisa.anderson",
-        password: "dummy-hash",
-        email: "lisa.anderson@company.com",
-        displayName: "Lisa Anderson",
-        team: "CDM",
-        role: "manager",
-        azureObjectId: null
-      },
-      // Ad Serving Team Members
-      {
-        username: "carlos.martinez",
-        password: "dummy-hash",
-        email: "carlos.martinez@company.com",
-        displayName: "Carlos Martinez",
-        team: "Ad Serving",
-        role: "lead",
-        azureObjectId: null
-      },
-      // Additional users for dropdown functionality
-      {
-        username: "jennifer.wilson",
-        password: "dummy-hash",
-        email: "jennifer.wilson@company.com",
-        displayName: "Jennifer Wilson",
-        team: null,
-        role: "developer",
-        azureObjectId: null
-      },
-      {
-        username: "kevin.moore",
-        password: "dummy-hash",
-        email: "kevin.moore@company.com",
-        displayName: "Kevin Moore",
-        team: null,
-        role: "analyst",
-        azureObjectId: null,
-        is_active: false // Inactive user for testing
-      },
-      {
-        username: "rachel.kim",
-        password: "dummy-hash",
-        email: "rachel.kim@company.com",
-        displayName: "Rachel Kim",
-        team: null,
-        role: "manager",
-        azureObjectId: null
-      }
-    ];
+    // Load users from JSON file
+    const mockUsers = this.loadJsonFileSync<any[]>('mock-users.json') || [];
 
     // Create all mock users
     for (const userData of mockUsers) {
@@ -412,83 +269,26 @@ export class MemStorage implements IStorage {
       this.tenants.set(tenant.id, tenant);
     });
     
-    // Create demo teams with the new team names and member data
-    const teamData = [
-      { 
-        name: 'PGM', 
-        description: 'Partner Growth & Management',
-        tenant_id: 1,
-        team_members_ids: ['john.smith', 'sarah.johnson'] as string[],
-        team_email: ['pgm-team@company.com'] as string[],
-        team_slack: ['#pgm-team'] as string[],
-        team_pagerduty: ['pgm-escalation'] as string[],
-        isActive: true
-      },
-      { 
-        name: 'Core', 
-        description: 'Core Infrastructure Team',
-        tenant_id: 1,
-        team_members_ids: ['david.wilson', 'michael.brown'] as string[],
-        team_email: ['core-team@company.com'] as string[],
-        team_slack: ['#core-infrastructure'] as string[],
-        team_pagerduty: ['core-escalation'] as string[],
-        isActive: true
-      },
-      { 
-        name: 'Viewer Product', 
-        description: 'Viewer Product Team',
-        tenant_id: 1,  // Move to Data Engineering
-        team_members_ids: ['emily.davis'] as string[],
-        team_email: ['viewer-product@company.com'] as string[],
-        team_slack: ['#viewer-product'] as string[],
-        team_pagerduty: ['viewer-escalation'] as string[],
-        isActive: true
-      },
-      { 
-        name: 'IOT', 
-        description: 'Internet of Things Team',
-        tenant_id: 1,
-        team_members_ids: ['alex.chen', 'maria.garcia'] as string[],
-        team_email: ['iot-team@company.com'] as string[],
-        team_slack: ['#iot-team'] as string[],
-        team_pagerduty: ['iot-escalation'] as string[],
-        isActive: true
-      },
-      { 
-        name: 'CDM', 
-        description: 'Content Delivery & Management Team',
-        tenant_id: 1,
-        team_members_ids: ['robert.taylor', 'lisa.anderson'] as string[],
-        team_email: ['cdm-team@company.com'] as string[],
-        team_slack: ['#cdm-team'] as string[],
-        team_pagerduty: ['cdm-escalation'] as string[],
-        isActive: true
-      },
-      { 
-        name: 'Ad Serving', 
-        description: 'Advertisement Serving Team',
-        tenant_id: 2,
-        team_members_ids: ['carlos.martinez'] as string[],
-        team_email: ['ad-serving@company.com'] as string[],
-        team_slack: ['#ad-serving'] as string[],
-        team_pagerduty: ['ad-serving-escalation'] as string[],
-        isActive: true
-      },
-      { 
-        name: 'Ad Data Activation', 
-        description: 'Ad Data Activation Team',
-        tenant_id: 2,
-        team_members_ids: ['ana.rodriguez'] as string[],
-        team_email: ['ad-data@company.com'] as string[],
-        team_slack: ['#ad-data-activation'] as string[],
-        team_pagerduty: ['ad-data-escalation'] as string[],
-        isActive: true
-      }
-    ];
+    // Load teams from JSON file
+    const teamData = this.loadJsonFileSync<any[]>('mock-teams.json') || [];
 
-    teamData.forEach(teamInfo => {
-      this.createTeam(teamInfo as unknown as InsertTeam);
-    });
+    for (const teamInfo of teamData) {
+      // Convert tenant_name to tenant_id by looking up the tenant
+      let tenant_id = 1; // Default to first tenant
+      if (teamInfo.tenant_name) {
+        const tenant = Array.from(this.tenants.values()).find(t => t.name === teamInfo.tenant_name);
+        if (tenant) {
+          tenant_id = tenant.id;
+        }
+      }
+      
+      // Create team with tenant_id instead of tenant_name
+      const { tenant_name, ...teamDataWithoutTenantName } = teamInfo;
+      await this.createTeam({
+        ...teamDataWithoutTenantName,
+        tenant_id
+      } as unknown as InsertTeam);
+    }
 
     // Calculate and update team counts for tenants after teams are created
     this.updateTenantTeamCounts();
