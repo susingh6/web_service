@@ -15,6 +15,8 @@ import {
   permissions, type Permission, type InsertPermission, type UpdatePermission
 } from "@shared/schema";
 import { resolveEntityIdentifier } from '@shared/entity-utils';
+import { readFileSync, existsSync } from 'fs';
+import { join } from 'path';
 
 // Tenant interface for tenant management
 export interface Tenant {
@@ -222,8 +224,28 @@ export class MemStorage implements IStorage {
   private async ensureInitialized(): Promise<void> {
     await this.initializationPromise;
   }
+
+  // Helper to load JSON mock data files synchronously to avoid async issues
+  private loadJsonFileSync<T>(filename: string): T | null {
+    const filePath = join(process.cwd(), 'server', 'data', filename);
+    
+    if (!existsSync(filePath)) {
+      console.warn(`[loadJsonFileSync] JSON file not found: ${filePath}`);
+      return null;
+    }
+    
+    try {
+      const content = readFileSync(filePath, 'utf8');
+      const data = JSON.parse(content);
+      return data;
+    } catch (error) {
+      console.error(`[loadJsonFileSync] Failed to load ${filename}:`, error);
+      return null;
+    }
+  }
   
   private async initDemoData() {
+    
     // Create a test user for Azure AD login simulation
     // In a real environment, this would be handled by Azure AD
     this.createUser({
@@ -374,19 +396,9 @@ export class MemStorage implements IStorage {
     for (const userData of mockUsers) {
       await this.createUser(userData);
     }
-
     
-    // Create demo tenants first (teams reference tenant_id)
-    const tenantData = [
-      {
-        name: 'Data Engineering',
-        description: 'Data Engineering team and related entities'
-      },
-      {
-        name: 'Ad Engineering', 
-        description: 'Ad Engineering team and related entities'
-      }
-    ];
+    // Load tenants from JSON file
+    const tenantData = this.loadJsonFileSync<any[]>('mock-tenants.json') || [];
 
     tenantData.forEach(tenantInfo => {
       const tenant = {
