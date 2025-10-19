@@ -1,5 +1,5 @@
 [
-  {"title":"System Maintenance Scheduled","message":"Scheduled maintenance will occur tonight from 2:00 AM to 4:00 AM EST. Some services may be temporarily unavailable.","alertType":"maintenance","severity":"medium","dateKey":"2025-10-18","isActive":true},
-  {"title":"High Data Processing Volume","message":"System is experiencing higher than normal data processing volume. Some DAGs may take longer to complete.","alertType":"warning","severity":"low","dateKey":"2025-10-18","isActive":true},
-  {"title":"New Feature Release","message":"New task priority management features are now available in the DAG dashboard. Check out the updated interface!","alertType":"info","severity":"low","dateKey":"2025-10-18","isActive":true}
+  {"title":"System Maintenance Scheduled","message":"Scheduled maintenance will occur tonight from 2:00 AM to 4:00 AM EST. Some services may be temporarily unavailable.","alertType":"maintenance","severity":"medium","dateKey":"2025-10-18","isActive":true,"expiresAt":"2025-10-19T00:00:00Z"},
+  {"title":"High Data Processing Volume","message":"System is experiencing higher than normal data processing volume. Some DAGs may take longer to complete.","alertType":"warning","severity":"low","dateKey":"2025-10-18","isActive":true,"expiresAt":"2025-10-18T18:00:00Z"},
+  {"title":"New Feature Release","message":"New task priority management features are now available in the DAG dashboard. Check out the updated interface!","alertType":"info","severity":"low","dateKey":"2025-10-18","isActive":true,"expiresAt":"2025-10-20T00:00:00Z"}
 ]

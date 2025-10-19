@@ -64,7 +64,7 @@ interface AdminBroadcastMessage {
   id: number;
   message: string;
   dateKey: string;
-  deliveryType: 'immediate' | 'login_triggered' | 'both';
+  deliveryType: 'immediate' | 'login_triggered' | 'immediate_and_login_triggered';
   isActive: boolean;
   createdByUserId: number;
   expiresAt: Date | null;
@@ -82,7 +82,7 @@ interface AlertFormData {
 
 interface AdminMessageFormData {
   message: string;
-  deliveryType: 'immediate' | 'login_triggered' | 'both';
+  deliveryType: 'immediate' | 'login_triggered' | 'immediate_and_login_triggered';
   expiresInDays: number;
 }
 
@@ -576,11 +576,11 @@ const NotificationsManagement = () => {
                             <Chip 
                               label={
                                 message.deliveryType === 'immediate' ? 'Immediate' : 
-                                message.deliveryType === 'login_triggered' ? 'Login Triggered' : 'Both'
+                                message.deliveryType === 'login_triggered' ? 'Login Triggered' : 'Immediate & Login'
                               }
                               color={
                                 message.deliveryType === 'immediate' ? 'warning' : 
-                                message.deliveryType === 'both' ? 'secondary' : 'info'
+                                message.deliveryType === 'immediate_and_login_triggered' ? 'secondary' : 'info'
                               }
                               size="small"
                             />
@@ -770,12 +770,12 @@ const NotificationsManagement = () => {
                 <FormControl fullWidth>
                   <InputLabel>Delivery Type</InputLabel>
                   <Select {...field} label="Delivery Type" data-testid="select-delivery-type">
-                    <MenuItem value="immediate">Immediate (show to all currently logged-in users)</MenuItem>
-                    <MenuItem value="login_triggered">Login Triggered (show when users log in)</MenuItem>
-                    <MenuItem value="both">Both (show immediately AND every login until expiry)</MenuItem>
+                    <MenuItem value="immediate">Immediate (show once to currently logged-in users)</MenuItem>
+                    <MenuItem value="login_triggered">Login Triggered (show every login until expiry)</MenuItem>
+                    <MenuItem value="immediate_and_login_triggered">Immediate & Login (show immediately AND every login until expiry)</MenuItem>
                   </Select>
                   <FormHelperText>
-                    Immediate: Show right away. Login-triggered: Show on login. Both: Show immediately AND every login until expiry.
+                    Immediate: Show once right away. Login-triggered: Show every login. Immediate & Login: Show immediately AND every login until expiry.
                   </FormHelperText>
                 </FormControl>
               )}

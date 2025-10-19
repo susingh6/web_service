@@ -322,7 +322,7 @@ export const adminBroadcastMessages = pgTable("admin_broadcast_messages", {
   id: serial("id").primaryKey(),
   message: text("message").notNull(), // Admin message content
   dateKey: text("date_key").notNull(), // YYYY-MM-DD format for expiration
-  deliveryType: text("delivery_type").notNull(), // 'immediate', 'login_triggered', or 'both'
+  deliveryType: text("delivery_type").notNull(), // 'immediate', 'login_triggered', or 'immediate_and_login_triggered'
   isActive: boolean("is_active").notNull().default(true), // Whether message should be shown
   createdByUserId: integer("created_by_user_id").notNull().references(() => users.id), // Admin who created it
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -405,7 +405,7 @@ export const insertAdminBroadcastMessageSchema = createInsertSchema(adminBroadca
   createdAt: true,
   updatedAt: true,
 }).extend({
-  deliveryType: z.enum(['immediate', 'login_triggered', 'both']),
+  deliveryType: z.enum(['immediate', 'login_triggered', 'immediate_and_login_triggered']),
   dateKey: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date key must be in YYYY-MM-DD format'),
   expiresAt: z.coerce.date().nullable().optional(),
 }).refine(data => {

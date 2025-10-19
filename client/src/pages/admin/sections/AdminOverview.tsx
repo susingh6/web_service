@@ -336,6 +336,12 @@ const AdminOverview = () => {
                       {broadcastMessages.filter((m: any) => m.deliveryType === 'immediate').length}
                     </Typography>
                   </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <Typography variant="body2">Immediate & Login:</Typography>
+                    <Typography variant="body2" fontWeight="bold">
+                      {broadcastMessages.filter((m: any) => m.deliveryType === 'immediate_and_login_triggered').length}
+                    </Typography>
+                  </Box>
                 </Box>
                 {broadcastMessages.length === 0 && (
                   <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>

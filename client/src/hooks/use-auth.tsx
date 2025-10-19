@@ -504,8 +504,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       queryClient.setQueryData(['auth-user-fallback'], null);
       queryClient.removeQueries();
       
-      // Clear dashboard UI state to start fresh on next login
+      // Clear dashboard UI state and broadcast messages to start fresh on next login
       sessionStorage.removeItem('dashboard_ui_state_v1');
+      sessionStorage.removeItem('seenBroadcastMessagesThisSession');
       
       // Use fallback logout for all auth methods (Express)
       try {

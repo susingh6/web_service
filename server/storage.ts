@@ -224,7 +224,7 @@ export class MemStorage implements IStorage {
   private async ensureInitialized(): Promise<void> {
     await this.initializationPromise;
   }
-
+  
   // Helper to load JSON mock data files synchronously to avoid async issues
   private loadJsonFileSync<T>(filename: string): T | null {
     const filePath = join(process.cwd(), 'server', 'data', filename);
@@ -253,7 +253,7 @@ export class MemStorage implements IStorage {
     for (const userData of mockUsers) {
       await this.createUser(userData);
     }
-    
+
     // Load tenants from JSON file
     const tenantData = this.loadJsonFileSync<any[]>('mock-tenants.json') || [];
 
@@ -292,6 +292,9 @@ export class MemStorage implements IStorage {
 
     // Calculate and update team counts for tenants after teams are created
     this.updateTenantTeamCounts();
+    
+    // Initialize mock roles data
+    this.initMockRoles();
     
     // Initialize mock permissions data
     this.initMockPermissions();
@@ -488,45 +491,9 @@ export class MemStorage implements IStorage {
   }
 
   async getUserRoles(): Promise<UserRole[]> {
-    // Return SLA-specific roles for the SLA Management system
-    return [
-      {
-        role: 'sla-admin',
-        label: 'SLA Administrator',
-        description: 'Full administrative access to SLA management system',
-        status: 'active'
-      },
-      {
-        role: 'sla-dag-entity-editor',
-        label: 'DAG Entity Editor',
-        description: 'Can edit DAG entities, status, SLA settings, and progress',
-        status: 'active'
-      },
-      {
-        role: 'sla-table-entity-editor',
-        label: 'Table Entity Editor',
-        description: 'Can edit table entities, status, SLA settings, and progress',
-        status: 'active'
-      },
-      {
-        role: 'sla-viewer',
-        label: 'SLA Viewer',
-        description: 'Read-only access to SLA dashboard and entity information',
-        status: 'active'
-      },
-      {
-        role: 'sla-pgm-dag-entity-editor',
-        label: 'PGM DAG Entity Editor',
-        description: 'Team-specific DAG editor role for PGM team in Data Engineering',
-        status: 'active'
-      },
-      {
-        role: 'sla-core-table-editor',
-        label: 'Core Table Editor',
-        description: 'Team-specific table editor role for Core team',
-        status: 'active'
-      }
-    ];
+    // Load user roles from JSON file
+    const mockRoles = this.loadJsonFileSync<UserRole[]>('mock-user-roles.json') || [];
+    return mockRoles;
   }
 
   // Role operations
@@ -1361,185 +1328,53 @@ export class MemStorage implements IStorage {
   }
 
   /**
+   * Initialize mock roles data
+   */
+  private initMockRoles(): void {
+    const now = new Date();
+    
+    // Load roles from JSON file (mock-user-roles.json)
+    const mockRoles = this.loadJsonFileSync<any[]>('mock-user-roles.json') || [];
+    
+    if (mockRoles.length === 0) {
+      console.warn('[Storage] No roles loaded from mock-user-roles.json');
+      return;
+    }
+
+    // Create all roles with incremental IDs
+    mockRoles.forEach((roleData, index) => {
+      const role: Role = {
+        id: index + 1,
+        role_name: roleData.role,
+        description: roleData.description,
+        is_active: roleData.status === 'active',
+        is_system_role: roleData.team_name ? false : true, // Team-specific roles are not system roles
+        role_permissions: roleData.role_permissions || [], // Load permissions from JSON
+        team_name: roleData.team_name || null, // Team-specific or null for system-wide roles
+        tenant_name: roleData.tenant_name || null, // Tenant-specific or null for system-wide roles
+        createdAt: now,
+        updatedAt: now
+      };
+      this.rolesData.set(role.role_name, role);
+    });
+    
+    console.log(`[Storage] Loaded ${mockRoles.length} roles from mock-user-roles.json`);
+    this.rolesVersion = mockRoles.length + 1;
+  }
+
+  /**
    * Initialize mock permissions data
    */
   private initMockPermissions(): void {
     const now = new Date();
     
-    const mockPermissions = [
-      // DAG Permissions - Status/SLA/Progress Editors
-      {
-        permission_name: 'dag-status-editor',
-        description: 'Edit DAG status fields',
-        category: 'DAG' as const,
-        is_active: true
-      },
-      {
-        permission_name: 'dag-sla-editor',
-        description: 'Edit DAG SLA settings',
-        category: 'DAG' as const,
-        is_active: true
-      },
-      {
-        permission_name: 'dag-progress-editor',
-        description: 'Edit DAG progress tracking',
-        category: 'DAG' as const,
-        is_active: true
-      },
-      // Table Permissions - Status/SLA/Progress Editors
-      {
-        permission_name: 'table-status-editor',
-        description: 'Edit table status fields',
-        category: 'Table' as const,
-        is_active: true
-      },
-      {
-        permission_name: 'table-sla-editor',
-        description: 'Edit table SLA settings',
-        category: 'Table' as const,
-        is_active: true
-      },
-      {
-        permission_name: 'table-progress-editor',
-        description: 'Edit table progress tracking',
-        category: 'Table' as const,
-        is_active: true
-      },
-      // Entity View Permissions
-      {
-        permission_name: 'view_entities',
-        description: 'View entity details and information',
-        category: 'Table' as const,
-        is_active: true
-      },
-      {
-        permission_name: 'edit_own_entities',
-        description: 'Edit entities owned by user',
-        category: 'Table' as const,
-        is_active: true
-      },
-      {
-        permission_name: 'view_team_entities',
-        description: 'View entities within user team',
-        category: 'Table' as const,
-        is_active: true
-      },
-      {
-        permission_name: 'view_all_entities',
-        description: 'View all entities across all teams',
-        category: 'Table' as const,
-        is_active: true
-      },
-      // CRUD Permissions
-      {
-        permission_name: 'create_tables',
-        description: 'Create new table entities',
-        category: 'Table' as const,
-        is_active: true
-      },
-      {
-        permission_name: 'create_dags',
-        description: 'Create new DAG entities',
-        category: 'DAG' as const,
-        is_active: true
-      },
-      {
-        permission_name: 'delete_tables',
-        description: 'Delete table entities',
-        category: 'Table' as const,
-        is_active: true
-      },
-      {
-        permission_name: 'delete_dags',
-        description: 'Delete DAG entities',
-        category: 'DAG' as const,
-        is_active: true
-      },
-      // DAG Task Management
-      {
-        permission_name: 'manage_dag_tasks',
-        description: 'Manage DAG tasks including priority zones',
-        category: 'DAG' as const,
-        is_active: true
-      },
-      // Notification Permissions
-      {
-        permission_name: 'create_notifications',
-        description: 'Create new notification configurations',
-        category: 'Notification' as const,
-        is_active: true
-      },
-      {
-        permission_name: 'delete_notifications',
-        description: 'Delete notification configurations',
-        category: 'Notification' as const,
-        is_active: true
-      },
-      // Agentic Permissions
-      {
-        permission_name: 'manage_agent_sessions',
-        description: 'Manage and save agent conversation sessions',
-        category: 'Agentic' as const,
-        is_active: true
-      },
-      // Admin Permissions
-      {
-        permission_name: 'manage_users',
-        description: 'Create, update, and manage user accounts',
-        category: 'Admin' as const,
-        is_active: true
-      },
-      {
-        permission_name: 'manage_teams',
-        description: 'Create, update, and manage teams',
-        category: 'Admin' as const,
-        is_active: true
-      },
-      {
-        permission_name: 'manage_tenants',
-        description: 'Create, update, and manage tenants',
-        category: 'Admin' as const,
-        is_active: true
-      },
-      {
-        permission_name: 'manage_roles',
-        description: 'Create, update, and manage user roles',
-        category: 'Admin' as const,
-        is_active: true
-      },
-      {
-        permission_name: 'resolve_conflicts',
-        description: 'Resolve notification conflicts',
-        category: 'Notification' as const,
-        is_active: true
-      },
-      {
-        permission_name: 'manage_system_settings',
-        description: 'Manage system-wide settings and configurations',
-        category: 'Admin' as const,
-        is_active: true
-      },
-      // Viewer Permissions
-      {
-        permission_name: 'viewer',
-        description: 'Read-only viewer access',
-        category: 'Table' as const,
-        is_active: true
-      },
-      {
-        permission_name: 'webview',
-        description: 'Web view access for dashboards',
-        category: 'Table' as const,
-        is_active: true
-      },
-      // Admin super permission
-      {
-        permission_name: 'admin',
-        description: 'Full administrative access to all system features',
-        category: 'Admin' as const,
-        is_active: true
-      }
-    ];
+    // Load permissions from JSON file
+    const mockPermissions = this.loadJsonFileSync<any[]>('mock-permissions.json') || [];
+    
+    if (mockPermissions.length === 0) {
+      console.warn('[Storage] No permissions loaded from mock-permissions.json');
+      return;
+    }
 
     // Create all permissions with incremental IDs
     mockPermissions.forEach((permData, index) => {
@@ -1555,83 +1390,14 @@ export class MemStorage implements IStorage {
       this.permissionsData.set(permission.permission_name, permission);
     });
     
+    console.log(`[Storage] Loaded ${mockPermissions.length} permissions from mock-permissions.json`);
     this.permissionsVersion = mockPermissions.length + 1;
   }
 
   private initMockAlertData(): void {
-    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowString = tomorrow.toISOString().split('T')[0];
+    // Load alerts from JSON file
+    const mockAlerts = this.loadJsonFileSync<any[]>('mock-alerts.json') || [];
     
-    // Mock system alerts
-    const mockAlerts = [
-      {
-        title: "System Maintenance Scheduled",
-        message: "Scheduled maintenance will occur tonight from 2:00 AM to 4:00 AM EST. Some services may be temporarily unavailable.",
-        alertType: "maintenance" as const,
-        severity: "medium" as const,
-        dateKey: today,
-        isActive: true,
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) // Expires in 24 hours
-      },
-      {
-        title: "High Data Processing Volume",
-        message: "System is experiencing higher than normal data processing volume. Some DAGs may take longer to complete.",
-        alertType: "warning" as const,
-        severity: "low" as const,
-        dateKey: today,
-        isActive: true,
-        expiresAt: new Date(Date.now() + 6 * 60 * 60 * 1000) // Expires in 6 hours
-      },
-      {
-        title: "New Feature Release",
-        message: "New task priority management features are now available in the DAG dashboard. Check out the updated interface!",
-        alertType: "info" as const,
-        severity: "low" as const,
-        dateKey: today,
-        isActive: true,
-        expiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000) // Expires in 48 hours
-      },
-      {
-        title: "Database Performance Alert",
-        message: "Database response times are currently elevated. Engineering team is investigating. ETAs may be delayed.",
-        alertType: "system" as const,
-        severity: "high" as const,
-        dateKey: tomorrowString,
-        isActive: true,
-        expiresAt: new Date(Date.now() + 12 * 60 * 60 * 1000) // Expires in 12 hours
-      }
-    ];
-
-    // Mock admin broadcast messages
-    const mockAdminMessages = [
-      {
-        message: "Welcome to the new SLA Management Dashboard! Please review the updated features and reach out to your team lead with any questions.",
-        dateKey: today,
-        deliveryType: "login_triggered" as const,
-        isActive: true,
-        createdByUserId: 1, // azure_test_user (admin)
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // Expires in 7 days
-      },
-      {
-        message: "Important: All DAG owners must review and update their notification settings by the end of this week. This is required for compliance.",
-        dateKey: today,
-        deliveryType: "immediate" as const,
-        isActive: true,
-        createdByUserId: 1, // azure_test_user (admin)  
-        expiresAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000) // Expires in 3 days
-      },
-      {
-        message: "Reminder: Monthly team performance review meeting is scheduled for next Tuesday at 2 PM EST. Please ensure all your entities are up to date.",
-        dateKey: tomorrowString,
-        deliveryType: "login_triggered" as const,
-        isActive: true,
-        createdByUserId: 1, // azure_test_user (admin)
-        expiresAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000) // Expires in 5 days
-      }
-    ];
-
     // Store mock alerts
     mockAlerts.forEach(alertData => {
       const alert = {
@@ -1639,20 +1405,29 @@ export class MemStorage implements IStorage {
         id: this.alertId++,
         createdAt: new Date(),
         updatedAt: new Date(),
+        expiresAt: alertData.expiresAt ? new Date(alertData.expiresAt) : null
       };
       this.alertsData.set(alert.id, alert);
     });
+    
+    console.log(`[Storage] Loaded ${mockAlerts.length} alerts from mock-alerts.json`);
 
+    // Load broadcast messages from JSON file
+    const mockBroadcastMessages = this.loadJsonFileSync<any[]>('mock-broadcast-messages.json') || [];
+    
     // Store mock admin broadcast messages
-    mockAdminMessages.forEach(messageData => {
+    mockBroadcastMessages.forEach(messageData => {
       const message = {
         ...messageData,
         id: this.adminBroadcastMessageId++,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        createdAt: messageData.createdAt ? new Date(messageData.createdAt) : new Date(),
+        updatedAt: messageData.updatedAt ? new Date(messageData.updatedAt) : new Date(),
+        expiresAt: messageData.expiresAt ? new Date(messageData.expiresAt) : null
       };
       this.adminBroadcastMessagesData.set(message.id, message);
     });
+    
+    console.log(`[Storage] Loaded ${mockBroadcastMessages.length} broadcast messages from mock-broadcast-messages.json`);
   }
   
   // Audit operations for rollback management
@@ -1996,84 +1771,20 @@ export class MemStorage implements IStorage {
   }
 
   async getConflicts(): Promise<any[]> {
-    // Return mock conflicts data when Redis is not available
-    return [
-      {
-        id: 1,
-        notificationId: 'CONF-2025-001',
-        entityType: 'dag',
-        conflictingTeams: ['PGM', 'Core'],
-        entityName: 'daily_revenue_processing',
-        originalPayload: {
-          name: 'daily_revenue_dag',
-          dag_name: 'daily_revenue_processing',
-          dag_schedule: '0 2 * * *',
-          team: 'Core',
-          description: 'Daily revenue aggregation pipeline'
-        },
-        conflictDetails: {
-          existingOwner: 'PGM',
-          requestedBy: 'sarah.lee@company.com',
-          reason: 'DAG name already exists with different ownership'
-        },
-        status: 'pending',
-        createdAt: new Date('2025-09-07'),
-        resolvedAt: null,
-        resolutionType: null,
-        resolutionNotes: null,
-        resolvedBy: null
-      },
-      {
-        id: 2,
-        notificationId: 'CONF-2025-002',
-        entityType: 'table',
-        conflictingTeams: ['CDM', 'Viewer Product'],
-        entityName: 'analytics.customer_daily_metrics',
-        originalPayload: {
-          name: 'customer_metrics',
-          table_name: 'customer_daily_metrics',
-          schema_name: 'analytics',
-          team: 'Viewer Product',
-          description: 'Customer behavior metrics table'
-        },
-        conflictDetails: {
-          existingOwner: 'CDM',
-          requestedBy: 'mike.johnson@company.com',
-          reason: 'Table schema conflicts with existing CDM table'
-        },
-        status: 'pending',
-        createdAt: new Date('2025-09-08'),
-        resolvedAt: null,
-        resolutionType: null,
-        resolutionNotes: null,
-        resolvedBy: null
-      },
-      {
-        id: 3,
-        notificationId: 'CONF-2025-003',
-        entityType: 'dag',
-        conflictingTeams: ['IOT', 'Ad Serving'],
-        entityName: 'core_etl_pipeline',
-        originalPayload: {
-          name: 'core_etl',
-          dag_name: 'core_etl_pipeline',
-          dag_schedule: '0 */6 * * *',
-          team: 'Ad Serving',
-          description: 'Core ETL data processing pipeline'
-        },
-        conflictDetails: {
-          existingOwner: 'IOT',
-          requestedBy: 'alice.wong@company.com',
-          reason: 'Pipeline name conflicts with existing Core DAG'
-        },
-        status: 'pending',
-        createdAt: new Date('2025-09-09'),
-        resolvedAt: null,
-        resolutionType: null,
-        resolutionNotes: null,
-        resolvedBy: null
-      }
-    ];
+    // Load conflicts from JSON file when Redis is not available
+    const mockConflicts = this.loadJsonFileSync<any[]>('mock-conflicts.json');
+    
+    if (!mockConflicts || mockConflicts.length === 0) {
+      console.warn('[Storage] No conflicts loaded from mock-conflicts.json');
+      return [];
+    }
+    
+    // Convert date strings to Date objects
+    return mockConflicts.map(conflict => ({
+      ...conflict,
+      createdAt: conflict.createdAt ? new Date(conflict.createdAt) : new Date(),
+      resolvedAt: conflict.resolvedAt ? new Date(conflict.resolvedAt) : null
+    }));
   }
 
   async getActiveAdminBroadcastMessages(dateKey?: string): Promise<AdminBroadcastMessage[]> {
@@ -2089,9 +1800,12 @@ export class MemStorage implements IStorage {
   async createAdminBroadcastMessage(message: InsertAdminBroadcastMessage): Promise<AdminBroadcastMessage> {
     await this.ensureInitialized();
     
+    // Use timestamp-based ID to avoid collisions across server restarts
+    const timestampId = Date.now();
+    
     const newMessage: AdminBroadcastMessage = {
       ...message,
-      id: this.adminBroadcastMessageId++,
+      id: timestampId,
       isActive: message.isActive ?? true,
       expiresAt: message.expiresAt ?? null,
       createdAt: new Date(),
@@ -2099,6 +1813,8 @@ export class MemStorage implements IStorage {
     };
 
     this.adminBroadcastMessagesData.set(newMessage.id, newMessage);
+    // Update counter to be higher than timestamp to avoid conflicts with auto-increment
+    this.adminBroadcastMessageId = Math.max(this.adminBroadcastMessageId, timestampId + 1);
     return newMessage;
   }
 
@@ -2142,9 +1858,10 @@ export class MemStorage implements IStorage {
         return false;
       }
       
-      // Include login-triggered messages for today and all immediate messages
+      // Include login-triggered messages for today, immediate messages, and immediate_and_login_triggered
       return (message.deliveryType === 'login_triggered' && message.dateKey === today) ||
-             message.deliveryType === 'immediate';
+             message.deliveryType === 'immediate' ||
+             message.deliveryType === 'immediate_and_login_triggered';
     });
   }
 

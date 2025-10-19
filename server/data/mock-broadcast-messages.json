@@ -1,3 +1,5 @@
 [
-  {"message":"Welcome to the SLA Management Admin Panel","dateKey":"2025-10-18","deliveryType":"immediate","isActive":true,"createdByUserId":1}
+  {"message":"Welcome to the SLA Management Admin Panel","dateKey":"2025-10-18","deliveryType":"immediate","isActive":true,"createdByUserId":1,"expiresAt":"2025-10-25T00:00:00Z","createdAt":"2025-10-18T08:00:00Z"},
+  {"message":"Important: All DAG owners must review and update their notification settings by the end of this week. This is required for compliance.","dateKey":"2025-10-18","deliveryType":"immediate","isActive":true,"createdByUserId":1,"expiresAt":"2025-10-21T00:00:00Z","createdAt":"2025-10-18T09:00:00Z"},
+  {"message":"Reminder: Monthly team performance review meeting is scheduled for next Tuesday at 2 PM EST. Please ensure all your entities are up to date.","dateKey":"2025-10-19","deliveryType":"login_triggered","isActive":true,"createdByUserId":1,"expiresAt":"2025-10-23T00:00:00Z","createdAt":"2025-10-19T07:00:00Z","excludeDateKeys":["2025-10-20"]}
 ]

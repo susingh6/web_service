@@ -19,18 +19,21 @@ interface AdminBroadcastMessage {
   id: number;
   message: string;
   dateKey: string;
-  deliveryType: 'immediate' | 'login_triggered' | 'both';
+  deliveryType: 'immediate' | 'login_triggered' | 'immediate_and_login_triggered';
   isActive: boolean;
   createdByUserId: number;
   expiresAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
+  excludeDateKeys?: string[]; // Optional array of dates (YYYY-MM-DD) when message should not be shown
 }
 
 const BroadcastMessagePopup = () => {
   const { isAuthenticated } = useAuth();
   const [currentMessage, setCurrentMessage] = useState<AdminBroadcastMessage | null>(null);
   const [seenMessages, setSeenMessages] = useState<Set<number>>(new Set());
+  const [seenThisSession, setSeenThisSession] = useState<Set<number>>(new Set());
+  const [hasShownLoginMessages, setHasShownLoginMessages] = useState(false);
 
   // Fetch active broadcast messages only when authenticated
   const { data: messages = [] } = useQuery<AdminBroadcastMessage[]>({
@@ -65,31 +68,94 @@ const BroadcastMessagePopup = () => {
         console.error('Failed to parse seen broadcast messages:', error);
       }
     }
+
+    // Load session-seen messages from sessionStorage
+    const sessionSaved = sessionStorage.getItem('seenBroadcastMessagesThisSession');
+    if (sessionSaved) {
+      try {
+        const messageIds = JSON.parse(sessionSaved);
+        setSeenThisSession(new Set(messageIds));
+      } catch (error) {
+        console.error('Failed to parse session broadcast messages:', error);
+      }
+    }
   }, []);
 
-  // Check for new immediate delivery messages
+  // Check for new broadcast messages (immediate, login_triggered, or immediate_and_login_triggered)
   useEffect(() => {
     if (messages.length === 0) return;
 
-    // Find the most recent immediate or both delivery message that hasn't been seen
-    const immediateMessages = messages
-      .filter(msg => msg.deliveryType === 'immediate' || msg.deliveryType === 'both')
-      .filter(msg => !seenMessages.has(msg.id))
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+
+    // Find the most recent message that should be displayed
+    const displayMessages = messages
+      .filter(msg => {
+        // For 'login_triggered': only show on initial load (at login), not when new messages are created
+        if (msg.deliveryType === 'login_triggered') {
+          const excludeDates = msg.excludeDateKeys || [];
+          const shouldShow = !excludeDates.includes(today) && !seenThisSession.has(msg.id);
+          // Only show if we haven't shown login messages yet (i.e., this is the login)
+          return shouldShow && !hasShownLoginMessages;
+        }
+        // For 'immediate_and_login_triggered': show on login OR immediately when created (tracked in sessionStorage)
+        if (msg.deliveryType === 'immediate_and_login_triggered') {
+          const excludeDates = msg.excludeDateKeys || [];
+          const shouldShow = !excludeDates.includes(today) && !seenThisSession.has(msg.id);
+          // Show immediately if created mid-session, OR on login
+          return shouldShow;
+        }
+        // For 'immediate': show if not already seen (tracked in localStorage)
+        if (msg.deliveryType === 'immediate') {
+          return !seenMessages.has(msg.id);
+        }
+        return false;
+      })
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-    if (immediateMessages.length > 0 && !currentMessage) {
-      setCurrentMessage(immediateMessages[0]);
+    if (displayMessages.length > 0 && !currentMessage) {
+      setCurrentMessage(displayMessages[0]);
     }
-  }, [messages, seenMessages, currentMessage]);
+    
+    // Mark that we've shown all login messages only when:
+    // 1. No current message is being displayed (user isn't in the middle of viewing messages)
+    // 2. No more messages in displayMessages queue
+    // 3. All login_triggered and immediate_and_login_triggered messages have been seen this session
+    if (!hasShownLoginMessages && !currentMessage && displayMessages.length === 0) {
+      const unseenLoginMessages = messages.filter(msg => 
+        (msg.deliveryType === 'login_triggered' || msg.deliveryType === 'immediate_and_login_triggered') && 
+        !seenThisSession.has(msg.id)
+      );
+      
+      // Only set the flag if there were login messages and they've all been seen now
+      const today = new Date().toISOString().split('T')[0];
+      const allLoginMessagesSeen = unseenLoginMessages.every(msg => {
+        const excludeDates = msg.excludeDateKeys || [];
+        return excludeDates.includes(today); // Only unseen because of exclude date
+      });
+      
+      if (unseenLoginMessages.length === 0 || allLoginMessagesSeen) {
+        setHasShownLoginMessages(true);
+      }
+    }
+  }, [messages, seenMessages, seenThisSession, currentMessage, hasShownLoginMessages]);
 
   const handleClose = () => {
     if (currentMessage) {
-      // Mark message as seen
-      const newSeenMessages = new Set(Array.from(seenMessages).concat(currentMessage.id));
-      setSeenMessages(newSeenMessages);
-      
-      // Save to localStorage
-      localStorage.setItem('seenBroadcastMessages', JSON.stringify(Array.from(newSeenMessages)));
+      if (currentMessage.deliveryType === 'login_triggered' || currentMessage.deliveryType === 'immediate_and_login_triggered') {
+        // Track 'login_triggered' and 'immediate_and_login_triggered' messages in sessionStorage (shows again on next login)
+        const newSeenThisSession = new Set(Array.from(seenThisSession).concat(currentMessage.id));
+        setSeenThisSession(newSeenThisSession);
+        
+        // Save to sessionStorage (clears on logout/browser close)
+        sessionStorage.setItem('seenBroadcastMessagesThisSession', JSON.stringify(Array.from(newSeenThisSession)));
+      } else if (currentMessage.deliveryType === 'immediate') {
+        // Track 'immediate' messages in localStorage (permanent until manually cleared)
+        const newSeenMessages = new Set(Array.from(seenMessages).concat(currentMessage.id));
+        setSeenMessages(newSeenMessages);
+        
+        // Save to localStorage
+        localStorage.setItem('seenBroadcastMessages', JSON.stringify(Array.from(newSeenMessages)));
+      }
       
       setCurrentMessage(null);
     }
@@ -160,11 +226,11 @@ const BroadcastMessagePopup = () => {
                 <Chip 
                   label={
                     currentMessage.deliveryType === 'immediate' ? 'Immediate' : 
-                    currentMessage.deliveryType === 'login_triggered' ? 'Login Triggered' : 'Both'
+                    currentMessage.deliveryType === 'login_triggered' ? 'Login Triggered' : 'Immediate & Login'
                   }
                   color={
                     currentMessage.deliveryType === 'immediate' ? 'warning' : 
-                    currentMessage.deliveryType === 'both' ? 'secondary' : 'info'
+                    currentMessage.deliveryType === 'immediate_and_login_triggered' ? 'secondary' : 'info'
                   }
                   size="small"
                 />
