@@ -296,11 +296,8 @@ export class MemStorage implements IStorage {
     // Initialize mock permissions data
     this.initMockPermissions();
     
-    // Load mock DAG data using FS instead of require
-    await this.loadMockDags();
-    
-    // Add some table entities with correct statuses
-    this.addTableEntities();
+    // Load all mock entities (tables and DAGs) from unified JSON file
+    this.loadMockEntities();
     
     // Initialize mock audit data for rollback management
     this.initMockAuditData();
@@ -310,509 +307,75 @@ export class MemStorage implements IStorage {
   }
   
   /**
-   * Load mock DAG data from the JSON file
+   * Load all mock entities (tables, DAGs, etc.) from unified JSON file
    */
-  private async loadMockDags(): Promise<void> {
+  private async loadMockEntities(): Promise<void> {
     try {
-      // Use dynamic import with fs to load the JSON file
-      const fs = await import('fs/promises');
-      const path = await import('path');
+      const mockEntities = this.loadJsonFileSync<any[]>('mock-entities.json') || [];
       
-      // Get the DAGs data JSON file
-      const filePath = path.join(process.cwd(), 'server', 'data', 'mock-dags.json');
-      const fileData = await fs.readFile(filePath, 'utf8');
-      const mockDags = JSON.parse(fileData) as Entity[];
-      
-      if (mockDags && Array.isArray(mockDags)) {
-        // Loading mock DAGs from data file
+      if (mockEntities && Array.isArray(mockEntities)) {
+        // Update entity ID counter based on existing IDs
+        const entitiesWithIds = mockEntities.filter(e => e.id);
+        if (entitiesWithIds.length > 0) {
+          const maxId = Math.max(...entitiesWithIds.map(e => e.id));
+          this.entityId = Math.max(this.entityId, maxId + 1);
+        }
         
-        // Reset entity ID if needed to accommodate the mock data IDs
-        this.entityId = Math.max(...mockDags.map(dag => dag.id), 0) + 1;
+        // Count entities by type for logging
+        const entityCounts: Record<string, number> = {};
         
-        // Load each DAG entity into our entities map
-        mockDags.forEach(dag => {
-          // Map the lastStatus to the API status field for display in UI
-          const statusMap: Record<string, string> = {
-            "success": "Passed", 
-            "running": "Pending",
-            "failed": "Failed"
-          };
+        // Process all entities generically
+        mockEntities.forEach(entityData => {
+          const entityType = entityData.type;
+          entityCounts[entityType] = (entityCounts[entityType] || 0) + 1;
           
-          const statusValue = dag.lastStatus && statusMap[dag.lastStatus] 
-            ? statusMap[dag.lastStatus] 
-            : (dag.status || "Pending");
+          // Look up teamId from team_name if needed
+          let teamId = entityData.teamId || 1;
+          if (!entityData.teamId && entityData.team_name) {
+            const team = Array.from(this.teams.values()).find(t => t.name === entityData.team_name);
+            if (team) {
+              teamId = team.id;
+            }
+          }
           
-          this.entities.set(dag.id, {
-            ...dag,
-            createdAt: new Date(dag.createdAt),
-            updatedAt: new Date(dag.updatedAt), 
-            lastRun: dag.lastRun ? new Date(dag.lastRun) : null,
-            status: statusValue,
-            // Ensure all required properties have valid values
-            description: dag.description || null,
-            currentSla: dag.currentSla || null,
-            lastRefreshed: dag.lastRun ? new Date(dag.lastRun) : null,
-            // Tag all existing DAGs under Data Engineering tenant
-            tenant_name: 'Data Engineering',
-            // Explicitly preserve is_entity_owner field from mock data
-            is_entity_owner: dag.is_entity_owner || false
-          });
+          // Generate entity ID
+          const entityId = entityData.id || this.entityId++;
+          
+          // Create entity with all fields, using spread and specific overrides
+          this.entities.set(entityId, {
+            ...entityData,
+            id: entityId,
+            type: entityType,
+            teamId: teamId,
+            status: entityData.status || 'Pending',
+            tenant_name: entityData.tenant_name || 'Unknown',
+            team_name: entityData.team_name || 'Unknown',
+            description: entityData.description || null,
+            currentSla: entityData.currentSla || null,
+            is_entity_owner: entityData.is_entity_owner || false,
+            is_active: entityData.is_active !== false,
+            createdAt: entityData.createdAt ? new Date(entityData.createdAt) : new Date(),
+            updatedAt: entityData.updatedAt ? new Date(entityData.updatedAt) : new Date(),
+            lastRun: entityData.lastRun ? new Date(entityData.lastRun) : null,
+            lastRefreshed: entityData.lastRefreshed ? new Date(entityData.lastRefreshed) : 
+                          (entityData.lastRun ? new Date(entityData.lastRun) : null)
+          } as Entity);
         });
         
-        // Successfully loaded mock DAGs into storage
+        // Log summary
+        const summary = Object.entries(entityCounts)
+          .map(([type, count]) => `${count} ${type}${count > 1 ? 's' : ''}`)
+          .join(', ');
+        console.log(`[Storage] Loaded ${mockEntities.length} entities from mock-entities.json: ${summary}`);
       }
     } catch (error) {
-      console.error('Failed to load mock DAG data:', error);
+      console.error('Failed to load mock entities data:', error);
     }
   }
   
-  /**
-   * Add table entities with API-compatible statuses
-   */
-  private addTableEntities(): void {
-    const tableEntities: Partial<Entity>[] = [
-      {
-        name: 'brightscript_sla_pgm',
-        type: 'table',
-        teamId: 1, // PGM
-        team_name: 'PGM',
-        description: 'Brightscript SLA monitoring for PGM team',
-        slaTarget: 95.0,
-        currentSla: 98.5,
-        status: 'Passed',
-        refreshFrequency: 'Daily',
-        lastRefreshed: new Date('2025-06-27T14:30:00Z'),
-        owner: 'John Smith',
-        ownerEmail: 'john.smith@company.com',
-        schema_name: 'data_warehouse',
-        table_name: 'agg_channel_brightscript_error_daily',
-        tenant_name: 'Data Engineering',
-        is_entity_owner: true
-      },
-      {
-        name: 'brightscript_sla_core',
-        type: 'table', 
-        teamId: 2, // Core
-        team_name: 'Core',
-        description: 'Brightscript SLA monitoring for Core team',
-        slaTarget: 92.0,
-        currentSla: 96.2,
-        status: 'Passed',
-        refreshFrequency: 'Hourly',
-        lastRefreshed: new Date('2025-06-28T14:00:00Z'),
-        owner: 'Jane Doe',
-        ownerEmail: null, // No entity owner
-        schema_name: 'abc',
-        table_name: 'agg_accounts_channel_ux_daily',
-        tenant_name: 'Data Engineering',
-        is_entity_owner: false
-      },
-      {
-        name: 'accounts_channel_ux_vp',
-        type: 'table',
-        teamId: 3, // Viewer Product
-        team_name: 'Viewer Product',
-        description: 'Accounts channel UX monitoring for Viewer Product team',
-        slaTarget: 90.0,
-        currentSla: 88.7,
-        status: 'Failed',
-        refreshFrequency: 'Daily',
-        lastRefreshed: new Date('2025-06-28T12:15:00Z'),
-        owner: 'Mike Johnson',
-        ownerEmail: 'mike.johnson@company.com',
-        schema_name: 'abc',
-        table_name: 'agg_account_device_subscription_daily',
-        tenant_name: 'Data Engineering',
-        is_entity_owner: true
-      },
-      {
-        name: 'channel_analytics_iot',
-        type: 'table',
-        teamId: 4, // IOT
-        team_name: 'IOT',
-        description: 'Channel analytics for IOT devices',
-        slaTarget: 93.0,
-        currentSla: 94.1,
-        status: 'Passed',
-        refreshFrequency: 'Hourly',
-        lastRefreshed: new Date('2025-06-28T16:45:00Z'),
-        owner: 'Sarah Wilson',
-        ownerEmail: null, // No entity owner
-        schema_name: 'abc',
-        table_name: 'agg_iot_device_channel_daily',
-        tenant_name: 'Data Engineering',
-        is_entity_owner: false
-      },
-      {
-        name: 'subscription_metrics_cdm',
-        type: 'table',
-        teamId: 5, // CDM
-        team_name: 'CDM',
-        description: 'Subscription metrics for CDM team',
-        slaTarget: 97.0,
-        currentSla: null,
-        status: 'Pending',
-        refreshFrequency: 'Daily',
-        lastRefreshed: new Date('2024-12-01T00:00:00Z'),
-        owner: 'Alex Chen',
-        ownerEmail: 'alex.chen@company.com',
-        schema_name: 'abc',
-        table_name: 'agg_subscription_revenue_daily',
-        tenant_name: 'Data Engineering',
-        is_entity_owner: true
-      },
-      // Additional entity owners across different teams
-      {
-        name: 'user_engagement_metrics_core',
-        type: 'table',
-        teamId: 2, // Core
-        team_name: 'Core',
-        description: 'User engagement analytics for Core team',
-        slaTarget: 95.0,
-        currentSla: 97.2,
-        status: 'Passed',
-        refreshFrequency: 'Daily',
-        lastRefreshed: new Date('2025-06-28T10:30:00Z'),
-        owner: 'Emma Wilson',
-        ownerEmail: 'emma.wilson@company.com',
-        schema_name: 'analytics',
-        table_name: 'user_engagement_daily',
-        tenant_name: 'Data Engineering',
-        is_entity_owner: true
-      },
-      {
-        name: 'device_telemetry_iot',
-        type: 'table',
-        teamId: 4, // IOT
-        team_name: 'IOT',
-        description: 'Device telemetry data for IOT team',
-        slaTarget: 92.0,
-        currentSla: 95.8,
-        status: 'Passed',
-        refreshFrequency: 'Hourly',
-        lastRefreshed: new Date('2025-06-28T15:00:00Z'),
-        owner: 'David Kim',
-        ownerEmail: 'david.kim@company.com',
-        schema_name: 'iot_analytics',
-        table_name: 'device_telemetry_hourly',
-        tenant_name: 'Data Engineering',
-        is_entity_owner: true
-      },
-      {
-        name: 'revenue_analytics_cdm',
-        type: 'table',
-        teamId: 5, // CDM
-        team_name: 'CDM',
-        description: 'Revenue analytics for CDM team',
-        slaTarget: 98.0,
-        currentSla: 99.1,
-        status: 'Passed',
-        refreshFrequency: 'Daily',
-        lastRefreshed: new Date('2025-06-28T11:45:00Z'),
-        owner: 'Lisa Zhang',
-        ownerEmail: 'lisa.zhang@company.com',
-        schema_name: 'finance',
-        table_name: 'revenue_metrics_daily',
-        tenant_name: 'Data Engineering',
-        is_entity_owner: true
-      },
-      {
-        name: 'content_performance_vp',
-        type: 'table',
-        teamId: 3, // Viewer Product
-        team_name: 'Viewer Product',
-        description: 'Content performance metrics for Viewer Product team',
-        slaTarget: 93.0,
-        currentSla: 91.5,
-        status: 'Failed',
-        refreshFrequency: 'Daily',
-        lastRefreshed: new Date('2025-06-28T09:20:00Z'),
-        owner: 'Tom Rodriguez',
-        ownerEmail: 'tom.rodriguez@company.com',
-        schema_name: 'content',
-        table_name: 'content_metrics_daily',
-        tenant_name: 'Data Engineering',
-        is_entity_owner: true
-      },
-      {
-        name: 'channel_optimization_pgm',
-        type: 'table',
-        teamId: 1, // PGM
-        team_name: 'PGM',
-        description: 'Channel optimization data for PGM team',
-        slaTarget: 94.0,
-        currentSla: 96.7,
-        status: 'Passed',
-        refreshFrequency: 'Daily',
-        lastRefreshed: new Date('2025-06-28T08:15:00Z'),
-        owner: 'Rachel Green',
-        ownerEmail: 'rachel.green@company.com',
-        schema_name: 'optimization',
-        table_name: 'channel_optimization_daily',
-        tenant_name: 'Data Engineering',
-        is_entity_owner: true
-      }
-    ];
+ 
+  
 
-    // Add some Ad Engineering entities for testing tenant filtering
-    const adEngineeringEntities: Partial<Entity>[] = [
-      {
-        name: 'ad_performance_daily',
-        type: 'table',
-        teamId: 6, // Ad Serving team
-        team_name: 'Ad Serving',
-        description: 'Daily ad performance metrics and analytics',
-        slaTarget: 95.0,
-        currentSla: 92.3,
-        status: 'Passed',
-        refreshFrequency: 'Daily',
-        lastRefreshed: new Date('2025-06-28T14:30:00Z'),
-        owner: 'Sarah Johnson',
-        ownerEmail: 'sarah.johnson@company.com',
-        schema_name: 'ad_analytics',
-        table_name: 'ad_performance_daily',
-        tenant_name: 'Ad Engineering',
-        is_entity_owner: true
-      },
-      {
-        name: 'campaign_optimization_dag',
-        type: 'dag',
-        teamId: 7, // Ad Data Activation team
-        team_name: 'Ad Data Activation',
-        description: 'Daily campaign optimization and bidding adjustments',
-        slaTarget: 88.0,
-        currentSla: 89.5,
-        status: 'Passed',
-        refreshFrequency: 'Daily',
-        lastRefreshed: new Date('2025-06-28T13:45:00Z'),
-        owner: 'Mike Chen',
-        ownerEmail: 'mike.chen@company.com',
-        dag_name: 'campaign_optimization_daily',
-        tenant_name: 'Ad Engineering',
-        is_entity_owner: true
-      },
-      {
-        name: 'bid_optimization_table',
-        type: 'table',
-        teamId: 6, // Ad Serving team
-        team_name: 'Ad Serving',
-        description: 'Real-time bid optimization analytics',
-        slaTarget: 90.0,
-        currentSla: 93.7,
-        status: 'Passed',
-        refreshFrequency: 'Hourly',
-        lastRefreshed: new Date('2025-06-28T16:15:00Z'),
-        owner: 'Carlos Martinez',
-        ownerEmail: 'carlos.martinez@company.com',
-        schema_name: 'ad_analytics',
-        table_name: 'bid_optimization_hourly',
-        tenant_name: 'Ad Engineering',
-        is_entity_owner: true
-      },
-      {
-        name: 'audience_segmentation_dag',
-        type: 'dag',
-        teamId: 7, // Ad Data Activation team
-        team_name: 'Ad Data Activation',
-        description: 'Audience segmentation and targeting pipeline',
-        slaTarget: 92.0,
-        currentSla: 94.2,
-        status: 'Passed',
-        refreshFrequency: 'Daily',
-        lastRefreshed: new Date('2025-06-28T12:30:00Z'),
-        owner: 'Ana Rodriguez',
-        ownerEmail: 'ana.rodriguez@company.com',
-        dag_name: 'audience_segmentation_daily',
-        tenant_name: 'Ad Engineering',
-        is_entity_owner: true
-      }
-    ];
-
-    tableEntities.forEach(entity => {
-      const id = this.entityId++;
-      const fullEntity: Entity = {
-        id,
-        ...entity,
-        // required fields from Partial
-        name: entity.name as string,
-        type: entity.type as string,
-        teamId: entity.teamId as number,
-        slaTarget: entity.slaTarget as number,
-        status: entity.status as string,
-        refreshFrequency: entity.refreshFrequency as string,
-        description: entity.description ?? null,
-        currentSla: entity.currentSla ?? null,
-        lastRefreshed: (entity.lastRefreshed ?? null) as Date | null,
-        nextRefresh: entity.lastRefreshed ? new Date(entity.lastRefreshed.getTime() + 24 * 60 * 60 * 1000) : null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        // Set null for fields not provided in entity data, but preserve existing values
-        tenant_name: (entity.tenant_name ?? 'Data Engineering') as string,
-        team_name: entity.team_name ?? null,
-        schema_name: entity.schema_name ?? null,
-        table_name: entity.table_name ?? null,
-        table_description: entity.table_description ?? null,
-        table_schedule: entity.table_schedule ?? null,
-        table_dependency: Array.isArray(entity.table_dependency) ? entity.table_dependency : null,
-        dag_name: null, // Tables don't have DAG fields
-        dag_description: null,
-        dag_schedule: null,
-        dag_dependency: null,
-        server_name: entity.server_name ?? null,
-        expected_runtime_minutes: entity.expected_runtime_minutes ?? null,
-        donemarker_location: entity.donemarker_location ?? null,
-        donemarker_lookback: entity.donemarker_lookback ?? null,
-        // Normalize owner fields based on entity ownership
-        owner: entity.is_entity_owner === true ? ((entity as Partial<Entity>).owner ?? null) : null,
-        owner_email: entity.is_entity_owner === true ? ((entity as Partial<Entity>).owner_email ?? (entity as Partial<Entity>).ownerEmail ?? null) : null,
-        ownerEmail: entity.is_entity_owner === true ? ((entity as Partial<Entity>).ownerEmail ?? null) : null,
-        user_email: (entity as any).user_email ?? null, // Never fallback to ownerEmail
-        is_active: entity.is_active !== undefined ? entity.is_active : true,
-        is_entity_owner: entity.is_entity_owner !== undefined ? entity.is_entity_owner : false,
-        lastRun: entity.lastRefreshed ?? null,
-        lastStatus: entity.status ?? null,
-        notification_preferences: (entity.notification_preferences ?? []) as string[]
-      };
-      this.entities.set(id, fullEntity);
-    });
-
-    // Add Ad Engineering entities for testing tenant filtering
-    adEngineeringEntities.forEach(entity => {
-      const id = this.entityId++;
-      const fullEntity: Entity = {
-        id,
-        ...entity,
-        name: entity.name as string,
-        type: entity.type as string,
-        teamId: entity.teamId as number,
-        slaTarget: entity.slaTarget as number,
-        status: entity.status as string,
-        refreshFrequency: entity.refreshFrequency as string,
-        description: entity.description ?? null,
-        currentSla: entity.currentSla ?? null,
-        lastRefreshed: (entity.lastRefreshed ?? null) as Date | null,
-        nextRefresh: entity.lastRefreshed ? new Date(entity.lastRefreshed.getTime() + 24 * 60 * 60 * 1000) : null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        // Set type-specific fields
-        ...(entity.type === 'table' ? {
-          table_name: entity.table_name || (entity.name as string),
-          table_description: entity.description || 'Table for ad analytics processing',
-          table_schedule: '0 3 * * *', // 3 AM daily
-          table_dependency: ['ad_raw_data', 'user_segments'],
-          dag_name: null,
-          dag_description: null,
-          dag_schedule: null,
-          dag_dependency: null,
-        } : {
-          dag_name: entity.dag_name || (entity.name as string),
-          dag_description: entity.description || 'DAG for ad optimization processing',
-          dag_schedule: '0 3 * * *', // 3 AM daily
-          dag_dependency: ['ad_raw_data', 'campaign_data'],
-          table_name: null,
-          table_description: null,
-          table_schedule: null,
-          table_dependency: null,
-        }),
-        // Common fields
-        owner: (entity as Partial<Entity>).owner ?? null,
-        team_name: entity.team_name ?? null,
-        tenant_name: (entity.tenant_name ?? 'Ad Engineering') as string | null,
-        schema_name: entity.schema_name ?? null,
-        expected_runtime_minutes: entity.expected_runtime_minutes ?? (entity.type === 'table' ? 25 : 40),
-        donemarker_location: entity.donemarker_location ?? (entity.type === 'table' 
-          ? 's3://ad-analytics-tables/done_markers/' 
-          : 's3://ad-analytics-dags/campaign_optimization/'),
-        donemarker_lookback: entity.donemarker_lookback ?? 2,
-        // Normalize owner fields based on entity ownership
-        owner_email: entity.is_entity_owner === true ? ((entity as Partial<Entity>).owner_email ?? (entity as Partial<Entity>).ownerEmail ?? null) : null,
-        ownerEmail: entity.is_entity_owner === true ? ((entity as Partial<Entity>).ownerEmail ?? null) : null,
-        user_email: (entity as Partial<Entity>).user_email ?? null, // Never fallback to ownerEmail
-        is_active: entity.is_active !== undefined ? entity.is_active : true,
-        is_entity_owner: entity.is_entity_owner !== undefined ? entity.is_entity_owner : false,
-        lastRun: entity.lastRefreshed ?? null,
-        lastStatus: entity.status ?? null,
-        notification_preferences: (entity.notification_preferences ?? []) as string[],
-        server_name: entity.server_name ?? (entity.type === 'dag' ? 'airflow-main' : null)
-      };
-      this.entities.set(id, fullEntity);
-    });
-
-    // Initialize existing SLA roles into storage
-    const slaRoles = [
-      {
-        role_name: 'sla-admin',
-        description: 'Full administrative access to SLA management system',
-        is_active: true,
-        is_system_role: true,
-        role_permissions: ['admin', 'manage_users', 'manage_teams', 'manage_tenants', 'resolve_conflicts', 'view_all_entities', 'manage_system_settings'],
-        tenant_name: null,
-        team_name: null,
-      },
-      {
-        role_name: 'sla-dag-entity-editor',
-        description: 'Can edit DAG entities, status, SLA settings, and progress',
-        is_active: true,
-        is_system_role: true,
-        role_permissions: ['dag-status-editor', 'dag-sla-editor', 'dag-progress-editor', 'view_entities', 'edit_own_entities'],
-        tenant_name: null,
-        team_name: null,
-      },
-      {
-        role_name: 'sla-table-entity-editor',
-        description: 'Can edit table entities, status, SLA settings, and progress',
-        is_active: true,
-        is_system_role: true,
-        role_permissions: ['table-status-editor', 'table-sla-editor', 'table-progress-editor', 'view_entities', 'edit_own_entities'],
-        tenant_name: null,
-        team_name: null,
-      },
-      {
-        role_name: 'sla-viewer',
-        description: 'Read-only access to SLA dashboard and entity information',
-        is_active: true,
-        is_system_role: true,
-        role_permissions: ['viewer', 'view_entities'],
-        tenant_name: null,
-        team_name: null,
-      },
-      {
-        role_name: 'sla-pgm-dag-entity-editor',
-        description: 'Team-specific DAG editor role for PGM team in Data Engineering',
-        is_active: true,
-        is_system_role: false,
-        role_permissions: ['dag-status-editor', 'dag-sla-editor', 'dag-progress-editor', 'view_entities', 'edit_own_entities', 'view_team_entities'],
-        tenant_name: 'Data Engineering',
-        team_name: 'PGM',
-      },
-      {
-        role_name: 'sla-core-table-editor',
-        description: 'Team-specific table editor role for Core team',
-        is_active: true,
-        is_system_role: false,
-        role_permissions: ['table-status-editor', 'table-sla-editor', 'table-progress-editor', 'view_entities', 'edit_own_entities', 'view_team_entities'],
-        tenant_name: 'Data Engineering',
-        team_name: 'Core',
-      }
-    ];
-
-    // Add roles to storage
-    slaRoles.forEach((roleData, index) => {
-      const role: Role = {
-        id: index + 1,
-        role_name: roleData.role_name,
-        description: roleData.description,
-        is_active: roleData.is_active,
-        is_system_role: roleData.is_system_role,
-        role_permissions: roleData.role_permissions,
-        tenant_name: roleData.tenant_name,
-        team_name: roleData.team_name,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-      this.rolesData.set(roleData.role_name, role);
-    });
-  }
   
   // User operations
   async getUser(id: number): Promise<User | undefined> {
