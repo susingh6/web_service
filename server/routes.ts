@@ -220,6 +220,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       '/dags',
       '/dashboard/summary',
       '/users',
+      '/admin/users',
       '/tenants',
       '/audit',
       '/alerts',
@@ -234,7 +235,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     // In development mode: Allow auth fallbacks and development endpoints
     if (isDevelopment) {
-      if (authFallbackPaths.includes(req.path) || developmentPaths.some(path => req.path.startsWith(path))) {
+      const isAuthPath = authFallbackPaths.includes(req.path);
+      const isDevPath = developmentPaths.some(path => req.path.startsWith(path));
+      if (isAuthPath || isDevPath) {
         structuredLogger.info('EXPRESS_DEVELOPMENT_ENDPOINT', req.sessionContext, req.requestId, { logger: 'app.express.server' });
         return next();
       }
@@ -323,11 +326,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Users endpoints for notification system
+  // Users endpoints for notification system - Redis-first; fallback to mock when Redis unavailable
   app.get("/api/users", async (req, res) => {
     try {
+      const status = await redisCache.getCacheStatus();
+      
+      if (status.connected) {
+        // Redis mode: read from cache or return empty
+        const cachedUsers = await redisCache.get(CACHE_KEYS.USERS);
+        res.json(cachedUsers || []);
+      } else {
+        // In-memory mode: fallback to storage
       const users = await storage.getUsers();
       res.json(users);
+      }
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch users" });
     }
@@ -340,19 +352,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const redisConnected = status && status.mode === 'redis';
 
       if (redisConnected) {
-        // No Redis-backed users collection – intentionally return empty when Redis is present
-        return res.json([]);
+        // Redis-first: read from Redis only, return empty if key doesn't exist
+        const users = await redisCache.get(CACHE_KEYS.USERS) || [];
+        const transformedUsers = Array.isArray(users) ? users.map((user: any) => ({
+          id: user.id,
+          name: user.username,
+          email: user.email || '',
+          is_active: user.is_active !== false
+        })) : [];
+        return res.json(transformedUsers);
       }
 
       // Redis not available: return mock users from storage
       const users = await storage.getUsers();
       const transformedUsers = users.map(user => ({
-        user_id: user.id,
-        user_name: user.username,
-        user_email: user.email,
-        user_slack: user.user_slack || [],
-        user_pagerduty: user.user_pagerduty || [],
-        is_active: user.is_active !== undefined ? user.is_active : true
+        id: user.id,
+        name: user.username,
+        email: user.email || '',
+        is_active: user.is_active !== false
       }));
       res.json(transformedUsers);
     } catch (error) {
@@ -371,32 +388,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { user_name, user_email, user_slack, user_pagerduty, is_active } = validationResult.data;
 
-      // Create user with internal schema
+      // Update cache based on mode
+      const status = await redisCache.getCacheStatus();
+      if (status && status.mode === 'redis') {
+        // Redis mode: generate ID from Redis (do NOT rely on storage mock counters)
+        const existingUsers = await redisCache.get(CACHE_KEYS.USERS) || [];
+        const nextId = Array.isArray(existingUsers) && existingUsers.length > 0
+          ? Math.max(...existingUsers.map((u: any) => Number(u?.id) || 0)) + 1
+          : 1;
+
+        const newUser = {
+          id: nextId,
+          username: user_name,
+          password: "temp-password",
+          email: user_email,
+          displayName: user_name,
+          user_slack: user_slack || [],
+          user_pagerduty: user_pagerduty || [],
+          is_active: is_active,
+          role: "user" as const,
+          team: null,
+          azureObjectId: null,
+        };
+
+        const updatedUsers = Array.isArray(existingUsers) ? [...existingUsers, newUser] : [newUser];
+        await redisCache.set(CACHE_KEYS.USERS, updatedUsers, 6 * 60 * 60);
+        await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.USERS, {
+          timestamp: new Date().toISOString()
+        });
+
+        return res.status(201).json({
+          user_id: newUser.id,
+          user_name: newUser.username,
+          user_email: newUser.email || '',
+          user_slack: newUser.user_slack || null,
+          user_pagerduty: newUser.user_pagerduty || null,
+          is_active: newUser.is_active ?? true
+        });
+      }
+
+      // In-memory mode: create via storage
       const newUser = await storage.createUser({
         username: user_name,
-        password: "temp-password", // In real implementation, this would be generated or handled via Azure AD
+        password: "temp-password",
         email: user_email,
         displayName: user_name,
         user_slack: user_slack || [],
         user_pagerduty: user_pagerduty || [],
         is_active: is_active,
-        role: "user" // Default role
+        role: "user"
+      });
+
+      await redisCache.invalidateCache({
+        keys: ['all_users', 'users_list'],
+        patterns: ['user_*'],
+        mainCacheKeys: ['USERS'],
+        refreshAffectedData: true
       });
 
       // Transform response to match admin panel format
-      const transformedUser = {
+      return res.status(201).json({
         user_id: newUser.id,
         user_name: newUser.username,
-        user_email: newUser.email,
-        user_slack: newUser.user_slack || [],
-        user_pagerduty: newUser.user_pagerduty || [],
-        is_active: newUser.is_active
-      };
-
-      res.status(201).json(transformedUser);
+        user_email: newUser.email || '',
+        user_slack: newUser.user_slack || null,
+        user_pagerduty: newUser.user_pagerduty || null,
+        is_active: newUser.is_active ?? true
+      });
     } catch (error) {
-      console.error('User creation error:', error);
-      res.status(500).json(createErrorResponse("Failed to create user", "creation_error"));
+      res.status(500).json(createErrorResponse("Failed to create user"));
     }
   });
 
@@ -430,10 +490,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json(createErrorResponse("User not found", "not_found"));
       }
 
-      // Invalidate user-related caches using centralized method
-      console.log('PUT /api/v1/users: Invalidating user data cache after updating user', userId);
+      // Update cache based on mode
+      const status = await redisCache.getCacheStatus();
+      if (status && status.mode === 'redis') {
+        // Redis mode: write directly to Redis
+        const existingUsers = await redisCache.get(CACHE_KEYS.USERS) || [];
+        const updatedUsers = Array.isArray(existingUsers)
+          ? existingUsers.map((user: any) => user.id === userId ? updatedUser : user)
+          : [updatedUser];
+        await redisCache.set(CACHE_KEYS.USERS, updatedUsers, 6 * 60 * 60);
+        
+        // Broadcast update to connected clients
+        await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.USERS, {
+          timestamp: new Date().toISOString()
+        });
+      } else {
+        // In-memory mode: invalidate cache so next GET fetches fresh data from storage
       await redisCache.invalidateUserData();
-      console.log('PUT /api/v1/users: User data cache invalidated successfully');
+      }
 
       // Transform response to match admin panel format
       const transformedUser = {
@@ -482,21 +556,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json(createErrorResponse("User not found", "not_found"));
       }
 
-      // Transform response to match admin panel format
-      const transformedUser = {
-        user_id: updatedUser.id,
-        user_name: updatedUser.username,
-        user_email: updatedUser.email,
-        user_slack: updatedUser.user_slack || [],
-        user_pagerduty: updatedUser.user_pagerduty || [],
-        is_active: updatedUser.is_active
-      };
-
-      // Invalidate user-related caches using centralized method
-      // This handles all_users cache, team_members_* patterns, and WebSocket broadcasting
-      console.log('PATCH /api/v1/users: Invalidating user data cache after updating user', userId);
+      // Update cache based on mode
+      const status = await redisCache.getCacheStatus();
+      if (status && status.mode === 'redis') {
+        // Redis mode: write directly to Redis
+        const existingUsers = await redisCache.get(CACHE_KEYS.USERS) || [];
+        const updatedUsers = Array.isArray(existingUsers)
+          ? existingUsers.map((user: any) => user.id === userId ? updatedUser : user)
+          : [updatedUser];
+        await redisCache.set(CACHE_KEYS.USERS, updatedUsers, 6 * 60 * 60);
+        
+        // Broadcast update to connected clients
+        await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.USERS, {
+          timestamp: new Date().toISOString()
+        });
+      } else {
+        // In-memory mode: invalidate cache so next GET fetches fresh data from storage
       await redisCache.invalidateUserData();
-      console.log('PATCH /api/v1/users: User data cache invalidated successfully');
+      }
       
       // CRITICAL: Also invalidate profile cache for this user so profile page shows updated data
       await redisCache.invalidateCache({
@@ -516,6 +593,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         });
       }
+
+      // Transform response to match admin panel format
+      const transformedUser = {
+        user_id: updatedUser.id,
+        user_name: updatedUser.username,
+        user_email: updatedUser.email,
+        user_slack: updatedUser.user_slack || [],
+        user_pagerduty: updatedUser.user_pagerduty || [],
+        is_active: updatedUser.is_active
+      };
 
       res.json(transformedUser);
     } catch (error) {
@@ -659,7 +746,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!updatedRole) {
         return res.status(404).json({ message: `Role '${roleName}' not found` });
       }
-
+      
       // Update cache based on mode
       const status = await redisCache.getCacheStatus();
       if (status && status.mode === 'redis') {
@@ -701,7 +788,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!success) {
         return res.status(404).json({ message: `Role '${roleName}' not found` });
       }
-
+      
       // Update cache based on mode
       const status = await redisCache.getCacheStatus();
       if (status && status.mode === 'redis') {
@@ -943,7 +1030,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!updatedPermission) {
         return res.status(404).json({ message: `Permission '${name}' not found` });
       }
-
+      
       // Update cache based on mode
       const status = await redisCache.getCacheStatus();
       if (status && status.mode === 'redis') {
@@ -985,7 +1072,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!success) {
         return res.status(404).json({ message: `Permission '${name}' not found` });
       }
-
+      
       // Update cache based on mode
       const status = await redisCache.getCacheStatus();
       if (status && status.mode === 'redis') {
@@ -1476,7 +1563,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { active_only } = req.query;
       const status = await redisCache.getCacheStatus();
       const redisConnected = status && status.mode === 'redis';
-
+      
       let tenants: any[] = [];
       if (redisConnected) {
         tenants = await redisCache.getAllTenants();
@@ -1514,31 +1601,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { name, description } = validationResult.data;
 
-      // Create tenant in storage
-      const newTenant = await storage.createTenant({ name, description });
-
       // Update cache based on mode
       const status = await redisCache.getCacheStatus();
       if (status && status.mode === 'redis') {
-        // Redis mode: write directly to Redis
+        // Redis mode: generate ID from Redis (avoid storage mock counters)
         const existing = await redisCache.getAllTenants();
+        const nextId = Array.isArray(existing) && existing.length > 0
+          ? Math.max(...existing.map((t: any) => Number(t?.id) || 0)) + 1
+          : 1;
+        const now = new Date().toISOString();
+        const newTenant = {
+          id: nextId,
+          name,
+          description: description || '',
+          isActive: true,
+          teamsCount: 0,
+          createdAt: now,
+          updatedAt: now,
+        };
+
         const updatedTenants = Array.isArray(existing) ? [...existing, newTenant] : [newTenant];
         await redisCache.set(CACHE_KEYS.TENANTS, updatedTenants, 6 * 60 * 60);
-      } else {
-        // In-memory mode: invalidate cache so next GET fetches fresh data from storage
-        await redisCache.invalidateCache({
-          keys: ['all_tenants', 'tenants_summary'],
-          patterns: [
-            'tenant_details:*',
-            'tenant_teams:*',
-            'tenant_metrics:*',
-            'dashboard_summary:*',
-            'entities:*'
-          ],
-          mainCacheKeys: ['TENANTS'],
-          refreshAffectedData: true
-        });
+
+        // Optionally broadcast tenants cache update
+        if (redisCache.broadcastCacheUpdate) {
+          try {
+            await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.TENANTS ?? WEBSOCKET_CONFIG.cacheUpdateTypes.GENERAL, {
+              timestamp: now
+            });
+          } catch {}
+        }
+
+        return res.status(201).json(newTenant);
       }
+
+      // In-memory mode: create via storage
+      const newTenant = await storage.createTenant({ name, description });
+
+      await redisCache.invalidateCache({
+        keys: ['all_tenants', 'tenants_summary'],
+        patterns: [
+          'tenant_details:*',
+          'tenant_teams:*',
+          'tenant_metrics:*',
+          'dashboard_summary:*',
+          'entities:*'
+        ],
+        mainCacheKeys: ['TENANTS'],
+        refreshAffectedData: true
+      });
 
       res.status(201).json(newTenant);
     } catch (error) {
@@ -1601,19 +1712,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       } else {
         // In-memory mode: invalidate cache so next GET fetches fresh data from storage
-        await redisCache.invalidateTenants();
-        await redisCache.invalidateCache({
-          keys: ['all_tenants', 'tenants_summary'],
-          patterns: [
-            'tenant_details:*',
-            'tenant_teams:*',
-            'tenant_metrics:*',
-            'dashboard_summary:*',
-            'entities:*'
-          ],
-          mainCacheKeys: ['TEAMS', 'METRICS'],
-          refreshAffectedData: true
-        });
+      await redisCache.invalidateTenants();
+      await redisCache.invalidateCache({
+        keys: ['all_tenants', 'tenants_summary'],
+        patterns: [
+          'tenant_details:*',
+          'tenant_teams:*',
+          'tenant_metrics:*',
+          'dashboard_summary:*',
+          'entities:*'
+        ],
+        mainCacheKeys: ['TEAMS', 'METRICS'],
+        refreshAffectedData: true
+      });
       }
 
       res.json(updatedTenant);
@@ -1731,14 +1842,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json(createValidationErrorResponse(validationResult.error));
       }
 
-      // Create team
-      const newTeam = await storage.createTeam(validationResult.data);
+      const payload = validationResult.data;
 
       // Update cache based on mode
       const status = await redisCache.getCacheStatus();
       if (status && status.mode === 'redis') {
-        // Redis mode: write directly to Redis
+        // Redis mode: allocate id from Redis
         const existingTeams = await redisCache.getAllTeams();
+        const nextId = Array.isArray(existingTeams) && existingTeams.length > 0
+          ? Math.max(...existingTeams.map((t: any) => Number(t?.id) || 0)) + 1
+          : 1;
+        const now = new Date().toISOString();
+        const newTeam = {
+          id: nextId,
+          name: payload.name,
+          description: payload.description || '',
+          tenant_id: payload.tenant_id,
+          isActive: payload.isActive ?? true,
+          team_email: payload.team_email || [],
+          team_slack: payload.team_slack || [],
+          team_pagerduty: payload.team_pagerduty || [],
+          team_members_ids: payload.team_members_ids || [],
+          createdAt: now,
+          updatedAt: now,
+        } as any;
+
         const updatedTeams = Array.isArray(existingTeams) ? [...existingTeams, newTeam] : [newTeam];
         await redisCache.set(CACHE_KEYS.TEAMS, updatedTeams, 6 * 60 * 60);
 
@@ -1752,23 +1880,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
           );
           await redisCache.set(CACHE_KEYS.TENANTS, updatedTenants, 6 * 60 * 60);
         }
-      } else {
-        // In-memory mode: invalidate cache so next GET fetches fresh data from storage
-        await redisCache.invalidateCache({
-          keys: ['all_teams', 'teams_summary', 'all_tenants'],
-          patterns: [
-            'team_details_*',
-            'team_members_*',
-            'team_entities:*',
-            'team_metrics:*',
-            'team_trends:*',
-            'dashboard_summary:*',
-            'entities:*'
-          ],
-          mainCacheKeys: ['TEAMS', 'TENANTS'],
-          refreshAffectedData: true
-        });
+
+        return res.status(201).json(newTeam);
       }
+
+      // In-memory mode: create via storage
+      const newTeam = await storage.createTeam(payload);
+
+      await redisCache.invalidateCache({
+        keys: ['all_teams', 'teams_summary', 'all_tenants'],
+        patterns: [
+          'team_details_*',
+          'team_members_*',
+          'team_entities:*',
+          'team_metrics:*',
+          'team_trends:*',
+          'dashboard_summary:*',
+          'entities:*'
+        ],
+        mainCacheKeys: ['TEAMS', 'TENANTS'],
+        refreshAffectedData: true
+      });
 
       res.status(201).json(newTeam);
     } catch (error) {
@@ -1822,20 +1954,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await redisCache.set(CACHE_KEYS.TEAMS, updatedList, 6 * 60 * 60);
       } else {
         // In-memory mode: invalidate cache so next GET fetches fresh data from storage
-        await redisCache.invalidateCache({
-          keys: ['all_teams', 'teams_summary', 'all_tenants'],
-          patterns: [
+      await redisCache.invalidateCache({
+        keys: ['all_teams', 'teams_summary', 'all_tenants'],
+        patterns: [
             'team_details_*',
             'team_members_*',
-            'team_entities:*',
-            'team_metrics:*',
-            'team_trends:*',
-            'dashboard_summary:*',
-            'entities:*'
-          ],
-          mainCacheKeys: ['TEAMS', 'TENANTS'],
-          refreshAffectedData: true
-        });
+          'team_entities:*',
+          'team_metrics:*',
+          'team_trends:*',
+          'dashboard_summary:*',
+          'entities:*'
+        ],
+        mainCacheKeys: ['TEAMS', 'TENANTS'],
+        refreshAffectedData: true
+      });
       }
 
       res.json(updatedTeam);
@@ -2528,22 +2660,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       } else {
         // In-memory mode: invalidate cache so next GET fetches fresh data from storage
-        await redisCache.invalidateCache({
-          keys: ['all_teams', 'teams_summary', 'all_tenants'],
-          patterns: [
+      await redisCache.invalidateCache({
+        keys: ['all_teams', 'teams_summary', 'all_tenants'],
+        patterns: [
             'team_details_*',
             'team_members_*',
-            'team_entities:*',
-            'team_metrics:*',
-            'team_trends:*',
-            'dashboard_summary:*',
-            'entities:*'
-          ],
-          mainCacheKeys: ['TEAMS', 'TENANTS'],
-          refreshAffectedData: true
-        });
-        // Explicitly invalidate tenants cache to ensure team count updates
-        await redisCache.invalidateTenants();
+          'team_entities:*',
+          'team_metrics:*',
+          'team_trends:*',
+          'dashboard_summary:*',
+          'entities:*'
+        ],
+        mainCacheKeys: ['TEAMS', 'TENANTS'],
+        refreshAffectedData: true
+      });
+      // Explicitly invalidate tenants cache to ensure team count updates
+      await redisCache.invalidateTenants();
       }
 
       res.json(updatedTeam);
@@ -2616,9 +2748,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/get_team_details/:teamName", async (req, res) => {
     try {
       const { teamName } = req.params;
+      const tenantName = req.query.tenant as string;
+      const status = await redisCache.getCacheStatus();
       
-      // Use cache key for team details
-      const cacheKey = `team_details_${teamName}`;
+      if (status && status.mode === 'redis') {
+        // Redis-first: read from Redis only, no Express/mock backfill
+        const teams = await redisCache.get(CACHE_KEYS.TEAMS) || [];
+        const tenants = await redisCache.get(CACHE_KEYS.TENANTS) || [];
+        let team: any = null;
+        if (tenantName && Array.isArray(tenants) && tenants.length > 0) {
+          const tnt = tenants.find((tn: any) => tn?.name === tenantName);
+          if (tnt) {
+            team = Array.isArray(teams) ? teams.find((t: any) => t?.name === teamName && t?.tenant_id === tnt.id) : null;
+          }
+        }
+        if (!team) {
+          team = Array.isArray(teams) ? teams.find((t: any) => t?.name === teamName) : null;
+        }
+        
+        if (!team) {
+          return res.status(404).json({ message: "Team not found" });
+        }
+
+        // Members: only from team.team_members_ids (no derivation from users)
+        const members = (team.team_members_ids && Array.isArray(team.team_members_ids)) 
+          ? team.team_members_ids 
+          : [];
+
+        const teamDetails = {
+          ...team,
+          members: members
+        };
+
+        return res.json(teamDetails);
+      }
+      
+      // Redis unavailable: fallback to Express/mock
+      const cacheKey = tenantName ? `team_details_${tenantName}_${teamName}` : `team_details_${teamName}`;
       let teamDetails = await redisCache.get(cacheKey);
       
       if (!teamDetails) {
@@ -2650,205 +2816,135 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/get_team_members/:teamName", async (req, res) => {
     try {
       const { teamName } = req.params;
-      
-      // Prevent HTTP 304s so members refresh immediately after renames/updates
-      res.removeHeader('ETag');
-      res.removeHeader('Last-Modified');
-      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-      
-      // Use cache key for team members
-      const cacheKey = `team_members_${teamName}`;
-      let members = await redisCache.get(cacheKey);
-      
-      if (!members) {
-        members = await storage.getTeamMembers(teamName);
-        
-        // Cache for 6 hours like other data
-        await redisCache.set(cacheKey, members, 6 * 60 * 60);
-      }
-
-      res.json(members);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to fetch team members" });
-    }
-  });
-
-  // FastAPI-style alias: Get team details (development fallback)
-  app.get("/api/v1/get_team_details/:teamName", async (req, res) => {
-    try {
-      const { teamName } = req.params;
-      const tenantName = req.query.tenant as string;
-      
       const status = await redisCache.getCacheStatus();
-      
-      if (status && status.mode === 'redis') {
-        // Redis-first: read from Redis only, no Express/mock backfill
-        const allTeams = await redisCache.getAllTeams();
-        let team: any = null;
-        
-        if (tenantName) {
-          // Find team by BOTH name AND tenant
-          const allTenants = await redisCache.getAllTenants();
-          const tenantObj = allTenants.find((t: any) => t.name === tenantName);
-          
-          if (tenantObj) {
-            team = allTeams.find((t: any) => t.name === teamName && t.tenant_id === tenantObj.id);
-          }
-        } else {
-          // Fallback: find by name only
-          team = allTeams.find((t: any) => t.name === teamName);
-        }
-        
-        if (!team) {
-          return res.status(404).json({ message: "Team not found" });
-        }
 
-        // Members: only from team.team_members_ids (no derivation from users)
-        const members = (team.team_members_ids && Array.isArray(team.team_members_ids)) 
-          ? team.team_members_ids 
+      if (status && status.mode === 'redis') {
+        // Redis-first: resolve members from Redis TEAMS and USERS with tenant isolation
+        const tenantName = req.query.tenant as string;
+        const teams = await redisCache.get(CACHE_KEYS.TEAMS) || [];
+        const tenants = await redisCache.get(CACHE_KEYS.TENANTS) || [];
+        const users = await redisCache.get(CACHE_KEYS.USERS) || [];
+        let team: any = null;
+        if (tenantName && Array.isArray(tenants) && tenants.length > 0) {
+          const tnt = tenants.find((tn: any) => tn?.name === tenantName);
+          if (tnt) team = Array.isArray(teams) ? teams.find((t: any) => t?.name === teamName && t?.tenant_id === tnt.id) : null;
+        }
+        if (!team) team = Array.isArray(teams) ? teams.find((t: any) => t?.name === teamName) : null;
+
+        const memberIds: string[] = (team?.team_members_ids && Array.isArray(team.team_members_ids))
+          ? team.team_members_ids
           : [];
 
-        const teamDetails = {
-          ...team,
-          members: members
-        };
-
-        return res.json(teamDetails);
-      }
-      
-      // Redis unavailable: fallback to Express/mock
-      const cacheKey = tenantName ? `team_details_${tenantName}_${teamName}` : `team_details_${teamName}`;
-      let teamDetails = await redisCache.get(cacheKey);
-      
-      if (!teamDetails) {
-        // CRITICAL: Use tenant-aware lookup for multi-tenant isolation
-        let team;
-        
-        if (tenantName) {
-          // Find team by BOTH name AND tenant
-          const tenants = await storage.getTenants();
-          const tenantObj = tenants.find(t => t.name === tenantName);
-          
-          if (tenantObj) {
-            const allTeams = await storage.getTeams();
-            team = allTeams.find(t => t.name === teamName && t.tenant_id === tenantObj.id);
-          }
-        }
-        
-        // Fallback: if no tenant specified or team not found with tenant, try by name only
-        if (!team) {
-          team = await storage.getTeamByName(teamName);
-        }
-        
-        if (!team) {
-          return res.status(404).json({ message: "Team not found" });
-        }
-
-        // Get actual team members from storage (tenant-aware)
-        const members = await storage.getTeamMembers(teamName, tenantName);
-
-        teamDetails = {
-          ...team,
-          members: members
-        };
-
-        // Cache for 6 hours like other data
-        await redisCache.set(cacheKey, teamDetails, 6 * 60 * 60);
-      }
-
-      res.json(teamDetails);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to fetch team details" });
-    }
-  });
-
-  // FastAPI-style alias: Get team members (development fallback)
-  app.get("/api/v1/get_team_members/:teamName", async (req, res) => {
-    try {
-      const { teamName } = req.params;
-      const tenantName = req.query.tenant as string;
-      
-      // Prevent HTTP 304s so members refresh immediately after renames/updates
-      res.removeHeader('ETag');
-      res.removeHeader('Last-Modified');
-      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-      
-      const status = await redisCache.getCacheStatus();
-      
-      if (status && status.mode === 'redis') {
-        // Redis-first: derive members only from team.team_members_ids
-        const allTeams = await redisCache.getAllTeams();
-        let team: any = null;
-        
-        if (tenantName) {
-          // Find team by BOTH name AND tenant
-          const allTenants = await redisCache.getAllTenants();
-          const tenantObj = allTenants.find((t: any) => t.name === tenantName);
-          
-          if (tenantObj) {
-            team = allTeams.find((t: any) => t.name === teamName && t.tenant_id === tenantObj.id);
-          }
-        } else {
-          // Fallback: find by name only
-          team = allTeams.find((t: any) => t.name === teamName);
-        }
-        
-        if (!team) {
-          return res.status(404).json({ message: "Team not found" });
-        }
-
-        // Members: only from team.team_members_ids (no user-derived inference)
-        const members = (team.team_members_ids && Array.isArray(team.team_members_ids)) 
-          ? team.team_members_ids 
-          : [];
+        const members = memberIds
+          .map((memberKey: string) => {
+            const u = Array.isArray(users)
+              ? users.find((usr: any) => usr?.username === memberKey || String(usr?.id) === String(memberKey))
+              : null;
+            if (!u) return null; // drop unresolved mock references
+            return {
+              id: u.id,
+              name: u.username,
+              username: u.username,
+              displayName: u.displayName || u.username,
+              email: u.email || '',
+              is_active: u.is_active !== false,
+            };
+          })
+          .filter(Boolean);
 
         return res.json(members);
       }
-      
-      // Redis unavailable: fallback to Express/mock
-      const cacheKey = tenantName ? `team_members_${tenantName}_${teamName}` : `team_members_${teamName}`;
-      let members = await redisCache.get(cacheKey);
 
-      if (!members) {
-        members = await storage.getTeamMembers(teamName, tenantName);
-        await redisCache.set(cacheKey, members, 6 * 60 * 60);
-      }
-
+      // In-memory mode: fallback to storage
+      const members = await storage.getTeamMembers(teamName);
       res.json(members);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch team members" });
     }
   });
 
-  // Get all users endpoint with caching
-  app.get("/api/get_user", async (req, res) => {
+  // FastAPI-style alias: Get team members (development fallback) - Redis-first
+  app.get("/api/v1/get_team_members/:teamName", async (req, res) => {
     try {
-      const cacheKey = 'all_users';
-      let users = await redisCache.get(cacheKey);
-      
-      if (!users) {
-        users = await storage.getUsers();
-        
-        // Cache for 6 hours like other data
-        await redisCache.set(cacheKey, users, 6 * 60 * 60);
+      const { teamName } = req.params;
+      const status = await redisCache.getCacheStatus();
+
+      if (status && status.mode === 'redis') {
+        const tenantName = req.query.tenant as string;
+        const teams = await redisCache.get(CACHE_KEYS.TEAMS) || [];
+        const tenants = await redisCache.get(CACHE_KEYS.TENANTS) || [];
+        const users = await redisCache.get(CACHE_KEYS.USERS) || [];
+        let team: any = null;
+        if (tenantName && Array.isArray(tenants) && tenants.length > 0) {
+          const tnt = tenants.find((tn: any) => tn?.name === tenantName);
+          if (tnt) team = Array.isArray(teams) ? teams.find((t: any) => t?.name === teamName && t?.tenant_id === tnt.id) : null;
+        }
+        if (!team) team = Array.isArray(teams) ? teams.find((t: any) => t?.name === teamName) : null;
+
+        const memberIds: string[] = (team?.team_members_ids && Array.isArray(team.team_members_ids))
+          ? team.team_members_ids
+          : [];
+
+        const members = memberIds
+          .map((memberKey: string) => {
+            const u = Array.isArray(users)
+              ? users.find((usr: any) => usr?.username === memberKey || String(usr?.id) === String(memberKey))
+              : null;
+            if (!u) return null; // drop unresolved mock references
+            return {
+              id: u.id,
+              name: u.username,
+              username: u.username,
+              displayName: u.displayName || u.username,
+              email: u.email || '',
+              is_active: u.is_active !== false,
+            };
+          })
+          .filter(Boolean);
+
+        return res.json(members);
       }
 
+      const members = await storage.getTeamMembers(teamName);
+      res.json(members);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch team members" });
+    }
+  });
+
+  // Get all users endpoint - Redis-first; fallback to mock when Redis unavailable
+  app.get("/api/get_user", async (req, res) => {
+    try {
+      const status = await redisCache.getCacheStatus();
+      
+      if (status.connected) {
+        // Redis mode: read from cache or return empty
+        const cachedUsers = await redisCache.get(CACHE_KEYS.USERS);
+        res.json(cachedUsers || []);
+      } else {
+        // In-memory mode: fallback to storage
+        const users = await storage.getUsers();
       res.json(users);
+      }
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch users" });
     }
   });
 
-  // FastAPI-style alias: Get all users (development fallback)
+  // FastAPI-style alias: Get all users (development fallback) - Redis-first; fallback to mock when Redis unavailable
   app.get("/api/v1/get_user", async (req, res) => {
     try {
-      const cacheKey = 'all_users';
-      let users = await redisCache.get(cacheKey);
-      if (!users) {
-        users = await storage.getUsers();
-        await redisCache.set(cacheKey, users, 6 * 60 * 60);
-      }
+      const status = await redisCache.getCacheStatus();
+      
+      if (status.connected) {
+        // Redis mode: read from cache or return empty
+        const cachedUsers = await redisCache.get(CACHE_KEYS.USERS);
+        res.json(cachedUsers || []);
+      } else {
+        // In-memory mode: fallback to storage
+        const users = await storage.getUsers();
       res.json(users);
+      }
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch users" });
     }
@@ -2877,8 +2973,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const memberData = req.body;
 
-      // Get OAuth context (team, tenant, username from session or headers)
-      // Priority: query param > header > default
+      const status = await redisCache.getCacheStatus();
+      if (status && status.mode === 'redis') {
+        // Redis mode: update Redis directly
+        const teams = await redisCache.get(CACHE_KEYS.TEAMS) || [];
+        const tenants = await redisCache.get(CACHE_KEYS.TENANTS) || [];
+        let idx = -1;
+        if (tenantFromQuery && Array.isArray(tenants) && tenants.length > 0) {
+          const tnt = tenants.find((tn: any) => tn?.name === tenantFromQuery);
+          if (tnt) idx = Array.isArray(teams) ? teams.findIndex((t: any) => t?.name === teamName && t?.tenant_id === tnt.id) : -1;
+        }
+        if (idx === -1) idx = Array.isArray(teams) ? teams.findIndex((t: any) => t?.name === teamName) : -1;
+        if (idx === -1) return res.status(404).json({ message: 'Team not found' });
+
+        const team = teams[idx];
+        const ids: string[] = Array.isArray(team.team_members_ids) ? [...team.team_members_ids] : [];
+        let updated = ids;
+        if (memberData.action === 'add') {
+          if (!ids.includes(String(memberData.memberId))) updated = [...ids, String(memberData.memberId)];
+        } else if (memberData.action === 'remove') {
+          updated = ids.filter((id: string) => id !== String(memberData.memberId));
+        }
+        const newTeam = { ...team, team_members_ids: updated };
+        const newTeams = [...teams];
+        newTeams[idx] = newTeam;
+        await redisCache.set(CACHE_KEYS.TEAMS, newTeams, 6 * 60 * 60);
+
+        await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.TEAM_MEMBERS, {
+          teamName,
+          tenantName: tenantFromQuery || (team as any)?.tenant_name,
+          action: memberData.action,
+          memberId: memberData.memberId
+        });
+
+        return res.json({ success: true });
+      }
+
+      // In-memory mode: use storage
       const oauthContext = {
         team: teamName,
         tenant: tenantFromQuery || (Array.isArray(req.headers['x-tenant']) ? req.headers['x-tenant'][0] : req.headers['x-tenant']) || 'Data Engineering',
@@ -2908,6 +3039,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: "Failed to update team members", 
         error: error instanceof Error ? error.message : 'Unknown error' 
       });
+    }
+  });
+  
+  // FastAPI-style alias for team member management (v1)
+  app.post("/api/v1/teams/:teamName/members", checkActiveUserDev, async (req: Request, res: Response) => {
+    try {
+      const { teamName } = req.params;
+      const tenantFromQuery = req.query.tenant as string;
+
+      const memberSchema = z.object({
+        action: z.enum(['add', 'remove', 'update']),
+        memberId: z.union([z.string(), z.number()]).transform(String),
+        member: z.any().optional()
+      });
+
+      const result = memberSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({ message: 'Invalid team member data', errors: result.error.format() });
+      }
+
+      const memberData = req.body;
+
+      const status = await redisCache.getCacheStatus();
+      if (status && status.mode === 'redis') {
+        const teams = await redisCache.get(CACHE_KEYS.TEAMS) || [];
+        const tenants = await redisCache.get(CACHE_KEYS.TENANTS) || [];
+        let idx = -1;
+        if (tenantFromQuery && Array.isArray(tenants) && tenants.length > 0) {
+          const tnt = tenants.find((tn: any) => tn?.name === tenantFromQuery);
+          if (tnt) idx = Array.isArray(teams) ? teams.findIndex((t: any) => t?.name === teamName && t?.tenant_id === tnt.id) : -1;
+        }
+        if (idx === -1) idx = Array.isArray(teams) ? teams.findIndex((t: any) => t?.name === teamName) : -1;
+        if (idx === -1) return res.status(404).json({ message: 'Team not found' });
+
+        const team = teams[idx];
+        const ids: string[] = Array.isArray(team.team_members_ids) ? [...team.team_members_ids] : [];
+        let updated = ids;
+        if (memberData.action === 'add') {
+          if (!ids.includes(String(memberData.memberId))) updated = [...ids, String(memberData.memberId)];
+        } else if (memberData.action === 'remove') {
+          updated = ids.filter((id: string) => id !== String(memberData.memberId));
+        }
+        const newTeam = { ...team, team_members_ids: updated };
+        const newTeams = [...teams];
+        newTeams[idx] = newTeam;
+        await redisCache.set(CACHE_KEYS.TEAMS, newTeams, 6 * 60 * 60);
+
+        await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.TEAM_MEMBERS, {
+          teamName,
+          tenantName: tenantFromQuery || (team as any)?.tenant_name,
+          action: memberData.action,
+          memberId: memberData.memberId
+        });
+
+        return res.json({ success: true });
+      }
+
+      const updatedTeam = await storage.updateTeamMembers(teamName, memberData, {
+        team: teamName,
+        tenant: tenantFromQuery || 'Data Engineering',
+        username: 'azure_test_user'
+      });
+      if (!updatedTeam) return res.status(404).json({ message: 'Team not found' });
+      await redisCache.invalidateTeamData(teamName, {
+        action: memberData.action,
+        memberId: memberData.memberId,
+        memberName: memberData.member?.name || memberData.member?.username,
+        tenantName: tenantFromQuery
+      });
+      return res.json({ success: true });
+    } catch (error) {
+      return res.status(500).json({ message: 'Failed to update team members' });
     }
   });
   
@@ -4289,23 +4492,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.setHeader('Pragma', 'no-cache');
       res.setHeader('Expires', '0');
       
-      const users = await storage.getUsers();
+      // Redis-first: check cache mode
+      const status = await redisCache.getCacheStatus();
+      const redisConnected = status && status.mode === 'redis';
       
-      // Debug: Log actual user count
-      console.log(`DEBUG: storage.getUsers() returned ${users.length} users`);
-      console.log(`DEBUG: First few usernames:`, users.slice(0, 5).map(u => u.username));
+      let users;
+      if (redisConnected) {
+        // Redis mode: read from Redis only, return empty if key doesn't exist
+        users = await redisCache.get(CACHE_KEYS.USERS) || [];
+      } else {
+        // In-memory mode: return mock users from storage
+        users = await storage.getUsers();
+      }
       
       // Transform to admin format expected by frontend
-      const adminUsers = users.map(user => ({
+      const adminUsers = Array.isArray(users) ? users.map((user: any) => ({
         user_id: user.id,
         user_name: user.username,
         user_email: user.email || '',
         user_slack: user.user_slack || null,
         user_pagerduty: user.user_pagerduty || null,
         is_active: user.is_active ?? true
-      }));
+      })) : [];
 
-      console.log(`DEBUG: Returning ${adminUsers.length} admin users to frontend`);
       res.json(adminUsers);
     } catch (error) {
       console.error('Admin users fetch error:', error);
@@ -4324,40 +4533,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const adminUserData = result.data;
       
-      // Check if username already exists
+      // Check if username already exists (in storage for in-memory mode)
       const existingUser = await storage.getUserByUsername(adminUserData.user_name);
       if (existingUser) {
         return res.status(409).json(createErrorResponse("Username already exists", "duplicate_username"));
       }
       
-      // Transform admin format to storage format
-      const userData = {
+      // Update cache based on mode
+      const status = await redisCache.getCacheStatus();
+      if (status && status.mode === 'redis') {
+        // Redis mode: generate ID from Redis (do NOT rely on storage mock counters)
+        const existingUsers = await redisCache.get(CACHE_KEYS.USERS) || [];
+        const nextId = Array.isArray(existingUsers) && existingUsers.length > 0
+          ? Math.max(...existingUsers.map((u: any) => Number(u?.id) || 0)) + 1
+          : 1;
+
+        const user = {
+          id: nextId,
         username: adminUserData.user_name,
-        password: "default-password", // Default password that admin can change
+          password: "default-password",
+        email: adminUserData.user_email,
+        displayName: adminUserData.user_name,
+        user_slack: adminUserData.user_slack || null,
+        user_pagerduty: adminUserData.user_pagerduty || null,
+        is_active: adminUserData.is_active ?? true,
+          role: "user" as const,
+          team: null,
+          azureObjectId: null,
+        };
+
+        const updatedUsers = Array.isArray(existingUsers) ? [...existingUsers, user] : [user];
+        await redisCache.set(CACHE_KEYS.USERS, updatedUsers, 6 * 60 * 60);
+        await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.USERS, {
+          timestamp: new Date().toISOString()
+        });
+
+        return res.status(201).json({
+          user_id: user.id,
+          user_name: user.username,
+          user_email: user.email || '',
+          user_slack: user.user_slack || null,
+          user_pagerduty: user.user_pagerduty || null,
+          is_active: user.is_active ?? true
+        });
+      }
+
+      // In-memory mode: create via storage
+      const user = await storage.createUser({
+        username: adminUserData.user_name,
+        password: "default-password",
         email: adminUserData.user_email,
         displayName: adminUserData.user_name,
         user_slack: adminUserData.user_slack || null,
         user_pagerduty: adminUserData.user_pagerduty || null,
         is_active: adminUserData.is_active ?? true,
         role: "user" as const
-      };
-      
-      const user = await storage.createUser(userData);
-      
-      // Invalidate user-related caches
+      });
       await redisCache.invalidateUserData();
       
-      // Transform response to admin format
-      const adminUser = {
+      return res.status(201).json({
         user_id: user.id,
         user_name: user.username,
         user_email: user.email || '',
         user_slack: user.user_slack || null,
         user_pagerduty: user.user_pagerduty || null,
         is_active: user.is_active ?? true
-      };
-      
-      res.status(201).json(adminUser);
+      });
     } catch (error) {
       console.error('Admin user creation error:', error);
       res.status(500).json(createErrorResponse("Failed to create user"));
@@ -4475,8 +4716,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      // Invalidate user-related caches
+      // Update cache based on mode
+      const status = await redisCache.getCacheStatus();
+      if (status && status.mode === 'redis') {
+        // Redis mode: write directly to Redis
+        const existingUsersCache = await redisCache.get(CACHE_KEYS.USERS) || [];
+        const updatedUsersCache = Array.isArray(existingUsersCache)
+          ? existingUsersCache.map((u: any) => u.id === userId ? updatedUser : u)
+          : [updatedUser];
+        await redisCache.set(CACHE_KEYS.USERS, updatedUsersCache, 6 * 60 * 60);
+        
+        // Broadcast update to connected clients
+        await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.USERS, {
+          timestamp: new Date().toISOString()
+        });
+      } else {
+        // In-memory mode: invalidate cache so next GET fetches fresh data from storage
       await redisCache.invalidateUserData();
+      }
       
       // Transform response to admin format
       const adminUser = {
@@ -6023,9 +6280,3 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   return httpServer;
 }
-
-  // ===============================================================================
-  // AI AGENT CHAT ENDPOINTS - Express fallbacks with active user protection
-  // ===============================================================================
-  
-  // Send message to AI agent (entity_name based with query params)

@@ -164,7 +164,7 @@ export const prodConfig = {
     teamMembers: (teamName: string) => `/api/v1/teams/${teamName}/members`,
 
     users: {
-      getAll: '/api/v1/get_user',
+      getAll: '/api/v1/users',
       getTeamMembers: (teamName: string) => `/api/v1/get_team_members/${teamName}`,
     },
 
@@ -194,7 +194,7 @@ export const prodConfig = {
         disable: (tenantId: number) => `/api/v1/tenants/${tenantId}/disable`,
       },
       users: {
-        getAll: '/api/v1/users',
+        getAll: '/api/admin/users',
         create: '/api/v1/users',
         update: (userId: number) => `/api/v1/users/${userId}`,
         disable: (userId: number) => `/api/v1/users/${userId}/disable`,

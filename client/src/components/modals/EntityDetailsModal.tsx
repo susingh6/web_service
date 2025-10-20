@@ -221,7 +221,7 @@ const EntityDetailsModal = ({ open, onClose, entity, teams, tenantName: propTena
         const data = await res.json();
         setAvailableUsers(Array.isArray(data) ? data : []);
       } else {
-        const fallback = await fetch('/api/v1/get_user', { headers, credentials: 'include' });
+        const fallback = await fetch('/api/v1/users', { headers, credentials: 'include' });
         const data = await fallback.json();
         setAvailableUsers(Array.isArray(data) ? data : []);
       }

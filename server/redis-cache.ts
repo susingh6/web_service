@@ -56,7 +56,8 @@ export const CACHE_KEYS = {
   ADMIN_MESSAGES: 'sla:adminMessages',
   TASKS: 'sla:tasks',
   PERMISSIONS: 'sla:permissions',
-  ROLES: 'sla:roles'
+  ROLES: 'sla:roles',
+  USERS: 'sla:users'
 };
 
 export class RedisCache {
@@ -2373,11 +2374,16 @@ export class RedisCache {
       ] : [])
     ];
 
+    // In Redis mode, don't touch mainCacheKeys (teams are managed by direct writes)
+    // Only invalidate in memory mode where we need to refresh from storage
+    const status = await this.getCacheStatus();
+    const isRedisMode = status && status.mode === 'redis';
+
     await this.invalidateCache({
       keys: invalidationKeys,
       patterns: teamName ? [] : ['team_members_*', 'team_details_*'],
-      mainCacheKeys: ['TEAMS'], // Removed METRICS - team member changes don't affect metrics
-      refreshAffectedData: true
+      mainCacheKeys: isRedisMode ? [] : ['TEAMS'], // Only invalidate TEAMS in memory mode
+      refreshAffectedData: !isRedisMode // Only refresh from storage in memory mode
     });
 
     // Broadcast specific cache updates based on what changed

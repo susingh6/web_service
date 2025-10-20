@@ -70,16 +70,13 @@ const AdminOverview = () => {
   });
 
   const { data: users = [] } = useQuery({
-    queryKey: ['admin', 'users'],
-    staleTime: 6 * 60 * 60 * 1000, // Cache for 6 hours
-    gcTime: 6 * 60 * 60 * 1000,    // Keep in memory for 6 hours
+    queryKey: ['admin', 'users', 'v2'],
     queryFn: async () => {
       const response = await fetch(buildUrl(endpoints.admin.users.getAll));
-      if (!response.ok) {
-        throw new Error('Failed to fetch users');
-      }
+      if (!response.ok) throw new Error('Failed to fetch users');
       return response.json();
     },
+    staleTime: 6 * 60 * 60 * 1000,
   });
 
   const { data: pendingConflicts = [] } = useQuery({

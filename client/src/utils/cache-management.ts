@@ -247,7 +247,7 @@ export const CACHE_PATTERNS = {
   
   // User-related cache keys
   USERS: {
-    ALL: ['/api/get_user'],
+    ALL: ['/api/v1/users'],
     PROFILE: ['/api/user'],
   },
   
@@ -655,7 +655,7 @@ export function useTeamMemberMutation() {
           headers['X-Session-ID'] = sessionId;
         }
         
-        const response = await fetch(`/api/teams/${teamName}/members`, {
+        const response = await fetch(`/api/v1/teams/${teamName}/members`, {
           method: 'POST',
           headers,
           body: JSON.stringify({ action: 'add', memberId: userId }),
@@ -679,11 +679,11 @@ export function useTeamMemberMutation() {
         // CRITICAL: Invalidate React Query cache for notification system 
         // This ensures EmailNotificationConfig shows updated team members immediately
         queryClient.invalidateQueries({ queryKey: ['/api/users'] });
-        queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/v1/teams'] });
         // Invalidate all team-notification-settings since we don't have tenant context in old API
         queryClient.invalidateQueries({ queryKey: ['team-notification-settings'] });
         // CRITICAL: Also invalidate notification component team member cache
-        queryClient.invalidateQueries({ queryKey: [`/api/get_team_members/${teamName}`] });
+        queryClient.invalidateQueries({ queryKey: [`/api/v1/get_team_members/${teamName}`] });
         
         return result;
       },
@@ -713,7 +713,7 @@ export function useTeamMemberMutation() {
           headers['X-Session-ID'] = sessionId;
         }
         
-        const response = await fetch(`/api/teams/${teamName}/members`, {
+        const response = await fetch(`/api/v1/teams/${teamName}/members`, {
           method: 'POST',
           headers,
           body: JSON.stringify({ action: 'remove', memberId: userId }),
@@ -737,11 +737,11 @@ export function useTeamMemberMutation() {
         // CRITICAL: Invalidate React Query cache for notification system 
         // This ensures EmailNotificationConfig shows updated team members immediately
         queryClient.invalidateQueries({ queryKey: ['/api/users'] });
-        queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/v1/teams'] });
         // Invalidate all team-notification-settings since we don't have tenant context in old API
         queryClient.invalidateQueries({ queryKey: ['team-notification-settings'] });
         // CRITICAL: Also invalidate notification component team member cache
-        queryClient.invalidateQueries({ queryKey: [`/api/get_team_members/${teamName}`] });
+        queryClient.invalidateQueries({ queryKey: [`/api/v1/get_team_members/${teamName}`] });
         
         return result;
       },
@@ -1533,7 +1533,7 @@ export function useTeamMemberMutationV2() {
       const sessionId = localStorage.getItem('fastapi_session_id');
       if (sessionId) headers['X-Session-ID'] = sessionId;
       
-      const url = `/api/teams/${teamName}/members${tenantName ? `?tenant=${encodeURIComponent(tenantName)}` : ''}`;
+      const url = `/api/v1/teams/${teamName}/members${tenantName ? `?tenant=${encodeURIComponent(tenantName)}` : ''}`;
       const response = await fetch(url, {
         method: 'POST',
         headers,
@@ -1591,11 +1591,11 @@ export function useTeamMemberMutationV2() {
       const { invalidateAdminCaches } = await import('@/lib/cacheKeys');
       await invalidateAdminCaches(queryClient);
       await queryClient.invalidateQueries({ queryKey: ['/api/users'] });
-      await queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/v1/teams'] });
       await queryClient.invalidateQueries({ queryKey: ['team-notification-settings', tenantName, teamName] });
       await queryClient.invalidateQueries({ queryKey: ['admin', 'teams'] });
       // CRITICAL: Also invalidate notification component team member cache
-      await queryClient.invalidateQueries({ queryKey: [`/api/get_team_members/${teamName}`] });
+      await queryClient.invalidateQueries({ queryKey: [`/api/v1/get_team_members/${teamName}`] });
       
       // CRITICAL: Invalidate TeamDashboard cache key pattern
       if (tenantName && teamId) {
@@ -1632,7 +1632,7 @@ export function useTeamMemberMutationV2() {
       const sessionId = localStorage.getItem('fastapi_session_id');
       if (sessionId) headers['X-Session-ID'] = sessionId;
       
-      const url = `/api/teams/${teamName}/members${tenantName ? `?tenant=${encodeURIComponent(tenantName)}` : ''}`;
+      const url = `/api/v1/teams/${teamName}/members${tenantName ? `?tenant=${encodeURIComponent(tenantName)}` : ''}`;
       const response = await fetch(url, {
         method: 'POST',
         headers,
@@ -1692,11 +1692,11 @@ export function useTeamMemberMutationV2() {
       const { invalidateAdminCaches } = await import('@/lib/cacheKeys');
       await invalidateAdminCaches(queryClient);
       await queryClient.invalidateQueries({ queryKey: ['/api/users'] });
-      await queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/v1/teams'] });
       await queryClient.invalidateQueries({ queryKey: ['team-notification-settings', tenantName, teamName] });
       await queryClient.invalidateQueries({ queryKey: ['admin', 'teams'] });
       // CRITICAL: Also invalidate notification component team member cache
-      await queryClient.invalidateQueries({ queryKey: [`/api/get_team_members/${teamName}`] });
+      await queryClient.invalidateQueries({ queryKey: [`/api/v1/get_team_members/${teamName}`] });
       
       // CRITICAL: Invalidate TeamDashboard cache key pattern
       if (tenantName && teamId) {

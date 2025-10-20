@@ -83,26 +83,29 @@ const TeamFormDialog = ({ open, onClose, team, tenants, activeTenants, onSubmit 
   const [activeTab, setActiveTab] = useState(0);
   
   // Fetch available users for member management
-  const { data: availableUsers = [] } = useQuery({
-    queryKey: ['admin', 'users'],
+  const { data: availableUsers = [], isLoading: isLoadingUsers, error: usersError } = useQuery({
+    queryKey: ['admin', 'users', 'v2'], // v2: Force cache refresh after Redis-first implementation
     queryFn: async () => {
       const headers: Record<string, string> = {};
       const sessionId = localStorage.getItem('fastapi_session_id');
       if (sessionId) headers['X-Session-ID'] = sessionId;
       
-      const response = await fetch(buildUrl('/api/admin/users'), {
+      const url = buildUrl(endpoints.admin.users.getAll);
+      const response = await fetch(url, {
         headers,
         credentials: 'include'
       });
       if (!response.ok) {
-        throw new Error('Failed to fetch users');
+        const errorText = await response.text();
+        throw new Error(`Failed to fetch users: ${response.status} - ${errorText}`);
       }
-      return response.json();
+      const data = await response.json();
+      return data;
     },
     enabled: open,
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
-
+  
   // Update form data when team prop changes
   useEffect(() => {
     if (team) {
@@ -156,10 +159,13 @@ const TeamFormDialog = ({ open, onClose, team, tenants, activeTenants, onSubmit 
     setActiveTab(0);
   };
   
-  // Helper function to get user email by user name
-  const getUserEmailByName = (userName: string) => {
-    const user = availableUsers.find((u: User) => u.user_name === userName);
-    return user?.user_email || userName;
+  // Helper function to get user email by user name or ID
+  const getUserEmailByName = (userNameOrId: string) => {
+    // Try to find by user_id first (numeric string), then by user_name
+    const user = availableUsers.find((u: User) => 
+      String(u.user_id) === String(userNameOrId) || u.user_name === userNameOrId
+    );
+    return user?.user_email || userNameOrId;
   };
   
   // Helper function to get user name by email
@@ -359,10 +365,18 @@ const TeamFormDialog = ({ open, onClose, team, tenants, activeTenants, onSubmit 
                 filterSelectedOptions
                 value={formData.team_members_ids.map(getUserEmailByName)}
                 onChange={(event, newValue) => {
-                  const newNames = newValue.map(val => 
-                    typeof val === 'string' ? getUserNameByEmail(val) : getUserNameByEmail(val.user_email)
-                  );
-                  setFormData({ ...formData, team_members_ids: newNames });
+                  // Store user IDs (not usernames) to match Team Dashboard format
+                  const newIds = newValue.map(val => {
+                    if (typeof val === 'string') {
+                      // val is an email, find the user and get their ID
+                      const user = availableUsers.find((u: User) => u.user_email === val);
+                      return user ? String(user.user_id) : val;
+                    } else {
+                      // val is a user object
+                      return String(val.user_id);
+                    }
+                  });
+                  setFormData({ ...formData, team_members_ids: newIds });
                 }}
                 renderInput={(params) => (
                   <TextField
@@ -405,18 +419,21 @@ const TeamFormDialog = ({ open, onClose, team, tenants, activeTenants, onSubmit 
                     Selected Members ({formData.team_members_ids.length}):
                   </Typography>
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                    {formData.team_members_ids.map((userName: string) => {
-                      const user = availableUsers.find((u: User) => u.user_name === userName);
+                    {formData.team_members_ids.map((memberIdOrName: string) => {
+                      // Try to find by user_id first (numeric string), then by user_name
+                      const user = availableUsers.find((u: User) => 
+                        String(u.user_id) === String(memberIdOrName) || u.user_name === memberIdOrName
+                      );
                       return (
                         <Chip
-                          key={userName}
-                          label={user?.user_name || user?.user_email || userName}
+                          key={memberIdOrName}
+                          label={user?.user_name || user?.user_email || memberIdOrName}
                           variant="filled"
                           size="small"
                           onDelete={() => {
                             setFormData({
                               ...formData,
-                              team_members_ids: formData.team_members_ids.filter((name: string) => name !== userName)
+                              team_members_ids: formData.team_members_ids.filter((id: string) => id !== memberIdOrName)
                             });
                           }}
                         />
@@ -508,7 +525,12 @@ const TeamsManagement = () => {
         // Invalidate teams cache to refresh the table
         await queryClient.invalidateQueries({ queryKey: ['admin', 'teams'] });
         await invalidateAdminCaches(queryClient);
-        await queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
+        await queryClient.invalidateQueries({ queryKey: ['/api/v1/teams'] });
+        
+        // Invalidate users cache when USERS cache is updated
+        if (data.cacheType === WEBSOCKET_CONFIG.cacheUpdateTypes.USERS) {
+          await queryClient.invalidateQueries({ queryKey: ['admin', 'users', 'v2'] });
+        }
       }
     },
     onTeamMembersUpdated: async (data) => {
@@ -518,7 +540,7 @@ const TeamsManagement = () => {
       
       // Also invalidate related caches
       await invalidateAdminCaches(queryClient);
-      await queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/v1/teams'] });
       
       // Show toast notification for the update
       if (data.type === 'member-added') {
@@ -528,7 +550,7 @@ const TeamsManagement = () => {
         });
       } else if (data.type === 'member-removed') {
         toast({ 
-          title: 'Team Member Removed', 
+          title: 'Success', 
           description: `${data.memberName || 'Member'} has been removed from team ${data.teamName}` 
         });
       }
@@ -675,17 +697,7 @@ const TeamsManagement = () => {
     
     console.log('📡 FastAPI response status:', response.status, response.statusText);
     
-    // If FastAPI fails, try Express endpoint as fallback
-    if (!response.ok && response.status !== 404) {
-      console.log('⚠️ FastAPI failed, trying Express endpoint fallback...');
-      response = await fetch(buildUrl(`/api/teams/${teamId}`), {
-        method: 'PUT',
-        headers,
-        body: JSON.stringify(updateData),
-        credentials: 'include',
-      });
-      console.log('📡 Express fallback response status:', response.status, response.statusText);
-    }
+    // Remove legacy Express PUT fallback to avoid backfilling from mock
     
     // Enhanced error handling with detailed response parsing
     if (!response.ok) {
@@ -989,7 +1001,7 @@ const TeamsManagement = () => {
       await invalidateAdminCaches(queryClient);
       
       // Core team data caches
-      await queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/v1/teams'] });
       await queryClient.invalidateQueries({ queryKey: ['admin', 'teams'] });
       
       // Team dashboard and summary data
