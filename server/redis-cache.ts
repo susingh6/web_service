@@ -1108,19 +1108,13 @@ export class RedisCache {
     
     try {
       const data = await this.redis.get(CACHE_KEYS.ENTITIES);
-      const cachedEntities: Entity[] = data ? JSON.parse(data) : [];
-
-      // If no cache exists yet, initialize from storage once; otherwise trust Redis as source of truth
+      
+      // Redis-first: If key doesn't exist, return empty array (don't populate from storage)
       if (!data) {
-        try {
-          const storageEntities = await storage.getEntities();
-          const expireTime = Math.floor(this.CACHE_DURATION_MS / 1000);
-          await this.set(CACHE_KEYS.ENTITIES, storageEntities, expireTime);
-          return storageEntities;
-        } catch (_err) {
-          return [];
-        }
+        return [];
       }
+      
+      const cachedEntities: Entity[] = JSON.parse(data);
       return cachedEntities;
     } catch (error) {
       console.error('Error getting entities from Redis:', error);
