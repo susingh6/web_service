@@ -1924,8 +1924,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const updateData = validationResult.data;
+      const status = await redisCache.getCacheStatus();
 
-      // Update team
+      if (status && status.mode === 'redis') {
+        // Redis mode: update Redis directly
+        const teams = await redisCache.get(CACHE_KEYS.TEAMS) || [];
+        const idx = Array.isArray(teams) ? teams.findIndex((t: any) => t.id === teamId) : -1;
+        
+        if (idx === -1) {
+          return res.status(404).json(createErrorResponse("Team not found", "not_found"));
+        }
+
+        const beforeTeam = teams[idx];
+        const updatedTeam = {
+          ...beforeTeam,
+          ...updateData,
+          updatedAt: new Date().toISOString()
+        };
+
+        // Update the team in Redis
+        const newTeams = [...teams];
+        newTeams[idx] = updatedTeam;
+        await redisCache.set(CACHE_KEYS.TEAMS, newTeams, 6 * 60 * 60);
+
+        // Broadcast WebSocket update
+        await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.TEAMS, {
+          teamId,
+          teamName: updatedTeam.name,
+          action: 'update',
+          timestamp: new Date().toISOString()
+        });
+
+        return res.json(updatedTeam);
+      }
+
+      // In-memory mode: use storage
       const beforeTeam = await storage.getTeam(teamId);
       const updatedTeam = await storage.updateTeam(teamId, updateData);
       if (!updatedTeam) {
@@ -1943,17 +1976,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await redisCache.invalidateTeamMetricsCache(beforeTeam.tenant_id ? String(beforeTeam.tenant_id) : 'UnknownTenant', updateData.name);
       }
 
-      // Update cache based on mode
-      const status2 = await redisCache.getCacheStatus();
-      if (status2 && status2.mode === 'redis') {
-        // Redis mode: write directly to Redis
-        const existingTeams = await redisCache.getAllTeams();
-        const updatedList = Array.isArray(existingTeams)
-          ? existingTeams.map((t: any) => (t.id === updatedTeam.id ? updatedTeam : t))
-          : [updatedTeam];
-        await redisCache.set(CACHE_KEYS.TEAMS, updatedList, 6 * 60 * 60);
-      } else {
-        // In-memory mode: invalidate cache so next GET fetches fresh data from storage
+      // In-memory mode: invalidate cache so next GET fetches fresh data from storage
       await redisCache.invalidateCache({
         keys: ['all_teams', 'teams_summary', 'all_tenants'],
         patterns: [
@@ -1968,7 +1991,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         mainCacheKeys: ['TEAMS', 'TENANTS'],
         refreshAffectedData: true
       });
-      }
 
       res.json(updatedTeam);
     } catch (error) {

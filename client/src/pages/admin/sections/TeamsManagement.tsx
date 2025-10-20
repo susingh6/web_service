@@ -102,8 +102,10 @@ const TeamFormDialog = ({ open, onClose, team, tenants, activeTenants, onSubmit 
       const data = await response.json();
       return data;
     },
-    enabled: open,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    // Keep query enabled so WebSocket invalidations work
+    // Fetch on mount and when invalidated via WebSocket
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    refetchOnMount: 'always', // Always refetch when component mounts
   });
   
   // Update form data when team prop changes
