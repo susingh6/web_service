@@ -1948,7 +1948,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await redisCache.set(CACHE_KEYS.TEAMS, newTeams, 6 * 60 * 60);
 
         // Broadcast WebSocket update
-        await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.TEAMS, {
+        await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.TEAM_DETAILS, {
           teamId,
           teamName: updatedTeam.name,
           action: 'update',
@@ -3337,8 +3337,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Normalize payload with team/tenant metadata to avoid cross-team leakage
       const payload = { ...result.data } as any;
+      const status = await redisCache.getCacheStatus();
 
       try {
+        // Resolve team and tenant data from Redis or storage depending on mode
+        if (status && status.mode === 'redis') {
+          // Redis mode: resolve from Redis
+          const teams = await redisCache.get(CACHE_KEYS.TEAMS) || [];
+          const tenants = await redisCache.get(CACHE_KEYS.TENANTS) || [];
+
+          // If teamId is missing but team_name provided, resolve teamId
+          if (!payload.teamId && payload.team_name) {
+            const teamByName = Array.isArray(teams) ? teams.find((t: any) => t.name === payload.team_name) : null;
+            if (teamByName) {
+              payload.teamId = teamByName.id;
+              payload.team_name = teamByName.name;
+              // Resolve tenant name from team
+              const tenant = Array.isArray(tenants) ? tenants.find((t: any) => t.id === teamByName.tenant_id) : null;
+              if (tenant) payload.tenant_name = payload.tenant_name || tenant.name;
+            }
+          }
+
+          // If teamId exists, ensure team_name and tenant_name are set from canonical source
+          if (payload.teamId) {
+            const team = Array.isArray(teams) ? teams.find((t: any) => t.id === payload.teamId) : null;
+            if (team) {
+              payload.team_name = payload.team_name || team.name;
+              const tenant = Array.isArray(tenants) ? tenants.find((t: any) => t.id === team.tenant_id) : null;
+              if (tenant) payload.tenant_name = payload.tenant_name || tenant.name;
+            }
+          }
+        } else {
+          // In-memory mode: resolve from storage
         // If teamId is missing but team_name provided, resolve teamId
         if (!payload.teamId && payload.team_name) {
           const teamByName = await storage.getTeamByName(payload.team_name);
@@ -3360,16 +3390,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const tenants = await storage.getTenants();
             const tenant = tenants.find(t => t.id === team.tenant_id);
             if (tenant) payload.tenant_name = payload.tenant_name || tenant.name;
+            }
           }
         }
       } catch (_err) {
-        // Non-fatal: if storage lookup fails we proceed with provided values
+        // Non-fatal: if lookup fails we proceed with provided values
       }
 
-      // Create entity directly in Redis cache (persistent storage)
+      // Create entity (automatically handles Redis vs storage based on mode)
       const entity = await redisCache.createEntity(payload);
       
-      // Use the same cache invalidation pattern as teams (more reliable for fallback mode)
+      // Update cache based on mode
+      if (status && status.mode === 'redis') {
+        // Redis mode: entity is already in Redis, just clear derived caches and broadcast
       await redisCache.invalidateCache({
         keys: ['all_entities', 'entities_summary'],
         patterns: [
@@ -3378,15 +3411,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
           'entities_team_*',
           'dashboard_summary:*'
         ],
-        // Refresh both ENTITIES and METRICS so "Entities Monitored" updates across ranges
+          mainCacheKeys: [], // Don't refresh main cache in Redis mode
+          refreshAffectedData: false
+        });
+      } else {
+        // In-memory mode: invalidate and refresh from storage
+        await redisCache.invalidateCache({
+          keys: ['all_entities', 'entities_summary'],
+          patterns: [
+            'entity_details:*',
+            'team_entities:*',
+            'entities_team_*',
+            'dashboard_summary:*'
+          ],
         mainCacheKeys: ['ENTITIES', 'METRICS'],
         refreshAffectedData: true
       });
-      
-      // Additional manual cache invalidation to prevent 304 responses
-      // Clear ETag cache for team-specific queries
-      res.removeHeader('ETag');
-      res.removeHeader('Last-Modified');
       
       // Force immediate cache refresh for this team's entities
       if (entity.teamId) {
@@ -3394,7 +3434,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           patterns: [`entities_team_${entity.teamId}:*`],
           refreshAffectedData: true
         });
+        }
       }
+      
+      // Clear ETag cache for team-specific queries
+      res.removeHeader('ETag');
+      res.removeHeader('Last-Modified');
       
       res.status(201).json(entity);
     } catch (error) {
