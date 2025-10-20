@@ -541,29 +541,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const updateData = validationResult.data;
-      
-      // Transform admin panel fields to internal schema fields
-      const internalUpdateData: any = {};
-      if (updateData.user_name) internalUpdateData.username = updateData.user_name;
-      if (updateData.user_email) internalUpdateData.email = updateData.user_email;
-      if (updateData.user_slack) internalUpdateData.user_slack = updateData.user_slack;
-      if (updateData.user_pagerduty) internalUpdateData.user_pagerduty = updateData.user_pagerduty;
-      if (updateData.is_active !== undefined) internalUpdateData.is_active = updateData.is_active;
-
-      // Update user
-      const updatedUser = await storage.updateUser(userId, internalUpdateData);
-      if (!updatedUser) {
-        return res.status(404).json(createErrorResponse("User not found", "not_found"));
-      }
-
-      // Update cache based on mode
       const status = await redisCache.getCacheStatus();
+
+      let updatedUser: any;
+
       if (status && status.mode === 'redis') {
-        // Redis mode: write directly to Redis
+        // Redis mode: update Redis directly without touching storage
         const existingUsers = await redisCache.get(CACHE_KEYS.USERS) || [];
-        const updatedUsers = Array.isArray(existingUsers)
-          ? existingUsers.map((user: any) => user.id === userId ? updatedUser : user)
-          : [updatedUser];
+        const userIndex = Array.isArray(existingUsers) ? existingUsers.findIndex((u: any) => u.id === userId) : -1;
+        
+        if (userIndex === -1) {
+          return res.status(404).json(createErrorResponse("User not found", "not_found"));
+        }
+
+        const currentUser = existingUsers[userIndex];
+        
+        // Apply updates while preserving Redis data structure
+        updatedUser = {
+          ...currentUser,
+          username: updateData.user_name || currentUser.username,
+          email: updateData.user_email || currentUser.email,
+          user_slack: updateData.user_slack !== undefined ? updateData.user_slack : currentUser.user_slack,
+          user_pagerduty: updateData.user_pagerduty !== undefined ? updateData.user_pagerduty : currentUser.user_pagerduty,
+          is_active: updateData.is_active !== undefined ? updateData.is_active : currentUser.is_active,
+          updatedAt: new Date().toISOString()
+        };
+
+        const updatedUsers = [...existingUsers];
+        updatedUsers[userIndex] = updatedUser;
         await redisCache.set(CACHE_KEYS.USERS, updatedUsers, 6 * 60 * 60);
         
         // Broadcast update to connected clients
@@ -571,19 +576,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
           timestamp: new Date().toISOString()
         });
       } else {
-        // In-memory mode: invalidate cache so next GET fetches fresh data from storage
-      await redisCache.invalidateUserData();
+        // In-memory mode: update storage
+        const internalUpdateData: any = {};
+        if (updateData.user_name) internalUpdateData.username = updateData.user_name;
+        if (updateData.user_email) internalUpdateData.email = updateData.user_email;
+        if (updateData.user_slack) internalUpdateData.user_slack = updateData.user_slack;
+        if (updateData.user_pagerduty) internalUpdateData.user_pagerduty = updateData.user_pagerduty;
+        if (updateData.is_active !== undefined) internalUpdateData.is_active = updateData.is_active;
+
+        updatedUser = await storage.updateUser(userId, internalUpdateData);
+        if (!updatedUser) {
+          return res.status(404).json(createErrorResponse("User not found", "not_found"));
+        }
+
+        // Invalidate cache so next GET fetches fresh data from storage
+        await redisCache.invalidateUserData();
       }
       
       // CRITICAL: Also invalidate profile cache for this user so profile page shows updated data
       await redisCache.invalidateCache({
         keys: [`profile_${updatedUser.id}`, `profile_${updatedUser.email}`],
-        refreshAffectedData: true
+        refreshAffectedData: false
       });
 
       // CRITICAL: If this is the currently logged-in user, update their session data
       // This ensures /api/user endpoint returns fresh data immediately
-      if (req.isAuthenticated && req.isAuthenticated() && req.user && req.user.id === userId) {
+      if (req.isAuthenticated && req.isAuthenticated() && req.user && (req.user as any).id === userId) {
         console.log('Admin updated currently logged-in user, refreshing session...');
         req.login(updatedUser, (loginErr) => {
           if (loginErr) {
@@ -1910,7 +1928,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // FastAPI fallback route for updating teams (Redis-first write)
-  app.put("/api/v1/teams/:teamId", requireActiveUser, async (req: Request, res: Response) => {
+  app.put("/api/v1/teams/:teamId", ...(isDevelopment ? [checkActiveUserDev] : [requireActiveUser]), async (req: Request, res: Response) => {
     try {
       const teamId = parseInt(req.params.teamId);
       if (isNaN(teamId)) {
@@ -2766,7 +2784,76 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get team details by team name with member information
+  // Redis-first team details endpoint (v1)
+  app.get("/api/v1/get_team_details/:teamName", async (req, res) => {
+    try {
+      const { teamName } = req.params;
+      const tenantName = req.query.tenant as string;
+      const status = await redisCache.getCacheStatus();
+      
+      if (status && status.mode === 'redis') {
+        // Redis-first: read from Redis only, no Express/mock backfill
+        const teams = await redisCache.get(CACHE_KEYS.TEAMS) || [];
+        const tenants = await redisCache.get(CACHE_KEYS.TENANTS) || [];
+        let team: any = null;
+        if (tenantName && Array.isArray(tenants) && tenants.length > 0) {
+          const tnt = tenants.find((tn: any) => tn?.name === tenantName);
+          if (tnt) {
+            team = Array.isArray(teams) ? teams.find((t: any) => t?.name === teamName && t?.tenant_id === tnt.id) : null;
+          }
+        }
+        if (!team) {
+          team = Array.isArray(teams) ? teams.find((t: any) => t?.name === teamName) : null;
+        }
+        
+        if (!team) {
+          return res.status(404).json({ message: "Team not found" });
+        }
+
+        // Members: only from team.team_members_ids (no derivation from users)
+        const members = (team.team_members_ids && Array.isArray(team.team_members_ids)) 
+          ? team.team_members_ids 
+          : [];
+
+        const teamDetails = {
+          ...team,
+          members: members
+        };
+
+        return res.json(teamDetails);
+      }
+      
+      // Redis unavailable: fallback to Express/mock
+      const cacheKey = tenantName ? `team_details_${tenantName}_${teamName}` : `team_details_${teamName}`;
+      let teamDetails = await redisCache.get(cacheKey);
+      
+      if (!teamDetails) {
+        const team = await storage.getTeamByName(teamName);
+        
+        if (!team) {
+          return res.status(404).json({ message: "Team not found" });
+        }
+
+        // Get actual team members from storage
+        const members = await storage.getTeamMembers(teamName);
+
+        teamDetails = {
+          ...team,
+          members: members
+        };
+
+        // Cache for 6 hours like other data
+        await redisCache.set(cacheKey, teamDetails, 6 * 60 * 60);
+      }
+
+      res.json(teamDetails);
+    } catch (error) {
+      console.error('Team details error:', error);
+      res.status(500).json({ message: "Failed to get team details" });
+    }
+  });
+
+  // Get team details by team name with member information (legacy)
   app.get("/api/get_team_details/:teamName", async (req, res) => {
     try {
       const { teamName } = req.params;
@@ -2869,6 +2956,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               username: u.username,
               displayName: u.displayName || u.username,
               email: u.email || '',
+              user_slack: u.user_slack || [],
+              user_pagerduty: u.user_pagerduty || [],
               is_active: u.is_active !== false,
             };
           })
@@ -2919,6 +3008,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               username: u.username,
               displayName: u.displayName || u.username,
               email: u.email || '',
+              user_slack: u.user_slack || [],
+              user_pagerduty: u.user_pagerduty || [],
               is_active: u.is_active !== false,
             };
           })

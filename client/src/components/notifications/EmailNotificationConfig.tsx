@@ -25,8 +25,8 @@ interface EmailConfigProps {
 
 export function EmailNotificationConfigComponent({ config, onChange, teamName, tenantName, teamEmails = [] }: EmailConfigProps) {
   // Use React Query for data fetching - this replaces localStorage cache
-  const { data: users = [], isLoading: usersLoading } = useQuery<SystemUser[]>({ queryKey: ['/api/users'] });
-  const { data: allTeamsData = [], isLoading: teamsLoading } = useQuery<any[]>({ queryKey: ['/api/teams'] });
+  const { data: users = [], isLoading: usersLoading } = useQuery<SystemUser[]>({ queryKey: ['/api/v1/users'] });
+  const { data: allTeamsData = [], isLoading: teamsLoading } = useQuery<any[]>({ queryKey: ['/api/v1/teams'] });
   
   // CRITICAL: Fetch team members for the current team to get individual member emails
   const { data: teamMembers = [], isLoading: teamMembersLoading, error: teamMembersError } = useQuery({

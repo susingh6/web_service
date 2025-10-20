@@ -24,8 +24,8 @@ interface PagerDutyConfigProps {
 
 export function PagerDutyNotificationConfigComponent({ config, onChange, teamName, tenantName, teamPagerDutyKeys = [] }: PagerDutyConfigProps) {
   // Use React Query for data fetching - exact same pattern as Email/Slack
-  const { data: users = [], isLoading: usersLoading } = useQuery<SystemUser[]>({ queryKey: ['/api/users'] });
-  const { data: allTeamsData = [], isLoading: teamsLoading } = useQuery<any[]>({ queryKey: ['/api/teams'] });
+  const { data: users = [], isLoading: usersLoading } = useQuery<SystemUser[]>({ queryKey: ['/api/v1/users'] });
+  const { data: allTeamsData = [], isLoading: teamsLoading } = useQuery<any[]>({ queryKey: ['/api/v1/teams'] });
   
   // CRITICAL: Fetch team members for the current team to get individual member PagerDuty services (tenant-aware)
   const { data: teamMembers = [], isLoading: teamMembersLoading } = useQuery({

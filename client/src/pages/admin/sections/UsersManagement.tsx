@@ -383,7 +383,7 @@ const UsersManagement = () => {
           }
           
           const response = await fetch(buildUrl(endpoints.admin.users.update, userId), {
-            method: 'PUT',
+            method: 'PATCH',
             headers,
             body: JSON.stringify(userData),
             credentials: 'include',
