@@ -3607,16 +3607,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         timestamp: new Date()
       });
 
-      // Invalidate caches for this team and entity type
-      await redisCache.invalidateAndRebuildEntityCache(
-        entity.teamId,
-        entity.type as Entity['type'],
-        true
-      );
-      await redisCache.invalidateTeamMetricsCache(
-        entity.tenant_name || 'Data Engineering',
-        entity.team_name || 'Unknown'
-      );
+      // Note: No cache invalidation needed - deleteEntity() already:
+      // 1. Removed from sla:entities
+      // 2. Added to sla:recentChanges
+      // 3. Broadcast via WebSocket
+      // Calling invalidateAndRebuildEntityCache would reload from storage (mock data pollution)
 
       res.status(204).end();
     } catch (error) {
