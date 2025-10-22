@@ -55,6 +55,7 @@ export const WEBSOCKET_CONFIG = {
     TEAM_MEMBERS_UPDATED: 'team-members-updated',
     ECHO_TO_ORIGIN: 'echo-to-origin',
     USER_STATUS_CHANGED: 'user_status_changed',
+    ADMIN_MESSAGE: 'admin-message',
   }
 } as const;
 

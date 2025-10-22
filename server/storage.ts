@@ -147,6 +147,8 @@ export interface IStorage {
   getUserSubscriptions(userId: number): Promise<EntitySubscription[]>;
   getTimelineSubscriptions(notificationTimelineId: string): Promise<EntitySubscription[]>;
   getSubscriptionCount(notificationTimelineId: string): Promise<number>;
+  // Dev-only: generate mock entities compliance data in new Redis schema
+  getMockEntitiesCompliance?(): Promise<any[]>;
 }
 
 // In-memory storage implementation
@@ -1329,6 +1331,179 @@ export class MemStorage implements IStorage {
       this.adminBroadcastMessagesData.set(message.id, message);
     });
     
+  }
+
+  // Dev-only helper: synthesize compliance data in Redis-first schema from in-memory entities
+  async getMockEntitiesCompliance(): Promise<any[]> {
+    await this.ensureInitialized();
+    const entities = Array.from(this.entities.values());
+    const tenants = Array.from(this.tenants.values());
+
+    // Utility to compute average of defined numeric values
+    const avg = (vals: Array<number | null | undefined>): number => {
+      const nums = vals.filter((v): v is number => typeof v === 'number');
+      if (nums.length === 0) return 0;
+      return parseFloat((nums.reduce((a, b) => a + b, 0) / nums.length).toFixed(1));
+    };
+
+    const today = new Date();
+    const dates: string[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      dates.push(d.toISOString().split('T')[0]);
+    }
+
+    const toRangeMetrics = (value: number) => dates.map(d => ({ [d]: value || null }));
+
+    const out: any[] = [];
+    for (const tenant of tenants) {
+      const tenantEntitiesAll = entities.filter(e => e.tenant_name === tenant.name && e.is_active !== false);
+      const tenantOwnerEntities = tenantEntitiesAll.filter(e => e.is_entity_owner === true);
+      const tenantTables = tenantOwnerEntities.filter(e => e.type === 'table');
+      const tenantDags = tenantOwnerEntities.filter(e => e.type === 'dag');
+
+      const overall = avg(tenantOwnerEntities.map(e => e.currentSla ?? null));
+      const tables = avg(tenantTables.map(e => e.currentSla ?? null));
+      const dags = avg(tenantDags.map(e => e.currentSla ?? null));
+
+      // summary rows (team_id = 0)
+      out.push({
+        entity_type: 'summary_overall',
+        tenant_id: tenant.id,
+        tenant_name: tenant.name,
+        team_id: 0,
+        team_name: null,
+        entity_name: null,
+        entity_display_name: null,
+        is_entity_owner: true,
+        is_active: true,
+        range_key: 'last_30_days',
+        sla_stats_pct: null,
+        trend_pp: null,
+        last_sla_status: null,
+        donemarkers_received: null,
+        donemarkers_total: null,
+        last_sla_compliance_pct: overall,
+        compliance_range_metrics: toRangeMetrics(overall),
+        last_reported_at: today.toISOString(),
+      });
+      out.push({
+        entity_type: 'summary_table_overall',
+        tenant_id: tenant.id,
+        tenant_name: tenant.name,
+        team_id: 0,
+        team_name: null,
+        entity_name: null,
+        entity_display_name: null,
+        is_entity_owner: true,
+        is_active: true,
+        range_key: 'last_30_days',
+        sla_stats_pct: null,
+        trend_pp: null,
+        last_sla_status: null,
+        donemarkers_received: null,
+        donemarkers_total: null,
+        last_sla_compliance_pct: tables,
+        compliance_range_metrics: toRangeMetrics(tables),
+        last_reported_at: today.toISOString(),
+      });
+      out.push({
+        entity_type: 'summary_dag_overall',
+        tenant_id: tenant.id,
+        tenant_name: tenant.name,
+        team_id: 0,
+        team_name: null,
+        entity_name: null,
+        entity_display_name: null,
+        is_entity_owner: true,
+        is_active: true,
+        range_key: 'last_30_days',
+        sla_stats_pct: null,
+        trend_pp: null,
+        last_sla_status: null,
+        donemarkers_received: null,
+        donemarkers_total: null,
+        last_sla_compliance_pct: dags,
+        compliance_range_metrics: toRangeMetrics(dags),
+        last_reported_at: today.toISOString(),
+      });
+
+      // team rows per team in this tenant
+      const teamsInTenant = Array.from(this.teams.values()).filter(t => t.tenant_id === tenant.id);
+      for (const team of teamsInTenant) {
+        const teamEntities = tenantEntitiesAll.filter(e => e.teamId === team.id);
+        if (teamEntities.length === 0) continue;
+        const teamTables = teamEntities.filter(e => e.type === 'table');
+        const teamDags = teamEntities.filter(e => e.type === 'dag');
+        const tOverall = avg(teamEntities.map(e => e.currentSla ?? null));
+        const tTables = avg(teamTables.map(e => e.currentSla ?? null));
+        const tDags = avg(teamDags.map(e => e.currentSla ?? null));
+
+        out.push({
+          entity_type: 'team_overall',
+          tenant_id: tenant.id,
+          tenant_name: tenant.name,
+          team_id: team.id,
+          team_name: team.name,
+          entity_name: null,
+          entity_display_name: null,
+          is_entity_owner: true,
+          is_active: true,
+          range_key: 'last_30_days',
+          sla_stats_pct: null,
+          trend_pp: null,
+          last_sla_status: null,
+          donemarkers_received: null,
+          donemarkers_total: null,
+          last_sla_compliance_pct: tOverall,
+          compliance_range_metrics: toRangeMetrics(tOverall),
+          last_reported_at: today.toISOString(),
+        });
+        out.push({
+          entity_type: 'team_table_overall',
+          tenant_id: tenant.id,
+          tenant_name: tenant.name,
+          team_id: team.id,
+          team_name: team.name,
+          entity_name: null,
+          entity_display_name: null,
+          is_entity_owner: true,
+          is_active: true,
+          range_key: 'last_30_days',
+          sla_stats_pct: null,
+          trend_pp: null,
+          last_sla_status: null,
+          donemarkers_received: null,
+          donemarkers_total: null,
+          last_sla_compliance_pct: tTables,
+          compliance_range_metrics: toRangeMetrics(tTables),
+          last_reported_at: today.toISOString(),
+        });
+        out.push({
+          entity_type: 'team_dag_overall',
+          tenant_id: tenant.id,
+          tenant_name: tenant.name,
+          team_id: team.id,
+          team_name: team.name,
+          entity_name: null,
+          entity_display_name: null,
+          is_entity_owner: true,
+          is_active: true,
+          range_key: 'last_30_days',
+          sla_stats_pct: null,
+          trend_pp: null,
+          last_sla_status: null,
+          donemarkers_received: null,
+          donemarkers_total: null,
+          last_sla_compliance_pct: tDags,
+          compliance_range_metrics: toRangeMetrics(tDags),
+          last_reported_at: today.toISOString(),
+        });
+      }
+    }
+
+    return out;
   }
   
   // Audit operations for rollback management

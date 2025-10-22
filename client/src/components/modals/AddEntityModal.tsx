@@ -303,8 +303,10 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
         // Map form fields to API fields - use entity_name for both table and DAG
         name: data.entity_name,
         entity_name: data.entity_name, // Explicit mapping
-        table_name: data.entity_name, // Force table_name to match entity_name
-        dag_name: data.entity_name, // Force dag_name to match entity_name
+        // Preserve user-provided identifiers for table/dag names
+        table_name: data.table_name,
+        dag_name: data.dag_name,
+        schema_name: data.schema_name,
         description: entityType === 'dag' ? data.dag_description : data.description,
         type: entityType,
         teamId: team.id, // Add team ID for cache invalidation

@@ -14,6 +14,7 @@ import { Close as CloseIcon, Campaign as CampaignIcon } from '@mui/icons-materia
 import { useQuery } from '@tanstack/react-query';
 import { buildUrl } from '@/config';
 import { useAuth } from '@/hooks/use-auth';
+import { useWebSocketContext } from '@/contexts/WebSocketContext';
 
 interface AdminBroadcastMessage {
   id: number;
@@ -30,6 +31,7 @@ interface AdminBroadcastMessage {
 
 const BroadcastMessagePopup = () => {
   const { isAuthenticated } = useAuth();
+  const { addEventListener, isAuthenticated: wsAuthed } = useWebSocketContext();
   const [currentMessage, setCurrentMessage] = useState<AdminBroadcastMessage | null>(null);
   const [seenMessages, setSeenMessages] = useState<Set<number>>(new Set());
   const [seenThisSession, setSeenThisSession] = useState<Set<number>>(new Set());
@@ -99,6 +101,48 @@ const BroadcastMessagePopup = () => {
       }
     }
   }, []);
+
+  // WebSocket listener for immediate admin messages (uses existing WebSocketContext infra)
+  useEffect(() => {
+    if (!isAuthenticated || !wsAuthed) return;
+    const unsubscribe = addEventListener('admin-message', (data: any) => {
+      try {
+        // Expecting { id, message, deliveryType, createdAt, expiresAt }
+        if (!data || !data.deliveryType) return;
+
+        const hasImmediate = data.deliveryType === 'immediate' || data.deliveryType === 'immediate_and_login_triggered';
+        if (!hasImmediate) return;
+
+        // Skip expired messages
+        if (data.expiresAt && new Date(data.expiresAt) <= new Date()) return;
+
+        const candidate: AdminBroadcastMessage = {
+          id: Number(data.id),
+          message: String(data.message ?? ''),
+          dateKey: new Date().toISOString().split('T')[0],
+          deliveryType: data.deliveryType,
+          isActive: true,
+          createdByUserId: 0,
+          expiresAt: data.expiresAt ? new Date(data.expiresAt) as any : null,
+          createdAt: new Date(data.createdAt || new Date()) as any,
+          updatedAt: new Date(data.createdAt || new Date()) as any,
+        };
+
+        // Prevent re-showing the same immediate message (use id + createdAt)
+        const key = makeImmediateKey(candidate);
+        if (seenImmediateKeys.has(key)) return;
+
+        // Only surface if no current popup is showing to avoid overlap
+        setCurrentMessage(prev => prev ?? candidate);
+      } catch {
+        // ignore malformed
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [addEventListener, isAuthenticated, wsAuthed, seenImmediateKeys]);
 
   // Check for new broadcast messages (immediate, login_triggered, or immediate_and_login_triggered)
   useEffect(() => {

@@ -47,6 +47,8 @@ export const CACHE_KEYS = {
   METRICS: 'sla:metrics',
   LAST_30_DAY_METRICS: 'sla:last30DayMetrics',
   COMPLIANCE_TRENDS: 'sla:complianceTrends',
+  // New compliance cache hydrated from FastAPI (6h TTL)
+  ENTITIES_COMPLIANCE: 'sla:entitiescompliance',
   LAST_UPDATED: 'sla:lastUpdated',
   RECENT_CHANGES: 'sla:recentChanges',
   CACHE_LOCK: 'sla:cache_lock',
@@ -57,7 +59,8 @@ export const CACHE_KEYS = {
   TASKS: 'sla:tasks',
   PERMISSIONS: 'sla:permissions',
   ROLES: 'sla:roles',
-  USERS: 'sla:users'
+  USERS: 'sla:users',
+  ENTITY_INDEX: 'sla:entity_index'
 };
 
 export class RedisCache {
@@ -80,6 +83,295 @@ export class RedisCache {
     this.initialize();
   }
 
+  // ---------- Slim entity projection & recent changes helpers ----------
+  private buildSlimCompositeKey(e: any): string {
+    const tenantId = e.tenant_id ?? e.tenantId ?? 0;
+    const teamId = e.team_id ?? e.teamId ?? 0;
+    const type = e.entity_type ?? e.type ?? '';
+    const name = e.entity_name ?? e.name ?? '';
+    return `${tenantId}:${teamId}:${type}:${name}`;
+  }
+
+  private projectSlimEntity(e: any): any {
+    const entityType = e.type || e.entity_type;
+    const schedule = entityType === 'dag'
+      ? (e.dag_schedule || e.entity_schedule || e.table_schedule || null)
+      : (e.table_schedule || e.entity_schedule || e.dag_schedule || null);
+
+    // Only include owner reference for non-owners
+    const ownerRef = e.is_entity_owner === true
+      ? null
+      : (e.owner_entity_ref_name || {
+          entity_owner_name: e.owner_entity_reference || null,
+          entity_owner_tenant_id: e.owner_tenant_id || null,
+          entity_owner_tenant_name: e.owner_tenant_name || e.tenant_name || null,
+          entity_owner_team_id: e.owner_team_id || null,
+          entity_owner_team_name: e.owner_team_name || null,
+        });
+
+    // Derive display-name and table/dag names
+    let displayName: string | null = null;
+    if (entityType === 'table') {
+      const schema = e.schema_name || null;
+      const table = e.table_name || e.entity_name || e.name || null;
+      displayName = schema ? `${schema}.${table}` : (table || null);
+    } else {
+      displayName = e.entity_display_name || e.dag_name || e.name || null;
+    }
+
+    return {
+      entity_type: entityType,
+      tenant_id: e.tenant_id ?? e.tenantId ?? null,
+      tenant_name: e.tenant_name,
+      team_id: e.team_id ?? e.teamId,
+      team_name: e.team_name,
+      entity_name: e.entity_name || e.name,
+      entity_display_name: displayName,
+      entity_schedule: schedule,
+      expected_runtime_minutes: e.expected_runtime_minutes ?? null,
+      is_entity_owner: e.is_entity_owner === true,
+      is_active: e.is_active !== false,
+      owner_entity_ref_name: ownerRef,
+    };
+  }
+
+  // Update a slim entity in-place by composite name (team_name + entity_type + entity_name)
+  // Only updates fields that exist in the slim schema. Accepts optional schema_name/table_name
+  // and will derive entity_display_name accordingly for tables.
+  async updateSlimEntityByComposite(params: {
+    tenantName?: string; // when provided, enforce tenant match to avoid cross-tenant collisions
+    teamName: string;
+    entityType: 'table' | 'dag';
+    entityName: string;
+    updates: Record<string, any>;
+  }): Promise<any | null> {
+    if (!this.useRedis || !this.redis) return null;
+    const expireTime = Math.floor(this.CACHE_DURATION_MS / 1000) + 300;
+
+    const raw = await this.redis.get(CACHE_KEYS.ENTITIES);
+    const list: any[] = raw ? JSON.parse(raw) : [];
+
+    // Find by names to avoid tenant_id mismatches
+    const idx = list.findIndex((x: any) => {
+      const sameTenant = params.tenantName ? (x.tenant_name === params.tenantName) : true;
+      const sameTeam = (x.team_name === params.teamName);
+      const sameType = ((x.entity_type || x.type) === params.entityType);
+      const sameName = ((x.entity_name || x.name) === params.entityName);
+      return sameTenant && sameTeam && sameType && sameName;
+    });
+    if (idx < 0) return null;
+
+    const current = list[idx];
+    const allowedKeys = new Set([
+      'entity_schedule',
+      'expected_runtime_minutes',
+      'is_entity_owner',
+      'is_active',
+      'owner_entity_ref_name',
+      'entity_display_name',
+    ]);
+
+    const next = { ...current };
+
+    // Map incoming schema_name/table_name into entity_display_name for tables
+    if (params.entityType === 'table') {
+      const schema = params.updates.schema_name ?? null;
+      const table = params.updates.table_name ?? null;
+      if (schema || table) {
+        const effectiveTable = table || current.entity_name || current.name;
+        next.entity_display_name = schema ? `${schema}.${effectiveTable}` : effectiveTable;
+      }
+    }
+
+    // Apply allowed updates directly if present
+    Object.keys(params.updates || {}).forEach(k => {
+      if (allowedKeys.has(k)) {
+        (next as any)[k] = params.updates[k];
+      }
+    });
+
+    // Persist
+    list[idx] = next;
+    await this.redis.setex(CACHE_KEYS.ENTITIES, expireTime, JSON.stringify(list));
+
+    // Track recent change
+    await this.appendSlimRecentChange(next, 'updated');
+
+    return next;
+  }
+
+  // Delete a slim entity by composite identifiers (tenantName optional for uniqueness)
+  async deleteSlimEntityByComposite(params: {
+    tenantName?: string;
+    teamName: string;
+    entityType: 'table' | 'dag';
+    entityName: string;
+  }): Promise<boolean> {
+    if (!this.useRedis || !this.redis) return false;
+    const expireTime = Math.floor(this.CACHE_DURATION_MS / 1000) + 300;
+    const raw = await this.redis.get(CACHE_KEYS.ENTITIES);
+    const list: any[] = raw ? JSON.parse(raw) : [];
+
+    const idx = list.findIndex((x: any) => {
+      const sameTenant = params.tenantName ? (x.tenant_name === params.tenantName) : true;
+      const sameTeam = (x.team_name === params.teamName);
+      const sameType = ((x.entity_type || x.type) === params.entityType);
+      const sameName = ((x.entity_name || x.name) === params.entityName);
+      return sameTenant && sameTeam && sameType && sameName;
+    });
+    if (idx < 0) return false;
+
+    const removed = list[idx];
+    list.splice(idx, 1);
+    await this.redis.setex(CACHE_KEYS.ENTITIES, expireTime, JSON.stringify(list));
+
+    // Track recent change
+    await this.appendSlimRecentChange(removed, 'deleted');
+    return true;
+  }
+
+  private async upsertSlimEntity(slim: any): Promise<void> {
+    if (!this.useRedis || !this.redis) return;
+    const expireTime = Math.floor(this.CACHE_DURATION_MS / 1000) + 300;
+    const dataRaw = await this.redis.get(CACHE_KEYS.ENTITIES);
+    const list: any[] = dataRaw ? JSON.parse(dataRaw) : [];
+    const key = this.buildSlimCompositeKey(slim);
+    const idx = list.findIndex((x: any) => this.buildSlimCompositeKey(x) === key);
+    if (idx >= 0) list[idx] = { ...list[idx], ...slim };
+    else list.push(slim);
+    await this.redis.setex(CACHE_KEYS.ENTITIES, expireTime, JSON.stringify(list));
+  }
+
+  private async removeSlimEntityByKey(slimKey: string): Promise<void> {
+    if (!this.useRedis || !this.redis) return;
+    const expireTime = Math.floor(this.CACHE_DURATION_MS / 1000) + 300;
+    const dataRaw = await this.redis.get(CACHE_KEYS.ENTITIES);
+    const list: any[] = dataRaw ? JSON.parse(dataRaw) : [];
+    const out = list.filter((x: any) => this.buildSlimCompositeKey(x) !== slimKey);
+    await this.redis.setex(CACHE_KEYS.ENTITIES, expireTime, JSON.stringify(out));
+  }
+
+  private async appendSlimRecentChange(slim: any, changeType: 'created' | 'updated' | 'deleted'): Promise<void> {
+    if (!this.useRedis || !this.redis) return;
+    const expireTime = Math.floor(this.CACHE_DURATION_MS / 1000) + 300;
+    const dataRaw = await this.redis.get(CACHE_KEYS.RECENT_CHANGES);
+    let changes: any[] = dataRaw ? JSON.parse(dataRaw) : [];
+    changes.unshift({ ...slim, change_type: changeType, timestamp: new Date() });
+    if (changes.length > 50) changes = changes.slice(0, 50);
+    await this.redis.setex(CACHE_KEYS.RECENT_CHANGES, expireTime, JSON.stringify(changes));
+  }
+
+  private normalizeRangeKey(input?: string): string {
+    if (!input) return 'last_30_days';
+    const k = String(input).toLowerCase();
+    switch (k) {
+      case 'today': return 'today';
+      case 'yesterday': return 'yesterday';
+      case 'last_7_days':
+      case 'last7days': return 'last_7_days';
+      case 'last_30_days':
+      case 'last30days': return 'last_30_days';
+      case 'this_month':
+      case 'thismonth': return 'this_month';
+      default: return 'last_30_days';
+    }
+  }
+
+  private mapStatusFromCompliance(last_sla_status?: string | null): string {
+    const s = (last_sla_status || '').toLowerCase();
+    if (s === 'passed' || s === 'pass') return 'Passed';
+    if (s === 'failed' || s === 'fail') return 'Failed';
+    if (s === 'pending' || s === 'unknown') return 'Unknown';
+    return 'Unknown';
+  }
+
+  async getSlimEntities(): Promise<any[]> {
+    if (!this.useRedis || !this.redis) {
+      const env = process.env.NODE_ENV || 'development';
+      if (env !== 'development') return [];
+      // Dev-only fallback: project from in-memory entities
+      const list = this.fallbackData ? this.fallbackData.entities : await storage.getEntities();
+      return list.map(e => this.projectSlimEntity(e));
+    }
+    const raw = await this.redis.get(CACHE_KEYS.ENTITIES);
+    if (!raw) return [];
+    try {
+      const list = JSON.parse(raw);
+      return Array.isArray(list) ? list : [];
+    } catch {
+      return [];
+    }
+  }
+
+  // Entities compliance cache read helper
+  async getEntitiesCompliance(): Promise<any[]> {
+    // In-memory mode (dev-only): synthesize minimal compliance rows from fallbackData metrics/trends
+    if (!this.useRedis || !this.redis) {
+      const env = process.env.NODE_ENV || 'development';
+      if (env !== 'development') return [];
+      // Use storage to generate compliance mock for dev parity
+      const generated = await storage.getMockEntitiesCompliance?.();
+      return Array.isArray(generated) ? generated : [];
+    }
+
+    // Redis mode: read from Redis cache
+    try {
+      const raw = await this.redis.get(CACHE_KEYS.ENTITIES_COMPLIANCE);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  // Enrich slim entities with compliance (status/currentSla/lastRefreshed), used by /api/entities
+  async getEntitiesForApi(params: { tenantName?: string; teamId?: number; type?: 'table' | 'dag'; dateFilter?: string }): Promise<any[]> {
+    const { tenantName, teamId, type, dateFilter } = params || {} as any;
+    const rangeKey = this.normalizeRangeKey(dateFilter);
+    const [entities, compliance] = await Promise.all([
+      this.getSlimEntities(),
+      this.getEntitiesCompliance().catch(() => []),
+    ]);
+
+    // Build a lookup for compliance rows by composite key + range
+    const compMap = new Map<string, any>();
+    for (const c of (compliance as any[])) {
+      if (!c || c.range_key !== rangeKey) continue;
+      if (c.entity_type !== 'table' && c.entity_type !== 'dag') continue; // only leaf-level for entity rows
+      const key = `${c.tenant_id}:${c.team_id}:${c.entity_type}:${c.entity_name || ''}`;
+      compMap.set(key, c);
+    }
+
+    let out = (entities as any[]).map((e: any) => {
+      const key = this.buildSlimCompositeKey(e);
+      const comp = compMap.get(key);
+      return {
+        // keep slim fields for API consumers
+        ...e,
+        // add compatibility aliases expected by UI
+        type: e.entity_type,
+        teamId: e.team_id,
+        name: e.entity_name,
+        // Map display_name for table case to UI table_name field
+        table_name: e.entity_type === 'table' ? (e.entity_display_name || e.entity_name) : undefined,
+        // enrich from compliance
+        status: this.mapStatusFromCompliance(comp?.last_sla_status),
+        currentSla: typeof comp?.last_sla_compliance_pct === 'number' ? comp.last_sla_compliance_pct : null,
+        lastRefreshed: comp?.last_reported_at ? new Date(comp.last_reported_at) : new Date(),
+      };
+    });
+
+    // Filters identical to existing route logic
+    if (typeof teamId === 'number' && !Number.isNaN(teamId)) {
+      out = out.filter((e: any) => (e.team_id ?? e.teamId) === teamId);
+    }
+    if (tenantName) {
+      out = out.filter((e: any) => e.tenant_name === tenantName);
+    }
+    if (type) {
+      out = out.filter((e: any) => e.entity_type === type || e.type === type);
+    }
+    return out;
+  }
   // Use centralized event filtering logic
   private shouldReceiveEvent(event: string, componentType: string): boolean {
     return shouldReceiveEvent(event, componentType);
@@ -795,13 +1087,19 @@ export class RedisCache {
     const expireTime = Math.floor(this.CACHE_DURATION_MS / 1000) + 300; // Add 5 minute buffer
     
     // Store all cache data atomically with expiration
-    multi.setex(CACHE_KEYS.ENTITIES, expireTime, JSON.stringify(data.entities));
+    // Prefer slim list when provided by FastAPI worker; fallback to full entities
+    const entitiesForCache = Array.isArray(data.entitiesSlim) ? data.entitiesSlim : data.entities;
+    multi.setex(CACHE_KEYS.ENTITIES, expireTime, JSON.stringify(entitiesForCache));
     multi.setex(CACHE_KEYS.TEAMS, expireTime, JSON.stringify(data.teams));
     multi.setex(CACHE_KEYS.TENANTS, expireTime, JSON.stringify(data.tenants));
     multi.setex(CACHE_KEYS.PERMISSIONS, expireTime, JSON.stringify(data.permissions || []));
     multi.setex(CACHE_KEYS.METRICS, expireTime, JSON.stringify(data.metrics));
     multi.setex(CACHE_KEYS.LAST_30_DAY_METRICS, expireTime, JSON.stringify(data.last30DayMetrics));
     multi.setex(CACHE_KEYS.COMPLIANCE_TRENDS, expireTime, JSON.stringify(data.complianceTrends || {}));
+    // Optional: entities compliance cache (if provided by hydrator)
+    if (data.entitiesCompliance) {
+      multi.setex(CACHE_KEYS.ENTITIES_COMPLIANCE, expireTime, JSON.stringify(data.entitiesCompliance));
+    }
     multi.setex(CACHE_KEYS.RECENT_CHANGES, expireTime, JSON.stringify(data.recentChanges || []));
     multi.setex(CACHE_KEYS.LAST_UPDATED, expireTime, JSON.stringify(data.lastUpdated));
     
@@ -961,102 +1259,156 @@ export class RedisCache {
 
   // Methods for accessing cached data by range
   async getMetricsByTenantAndRange(tenantName: string, range: 'today' | 'yesterday' | 'last7Days' | 'last30Days' | 'thisMonth'): Promise<DashboardMetrics | null> {
-    if (!this.useRedis || !this.redis) {
-      const data = this.fallbackData;
-      if (!data) return null;
-      
-      switch (range) {
-        case 'today': return data.todayMetrics[tenantName] || null;
-        case 'yesterday': return data.yesterdayMetrics[tenantName] || null;
-        case 'last7Days': return data.last7DayMetrics[tenantName] || null;
-        case 'last30Days': return data.last30DayMetrics[tenantName] || null;
-        case 'thisMonth': return data.thisMonthMetrics[tenantName] || null;
-        default: return data.last30DayMetrics[tenantName] || null;
-      }
+    const rangeKey = this.normalizeRangeKey(range);
+    const [compliance, slimEntities] = await Promise.all([
+      this.getEntitiesCompliance(),
+      this.getSlimEntities(),
+    ]);
+
+    // Derive counts from slim entities (owners only as existing logic)
+    const ownerEntities = (slimEntities as any[]).filter((e: any) => e.tenant_name === tenantName && e.is_entity_owner === true);
+    const tablesCount = ownerEntities.filter((e: any) => (e.entity_type || e.type) === 'table').length;
+    const dagsCount = ownerEntities.filter((e: any) => (e.entity_type || e.type) === 'dag').length;
+    const entitiesCount = ownerEntities.length;
+
+    let overallPct = 0, tablesPct = 0, dagsPct = 0;
+    if (Array.isArray(compliance) && compliance.length > 0) {
+      const rows = (compliance as any[]).filter((r: any) => r.tenant_name === tenantName && r.team_id === 0 && r.range_key === rangeKey);
+      const overall = rows.find((r: any) => r.entity_type === 'summary_overall');
+      const tables  = rows.find((r: any) => r.entity_type === 'summary_table_overall');
+      const dags    = rows.find((r: any) => r.entity_type === 'summary_dag_overall');
+      overallPct = typeof overall?.last_sla_compliance_pct === 'number' ? overall.last_sla_compliance_pct : 0;
+      tablesPct  = typeof tables?.last_sla_compliance_pct  === 'number' ? tables.last_sla_compliance_pct  : 0;
+      dagsPct    = typeof dags?.last_sla_compliance_pct    === 'number' ? dags.last_sla_compliance_pct    : 0;
     }
-    
-    try {
-      const cacheKey = this.getCacheKeyForRange(range, 'metrics');
-      const metricsData = await this.redis.hget(cacheKey, tenantName);
-      return metricsData ? JSON.parse(metricsData) : null;
-    } catch (error) {
-      console.error('Error getting metrics by tenant and range:', error);
-      return null;
-    }
+
+    return {
+      overallCompliance: overallPct,
+      tablesCompliance: tablesPct,
+      dagsCompliance: dagsPct,
+      entitiesCount,
+      tablesCount,
+      dagsCount,
+    };
   }
   
   async getComplianceTrendsByTenantAndRange(tenantName: string, range: 'today' | 'yesterday' | 'last7Days' | 'last30Days' | 'thisMonth'): Promise<ComplianceTrendData | null> {
-    if (!this.useRedis || !this.redis) {
-      const data = this.fallbackData;
-      if (!data) return null;
-      
-      switch (range) {
-        case 'today': return data.todayTrends[tenantName] || null;
-        case 'yesterday': return data.yesterdayTrends[tenantName] || null;
-        case 'last7Days': return data.last7DayTrends[tenantName] || null;
-        case 'last30Days': return data.last30DayTrends[tenantName] || null;
-        case 'thisMonth': return data.thisMonthTrends[tenantName] || null;
-        default: return data.last30DayTrends[tenantName] || null;
-      }
+    const rangeKey = this.normalizeRangeKey(range);
+    const compliance = await this.getEntitiesCompliance();
+    if (Array.isArray(compliance) && compliance.length > 0) {
+      const rows = (compliance as any[]).filter((r: any) => r.tenant_name === tenantName && r.team_id === 0 && r.range_key === rangeKey);
+      const overall = rows.find((r: any) => r.entity_type === 'summary_overall');
+      const tables  = rows.find((r: any) => r.entity_type === 'summary_table_overall');
+      const dags    = rows.find((r: any) => r.entity_type === 'summary_dag_overall');
+
+      const dates: string[] = [];
+      const pushDates = (arr?: any[]) => {
+        if (!Array.isArray(arr)) return;
+        for (const obj of arr) {
+          const d = Object.keys(obj)[0];
+          if (d && !dates.includes(d)) dates.push(d);
+        }
+      };
+      pushDates(overall?.compliance_range_metrics);
+      pushDates(tables?.compliance_range_metrics);
+      pushDates(dags?.compliance_range_metrics);
+      dates.sort();
+
+      const findVal = (arr: any[] | undefined, date: string): number => {
+        if (!Array.isArray(arr)) return 0;
+        const rec = arr.find((o: any) => Object.prototype.hasOwnProperty.call(o, date));
+        const v = rec ? rec[date] : null;
+        return typeof v === 'number' ? v : 0;
+      };
+
+      const trend = dates.map(date => ({
+        date,
+        dateFormatted: new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(new Date(date)),
+        overall: findVal(overall?.compliance_range_metrics, date),
+        tables:  findVal(tables?.compliance_range_metrics,  date),
+        dags:    findVal(dags?.compliance_range_metrics,    date),
+      }));
+
+      return { trend, lastUpdated: new Date() };
     }
-    
-    try {
-      const cacheKey = this.getCacheKeyForRange(range, 'trends');
-      const trendsData = await this.redis.hget(cacheKey, tenantName);
-      return trendsData ? JSON.parse(trendsData) : null;
-    } catch (error) {
-      console.error('Error getting trends by tenant and range:', error);
-      return null;
-    }
+    return { trend: [], lastUpdated: new Date() };
   }
 
   // Team-specific cache methods
   async getTeamMetricsByRange(tenantName: string, teamName: string, range: 'today' | 'yesterday' | 'last7Days' | 'last30Days' | 'thisMonth'): Promise<DashboardMetrics | null> {
-    if (!this.useRedis || !this.redis) {
-      const data = this.fallbackData;
-      if (!data || !(data as any).teamMetrics) return null;
-      
-      const teamMetrics = (data as any).teamMetrics[tenantName];
-      if (!teamMetrics || !teamMetrics[teamName]) return null;
-      
-      // For fallback, we only have last30Days team metrics currently
-      // Only return data for last30Days range, null for all others
-      return range === 'last30Days' ? (teamMetrics[teamName] || null) : null;
+    const rangeKey = this.normalizeRangeKey(range);
+    const [compliance, slimEntities] = await Promise.all([
+      this.getEntitiesCompliance(),
+      this.getSlimEntities(),
+    ]);
+
+    // Derive counts from slim entities (all entities for team dashboard)
+    const teamEntities = (slimEntities as any[]).filter((e: any) => e.tenant_name === tenantName && e.team_name === teamName);
+    const tablesCount = teamEntities.filter((e: any) => (e.entity_type || e.type) === 'table').length;
+    const dagsCount = teamEntities.filter((e: any) => (e.entity_type || e.type) === 'dag').length;
+    const entitiesCount = teamEntities.length;
+
+    let overallPct = 0, tablesPct = 0, dagsPct = 0;
+    if (Array.isArray(compliance) && compliance.length > 0) {
+      const rows = (compliance as any[]).filter((r: any) => r.tenant_name === tenantName && r.team_name === teamName && r.range_key === rangeKey);
+      const overall = rows.find((r: any) => r.entity_type === 'team_overall');
+      const tables  = rows.find((r: any) => r.entity_type === 'team_table_overall');
+      const dags    = rows.find((r: any) => r.entity_type === 'team_dag_overall');
+      overallPct = typeof overall?.last_sla_compliance_pct === 'number' ? overall.last_sla_compliance_pct : 0;
+      tablesPct  = typeof tables?.last_sla_compliance_pct  === 'number' ? tables.last_sla_compliance_pct  : 0;
+      dagsPct    = typeof dags?.last_sla_compliance_pct    === 'number' ? dags.last_sla_compliance_pct    : 0;
     }
-    
-    try {
-      const cacheKey = `${this.getCacheKeyForRange(range, 'metrics')}:TEAMS`;
-      const teamKey = `${tenantName}:${teamName}`;
-      const metricsData = await this.redis.hget(cacheKey, teamKey);
-      return metricsData ? JSON.parse(metricsData) : null;
-    } catch (error) {
-      console.error('Error getting team metrics by range:', error);
-      return null;
-    }
+
+    return {
+      overallCompliance: overallPct,
+      tablesCompliance: tablesPct,
+      dagsCompliance: dagsPct,
+      entitiesCount,
+      tablesCount,
+      dagsCount,
+    };
   }
 
   async getTeamTrendsByRange(tenantName: string, teamName: string, range: 'today' | 'yesterday' | 'last7Days' | 'last30Days' | 'thisMonth'): Promise<ComplianceTrendData | null> {
-    if (!this.useRedis || !this.redis) {
-      const data = this.fallbackData;
-      if (!data || !(data as any).teamTrends) return null;
-      
-      const teamTrends = (data as any).teamTrends[tenantName];
-      if (!teamTrends || !teamTrends[teamName]) return null;
-      
-      // For fallback, we only have last30Days team trends currently
-      // Only return data for last30Days range, null for all others
-      return range === 'last30Days' ? (teamTrends[teamName] || null) : null;
+    const rangeKey = this.normalizeRangeKey(range);
+    const compliance = await this.getEntitiesCompliance();
+    if (Array.isArray(compliance) && compliance.length > 0) {
+      const rows = (compliance as any[]).filter((r: any) => r.tenant_name === tenantName && r.team_name === teamName && r.range_key === rangeKey);
+      const overall = rows.find((r: any) => r.entity_type === 'team_overall');
+      const tables  = rows.find((r: any) => r.entity_type === 'team_table_overall');
+      const dags    = rows.find((r: any) => r.entity_type === 'team_dag_overall');
+
+      const dates: string[] = [];
+      const pushDates = (arr?: any[]) => {
+        if (!Array.isArray(arr)) return;
+        for (const obj of arr) {
+          const d = Object.keys(obj)[0];
+          if (d && !dates.includes(d)) dates.push(d);
+        }
+      };
+      pushDates(overall?.compliance_range_metrics);
+      pushDates(tables?.compliance_range_metrics);
+      pushDates(dags?.compliance_range_metrics);
+      dates.sort();
+
+      const findVal = (arr: any[] | undefined, date: string): number => {
+        if (!Array.isArray(arr)) return 0;
+        const rec = arr.find((o: any) => Object.prototype.hasOwnProperty.call(o, date));
+        const v = rec ? rec[date] : null;
+        return typeof v === 'number' ? v : 0;
+      };
+
+      const trend = dates.map(date => ({
+        date,
+        dateFormatted: new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(new Date(date)),
+        overall: findVal(overall?.compliance_range_metrics, date),
+        tables:  findVal(tables?.compliance_range_metrics,  date),
+        dags:    findVal(dags?.compliance_range_metrics,    date),
+      }));
+
+      return { trend, lastUpdated: new Date() };
     }
-    
-    try {
-      const cacheKey = `${this.getCacheKeyForRange(range, 'trends')}:TEAMS`;
-      const teamKey = `${tenantName}:${teamName}`;
-      const trendsData = await this.redis.hget(cacheKey, teamKey);
-      return trendsData ? JSON.parse(trendsData) : null;
-    } catch (error) {
-      console.error('Error getting team trends by range:', error);
-      return null;
-    }
+    return { trend: [], lastUpdated: new Date() };
   }
 
   async calculateTeamMetricsForDateRange(tenantName: string, teamName: string, startDate: Date, endDate: Date): Promise<DashboardMetrics | null> {
@@ -1108,11 +1460,11 @@ export class RedisCache {
     
     try {
       const data = await this.redis.get(CACHE_KEYS.ENTITIES);
-      
+
       // Redis-first: If key doesn't exist, return empty array (don't populate from storage)
       if (!data) {
-        return [];
-      }
+          return [];
+        }
       
       const cachedEntities: Entity[] = JSON.parse(data);
       return cachedEntities;
@@ -1470,6 +1822,8 @@ export class RedisCache {
       
       const entity: Entity = {
         ...entityData,
+        // New entities should start with Unknown status until scheduler updates
+        status: 'Unknown',
         id: newId,
         createdAt: now,
         updatedAt: now,
@@ -1543,6 +1897,8 @@ export class RedisCache {
       
       const entity: Entity = {
         ...entityData,
+        // New entities should start with Unknown status until scheduler updates
+        status: 'Unknown',
         id: newId,
         createdAt: now,
         updatedAt: now,
@@ -1554,6 +1910,19 @@ export class RedisCache {
       // Add entity to Redis (pipelined with RECENT_CHANGES & LAST_UPDATED later)
       entities.push(entity);
       const expireTime = Math.floor(this.CACHE_DURATION_MS / 1000) + 300;
+
+      // Also update slim cache immediately (ensure tenant_id via team lookup if missing)
+      let slim = this.projectSlimEntity(entity);
+      if (!slim.tenant_id) {
+        try {
+          const teams = await this.getAllTeams();
+          const team = teams.find(t => (t as any).id === entity.teamId || (t as any).name === entity.team_name);
+          if (team && (team as any).tenant_id) {
+            slim = { ...slim, tenant_id: (team as any).tenant_id };
+          }
+        } catch {}
+      }
+      await this.upsertSlimEntity(slim);
       
       // Record the change
       const change: EntityChange = {
@@ -1567,21 +1936,40 @@ export class RedisCache {
         timestamp: new Date()
       };
       
-      // Add to recent changes
+      // Add to recent changes (slim version only per new design)
       const recentChanges = await this.getRecentChanges();
-      recentChanges.unshift(change);
+      recentChanges.unshift({
+        ...(slim as any),
+        change_type: 'created',
+        timestamp: new Date()
+      } as any);
       
       // Keep only last 50 changes
       if (recentChanges.length > 50) {
         recentChanges.splice(50);
       }
       
-      // Pipeline writes for ENTITIES, RECENT_CHANGES, LAST_UPDATED
+      // Pipeline writes for ENTITIES (slim list), RECENT_CHANGES, LAST_UPDATED
       const pipe1 = this.redis.pipeline();
-      pipe1.setex(CACHE_KEYS.ENTITIES, expireTime, JSON.stringify(entities));
+      // Ensure slim ENTITIES stores only slim projection list
+      try {
+        const existingSlimRaw = await this.redis.get(CACHE_KEYS.ENTITIES);
+        const slimList: any[] = existingSlimRaw ? JSON.parse(existingSlimRaw) : [];
+        // Upsert slim into list synchronously for the pipeline write
+        const key = this.buildSlimCompositeKey(slim);
+        const idx = slimList.findIndex((x: any) => this.buildSlimCompositeKey(x) === key);
+        if (idx >= 0) slimList[idx] = { ...slimList[idx], ...slim };
+        else slimList.push(slim);
+        pipe1.setex(CACHE_KEYS.ENTITIES, expireTime, JSON.stringify(slimList));
+      } catch {
+        // Fallback: write just the single slim as list if read failed
+        pipe1.setex(CACHE_KEYS.ENTITIES, expireTime, JSON.stringify([slim]));
+      }
       pipe1.setex(CACHE_KEYS.RECENT_CHANGES, expireTime, JSON.stringify(recentChanges));
       pipe1.setex(CACHE_KEYS.LAST_UPDATED, expireTime, JSON.stringify(new Date()));
       await pipe1.exec();
+
+      // Slim cache recent change already mirrored via RECENT_CHANGES write above
       
       // Create standardized event envelope for filtering with race condition protection  
       const changeEvent: EntityChangeEvent = {
@@ -1728,10 +2116,35 @@ export class RedisCache {
       }
       
       const pipe2 = this.redis.pipeline();
-      pipe2.setex(CACHE_KEYS.ENTITIES, expireTime, JSON.stringify(entities));
+      // Update slim list stored in ENTITIES (deletion)
+      try {
+        const existingSlimRaw = await this.redis.get(CACHE_KEYS.ENTITIES);
+        const slimList: any[] = existingSlimRaw ? JSON.parse(existingSlimRaw) : [];
+        // Remove any entry matching team/type/name regardless of tenant_id (handle tenant_id missing)
+        const filtered = slimList.filter((x: any) => {
+          const sameTeam = (x.team_id ?? x.teamId) === ((entity as any).team_id ?? entity.teamId);
+          const sameType = (x.entity_type || x.type) === entity.type;
+          const sameName = (x.entity_name || x.name) === entity.name;
+          return !(sameTeam && sameType && sameName);
+        });
+        pipe2.setex(CACHE_KEYS.ENTITIES, expireTime, JSON.stringify(filtered));
+      } catch {
+        // If read fails, just write current slim snapshot minus deleted
+        pipe2.setex(CACHE_KEYS.ENTITIES, expireTime, JSON.stringify([]));
+      }
       pipe2.setex(CACHE_KEYS.RECENT_CHANGES, expireTime, JSON.stringify(recentChanges));
       pipe2.setex(CACHE_KEYS.LAST_UPDATED, expireTime, JSON.stringify(new Date()));
       await pipe2.exec();
+
+      // Slim cache updates (in-place)
+      const deleteKey = this.buildSlimCompositeKey({
+        tenant_id: (entity as any).tenant_id ?? (entity as any).tenantId ?? 0,
+        team_id: (entity as any).team_id ?? entity.teamId,
+        entity_type: entity.type,
+        entity_name: entity.name,
+      });
+      await this.removeSlimEntityByKey(deleteKey);
+      await this.appendSlimRecentChange(this.projectSlimEntity(entity), 'deleted');
       
       // Create standardized event envelope for filtering with race condition protection
       const changeEvent: EntityChangeEvent = {
@@ -1913,10 +2326,28 @@ export class RedisCache {
       }
       
       const pipe3 = this.redis.pipeline();
-      pipe3.setex(CACHE_KEYS.ENTITIES, expireTime, JSON.stringify(entities));
+      // Update slim list in ENTITIES
+      try {
+        const existingSlimRaw = await this.redis.get(CACHE_KEYS.ENTITIES);
+        const slimList: any[] = existingSlimRaw ? JSON.parse(existingSlimRaw) : [];
+        const slim = this.projectSlimEntity(updatedEntity);
+        const key = this.buildSlimCompositeKey(slim);
+        const idx = slimList.findIndex((x: any) => this.buildSlimCompositeKey(x) === key);
+        if (idx >= 0) slimList[idx] = { ...slimList[idx], ...slim };
+        else slimList.push(slim);
+        pipe3.setex(CACHE_KEYS.ENTITIES, expireTime, JSON.stringify(slimList));
+      } catch {
+        const slim = this.projectSlimEntity(updatedEntity);
+        pipe3.setex(CACHE_KEYS.ENTITIES, expireTime, JSON.stringify([slim]));
+      }
       pipe3.setex(CACHE_KEYS.RECENT_CHANGES, expireTime, JSON.stringify(recentChanges));
       pipe3.setex(CACHE_KEYS.LAST_UPDATED, expireTime, JSON.stringify(new Date()));
       await pipe3.exec();
+
+      // Slim cache updates (in-place)
+      const slim = this.projectSlimEntity(updatedEntity);
+      await this.upsertSlimEntity(slim);
+      await this.appendSlimRecentChange(slim, 'updated');
       
       // Create standardized event envelope for filtering with race condition protection  
       const changeEvent: EntityChangeEvent = {

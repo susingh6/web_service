@@ -2,7 +2,7 @@ import { Worker } from 'worker_threads';
 import { parentPort, workerData } from 'worker_threads';
 import { storage } from './storage';
 import { Entity, Team } from '@shared/schema';
-import { DashboardMetrics, CacheRefreshData, calculateMetrics, ComplianceTrendData, ComplianceTrendPoint } from '@shared/cache-types';
+import { DashboardMetrics, CacheRefreshData, calculateMetrics, ComplianceTrendData, ComplianceTrendPoint, SlimEntity, EntitiesComplianceData } from '@shared/cache-types';
 
 // FastAPI configuration
 const FASTAPI_BASE_URL = process.env.FASTAPI_BASE_URL || 'http://localhost:8080';
@@ -206,12 +206,35 @@ async function fetchPresetsFromFastAPI(buildType: 'Regular' | 'Forced' = 'Regula
   return await fastApiRequest('/api/v1/presets', { cache_build_type: buildType });
 }
 
-async function fetchComplianceFromFastAPI(buildType: 'Regular' | 'Forced' = 'Regular'): Promise<any> {
-  return await fastApiRequest('/api/v1/compliance', { cache_build_type: buildType });
+async function fetchComplianceFromFastAPI(buildType: 'Regular' | 'Forced' = 'Regular'): Promise<EntitiesComplianceData[]> {
+  const data = await fastApiRequest('/api/v1/compliance', { cache_build_type: buildType });
+  return Array.isArray(data) ? data as EntitiesComplianceData[] : [];
 }
 
-async function fetchSlaFromFastAPI(buildType: 'Regular' | 'Forced' = 'Regular'): Promise<any[]> {
-  return await fastApiRequest('/api/v1/sla', { cache_build_type: buildType });
+async function fetchSlaFromFastAPI(buildType: 'Regular' | 'Forced' = 'Regular'): Promise<SlimEntity[]> {
+  const data = await fastApiRequest('/api/v1/sla', { cache_build_type: buildType });
+  // Map to slim entities projection expected in Redis
+  if (!Array.isArray(data)) return [];
+  return (data as any[]).map((e: any) => {
+    const entity_type = e.entity_type || e.type;
+    const entity_schedule = entity_type === 'dag'
+      ? (e.dag_schedule || e.entity_schedule || e.table_schedule || null)
+      : (e.table_schedule || e.entity_schedule || e.dag_schedule || null);
+    return {
+      entity_type,
+      tenant_id: e.tenant_id,
+      tenant_name: e.tenant_name,
+      team_id: e.team_id,
+      team_name: e.team_name,
+      entity_name: e.entity_name || e.name,
+      entity_display_name: e.entity_display_name || e.table_name || e.dag_name || e.name || null,
+      entity_schedule,
+      expected_runtime_minutes: e.expected_runtime_minutes ?? null,
+      is_entity_owner: e.is_entity_owner === true,
+      is_active: e.is_active !== false,
+      owner_entity_ref_name: e.owner_entity_ref_name ?? null,
+    } as SlimEntity;
+  });
 }
 
 async function fetchUsersFromFastAPI(buildType: 'Regular' | 'Forced' = 'Regular'): Promise<any[]> {
@@ -281,7 +304,8 @@ async function refreshFromFastAPI(buildType: 'Regular' | 'Forced' = 'Regular'): 
     ]);
 
     // Map FastAPI data to our cache structure
-    const entities = mapSlaDataToEntities(slaData);
+    // For backward compatibility, derive full entities from slim as needed
+    const entities = mapSlaDataToEntities(slaData as any[]);
     const teams = mapFastAPITeamsToTeams(teamsData);
     const tenants = mapFastAPITenantsToTenants(tenantsData);
     const users = mapFastAPIUsersToUsers(usersData);
@@ -298,7 +322,7 @@ async function refreshFromFastAPI(buildType: 'Regular' | 'Forced' = 'Regular'): 
       lastUpdated: new Date()
     } : null;
 
-    const cacheData: CacheRefreshData & { users: any[], roles: any[], conflicts: any[], source: 'fastapi' | 'express' } = {
+    const cacheData: CacheRefreshData & { users: any[], roles: any[], conflicts: any[], source: 'fastapi' | 'express', entitiesSlim?: SlimEntity[], entitiesCompliance?: EntitiesComplianceData[] } = {
       entities,
       teams,
       tenants,
@@ -320,7 +344,10 @@ async function refreshFromFastAPI(buildType: 'Regular' | 'Forced' = 'Regular'): 
       thisMonthTrends: {},
       allTasksData: processedAllTasksData,
       lastUpdated: new Date(),
-      source: 'fastapi'
+      source: 'fastapi',
+      // New Redis-first payloads
+      entitiesSlim: slaData as SlimEntity[],
+      entitiesCompliance: complianceData as EntitiesComplianceData[],
     };
 
     console.log('[Cache Worker] FastAPI cache refresh completed');
@@ -444,6 +471,8 @@ function mapSlaDataToEntities(slaData: any[]): Entity[] {
     tenant_name: item.tenant_name || item.tenant || 'Default',
     team_name: item.team_name || item.team || 'Default Team',
     owner_email: item.owner_email || item.email || null,
+    user_email: item.user_email || null,
+    is_active: item.is_active !== false,
     notification_preference_id: item.notification_preference_id || null,
     notification_timeline_id: item.notification_timeline_id || null,
     priority_zone: item.priority_zone || 'medium',
@@ -471,7 +500,15 @@ function mapSlaDataToEntities(slaData: any[]): Entity[] {
     ownerEmail: item.owner_email || item.email || null,
     schema_name: item.schema_name || item.schema || null,
     table_name: item.table_name || item.name || 'unknown_table',
+    table_description: item.table_description || '',
+    table_schedule: item.table_schedule || null,
+    table_dependency: item.table_dependency || [],
     dag_name: item.dag_name || item.name || 'unknown_dag',
+    dag_description: item.dag_description || '',
+    dag_schedule: item.dag_schedule || null,
+    dag_dependency: item.dag_dependency || [],
+    server_name: item.server_name || null,
+    expected_runtime_minutes: item.expected_runtime_minutes ?? null,
     task_count: item.task_count || 0,
     successful_runs_24h: item.successful_runs_24h || 0,
     failed_runs_24h: item.failed_runs_24h || 0,
@@ -484,6 +521,11 @@ function mapSlaDataToEntities(slaData: any[]): Entity[] {
     row_count: item.row_count || 0,
     column_count: item.column_count || 0,
     last_schema_change: item.last_schema_change ? new Date(item.last_schema_change) : null,
+    notification_preferences: item.notification_preferences || [],
+    donemarker_location: item.donemarker_location || '',
+    donemarker_lookback: item.donemarker_lookback || 0,
+    lastRun: item.last_run ? new Date(item.last_run) : null,
+    lastStatus: item.last_status || null,
     createdAt: item.created_at ? new Date(item.created_at) : new Date(),
     updatedAt: item.updated_at ? new Date(item.updated_at) : new Date(),
   }));

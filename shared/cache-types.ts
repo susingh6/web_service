@@ -22,6 +22,59 @@ export interface ComplianceTrendData {
   lastUpdated: Date;
 }
 
+// Redis-first slim entity projection used in sla:entities
+export interface SlimEntity {
+  entity_type: 'table' | 'dag';
+  tenant_id: number;
+  tenant_name: string;
+  team_id: number;
+  team_name: string;
+  entity_name: string;
+  entity_display_name: string | null;
+  entity_schedule: string | null;
+  expected_runtime_minutes: number | null;
+  is_entity_owner: boolean;
+  is_active: boolean;
+  owner_entity_ref_name: null | {
+    entity_owner_name: string | null;
+    entity_owner_tenant_id: number | null;
+    entity_owner_tenant_name: string | null;
+    entity_owner_team_id: number | null;
+    entity_owner_team_name: string | null;
+  };
+}
+
+// Redis-first compliance payload item used in sla:entitiescompliance
+export interface EntitiesComplianceData {
+  entity_type:
+    | 'dag'
+    | 'table'
+    | 'team_dag_overall'
+    | 'team_table_overall'
+    | 'team_summary_overall'
+    | 'team_overall'
+    | 'summary_overall'
+    | 'summary_dag_overall'
+    | 'summary_table_overall';
+  tenant_id: number;
+  tenant_name: string;
+  team_id: number; // 0 for summary
+  team_name: string | null;
+  entity_name: string | null;
+  entity_display_name: string | null;
+  is_entity_owner: boolean;
+  is_active: boolean;
+  range_key: string; // e.g., last_30_days, this_month
+  sla_stats_pct: number | null;
+  trend_pp: number | null;
+  last_sla_status: 'passed' | 'failed' | 'unknown' | string | null;
+  donemarkers_received: number | null;
+  donemarkers_total: number | null;
+  last_sla_compliance_pct: number | null;
+  compliance_range_metrics: Array<Record<string, number | null>>;
+  last_reported_at: string | null; // ISO timestamp
+}
+
 export interface EntityChange {
   entityId: number;
   entityName: string;
@@ -111,6 +164,9 @@ export interface CacheRefreshData {
   // DAG task data for cache refresh
   allTasksData: AllTasksData | null;
   lastUpdated: Date;
+  // New Redis-first caches
+  entitiesSlim?: SlimEntity[];
+  entitiesCompliance?: EntitiesComplianceData[];
 }
 
 // Shared utility function for calculating metrics

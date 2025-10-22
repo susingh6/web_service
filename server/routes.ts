@@ -822,11 +822,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else {
         // In-memory mode: update in storage
         updatedRole = await storage.updateRole(roleName, roleData);
-        
-        if (!updatedRole) {
-          return res.status(404).json({ message: `Role '${roleName}' not found` });
-        }
-        
+      
+      if (!updatedRole) {
+        return res.status(404).json({ message: `Role '${roleName}' not found` });
+      }
+      
         // Invalidate cache so next GET fetches fresh data from storage
         await redisCache.invalidateCache({
           keys: ['all_roles', 'roles_list'],
@@ -869,12 +869,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       } else {
         // In-memory mode: delete from storage
-        const success = await storage.deleteRole(roleName);
-        
-        if (!success) {
-          return res.status(404).json({ message: `Role '${roleName}' not found` });
-        }
-        
+      const success = await storage.deleteRole(roleName);
+      
+      if (!success) {
+        return res.status(404).json({ message: `Role '${roleName}' not found` });
+      }
+      
         // Invalidate cache so next GET fetches fresh data from storage
         await redisCache.invalidateCache({
           keys: ['all_roles', 'roles_list'],
@@ -1031,9 +1031,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else {
         // In-memory mode: update in storage
         updatedPermission = await storage.updatePermission(name, permissionData);
-        if (!updatedPermission) {
-          return res.status(404).json({ message: `Permission '${name}' not found` });
-        }
+      if (!updatedPermission) {
+        return res.status(404).json({ message: `Permission '${name}' not found` });
+      }
         
         // Invalidate cache so next GET fetches fresh data from storage
         await redisCache.invalidateCache({
@@ -1077,10 +1077,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       } else {
         // In-memory mode: delete from storage
-        const success = await storage.deletePermission(name);
-        if (!success) {
-          return res.status(404).json({ message: `Permission '${name}' not found` });
-        }
+      const success = await storage.deletePermission(name);
+      if (!success) {
+        return res.status(404).json({ message: `Permission '${name}' not found` });
+      }
         
         // Invalidate cache so next GET fetches fresh data from storage
         await redisCache.invalidateCache({
@@ -2255,41 +2255,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Force a unique ETag per response so conditional GETs don't return 304
       res.setHeader('ETag', `${Date.now()}`);
       
-      let entities: Entity[];
+      let entities: any[];
       
       if (teamId) {
-        // Get all entities for specific team (including inactive entities for visibility)
-        // IMPORTANT: Source from Redis cache to stay consistent with delete/update flows
         const teamIdNum = parseInt(teamId as string);
         if (isNaN(teamIdNum)) {
           return res.status(400).json(createErrorResponse("Invalid team ID", "validation_error"));
         }
-        const allEntities = await redisCache.getAllEntities();
-        entities = allEntities.filter(e => e.teamId === teamIdNum);
+        entities = await redisCache.getEntitiesForApi({ teamId: teamIdNum });
         console.log(`GET /api/v1/entities - Parameters: teamId=${teamId} - status: 200`);
       } else if (type) {
-        // Get entities by type
-        const allEntities = await redisCache.getAllEntities();
-        entities = allEntities.filter(e => e.type === (type as string));
+        entities = await redisCache.getEntitiesForApi({ type: type as any });
         console.log(`GET /api/v1/entities - Parameters: type=${type} - status: 200`);
+      } else if (tenant) {
+        // Summary Dashboard: only active entity owners, and only from active teams
+        const tenantNameStr = String(tenant);
+        const [allEntities, teams] = await Promise.all([
+          redisCache.getEntitiesForApi({ tenantName: tenantNameStr }),
+          redisCache.getAllTeams(),
+        ]);
+        const activeTeamIds = new Set<number>(teams.filter((t: any) => (t as any).isActive !== false).map((t: any) => t.id));
+        entities = allEntities.filter((e: any) => (
+          e.tenant_name === tenantNameStr &&
+          e.is_entity_owner === true &&
+          e.is_active !== false &&
+          activeTeamIds.has((e.teamId ?? e.team_id) as number)
+        ));
+        console.log(`GET /api/v1/entities - Parameters: tenant=${tenant} - status: 200`);
       } else {
-        // Get all entities (prefer cache for consistency with mutations)
-        entities = await redisCache.getAllEntities();
-        
-        if (tenant) {
-          // Filter for Summary Dashboard: only active entity owners for the tenant AND belonging to active teams
-          const teams = await redisCache.getAllTeams();
-          const activeTeamIds = new Set<number>(teams.filter((t: any) => (t as any).isActive !== false).map((t: any) => t.id));
-          entities = entities.filter(entity => 
-            entity.tenant_name === tenant && 
-            entity.is_entity_owner === true && 
-            entity.is_active !== false &&
-            activeTeamIds.has((entity as any).teamId as number)
-          );
-          console.log(`GET /api/v1/entities - Parameters: tenant=${tenant} - status: 200`);
-        } else {
-          console.log(`GET /api/v1/entities - status: 200`);
-        }
+        entities = await redisCache.getEntitiesForApi({});
+        console.log(`GET /api/v1/entities - status: 200`);
       }
       
       res.json(entities);
@@ -3378,139 +3373,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Entities endpoints - using cache with pre-defined date filtering
+  // Entities endpoint - Redis-first slim + compliance enriched
   app.get("/api/entities", async (req, res) => {
     try {
-      // Clear HTTP cache headers to prevent 304 responses when data changes
       res.removeHeader('ETag');
       res.removeHeader('Last-Modified');
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-      
-      let entities: Entity[];
-      
-      // Team dashboard requests: get team-specific entities (including inactive for visibility)
-      if (req.query.teamId) {
-        const teamIdNum = parseInt(String(req.query.teamId));
-        if (!isNaN(teamIdNum)) {
-          // Always source from Redis cache to keep in sync with delete/update flows
-          const allEntities = await redisCache.getAllEntities();
-          entities = allEntities.filter(e => e.teamId === teamIdNum);
-        } else {
-          entities = [] as Entity[];
-        }
-      } else {
-        // Summary dashboard requests: show active entity owners across all teams
-        if (req.query.tenant) {
-          // Source from Redis cache and filter for active owners in the tenant
-          const tenantName = req.query.tenant as string;
-          const allEntities = await redisCache.getAllEntities();
-          entities = allEntities.filter(entity => 
-            entity.tenant_name === tenantName && 
-            entity.is_entity_owner === true && 
-            entity.is_active !== false
-          );
-        } else {
-          // For global summary, use cached entity owners only (active entity owners)
-          const allEntities = await redisCache.getAllEntities();
-          entities = allEntities.filter(entity => entity.is_entity_owner === true && entity.is_active !== false);
-        }
-      }
-      
-      // Pre-defined date filtering (served from cache)
-      if (req.query.date_filter) {
-        const dateFilter = req.query.date_filter as string;
-        const now = new Date();
-        let filterDate: Date;
-        
-        switch (dateFilter.toLowerCase()) {
-          case 'today':
-            filterDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-            entities = entities.filter(entity => {
-              if (!entity.lastRefreshed) return false;
-              const entityDate = new Date(entity.lastRefreshed);
-              return entityDate >= filterDate;
-            });
-            break;
-            
-          case 'yesterday':
-            const yesterday = new Date(now);
-            yesterday.setDate(yesterday.getDate() - 1);
-            const startOfYesterday = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
-            const endOfYesterday = new Date(startOfYesterday);
-            endOfYesterday.setHours(23, 59, 59, 999);
-            entities = entities.filter(entity => {
-              if (!entity.lastRefreshed) return false;
-              const entityDate = new Date(entity.lastRefreshed);
-              return entityDate >= startOfYesterday && entityDate <= endOfYesterday;
-            });
-            break;
-            
-          case 'last_7_days':
-            filterDate = new Date(now);
-            filterDate.setDate(filterDate.getDate() - 7);
-            entities = entities.filter(entity => {
-              if (!entity.lastRefreshed) return false;
-              const entityDate = new Date(entity.lastRefreshed);
-              return entityDate >= filterDate;
-            });
-            break;
-            
-          case 'last_30_days':
-            filterDate = new Date(now);
-            filterDate.setDate(filterDate.getDate() - 30);
-            entities = entities.filter(entity => {
-              if (!entity.lastRefreshed) return false;
-              const entityDate = new Date(entity.lastRefreshed);
-              return entityDate >= filterDate;
-            });
-            break;
-            
-          case 'this_month':
-            filterDate = new Date(now.getFullYear(), now.getMonth(), 1);
-            entities = entities.filter(entity => {
-              if (!entity.lastRefreshed) return false;
-              const entityDate = new Date(entity.lastRefreshed);
-              return entityDate >= filterDate;
-            });
-            break;
-            
-          default:
-            return res.status(400).json({ 
-              message: "Invalid date_filter. Supported values: today, yesterday, last_7_days, last_30_days, this_month. Use /api/entities/custom for custom date ranges." 
-            });
-        }
-      }
-      
-      // Additional filters
-      if (req.query.teamId) {
-        const teamId = parseInt(req.query.teamId as string);
-        if (isNaN(teamId)) {
-          return res.status(400).json({ message: "Invalid team ID" });
-        }
-        entities = entities.filter(entity => entity.teamId === teamId);
-      } else if (req.query.type) {
-        const type = req.query.type as string;
-        if (type !== 'table' && type !== 'dag') {
-          return res.status(400).json({ message: "Type must be 'table' or 'dag'" });
-        }
-        entities = entities.filter(entity => entity.type === type);
-      }
-      
-      // Maintain backward compatibility: return array for existing clients
-      // Add metadata only when specifically requested
+
+      const teamId = req.query.teamId ? parseInt(String(req.query.teamId)) : undefined;
+      const type = (req.query.type as 'table' | 'dag' | undefined) || undefined;
+      const tenantName = (req.query.tenant as string | undefined) || undefined;
+      const dateFilter = (req.query.date_filter as string | undefined) || undefined;
+
+      const entities = await redisCache.getEntitiesForApi({
+        tenantName,
+        teamId,
+        type,
+        dateFilter,
+      });
+
       if (req.query.include_metadata === 'true') {
-        res.json({
-          data: entities,
-          meta: {
-            count: entities.length,
-          }
-        });
-        return;
+        return res.json({ data: entities, meta: { count: entities.length } });
       }
-      
-      res.json(entities);
+      return res.json(entities);
     } catch (error) {
-      res.status(500).json({ message: "Failed to fetch entities" });
+      return res.status(500).json({ message: 'Failed to fetch entities' });
     }
   });
   
@@ -3728,43 +3615,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Delete entity by name - bypass auth in development for testing
+  // Delete entity by name (slim/Redis-first) - bypass auth in development for testing
   app.delete('/api/entities/by-name/:entityType/:entityName', ...(isDevelopment ? [] : requireActiveUser), async (req: Request, res: Response) => {
     try {
       const { entityType, entityName } = req.params;
       const teamName = typeof req.query.teamName === 'string' ? req.query.teamName : undefined;
+      const tenantName = typeof req.query.tenantName === 'string' ? req.query.tenantName : undefined;
 
       const normalizedType = (entityType === 'table' || entityType === 'dag') ? (entityType as Entity['type']) : undefined;
+      if (!teamName || !normalizedType) {
+        return res.status(400).json({ message: 'teamName and valid entityType (table|dag) are required' });
+      }
 
-      const entity = await redisCache.getEntityByName({ name: entityName, type: normalizedType, teamName });
-      if (!entity) {
+      // Slim-only delete by composite identifiers
+      const removed = await redisCache.deleteSlimEntityByComposite({
+        tenantName,
+        teamName,
+        entityType: normalizedType as 'table' | 'dag',
+        entityName,
+      });
+      if (!removed) {
         return res.status(404).json({ message: 'Entity not found' });
       }
-
-      const success = await redisCache.deleteEntityByName({ name: entityName, type: normalizedType, teamName });
-      if (!success) {
-        return res.status(500).json({ message: 'Failed to delete entity' });
-      }
-
-      // Broadcast real-time update to connected clients (match ID-based route behavior)
-      redisCache.forceNotifyClients('entity-updated', {
-        entityId: entity.id,
-        entityName: entity.name,
-        entityType: entity.type,
-        teamName: entity.team_name || 'Unknown',
-        tenantName: entity.tenant_name || 'Unknown',
-        type: 'deleted',
-        entity,
-        timestamp: new Date()
-      });
-
-      // Note: No cache invalidation needed - deleteEntity() already:
-      // 1. Removed from sla:entities
-      // 2. Added to sla:recentChanges
-      // 3. Broadcast via WebSocket
-      // Calling invalidateAndRebuildEntityCache would reload from storage (mock data pollution)
-
-      res.status(204).end();
+      return res.status(204).end();
     } catch (error) {
       res.status(500).json({ message: 'Failed to delete entity' });
     }
@@ -3775,20 +3648,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { entityType, entityName } = req.params;
       const teamName = typeof req.query.teamName === 'string' ? req.query.teamName : undefined;
+      let tenantName = typeof req.query.tenantName === 'string' ? req.query.tenantName : undefined;
 
       const normalizedType = (entityType === 'table' || entityType === 'dag') ? (entityType as Entity['type']) : undefined;
 
-      const existing = await redisCache.getEntityByName({ name: entityName, type: normalizedType, teamName });
-      if (!existing) {
+      // Require teamName and entityType
+      if (!teamName || !normalizedType) {
+        return res.status(400).json({ message: 'teamName and valid entityType (table|dag) are required' });
+      }
+
+      // If tenantName not provided, attempt to resolve from teams; if ambiguous, require it
+      if (!tenantName) {
+        try {
+          const teams = await redisCache.getAllTeams();
+          const tenants = await redisCache.getAllTenants();
+          const matches = teams.filter((t: any) => t.name === teamName);
+          if (matches.length === 0) {
+            return res.status(404).json({ message: `Team not found: ${teamName}` });
+          }
+          const tenantIds = Array.from(new Set(matches.map((t: any) => t.tenant_id)));
+          if (tenantIds.length > 1) {
+            return res.status(400).json({ message: 'Multiple tenants found for team name. Provide tenantName to disambiguate.' });
+          }
+          const tenant = tenants.find(t => t.id === tenantIds[0]);
+          tenantName = tenant ? tenant.name : undefined;
+        } catch {}
+      }
+
+      // Redis-first slim update attempt by composite identifiers (tenantName + teamName + type + name)
+      const slimUpdated = await redisCache.updateSlimEntityByComposite({
+        tenantName,
+        teamName,
+        entityType: normalizedType as 'table' | 'dag',
+        entityName,
+        updates: req.body || {}
+      });
+      if (!slimUpdated) {
         return res.status(404).json({ message: 'Entity not found' });
       }
-
-      const updated = await redisCache.updateEntityById(existing.id, req.body as Partial<Entity>);
-      if (!updated) {
-        return res.status(500).json({ message: 'Failed to update entity' });
-      }
-
-      res.json(updated);
+      return res.json(slimUpdated);
     } catch (error) {
       res.status(500).json({ message: 'Failed to update entity' });
     }
