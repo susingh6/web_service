@@ -11,11 +11,17 @@ import { useWebSocket } from '@/hooks/useWebSocket';
 
 const log = getLogger();
 
+// Utility to generate collision-safe optimistic IDs
+// Uses combination of timestamp + random to prevent collisions across multiple admins
+const generateOptimisticId = (): number => {
+  return -(Date.now() * 10000 + Math.floor(Math.random() * 10000));
+};
+
 // Utility to detect optimistic vs real IDs
 const isOptimisticId = (id: number): boolean => {
-  // Optimistic IDs are Date.now() timestamps - they're recent large numbers
-  // Real IDs from server are sequential integers starting from 1
-  return id > Date.now() - 60000; // Within last 60 seconds
+  // Optimistic IDs are negative numbers (collision-safe pattern)
+  // Real IDs from server are positive sequential integers starting from 1
+  return id < 0;
 };
 
 // Queue for pending operations on optimistic entities
@@ -61,8 +67,8 @@ export function useStandardCrud<T = any>(config: StandardCrudConfig<T>) {
   const identifierField = config.identifierField || 'id';
 
   const standardCreate = async (data: any, scenario: any, params: any[] = []) => {
-    // Generate optimistic ID using provided generator or Date.now()
-    const optimisticId = config.optimisticIdGenerator ? config.optimisticIdGenerator() : Date.now();
+    // Generate optimistic ID using provided generator or collision-safe default
+    const optimisticId = config.optimisticIdGenerator ? config.optimisticIdGenerator() : generateOptimisticId();
     const optimisticEntity = { ...data, [identifierField]: optimisticId };
     
     const result = await executeWithOptimism({
@@ -1102,8 +1108,8 @@ export function useAdminMutation() {
       }
       if (!response.ok) {
         if (isDevelopment) {
-          // Development fallback: return mock tenant data
-          return { id: Date.now(), ...tenantData, isActive: tenantData.isActive ?? true };
+          // Development fallback: return mock tenant data with collision-safe ID
+          return { id: generateOptimisticId(), ...tenantData, isActive: tenantData.isActive ?? true };
         }
         const text = await response.text();
         throw new Error(`Failed to create tenant: ${text}`);
@@ -1179,8 +1185,8 @@ export function useAdminMutation() {
       }
       if (!response.ok) {
         if (isDevelopment) {
-          // Development fallback: return mock team data
-          return { id: Date.now(), ...teamData, isActive: teamData.isActive ?? true };
+          // Development fallback: return mock team data with collision-safe ID
+          return { id: generateOptimisticId(), ...teamData, isActive: teamData.isActive ?? true };
         }
         const text = await response.text();
         throw new Error(`Failed to create team: ${text}`);
@@ -1302,8 +1308,8 @@ export function useAdminMutation() {
       const response = await apiRequest('POST', '/api/v1/roles', roleData);
       if (!response.ok) {
         if (isDevelopment) {
-          // Development fallback: return mock role data
-          return { id: Date.now(), ...roleData };
+          // Development fallback: return mock role data with collision-safe ID
+          return { id: generateOptimisticId(), ...roleData };
         }
         const text = await response.text();
         throw new Error(`Failed to create role: ${text}`);
@@ -1315,7 +1321,7 @@ export function useAdminMutation() {
       await queryClient.cancelQueries({ queryKey: ['admin', 'roles'] });
       const previous = queryClient.getQueryData<any[]>(['admin', 'roles']);
       const optimistic = {
-        id: Date.now(),
+        id: generateOptimisticId(), // Collision-safe ID
         role_name: roleData.role_name || 'new-role',
         description: roleData.description || '',
         role_permissions: roleData.role_permissions || [],

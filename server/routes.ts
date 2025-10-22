@@ -47,6 +47,12 @@ const updateUserSchema = adminUserSchema.partial().refine(data => Object.keys(da
   message: "At least one field must be provided for update"
 });
 
+// Helper function to generate optimistic IDs for client-side optimistic updates
+// Combination of timestamp + random for uniqueness across multiple admins
+const generateOptimisticId = (): number => {
+  return -(Date.now() * 10000 + Math.floor(Math.random() * 10000));
+};
+
 // Helper function to create audit log entries for rollback operations
 function createRollbackAuditLog(event: string, req: Request, additionalData?: any) {
   return {
@@ -577,20 +583,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       } else {
         // In-memory mode: update storage
-        const internalUpdateData: any = {};
-        if (updateData.user_name) internalUpdateData.username = updateData.user_name;
-        if (updateData.user_email) internalUpdateData.email = updateData.user_email;
-        if (updateData.user_slack) internalUpdateData.user_slack = updateData.user_slack;
-        if (updateData.user_pagerduty) internalUpdateData.user_pagerduty = updateData.user_pagerduty;
-        if (updateData.is_active !== undefined) internalUpdateData.is_active = updateData.is_active;
+      const internalUpdateData: any = {};
+      if (updateData.user_name) internalUpdateData.username = updateData.user_name;
+      if (updateData.user_email) internalUpdateData.email = updateData.user_email;
+      if (updateData.user_slack) internalUpdateData.user_slack = updateData.user_slack;
+      if (updateData.user_pagerduty) internalUpdateData.user_pagerduty = updateData.user_pagerduty;
+      if (updateData.is_active !== undefined) internalUpdateData.is_active = updateData.is_active;
 
         updatedUser = await storage.updateUser(userId, internalUpdateData);
-        if (!updatedUser) {
-          return res.status(404).json(createErrorResponse("User not found", "not_found"));
-        }
+      if (!updatedUser) {
+        return res.status(404).json(createErrorResponse("User not found", "not_found"));
+      }
 
         // Invalidate cache so next GET fetches fresh data from storage
-        await redisCache.invalidateUserData();
+      await redisCache.invalidateUserData();
       }
       
       // CRITICAL: Also invalidate profile cache for this user so profile page shows updated data
@@ -722,29 +728,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/v1/roles", checkActiveUserDev, async (req: Request, res: Response) => {
     try {
       const roleData = req.body;
-      const newRole = await storage.createRole(roleData);
-
-      // Update cache based on mode
       const status = await redisCache.getCacheStatus();
+
       if (status && status.mode === 'redis') {
-        // Redis mode: write directly to Redis
+        // Redis mode: generate ID from Redis (avoid storage mock counters)
         const existingRoles = await redisCache.get(CACHE_KEYS.ROLES) || [];
-        const updatedRoles = Array.isArray(existingRoles) ? [...existingRoles, newRole] : [newRole];
+        const nextId = Array.isArray(existingRoles) && existingRoles.length > 0
+          ? Math.max(...existingRoles.map((r: any) => Number(r?.id) || 0)) + 1
+          : 1;
+        
+        const now = new Date().toISOString();
+        const newRole = {
+          id: nextId,
+          role_name: roleData.role_name,
+          description: roleData.description || null,
+          is_active: roleData.is_active ?? true,
+          is_system_role: roleData.is_system_role ?? false,
+          role_permissions: roleData.role_permissions || [],
+          team_name: roleData.team_name || null,
+          tenant_name: roleData.tenant_name || null,
+          createdAt: now,
+          updatedAt: now,
+        };
+
+        // Update Redis cache
+        const updatedRoles = [...existingRoles, newRole];
         await redisCache.set(CACHE_KEYS.ROLES, updatedRoles, 6 * 60 * 60);
         
         // Broadcast update to connected clients
         await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.ROLES, {
           timestamp: new Date().toISOString()
         });
-      } else {
-        // In-memory mode: invalidate cache so next GET fetches fresh data from storage
-        await redisCache.invalidateCache({
-          keys: ['all_roles', 'roles_list'],
-          patterns: ['role_*'],
-          mainCacheKeys: ['ROLES'],
-          refreshAffectedData: true
-        });
+
+        res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+        return res.status(201).json(newRole);
       }
+
+      // In-memory mode: create via storage
+      const newRole = await storage.createRole(roleData);
+      
+      // Invalidate cache so next GET fetches fresh data from storage
+      await redisCache.invalidateCache({
+        keys: ['all_roles', 'roles_list'],
+        patterns: ['role_*'],
+        mainCacheKeys: ['ROLES'],
+        refreshAffectedData: true
+      });
 
       res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
       res.status(201).json(newRole);
@@ -887,29 +916,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/v1/permissions", checkActiveUserDev, async (req: Request, res: Response) => {
     try {
       const permissionData = req.body;
-      const newPermission = await storage.createPermission(permissionData);
-
-      // Update cache based on mode
       const status = await redisCache.getCacheStatus();
+
       if (status && status.mode === 'redis') {
-        // Redis mode: write directly to Redis
+        // Redis mode: generate ID from Redis (avoid storage mock counters)
         const existingPermissions = await redisCache.get(CACHE_KEYS.PERMISSIONS) || [];
-        const updatedPermissions = Array.isArray(existingPermissions) ? [...existingPermissions, newPermission] : [newPermission];
+        const nextId = Array.isArray(existingPermissions) && existingPermissions.length > 0
+          ? Math.max(...existingPermissions.map((p: any) => Number(p?.id) || 0)) + 1
+          : 1;
+        
+        const now = new Date().toISOString();
+        const newPermission = {
+          id: nextId,
+          permission_name: permissionData.permission_name,
+          description: permissionData.description || null,
+          category: permissionData.category,
+          is_active: permissionData.is_active ?? true,
+          createdAt: now,
+          updatedAt: now,
+        };
+
+        // Update Redis cache
+        const updatedPermissions = [...existingPermissions, newPermission];
         await redisCache.set(CACHE_KEYS.PERMISSIONS, updatedPermissions, 6 * 60 * 60);
         
         // Broadcast update to connected clients
         await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.PERMISSIONS, {
           timestamp: new Date().toISOString()
         });
-      } else {
-        // In-memory mode: invalidate cache so next GET fetches fresh data from storage
-        await redisCache.invalidateCache({
-          keys: ['all_permissions', 'permissions_list'],
-          patterns: ['permission_*'],
-          mainCacheKeys: ['PERMISSIONS'],
-          refreshAffectedData: true
-        });
+
+        res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+        return res.status(201).json(newPermission);
       }
+
+      // In-memory mode: create via storage
+      const newPermission = await storage.createPermission(permissionData);
+      
+      // Invalidate cache so next GET fetches fresh data from storage
+      await redisCache.invalidateCache({
+        keys: ['all_permissions', 'permissions_list'],
+        patterns: ['permission_*'],
+        mainCacheKeys: ['PERMISSIONS'],
+        refreshAffectedData: true
+      });
 
       res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
       res.status(201).json(newPermission);
@@ -1154,25 +1203,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // POST /api/v1/alerts - Create system alert
   app.post("/api/v1/alerts", requireActiveUser, async (req: Request, res: Response) => {
     try {
-      // Create alert in storage
-      const newAlert = await storage.createAlert(req.body);
-
-      // Update cache based on mode
       const status = await redisCache.getCacheStatus();
+
       if (status && status.mode === 'redis') {
-        // Redis mode: write directly to Redis
+        // Redis mode: generate ID from Redis (avoid storage mock counters)
         const existingAlerts = await redisCache.get(CACHE_KEYS.ALERTS) || [];
-        const updatedAlerts = Array.isArray(existingAlerts) ? [...existingAlerts, newAlert] : [newAlert];
+        const nextId = Array.isArray(existingAlerts) && existingAlerts.length > 0
+          ? Math.max(...existingAlerts.map((a: any) => Number(a?.id) || 0)) + 1
+          : 1;
+        
+        const now = new Date().toISOString();
+        const newAlert = {
+          id: nextId,
+          ...req.body,
+          isActive: req.body.isActive ?? true,
+          expiresAt: req.body.expiresAt ?? null,
+          createdAt: now,
+          updatedAt: now,
+        };
+
+        // Update Redis cache
+        const updatedAlerts = [...existingAlerts, newAlert];
         await redisCache.set(CACHE_KEYS.ALERTS, updatedAlerts, 6 * 60 * 60);
-      } else {
-        // In-memory mode: invalidate cache so next GET fetches fresh data from storage
-        await redisCache.invalidateCache({
-          keys: ['all_alerts', 'system_alerts'],
-          patterns: ['alert_*'],
-          mainCacheKeys: ['ALERTS'],
-          refreshAffectedData: true
+
+        return res.status(201).json({
+          success: true,
+          message: "Alert created successfully",
+          alert: newAlert
         });
       }
+
+      // In-memory mode: create via storage
+      const newAlert = await storage.createAlert(req.body);
+      
+      // Invalidate cache so next GET fetches fresh data from storage
+      await redisCache.invalidateCache({
+        keys: ['all_alerts', 'system_alerts'],
+        patterns: ['alert_*'],
+        mainCacheKeys: ['ALERTS'],
+        refreshAffectedData: true
+      });
 
       res.status(201).json({
         success: true,
@@ -1263,25 +1333,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // POST /api/v1/admin/broadcast-messages - Create admin broadcast message
   app.post("/api/v1/admin/broadcast-messages", requireActiveUser, async (req: Request, res: Response) => {
     try {
-      // Create broadcast message in storage
-      const newMessage = await storage.createAdminBroadcastMessage(req.body);
-
-      // Update cache based on mode
       const status = await redisCache.getCacheStatus();
+
       if (status && status.mode === 'redis') {
-        // Redis mode: write directly to Redis
+        // Redis mode: generate ID from Redis (avoid storage mock counters)
         const existingMessages = await redisCache.get(CACHE_KEYS.ADMIN_MESSAGES) || [];
-        const updatedMessages = Array.isArray(existingMessages) ? [...existingMessages, newMessage] : [newMessage];
+        const nextId = Array.isArray(existingMessages) && existingMessages.length > 0
+          ? Math.max(...existingMessages.map((m: any) => Number(m?.id) || 0)) + 1
+          : 1;
+        
+        const now = new Date().toISOString();
+        const newMessage = {
+          id: nextId,
+          ...req.body,
+          isActive: req.body.isActive ?? true,
+          expiresAt: req.body.expiresAt ?? null,
+          excludeDateKeys: req.body.excludeDateKeys ?? [],
+          createdAt: now,
+          updatedAt: now,
+        };
+
+        // Update Redis cache
+        const updatedMessages = [...existingMessages, newMessage];
         await redisCache.set(CACHE_KEYS.ADMIN_MESSAGES, updatedMessages, 6 * 60 * 60);
-      } else {
-        // In-memory mode: invalidate cache so next GET fetches fresh data from storage
-        await redisCache.invalidateCache({
-          keys: ['all_broadcast_messages', 'admin_messages'],
-          patterns: ['broadcast_*'],
-          mainCacheKeys: ['ADMIN_MESSAGES'],
-          refreshAffectedData: true
+
+        // Broadcast to connected clients if delivery type is immediate, login_triggered, or immediate_and_login_triggered
+        if (newMessage.deliveryType === 'immediate' || newMessage.deliveryType === 'login_triggered' || newMessage.deliveryType === 'immediate_and_login_triggered') {
+          await redisCache.broadcastAdminMessage({
+            id: newMessage.id,
+            message: newMessage.message,
+            deliveryType: newMessage.deliveryType,
+            expiresAt: newMessage.expiresAt ? new Date(newMessage.expiresAt) : null,
+            createdAt: new Date(newMessage.createdAt),
+          });
+        }
+
+        return res.status(201).json({
+          success: true,
+          message: "Broadcast message created successfully",
+          data: newMessage
         });
       }
+
+      // In-memory mode: create via storage
+      const newMessage = await storage.createAdminBroadcastMessage(req.body);
+
+      // Invalidate cache so next GET fetches fresh data from storage
+      await redisCache.invalidateCache({
+        keys: ['all_broadcast_messages', 'admin_messages'],
+        patterns: ['broadcast_*'],
+        mainCacheKeys: ['ADMIN_MESSAGES'],
+        refreshAffectedData: true
+      });
 
       // Broadcast to connected clients if delivery type is immediate, login_triggered, or immediate_and_login_triggered
       if (newMessage.deliveryType === 'immediate' || newMessage.deliveryType === 'login_triggered' || newMessage.deliveryType === 'immediate_and_login_triggered') {
@@ -2929,7 +3032,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (status && status.mode === 'redis') {
         // Redis-first: resolve members from Redis TEAMS and USERS with tenant isolation
-        const tenantName = req.query.tenant as string;
+      const tenantName = req.query.tenant as string;
         const teams = await redisCache.get(CACHE_KEYS.TEAMS) || [];
         const tenants = await redisCache.get(CACHE_KEYS.TENANTS) || [];
         const users = await redisCache.get(CACHE_KEYS.USERS) || [];
