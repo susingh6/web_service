@@ -788,20 +788,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { roleName } = req.params;
       const roleData = req.body;
-      const updatedRole = await storage.updateRole(roleName, roleData);
-      
-      if (!updatedRole) {
-        return res.status(404).json({ message: `Role '${roleName}' not found` });
-      }
       
       // Update cache based on mode
       const status = await redisCache.getCacheStatus();
+      let updatedRole;
+      
       if (status && status.mode === 'redis') {
-        // Redis mode: write directly to Redis
+        // Redis mode: update directly in Redis
         const existingRoles = await redisCache.get(CACHE_KEYS.ROLES) || [];
-        const updatedRoles = Array.isArray(existingRoles)
-          ? existingRoles.map((role: any) => role.role_name === roleName ? updatedRole : role)
-          : [updatedRole];
+        const roleIndex = Array.isArray(existingRoles)
+          ? existingRoles.findIndex((role: any) => role.role_name === roleName)
+          : -1;
+        
+        if (roleIndex === -1) {
+          return res.status(404).json({ message: `Role '${roleName}' not found` });
+        }
+        
+        // Merge existing role with updates
+        updatedRole = {
+          ...existingRoles[roleIndex],
+          ...roleData,
+          role_name: roleName, // Ensure name doesn't change
+        };
+        
+        const updatedRoles = [...existingRoles];
+        updatedRoles[roleIndex] = updatedRole;
         await redisCache.set(CACHE_KEYS.ROLES, updatedRoles, 6 * 60 * 60);
         
         // Broadcast update to connected clients
@@ -809,7 +820,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           timestamp: new Date().toISOString()
         });
       } else {
-        // In-memory mode: invalidate cache so next GET fetches fresh data from storage
+        // In-memory mode: update in storage
+        updatedRole = await storage.updateRole(roleName, roleData);
+        
+        if (!updatedRole) {
+          return res.status(404).json({ message: `Role '${roleName}' not found` });
+        }
+        
+        // Invalidate cache so next GET fetches fresh data from storage
         await redisCache.invalidateCache({
           keys: ['all_roles', 'roles_list'],
           patterns: ['role_*'],
@@ -830,20 +848,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/v1/roles/:roleName", checkActiveUserDev, async (req: Request, res: Response) => {
     try {
       const { roleName } = req.params;
-      const success = await storage.deleteRole(roleName);
-      
-      if (!success) {
-        return res.status(404).json({ message: `Role '${roleName}' not found` });
-      }
       
       // Update cache based on mode
       const status = await redisCache.getCacheStatus();
       if (status && status.mode === 'redis') {
-        // Redis mode: write directly to Redis
+        // Redis mode: delete directly from Redis
         const existingRoles = await redisCache.get(CACHE_KEYS.ROLES) || [];
-        const updatedRoles = Array.isArray(existingRoles)
-          ? existingRoles.filter((role: any) => role.role_name !== roleName)
-          : [];
+        const roleExists = Array.isArray(existingRoles) && existingRoles.some((role: any) => role.role_name === roleName);
+        
+        if (!roleExists) {
+          return res.status(404).json({ message: `Role '${roleName}' not found` });
+        }
+        
+        const updatedRoles = existingRoles.filter((role: any) => role.role_name !== roleName);
         await redisCache.set(CACHE_KEYS.ROLES, updatedRoles, 6 * 60 * 60);
         
         // Broadcast update to connected clients
@@ -851,7 +868,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           timestamp: new Date().toISOString()
         });
       } else {
-        // In-memory mode: invalidate cache so next GET fetches fresh data from storage
+        // In-memory mode: delete from storage
+        const success = await storage.deleteRole(roleName);
+        
+        if (!success) {
+          return res.status(404).json({ message: `Role '${roleName}' not found` });
+        }
+        
+        // Invalidate cache so next GET fetches fresh data from storage
         await redisCache.invalidateCache({
           keys: ['all_roles', 'roles_list'],
           patterns: ['role_*'],
@@ -973,19 +997,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { name } = req.params;
       const permissionData = req.body;
-      const updatedPermission = await storage.updatePermission(name, permissionData);
-      if (!updatedPermission) {
-        return res.status(404).json({ message: `Permission '${name}' not found` });
-      }
-
+      
       // Update cache based on mode
       const status = await redisCache.getCacheStatus();
+      let updatedPermission;
+      
       if (status && status.mode === 'redis') {
-        // Redis mode: write directly to Redis
+        // Redis mode: update directly in Redis
         const existingPermissions = await redisCache.get(CACHE_KEYS.PERMISSIONS) || [];
-        const updatedPermissions = Array.isArray(existingPermissions)
-          ? existingPermissions.map((perm: any) => perm.permission_name === name ? updatedPermission : perm)
-          : [updatedPermission];
+        const permissionIndex = Array.isArray(existingPermissions) 
+          ? existingPermissions.findIndex((perm: any) => perm.permission_name === name)
+          : -1;
+        
+        if (permissionIndex === -1) {
+          return res.status(404).json({ message: `Permission '${name}' not found` });
+        }
+        
+        // Merge existing permission with updates
+        updatedPermission = {
+          ...existingPermissions[permissionIndex],
+          ...permissionData,
+          permission_name: name, // Ensure name doesn't change
+        };
+        
+        const updatedPermissions = [...existingPermissions];
+        updatedPermissions[permissionIndex] = updatedPermission;
         await redisCache.set(CACHE_KEYS.PERMISSIONS, updatedPermissions, 6 * 60 * 60);
         
         // Broadcast update to connected clients
@@ -993,7 +1029,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           timestamp: new Date().toISOString()
         });
       } else {
-        // In-memory mode: invalidate cache so next GET fetches fresh data from storage
+        // In-memory mode: update in storage
+        updatedPermission = await storage.updatePermission(name, permissionData);
+        if (!updatedPermission) {
+          return res.status(404).json({ message: `Permission '${name}' not found` });
+        }
+        
+        // Invalidate cache so next GET fetches fresh data from storage
         await redisCache.invalidateCache({
           keys: ['all_permissions', 'permissions_list'],
           patterns: ['permission_*'],
@@ -1014,19 +1056,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/v1/permissions/:name", checkActiveUserDev, async (req: Request, res: Response) => {
     try {
       const { name } = req.params;
-      const success = await storage.deletePermission(name);
-      if (!success) {
-        return res.status(404).json({ message: `Permission '${name}' not found` });
-      }
-
+      
       // Update cache based on mode
       const status = await redisCache.getCacheStatus();
       if (status && status.mode === 'redis') {
-        // Redis mode: write directly to Redis
+        // Redis mode: delete directly from Redis
         const existingPermissions = await redisCache.get(CACHE_KEYS.PERMISSIONS) || [];
-        const updatedPermissions = Array.isArray(existingPermissions)
-          ? existingPermissions.filter((perm: any) => perm.permission_name !== name)
-          : [];
+        const permissionExists = Array.isArray(existingPermissions) && existingPermissions.some((perm: any) => perm.permission_name === name);
+        
+        if (!permissionExists) {
+          return res.status(404).json({ message: `Permission '${name}' not found` });
+        }
+        
+        const updatedPermissions = existingPermissions.filter((perm: any) => perm.permission_name !== name);
         await redisCache.set(CACHE_KEYS.PERMISSIONS, updatedPermissions, 6 * 60 * 60);
         
         // Broadcast update to connected clients
@@ -1034,7 +1076,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           timestamp: new Date().toISOString()
         });
       } else {
-        // In-memory mode: invalidate cache so next GET fetches fresh data from storage
+        // In-memory mode: delete from storage
+        const success = await storage.deletePermission(name);
+        if (!success) {
+          return res.status(404).json({ message: `Permission '${name}' not found` });
+        }
+        
+        // Invalidate cache so next GET fetches fresh data from storage
         await redisCache.invalidateCache({
           keys: ['all_permissions', 'permissions_list'],
           patterns: ['permission_*'],
