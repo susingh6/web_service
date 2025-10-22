@@ -1750,12 +1750,8 @@ export class RedisCache {
       // Broadcast change to all pods
       await this.redis.publish(CACHE_KEYS.CHANGES_CHANNEL, JSON.stringify(changeEvent));
 
-      // Mirror deletion to in-memory storage so fallback refresh doesn't resurrect it
-      try {
-        await storage.deleteEntity(entity.id);
-      } catch (mirrorErr) {
-        console.warn('Storage mirror delete failed (non-fatal):', mirrorErr);
-      }
+      // NOTE: In Redis-first mode, we don't touch storage to avoid cross-contamination
+      // Storage is only used when Redis is unavailable (fallback mode)
 
       return true;
     } catch (error) {
