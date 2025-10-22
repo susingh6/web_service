@@ -33,6 +33,7 @@ const BroadcastMessagePopup = () => {
   const [currentMessage, setCurrentMessage] = useState<AdminBroadcastMessage | null>(null);
   const [seenMessages, setSeenMessages] = useState<Set<number>>(new Set());
   const [seenThisSession, setSeenThisSession] = useState<Set<number>>(new Set());
+  const [seenImmediateKeys, setSeenImmediateKeys] = useState<Set<string>>(new Set());
   const [hasShownLoginMessages, setHasShownLoginMessages] = useState(false);
 
   // Fetch active broadcast messages only when authenticated
@@ -57,6 +58,13 @@ const BroadcastMessagePopup = () => {
     enabled: isAuthenticated, // Only fetch when authenticated
   });
 
+  // Helper to build a unique key per message occurrence (handles Redis resets reusing IDs)
+  const makeImmediateKey = (msg: AdminBroadcastMessage) => {
+    // createdAt may be string; normalize to ISO string
+    const created = new Date(msg.createdAt as any).toISOString();
+    return `${msg.id}:${created}`;
+  };
+
   // Load seen messages from localStorage on mount
   useEffect(() => {
     const saved = localStorage.getItem('seenBroadcastMessages');
@@ -77,6 +85,17 @@ const BroadcastMessagePopup = () => {
         setSeenThisSession(new Set(messageIds));
       } catch (error) {
         console.error('Failed to parse session broadcast messages:', error);
+      }
+    }
+
+    // Load v2 immediate seen keys (id + createdAt) from localStorage
+    const savedV2 = localStorage.getItem('seenBroadcastMessagesV2');
+    if (savedV2) {
+      try {
+        const keys: string[] = JSON.parse(savedV2);
+        setSeenImmediateKeys(new Set(keys));
+      } catch (error) {
+        console.error('Failed to parse seen broadcast messages v2:', error);
       }
     }
   }, []);
@@ -106,7 +125,8 @@ const BroadcastMessagePopup = () => {
         }
         // For 'immediate': show if not already seen (tracked in localStorage)
         if (msg.deliveryType === 'immediate') {
-          return !seenMessages.has(msg.id);
+          const key = makeImmediateKey(msg);
+          return !seenImmediateKeys.has(key);
         }
         return false;
       })
@@ -150,11 +170,16 @@ const BroadcastMessagePopup = () => {
         sessionStorage.setItem('seenBroadcastMessagesThisSession', JSON.stringify(Array.from(newSeenThisSession)));
       } else if (currentMessage.deliveryType === 'immediate') {
         // Track 'immediate' messages in localStorage (permanent until manually cleared)
+        // Backward-compat: keep original ID list
         const newSeenMessages = new Set(Array.from(seenMessages).concat(currentMessage.id));
         setSeenMessages(newSeenMessages);
-        
-        // Save to localStorage
         localStorage.setItem('seenBroadcastMessages', JSON.stringify(Array.from(newSeenMessages)));
+
+        // New behavior: also track by id+createdAt to avoid suppression after Redis resets
+        const key = makeImmediateKey(currentMessage);
+        const newSeenImmediateKeys = new Set(Array.from(seenImmediateKeys).concat(key));
+        setSeenImmediateKeys(newSeenImmediateKeys);
+        localStorage.setItem('seenBroadcastMessagesV2', JSON.stringify(Array.from(newSeenImmediateKeys)));
       }
       
       setCurrentMessage(null);
