@@ -142,6 +142,8 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
   const [loadingTenants, setLoadingTenants] = useState(false);
   const [loadingTeams, setLoadingTeams] = useState(false);
   const [loadingDags, setLoadingDags] = useState(false);
+  const [ownerRefOptions, setOwnerRefOptions] = useState<string[]>([]);
+  const [loadingOwnerRef, setLoadingOwnerRef] = useState<boolean>(false);
 
   // State for validation errors
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -698,17 +700,56 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
             <Controller
               name="owner_entity_reference"
               control={control}
-              render={({ field }) => (
-                <TextField
-                  {...field}
-                  label={`${fieldDefinitions.owner_entity_reference.label} *`}
-                  required
-                  type={fieldDefinitions.owner_entity_reference.type}
-                  placeholder={fieldDefinitions.owner_entity_reference.placeholder}
-                  fullWidth
-                  margin="normal"
-                  error={!!(errors as any).owner_entity_reference}
-                  helperText={(errors as any).owner_entity_reference?.message}
+              render={({ field: { onChange, value, onBlur } }) => (
+                <Autocomplete
+                  value={value}
+                  onChange={(_, newValue) => onChange(newValue)}
+                  onOpen={() => {
+                    const typeParam: 'table' | 'dag' = (entity?.type || 'dag') === 'table' ? 'table' : 'dag';
+                    fetch(`/api/entities/owner-reference-options?type=${encodeURIComponent(typeParam)}&limit=50&ts=${Date.now()}`, { cache: 'no-store' as RequestCache })
+                      .then(r => r.json())
+                      .then(names => setOwnerRefOptions(Array.isArray(names) ? names : []))
+                      .catch(() => setOwnerRefOptions([]));
+                  }}
+                  onInputChange={async (_e, newInputValue) => {
+                    try {
+                      const q = newInputValue?.trim();
+                      const typeParam = (entity?.type || 'dag') === 'table' ? 'table' : 'dag';
+                      const url = `/api/entities/owner-reference-options?type=${encodeURIComponent(typeParam)}${q ? `&q=${encodeURIComponent(q)}` : ''}&limit=50`;
+                      setLoadingOwnerRef(true);
+                      const res = await fetch(url + `&ts=${Date.now()}`, { cache: 'no-store' as RequestCache });
+                      const names = await res.json();
+                      setOwnerRefOptions(Array.isArray(names) ? names : []);
+                    } catch {
+                      setOwnerRefOptions([]);
+                    } finally {
+                      setLoadingOwnerRef(false);
+                    }
+                  }}
+                  freeSolo
+                  options={ownerRefOptions}
+                  loading={loadingOwnerRef}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label={`${fieldDefinitions.owner_entity_reference.label} *`}
+                      required
+                      fullWidth
+                      margin="normal"
+                      error={!!(errors as any).owner_entity_reference}
+                      helperText={(errors as any).owner_entity_reference?.message}
+                      onBlur={onBlur}
+                      InputProps={{
+                        ...params.InputProps,
+                        endAdornment: (
+                          <>
+                            {loadingOwnerRef ? <CircularProgress color="inherit" size={20} /> : null}
+                            {params.InputProps.endAdornment}
+                          </>
+                        ),
+                      }}
+                    />
+                  )}
                 />
               )}
             />
@@ -749,10 +790,12 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
                     fullWidth
                     margin="normal"
                     required
-                    inputProps={{
-                      min: 1,
-                      max: 1440,
+                    value={field.value ?? ''}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      field.onChange(v === '' ? '' : Number(v));
                     }}
+                    inputProps={{ min: 1, max: 1440, inputMode: 'numeric' }}
                     error={!!errors.expected_runtime_minutes}
                     helperText={errors.expected_runtime_minutes?.message}
                   />

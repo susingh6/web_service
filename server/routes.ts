@@ -3400,6 +3400,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(500).json({ message: 'Failed to fetch entities' });
     }
   });
+
+  // Search owner reference options from Redis index (Redis-first)
+  app.get('/api/entities/owner-reference-options', async (req: Request, res: Response) => {
+    try {
+      const type = String(req.query.type || '').toLowerCase();
+      if (type !== 'table' && type !== 'dag') {
+        return res.status(400).json({ message: 'Invalid type. Expected "table" or "dag"' });
+      }
+      const q = typeof req.query.q === 'string' ? req.query.q : undefined;
+      const limit = req.query.limit ? Math.min(200, Math.max(1, Number(req.query.limit))) : 50;
+      const names = await redisCache.searchOwnerEntitiesByType(type as 'table' | 'dag', q, limit);
+      // Prevent caching so newly created owners appear immediately
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+      res.set('Pragma', 'no-cache');
+      return res.json(names);
+    } catch (error: any) {
+      console.error('owner-reference-options error:', error);
+      return res.status(500).json({ message: 'Failed to load owner reference options' });
+    }
+  });
   
   // Custom entities endpoint for ad-hoc date range queries (no caching)
   app.get("/api/entities/custom", async (req, res) => {

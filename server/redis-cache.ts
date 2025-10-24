@@ -361,6 +361,27 @@ export class RedisCache {
     return this.findSlimEntitiesByNameAndType(entityName, entityType);
   }
 
+  // Public: search owner entities by type from the index, optional substring query, limited results
+  async searchOwnerEntitiesByType(entityType: 'table' | 'dag', query?: string, limit: number = 50): Promise<string[]> {
+    if (!this.useRedis || !this.redis) return [];
+    try {
+      const keys: string[] = await (this.redis as any).hkeys(CACHE_KEYS.ENTITY_INDEX);
+      const prefix = `${String(entityType).toLowerCase()}:`;
+      const q = query ? String(query).toLowerCase() : undefined;
+      const out: string[] = [];
+      for (const k of keys) {
+        if (!k.startsWith(prefix)) continue;
+        const name = k.slice(prefix.length);
+        if (q && !name.includes(q)) continue;
+        out.push(name);
+        if (out.length >= limit) break;
+      }
+      return out.sort((a, b) => a.localeCompare(b));
+    } catch {
+      return [];
+    }
+  }
+
   private mapStatusFromCompliance(last_sla_status?: string | null): string {
     const s = (last_sla_status || '').toLowerCase();
     if (s === 'passed' || s === 'pass') return 'Passed';
