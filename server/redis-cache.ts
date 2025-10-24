@@ -1,5 +1,6 @@
 import Redis from 'ioredis';
 import { WebSocketServer } from 'ws';
+import { randomUUID } from 'crypto';
 import { shouldReceiveEvent, shouldReceiveCacheUpdate, WEBSOCKET_CONFIG, SocketData } from '../shared/websocket-config';
 import { Worker } from 'worker_threads';
 import { config } from './config';
@@ -60,7 +61,8 @@ export const CACHE_KEYS = {
   PERMISSIONS: 'sla:permissions',
   ROLES: 'sla:roles',
   USERS: 'sla:users',
-  ENTITY_INDEX: 'sla:entity_index'
+  ENTITY_INDEX: 'sla:entity_index',
+  CONFLICT_INDEX_KEYS: 'sla:entity_conflicts_index:keys',
 };
 
 export class RedisCache {
@@ -221,6 +223,7 @@ export class RedisCache {
     // Keep entity_index in sync for owner entities
     if (next.is_entity_owner === true) {
       await this.updateEntityIndex(next);
+      await this.updateConflictIndexForOwner(next);
     }
 
     // Track recent change
@@ -319,6 +322,213 @@ export class RedisCache {
   private buildEntityIndexKey(entityType: string, entityName: string): string {
     // Store index in lowercase for case-insensitive lookup
     return `${String(entityType).toLowerCase()}:${String(entityName).toLowerCase()}`;
+  }
+
+  // ---------- Conflict index (per-entity SET of team names) ----------
+  private normalizeKeyPart(v: any): string {
+    const s = (v ?? '').toString().trim().toLowerCase();
+    return s.length > 0 ? s : 'null';
+  }
+
+  private buildConflictIndexKey(tenantName: string, entityDisplayName: string, serverName?: string | null): string {
+    const t = this.normalizeKeyPart(tenantName);
+    const e = this.normalizeKeyPart(entityDisplayName);
+    const s = this.normalizeKeyPart(serverName);
+    return `sla:entity_conflicts_index:${t}:${e}:${s}`;
+  }
+
+  private async updateConflictIndexForOwner(slim: any): Promise<void> {
+    if (!this.redis) return;
+    try {
+      const key = this.buildConflictIndexKey(slim.tenant_name, (slim.entity_display_name || slim.entity_name), slim.server_name);
+      
+      // Get existing members to check for case-insensitive duplicates
+      const members = await this.redis.smembers(key);
+      const teamNameLower = slim.team_name.toLowerCase();
+      const existingMember = members.find(m => m.toLowerCase() === teamNameLower);
+      
+      // If team already exists with different casing, remove old and add new
+      if (existingMember && existingMember !== slim.team_name) {
+        await this.redis.srem(key, existingMember);
+      }
+      
+      // Add team name with current casing
+      await this.redis.sadd(key, slim.team_name);
+      await this.redis.sadd(CACHE_KEYS.CONFLICT_INDEX_KEYS, key);
+    } catch {}
+  }
+
+  private async removeOwnerFromConflictIndex(slim: any): Promise<void> {
+    if (!this.redis) return;
+    try {
+      const key = this.buildConflictIndexKey(slim.tenant_name, (slim.entity_display_name || slim.entity_name), slim.server_name);
+      
+      // Get all members and find case-insensitive match
+      const members = await this.redis.smembers(key);
+      if (members && members.length > 0) {
+        const teamNameLower = slim.team_name.toLowerCase();
+        const matchingMember = members.find(m => m.toLowerCase() === teamNameLower);
+        
+        // Remove the actual member (with its original casing)
+        if (matchingMember) {
+          await this.redis.srem(key, matchingMember);
+        }
+      }
+      
+      const count = await this.redis.scard(key);
+      if (count === 0) {
+        await this.redis.del(key);
+        await (this.redis as any).srem(CACHE_KEYS.CONFLICT_INDEX_KEYS, key);
+      }
+    } catch {}
+  }
+
+  async checkOwnershipConflict(params: { tenant_name: string; team_name: string; entity_display_name: string; server_name?: string | null; }): Promise<{ allow: boolean; owners: string[] }>
+  {
+    if (!this.redis) return { allow: true, owners: [] };
+    const key = this.buildConflictIndexKey(params.tenant_name, params.entity_display_name, params.server_name);
+    
+    // Get all owners and do case-insensitive comparison
+    const owners = await this.redis.smembers(key);
+    if (!owners || owners.length === 0) return { allow: true, owners: [] };
+    
+    // Check if current team is already an owner (case-insensitive)
+    const teamNameLower = params.team_name.toLowerCase();
+    const isOwner = owners.some(owner => owner.toLowerCase() === teamNameLower);
+    
+    if (isOwner) return { allow: true, owners: [] };
+    
+    // Team is not an owner, but other teams are - conflict!
+    return { allow: false, owners };
+  }
+
+  async appendConflictRecord(record: any): Promise<void> {
+    if (!this.redis) return;
+    try {
+      const now = new Date();
+      const owners: string[] = Array.isArray(record.owners) ? record.owners : [];
+      const requestTeam = (record.team_name || record.teamName || '').toString();
+      const conflictingTeams = [requestTeam, ...owners].filter(Boolean);
+      // de-duplicate case-insensitively while preserving first-seen casing
+      const dedupTeams = conflictingTeams.filter((t: string, idx: number, arr: string[]) =>
+        arr.findIndex(x => (x || '').toLowerCase() === (t || '').toLowerCase()) === idx
+      );
+
+      const notificationId = record.notificationId || randomUUID();
+      const conflictEntry = {
+        id: Date.now(),
+        notificationId,
+        entityType: (record.entity_type || record.entityType || '').toString() || 'unknown',
+        entityName: (record.entity_display_name || record.entityName || record.entity_name || '').toString() || 'Unknown',
+        conflictingTeams: dedupTeams,
+        conflictDetails: {
+          existingOwner: owners.length > 0 ? owners.join(', ') : 'Unknown',
+          requestedBy: (record.user_email || record.userEmail || null) as string | null,
+          reason: (record.reason || 'Ownership conflict detected') as string,
+          tenantName: (record.tenant_name || null) as string | null,
+          serverName: (record.server_name ?? null) as string | null,
+        },
+        originalPayload: (record.originalPayload || record.payload || record.requestPayload || {}) as object,
+        status: 'pending',
+        createdAt: now.toISOString(),
+      };
+
+      await (this.redis as any).lpush('sla:conflicts', JSON.stringify(conflictEntry));
+      await (this.redis as any).ltrim('sla:conflicts', 0, 999);
+    } catch {}
+  }
+
+  // Read recent conflict records for admin panel
+  async getConflicts(limit: number = 1000): Promise<any[]> {
+    if (!this.redis) return [];
+    try {
+      const max = Math.max(1, Math.min(limit, 1000));
+      const rows: string[] = await (this.redis as any).lrange('sla:conflicts', 0, max - 1);
+      const parsed = rows.map((r: string) => {
+        try {
+          return JSON.parse(r);
+        } catch {
+          return { raw: r };
+        }
+      });
+      return parsed;
+    } catch {
+      return [];
+    }
+  }
+
+  // Fetch only the original payload for a conflict record
+  async getConflictPayload(notificationId: string): Promise<any | null> {
+    const items = await this.getConflicts(1000);
+    const found = items.find((c: any) => c.notificationId === notificationId);
+    return found ? (found.originalPayload ?? null) : null;
+  }
+
+  // Update the stored original payload for a conflict (admin edit-in-place)
+  async updateConflictPayload(notificationId: string, patch: any): Promise<any | null> {
+    if (!this.redis) return null;
+    const rows: string[] = await (this.redis as any).lrange('sla:conflicts', 0, -1);
+    for (let i = 0; i < rows.length; i++) {
+      try {
+        const parsed = JSON.parse(rows[i]);
+        if (parsed && parsed.notificationId === notificationId) {
+          const existingPayload = parsed.originalPayload || {};
+          const updatedPayload = { ...existingPayload, ...(patch || {}) };
+          const updated = { ...parsed, originalPayload: updatedPayload };
+          await (this.redis as any).lset('sla:conflicts', i, JSON.stringify(updated));
+          return updatedPayload;
+        }
+      } catch {
+        // continue
+      }
+    }
+    return null;
+  }
+
+  // Replace a temporary notificationId with the official one from FastAPI
+  async replaceConflictNotificationId(tempNotificationId: string, officialNotificationId: string): Promise<boolean> {
+    if (!this.redis) return false;
+    const rows: string[] = await (this.redis as any).lrange('sla:conflicts', 0, -1);
+    for (let i = 0; i < rows.length; i++) {
+      try {
+        const parsed = JSON.parse(rows[i]);
+        if (parsed && parsed.notificationId === tempNotificationId) {
+          parsed.notificationId = officialNotificationId;
+          await (this.redis as any).lset('sla:conflicts', i, JSON.stringify(parsed));
+          return true;
+        }
+      } catch {
+        // continue
+      }
+    }
+    return false;
+  }
+
+  // Get a single conflict record by notificationId (with index for updates)
+  async getConflictById(notificationId: string): Promise<{ index: number; record: any } | null> {
+    if (!this.redis) return null;
+    const rows: string[] = await (this.redis as any).lrange('sla:conflicts', 0, -1);
+    for (let i = 0; i < rows.length; i++) {
+      try {
+        const parsed = JSON.parse(rows[i]);
+        if (parsed && parsed.notificationId === notificationId) {
+          return { index: i, record: parsed };
+        }
+      } catch {
+        // continue
+      }
+    }
+    return null;
+  }
+
+  // Patch fields on a conflict record (e.g., status, resolution)
+  async patchConflict(notificationId: string, patch: any): Promise<boolean> {
+    if (!this.redis) return false;
+    const found = await this.getConflictById(notificationId);
+    if (!found) return false;
+    const next = { ...found.record, ...(patch || {}) };
+    await (this.redis as any).lset('sla:conflicts', found.index, JSON.stringify(next));
+    return true;
   }
 
   private async updateEntityIndex(slim: any): Promise<void> {
@@ -1246,6 +1456,7 @@ export class RedisCache {
     // Atomically rebuild the owner index from the slim list we just wrote
     try {
       const indexMap = new Map<string, any[]>();
+      const conflictMap = new Map<string, Set<string>>();
       if (Array.isArray(entitiesForCache)) {
         for (const e of entitiesForCache as any[]) {
           if (!e || e.is_entity_owner !== true) continue; // owners only
@@ -1255,12 +1466,33 @@ export class RedisCache {
           const indexKey = `${type.toLowerCase()}:${name.toLowerCase()}`;
           if (!indexMap.has(indexKey)) indexMap.set(indexKey, []);
           indexMap.get(indexKey)!.push(e);
+
+          // Build conflict index set per entity_display_name/server
+          const tenant = (e.tenant_name || '').toString();
+          const disp = (e.entity_display_name || e.entity_name || '').toString();
+          const server = (e.server_name ?? '').toString();
+          const t = tenant.trim().toLowerCase();
+          const d = disp.trim().toLowerCase();
+          const s = server.trim().toLowerCase() || 'null';
+          const conflictKey = `sla:entity_conflicts_index:${t}:${d}:${s}`;
+          if (!conflictMap.has(conflictKey)) conflictMap.set(conflictKey, new Set<string>());
+          conflictMap.get(conflictKey)!.add(String(e.team_name || '').trim());
         }
       }
       // Clear the hash and set fresh values in the same transaction
       multi.del(CACHE_KEYS.ENTITY_INDEX);
       indexMap.forEach((arr, field) => {
         multi.hset(CACHE_KEYS.ENTITY_INDEX, field, JSON.stringify(arr));
+      });
+
+      // Rebuild conflict per-entity sets (clear existing ones)
+      multi.del(CACHE_KEYS.CONFLICT_INDEX_KEYS);
+      conflictMap.forEach((teamSet, key) => {
+        if (teamSet.size > 0) {
+          multi.del(key);
+          multi.sadd(key, ...Array.from(teamSet));
+          multi.sadd(CACHE_KEYS.CONFLICT_INDEX_KEYS, key);
+        }
       });
     } catch (e) {
       // If index rebuild scheduling fails, proceed without blocking hydrate
@@ -2138,6 +2370,9 @@ export class RedisCache {
         slim.last_reported_at = new Date().toISOString();
       }
       await this.upsertSlimEntity(slim);
+      if (slim.is_entity_owner === true) {
+        await this.updateConflictIndexForOwner(slim);
+      }
       
       // Record the change
       const change: EntityChange = {

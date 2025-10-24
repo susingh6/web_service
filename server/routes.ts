@@ -230,7 +230,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       '/tenants',
       '/audit',
       '/alerts',
-      '/broadcast-messages'
+      '/broadcast-messages',
+      // Allow conflict resolution fallback in development
+      '/api/v1/conflicts',
+      '/v1/conflicts'
     ];
     
     // Check core system paths first (always allowed)
@@ -782,7 +785,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to create role" });
     }
   });
-
   // PATCH /api/v1/roles/{roleName} - Update role by name
   app.patch("/api/v1/roles/:roleName", checkActiveUserDev, async (req: Request, res: Response) => {
     try {
@@ -1514,8 +1516,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const redisConnected = status && status.mode === 'redis';
       
       if (redisConnected) {
-        // No Redis-backed conflicts collection – return empty when Redis is present
-        return res.json([]);
+        const conflicts = await redisCache.getConflicts(1000);
+        return res.json(conflicts);
       }
       
       // Redis not available: return mock conflicts from storage
@@ -1526,6 +1528,182 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(500).json({ message: "Failed to fetch conflicts" });
     }
   });
+  // POST /api/v1/conflicts/:notificationId/resolve - Express fallback to resolve conflicts when FastAPI unavailable
+  app.post('/api/v1/conflicts/:notificationId/resolve', async (req: Request, res: Response) => {
+    try {
+      const USE_FASTAPI = process.env.ENABLE_FASTAPI_INTEGRATION === 'true';
+      const FASTAPI_BASE_URL = process.env.FASTAPI_BASE_URL || 'http://localhost:8080';
+      const { notificationId } = req.params;
+      const { resolutionType, resolutionNotes, payload } = req.body || {};
+
+      if (USE_FASTAPI) {
+        // Proxy to FastAPI when available
+        const resp = await fetch(`${FASTAPI_BASE_URL}/api/v1/conflicts/${notificationId}/resolve`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ resolutionType, resolutionNotes, payload })
+        });
+        const data = await resp.json().catch(() => ({}));
+        return res.status(resp.status).json(data);
+      }
+
+      // Express fallback: apply the resolution locally
+      const conflict = await redisCache.getConflictById(notificationId);
+      if (!conflict) {
+        return res.status(404).json({ message: 'Conflict not found' });
+      }
+
+      // Allow admin to edit payload in-place prior to resolution
+      let effectivePayload = payload || conflict.record.originalPayload || {};
+
+      // If create_shared, we create or update the entity based on conflict entityType
+      if (resolutionType === 'create_shared') {
+        // Prefer edited payload fields for correct requester context
+        const entityType = (conflict.record.entityType || conflict.record.entity_type) as 'table' | 'dag';
+        const requestTeam = (effectivePayload.team_name || effectivePayload.team || conflict.record.conflictDetails?.requestedByTeam || conflict.record.team_name || '').toString();
+        const tenantName = (effectivePayload.tenant_name || conflict.record.conflictDetails?.tenantName || conflict.record.tenant_name || null) as string | null;
+        const serverName = (effectivePayload.server_name || conflict.record.conflictDetails?.serverName || conflict.record.server_name || null) as string | null;
+        const entityDisplayName = (effectivePayload.entity_display_name || effectivePayload.dag_name || (effectivePayload.schema_name && effectivePayload.table_name ? `${effectivePayload.schema_name}.${effectivePayload.table_name}` : undefined) || conflict.record.entityName || conflict.record.entity_display_name) as string;
+
+        // Resolve numeric IDs for team and tenant from cache
+        let teamId: number | null = null;
+        let tenantId: number | null = null;
+        try {
+          const teams = await redisCache.getAllTeams();
+          const tenants = await redisCache.getAllTenants();
+          const teamMatch = Array.isArray(teams) ? teams.find((t: any) => (t.name || '').toLowerCase() === (requestTeam || '').toLowerCase()) : null;
+          if (teamMatch) {
+            teamId = teamMatch.id ?? null;
+            tenantId = teamMatch.tenant_id ?? null;
+          }
+          if (!tenantId && tenantName && Array.isArray(tenants)) {
+            const tenantMatch = tenants.find((tn: any) => (tn.name || '').toLowerCase() === (tenantName || '').toLowerCase());
+            if (tenantMatch) tenantId = tenantMatch.id ?? null;
+          }
+        } catch {}
+
+        const slim = {
+          entity_type: entityType,
+          tenant_name: tenantName,
+          tenant_id: tenantId ?? undefined,
+          team_name: requestTeam,
+          team_id: teamId ?? undefined,
+          entity_name: effectivePayload?.name || entityDisplayName,
+          entity_display_name: entityDisplayName,
+          entity_schedule: effectivePayload?.entity_schedule || effectivePayload?.dag_schedule || effectivePayload?.table_schedule || null,
+          expected_runtime_minutes: effectivePayload?.expected_runtime_minutes ?? null,
+          is_entity_owner: true,
+          is_active: true,
+          server_name: serverName,
+          last_reported_at: new Date().toISOString(),
+        } as any;
+        await (redisCache as any).upsertSlimEntity(slim, { broadcast: true });
+        try { await (redisCache as any).updateConflictIndexForOwner(slim); } catch {}
+      }
+
+      await redisCache.patchConflict(notificationId, {
+        status: 'resolved',
+        resolutionType: resolutionType || 'create_shared',
+        resolutionNotes: resolutionNotes || '',
+        resolvedAt: new Date().toISOString(),
+      });
+
+      return res.json({ message: 'Conflict resolved (fallback)', notificationId });
+    } catch (error) {
+      return res.status(500).json({ message: 'Failed to resolve conflict' });
+    }
+  });
+
+  // Proxy-style route: POST /api/fastapi/conflicts/:notificationId/resolve
+  // - If FastAPI is enabled and responds OK, proxy response back to client
+  // - If FastAPI is disabled or responds non-2xx (e.g., 410 Gone), fall back to the same local resolution logic as /api/v1/conflicts/:id/resolve
+  app.post('/api/fastapi/conflicts/:notificationId/resolve', async (req: Request, res: Response) => {
+    const USE_FASTAPI = process.env.ENABLE_FASTAPI_INTEGRATION === 'true';
+    const FASTAPI_BASE_URL = process.env.FASTAPI_BASE_URL || 'http://localhost:8080';
+    const { notificationId } = req.params;
+    const { resolutionType, resolutionNotes, payload } = req.body || {};
+    try {
+      if (USE_FASTAPI) {
+        try {
+          const resp = await fetch(`${FASTAPI_BASE_URL}/api/v1/conflicts/${notificationId}/resolve`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ resolutionType, resolutionNotes, payload })
+          });
+          if (resp.ok) {
+            const data = await resp.json().catch(() => ({}));
+            return res.status(resp.status).json(data);
+          }
+          // Non-2xx: fall through to local fallback
+        } catch {
+          // Network/other error: fall through to local fallback
+        }
+      }
+
+      // Local fallback resolution (same logic as /api/v1/conflicts/:id/resolve)
+      const conflict = await redisCache.getConflictById(notificationId);
+      if (!conflict) {
+        return res.status(404).json({ message: 'Conflict not found' });
+      }
+
+      const effectivePayload = payload || conflict.record.originalPayload || {};
+      if (resolutionType === 'create_shared') {
+        const entityType = (conflict.record.entityType || conflict.record.entity_type) as 'table' | 'dag';
+        const requestTeam = (effectivePayload.team_name || effectivePayload.team || conflict.record.conflictDetails?.requestedByTeam || conflict.record.team_name || '').toString();
+        const tenantName = (effectivePayload.tenant_name || conflict.record.conflictDetails?.tenantName || conflict.record.tenant_name || null) as string | null;
+        const serverName = (effectivePayload.server_name || conflict.record.conflictDetails?.serverName || conflict.record.server_name || null) as string | null;
+        const entityDisplayName = (effectivePayload.entity_display_name || effectivePayload.dag_name || (effectivePayload.schema_name && effectivePayload.table_name ? `${effectivePayload.schema_name}.${effectivePayload.table_name}` : undefined) || conflict.record.entityName || conflict.record.entity_display_name) as string;
+
+        // Resolve numeric IDs for team and tenant from cache
+        let teamId: number | null = null;
+        let tenantId: number | null = null;
+        try {
+          const teams = await redisCache.getAllTeams();
+          const tenants = await redisCache.getAllTenants();
+          const teamMatch = Array.isArray(teams) ? teams.find((t: any) => (t.name || '').toLowerCase() === (requestTeam || '').toLowerCase()) : null;
+          if (teamMatch) {
+            teamId = teamMatch.id ?? null;
+            tenantId = teamMatch.tenant_id ?? null;
+          }
+          if (!tenantId && tenantName && Array.isArray(tenants)) {
+            const tenantMatch = tenants.find((tn: any) => (tn.name || '').toLowerCase() === (tenantName || '').toLowerCase());
+            if (tenantMatch) tenantId = tenantMatch.id ?? null;
+          }
+        } catch {}
+
+        const slim = {
+          entity_type: entityType,
+          tenant_name: tenantName,
+          tenant_id: tenantId ?? undefined,
+          team_name: requestTeam,
+          team_id: teamId ?? undefined,
+          entity_name: effectivePayload?.name || entityDisplayName,
+          entity_display_name: entityDisplayName,
+          entity_schedule: effectivePayload?.entity_schedule || effectivePayload?.dag_schedule || effectivePayload?.table_schedule || null,
+          expected_runtime_minutes: effectivePayload?.expected_runtime_minutes ?? null,
+          is_entity_owner: true,
+          is_active: true,
+          server_name: serverName,
+          last_reported_at: new Date().toISOString(),
+        } as any;
+        await (redisCache as any).upsertSlimEntity(slim, { broadcast: true });
+        try { await (redisCache as any).updateConflictIndexForOwner(slim); } catch {}
+      }
+
+      await redisCache.patchConflict(notificationId, {
+        status: 'resolved',
+        resolutionType: resolutionType || 'create_shared',
+        resolutionNotes: resolutionNotes || '',
+        resolvedAt: new Date().toISOString(),
+      });
+
+      return res.json({ message: 'Conflict resolved (fallback)', notificationId });
+    } catch (error) {
+      return res.status(500).json({ message: 'Failed to resolve conflict' });
+    }
+  });
+
+  // (Removed) conflict payload GET/PATCH endpoints; payload is managed via FastAPI.
 
   // Express fallback endpoints for alerts (following the correct pattern)
   app.get("/api/alerts", async (req, res) => {
@@ -2077,7 +2255,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json(createErrorResponse("Failed to create team", "creation_error"));
     }
   });
-
   // FastAPI fallback route for updating teams (Redis-first write)
   app.put("/api/v1/teams/:teamId", ...(isDevelopment ? [checkActiveUserDev] : [requireActiveUser]), async (req: Request, res: Response) => {
     try {
@@ -2167,7 +2344,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json(createErrorResponse("Failed to update team", "update_error"));
     }
   });
-
   // Express fallback route for updating teams (for frontend fallback mechanism)
   app.put("/api/teams/:teamId", ...(isDevelopment ? [checkActiveUserDev] : [requireActiveUser]), async (req: Request, res: Response) => {
     try {
@@ -2870,7 +3046,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json(createErrorResponse("Failed to update team", "update_error"));
     }
   });
-
   // PATCH endpoint for team updates (Express fallback)
   app.patch("/api/teams/:teamId", requireActiveUser, async (req: Request, res: Response) => {
     try {
@@ -2929,7 +3104,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json(createErrorResponse("Failed to update team", "update_error"));
     }
   });
-
   // Redis-first team details endpoint (v1)
   app.get("/api/v1/get_team_details/:teamName", async (req, res) => {
     try {
@@ -3474,7 +3648,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to fetch entities for custom date range" });
     }
   });
-  
   // Create entity - bypass auth in development for testing
   app.post("/api/entities", ...(isDevelopment ? [checkActiveUserDev] : requireActiveUser), async (req: Request, res: Response) => {
     try {
@@ -3576,6 +3749,103 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       } catch {}
 
+      // Pre-check ownership conflict for owner entities (before creating)
+      try {
+        if (payload.is_entity_owner === true && payload.team_name && payload.tenant_name) {
+          const serverName = payload.server_name ?? null;
+          const displayName = (payload.entity_display_name
+            || (payload.schema_name && payload.table_name ? `${payload.schema_name}.${payload.table_name}` : undefined)
+            || payload.dag_name
+            || payload.entity_name);
+          if (displayName) {
+            const conflict = await redisCache.checkOwnershipConflict({
+              tenant_name: payload.tenant_name,
+              team_name: payload.team_name,
+              entity_display_name: displayName,
+              server_name: serverName
+            });
+            if (!conflict.allow) {
+              // Attempt to POST conflict to FastAPI; on failure, append to Redis
+              try {
+                const USE_FASTAPI = process.env.ENABLE_FASTAPI_INTEGRATION === 'true';
+                const FASTAPI_BASE_URL = process.env.FASTAPI_BASE_URL || 'http://localhost:8080';
+                if (USE_FASTAPI) {
+                  const entityType = (payload.type === 'table' ? 'table' : 'dag');
+                  const owners = Array.isArray(conflict.owners) ? conflict.owners : [];
+                  const conflictingTeams = [payload.team_name, ...owners].filter(Boolean);
+                  const dedupTeams = conflictingTeams.filter((t: string, i: number, arr: string[]) => arr.findIndex(x => (x||'').toLowerCase() === (t||'').toLowerCase()) === i);
+                  const body = {
+                    entityType,
+                    entityName: displayName,
+                    conflictingTeams: dedupTeams,
+                    originalPayload: req.body,
+                    conflictDetails: {
+                      existingOwner: owners.join(', ') || 'Unknown',
+                      requestedBy: req.user?.email || req.body?.user_email || null,
+                      tenantName: payload.tenant_name || null,
+                      serverName: serverName ?? null,
+                      reason: 'Ownership conflict detected',
+                    },
+                  };
+                  // Optimistic temp ID: create a local temp record, then replace when FastAPI returns
+                  const tempId = `temp-${Date.now()}`;
+                  await redisCache.appendConflictRecord({
+                    notificationId: tempId,
+                    entity_type: entityType,
+                    entity_display_name: displayName,
+                    team_name: payload.team_name,
+                    tenant_name: payload.tenant_name,
+                    server_name: serverName,
+                    owners,
+                    originalPayload: req.body,
+                    user_email: req.user?.email || req.body?.user_email || null,
+                  });
+                  const resp = await fetch(`${FASTAPI_BASE_URL}/api/v1/conflicts`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                  });
+                  if (resp.ok) {
+                    const data = await resp.json().catch(() => null);
+                    const officialId = data?.notificationId || data?.id || null;
+                    if (officialId) {
+                      await redisCache.replaceConflictNotificationId(tempId, officialId);
+                    }
+                  }
+                } else {
+                  // Fallback to Redis-only recording
+                  await redisCache.appendConflictRecord({
+                    action: 'create',
+                    tenant_name: payload.tenant_name,
+                    team_name: payload.team_name,
+                    entity_display_name: displayName,
+                    server_name: serverName,
+                    owners: conflict.owners,
+                    entity_type: (payload.type === 'table' ? 'table' : 'dag'),
+                    user_email: req.user?.email || req.body?.user_email || null,
+                    originalPayload: req.body,
+                  });
+                }
+              } catch {
+                // Best-effort fallback to Redis log
+                await redisCache.appendConflictRecord({
+                  action: 'create',
+                  tenant_name: payload.tenant_name,
+                  team_name: payload.team_name,
+                  entity_display_name: displayName,
+                  server_name: serverName,
+                  owners: conflict.owners,
+                  entity_type: (payload.type === 'table' ? 'table' : 'dag'),
+                  user_email: req.user?.email || req.body?.user_email || null,
+                  originalPayload: req.body,
+                });
+              }
+              return res.status(409).json({ message: 'Ownership conflict detected', owners: conflict.owners });
+            }
+          }
+        }
+      } catch {}
+
       // Create entity (automatically handles Redis vs storage based on mode)
       const entity = await redisCache.createEntity(payload);
       
@@ -3625,7 +3895,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to create entity" });
     }
   });
-
   // Transactional bulk create (all-or-nothing) for Express fallback - bypass auth in development
   app.post('/api/entities/bulk', ...(isDevelopment ? [checkActiveUserDev] : requireActiveUser), async (req: Request, res: Response) => {
     try {
@@ -3750,6 +4019,101 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Always align schedule/runtime to the referenced owner entity for non-owners
           if ((m as any).entity_schedule) req.body.entity_schedule = (m as any).entity_schedule;
           if ((m as any).expected_runtime_minutes != null) req.body.expected_runtime_minutes = (m as any).expected_runtime_minutes;
+        }
+      } catch {}
+
+      // Pre-check ownership conflict for owner entities (before updating)
+      try {
+        const isOwner = req.body?.is_entity_owner === true || req.body?.is_entity_owner === undefined; // default assume owner unless explicitly false
+        if (isOwner && teamName && tenantName) {
+          const serverName = (req.body?.server_name ?? null) as string | null;
+          const displayCandidate = (req.body?.entity_display_name
+            || ((normalizedType === 'table' && req.body?.schema_name && req.body?.table_name) ? `${req.body.schema_name}.${req.body.table_name}` : undefined)
+            || req.body?.dag_name
+            || entityName);
+          if (displayCandidate) {
+            const conflict = await redisCache.checkOwnershipConflict({
+              tenant_name: tenantName,
+              team_name: teamName,
+              entity_display_name: displayCandidate,
+              server_name: serverName
+            });
+            if (!conflict.allow) {
+              // Attempt to POST conflict to FastAPI; on failure, append to Redis
+              try {
+                const USE_FASTAPI = process.env.ENABLE_FASTAPI_INTEGRATION === 'true';
+                const FASTAPI_BASE_URL = process.env.FASTAPI_BASE_URL || 'http://localhost:8080';
+                if (USE_FASTAPI) {
+                  const entityType = normalizedType as 'table' | 'dag';
+                  const owners = Array.isArray(conflict.owners) ? conflict.owners : [];
+                  const conflictingTeams = [teamName, ...owners].filter(Boolean);
+                  const dedupTeams = conflictingTeams.filter((t: string, i: number, arr: string[]) => arr.findIndex(x => (x||'').toLowerCase() === (t||'').toLowerCase()) === i);
+                  const body = {
+                    entityType,
+                    entityName: displayCandidate,
+                    conflictingTeams: dedupTeams,
+                    originalPayload: req.body,
+                    conflictDetails: {
+                      existingOwner: owners.join(', ') || 'Unknown',
+                      requestedBy: req.user?.email || req.body?.user_email || null,
+                      tenantName: tenantName || null,
+                      serverName: serverName ?? null,
+                      reason: 'Ownership conflict detected',
+                    },
+                  };
+                  const tempId = `temp-${Date.now()}`;
+                  await redisCache.appendConflictRecord({
+                    notificationId: tempId,
+                    entity_type: entityType,
+                    entity_display_name: displayCandidate,
+                    team_name: teamName,
+                    tenant_name: tenantName,
+                    server_name: serverName,
+                    owners,
+                    originalPayload: req.body,
+                    user_email: req.user?.email || req.body?.user_email || null,
+                  });
+                  const resp = await fetch(`${FASTAPI_BASE_URL}/api/v1/conflicts`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                  });
+                  if (resp.ok) {
+                    const data = await resp.json().catch(() => null);
+                    const officialId = data?.notificationId || data?.id || null;
+                    if (officialId) {
+                      await redisCache.replaceConflictNotificationId(tempId, officialId);
+                    }
+                  }
+                } else {
+                  await redisCache.appendConflictRecord({
+                    action: 'update',
+                    tenant_name: tenantName,
+                    team_name: teamName,
+                    entity_display_name: displayCandidate,
+                    server_name: serverName,
+                    owners: conflict.owners,
+                    entity_type: normalizedType,
+                    user_email: req.user?.email || req.body?.user_email || null,
+                    originalPayload: req.body,
+                  });
+                }
+              } catch {
+                await redisCache.appendConflictRecord({
+                  action: 'update',
+                  tenant_name: tenantName,
+                  team_name: teamName,
+                  entity_display_name: displayCandidate,
+                  server_name: serverName,
+                  owners: conflict.owners,
+                  entity_type: normalizedType,
+                  user_email: req.user?.email || req.body?.user_email || null,
+                  originalPayload: req.body,
+                });
+              }
+              return res.status(409).json({ message: 'Ownership conflict detected', owners: conflict.owners });
+            }
+          }
         }
       } catch {}
 
@@ -4082,7 +4446,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to update notification timeline" });
     }
   });
-
   // Delete notification timeline - bypass auth in development
   app.delete("/api/notification-timelines/:id", ...(isDevelopment ? [checkActiveUserDev] : [isAuthenticated]), async (req: Request, res: Response) => {
     try {
@@ -4313,7 +4676,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to fetch all tasks data" });
     }
   });
-
   // GET endpoint for team-scoped AI task priorities - FastAPI compatible endpoint
   app.get("/api/v1/get_dag_task_priority/:entity_name", ...(isDevelopment ? [] : [isAuthenticated]), async (req: Request, res: Response) => {
     try {
@@ -4884,7 +5246,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json(createErrorResponse("Failed to create user"));
     }
   });
-
   // Update existing user from admin panel
   app.put("/api/admin/users/:id", requireActiveUser, async (req: Request, res: Response) => {
     try {
@@ -5031,7 +5392,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json(createErrorResponse("Failed to update user"));
     }
   });
-
   // FastAPI-style: Update existing user (fallback handler)
   app.put("/api/v1/users/:id", checkActiveUserDev, async (req, res) => {
     try {
@@ -5678,7 +6038,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     });
   }
-
   // SLA status 30 days endpoint for entity details modal
   app.get('/api/teams/:teamName/:entityType/:entityName/sla_status_30days', async (req: Request, res: Response) => {
     try {
@@ -5810,7 +6169,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     user_email: z.string().email("Valid email is required"),
     reason: z.string().optional().default("")
   });
-
   // Mock audit data matching the DeletedEntity interface expected by the frontend
   const MOCK_DELETED_ENTITIES = [
     {
@@ -6347,7 +6705,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Initialize WebSocket in cache system with the authenticatedSockets map
   redisCache.setupWebSocket(wss, authenticatedSockets as any);
-
   // Heartbeat configuration
   const HEARTBEAT_INTERVAL = 30000; // 30 seconds
   const IDLE_TIMEOUT = 60000; // 60 seconds

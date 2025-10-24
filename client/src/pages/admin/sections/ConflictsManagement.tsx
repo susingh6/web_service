@@ -60,39 +60,58 @@ const ConflictDetailsDialog = ({ open, onClose, conflict, onResolve, isResolving
   const [resolutionNotes, setResolutionNotes] = useState('');
   const [showPayload, setShowPayload] = useState(false);
   const [payloadData, setPayloadData] = useState<PayloadData>({ loading: false, data: null });
+  const [payloadText, setPayloadText] = useState<string>('');
+  const [payloadError, setPayloadError] = useState<string | undefined>(undefined);
 
   const handleResolve = () => {
     if (!conflict || !resolutionNotes.trim()) {
       alert('Please provide resolution notes');
       return;
     }
-    
+    // Parse edited payload if present
+    let editedPayload: any | undefined = undefined;
+    if (showPayload && payloadText.trim()) {
+      try {
+        editedPayload = JSON.parse(payloadText);
+        setPayloadError(undefined);
+      } catch {
+        setPayloadError('Invalid JSON');
+        return;
+      }
+    }
+
     onResolve(conflict.notificationId, {
       resolutionType,
       resolutionNotes: resolutionNotes.trim(),
+      payload: editedPayload ?? payloadData.data ?? undefined,
     });
     onClose();
   };
 
-  const fetchPayload = async () => {
+  const loadLocalPayload = () => {
     if (!conflict) return;
-    
-    setPayloadData({ loading: true, data: null });
-    try {
-      // Call FastAPI directly for payload (not cached)
-      const response = await fetch(`/api/fastapi/conflicts/${conflict.notificationId}/payload`);
-      if (!response.ok) throw new Error('Failed to fetch payload');
-      const data = await response.json();
-      setPayloadData({ loading: false, data });
-    } catch (error) {
-      setPayloadData({ loading: false, data: null, error: 'Failed to load payload' });
+    setPayloadData({ loading: false, data: null });
+    const localPayload = (conflict as any).originalPayload;
+    if (localPayload && Object.keys(localPayload).length > 0) {
+      setPayloadData({ loading: false, data: localPayload });
+      try {
+        setPayloadText(JSON.stringify(localPayload, null, 2));
+        setPayloadError(undefined);
+      } catch {
+        setPayloadText('');
+        setPayloadError('Failed to stringify payload');
+      }
+    } else {
+      setPayloadData({ loading: false, data: null, error: 'No payload stored with this conflict' });
+      setPayloadText('');
+      setPayloadError(undefined);
     }
   };
 
   const handleTogglePayload = () => {
     if (!showPayload) {
       setShowPayload(true);
-      fetchPayload();
+      loadLocalPayload();
     } else {
       setShowPayload(false);
     }
@@ -151,11 +170,17 @@ const ConflictDetailsDialog = ({ open, onClose, conflict, onResolve, isResolving
                       {payloadData.error && (
                         <Typography variant="caption" color="error">{payloadData.error}</Typography>
                       )}
-                      {payloadData.data && (
-                        <Typography variant="caption" component="pre" sx={{ fontSize: '0.75rem' }}>
-                          {JSON.stringify(payloadData.data, null, 2)}
-                        </Typography>
-                      )}
+                      <TextField
+                        fullWidth
+                        multiline
+                        minRows={12}
+                        value={payloadText}
+                        onChange={(e) => setPayloadText(e.target.value)}
+                        placeholder={'{\n  "name": "..."\n}'}
+                        InputProps={{ sx: { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace', fontSize: '0.8rem' } }}
+                        error={!!payloadError}
+                        helperText={payloadError}
+                      />
                     </Paper>
                   )}
                 </Box>
@@ -329,7 +354,7 @@ const ConflictsManagement = () => {
   const resolveConflictMutation = useMutation({
     mutationFn: async ({ conflictId, resolution }: { conflictId: string; resolution: any }) => {
       // Call FastAPI endpoint to resolve conflict
-      const response = await fetch(`/api/fastapi/conflicts/${conflictId}/resolve`, {
+      const response = await fetch(`/api/v1/conflicts/${conflictId}/resolve`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -419,6 +444,7 @@ const ConflictsManagement = () => {
         (c as any).entityName || '',
         (c.conflictingTeams || []).join(' '),
         (c as any).conflictDetails?.existingOwner || '',
+        (c as any).conflictDetails?.requestedBy || (c as any).originalPayload?.user_email || ''
       ].join(' ').toLowerCase();
       return tokens.every(tok => fields.includes(tok));
     });
@@ -471,6 +497,7 @@ const ConflictsManagement = () => {
                   <TableCell>Conflicting Entity</TableCell>
                   <TableCell>Conflicting Teams</TableCell>
                   <TableCell>Existing Owner(s)</TableCell>
+                  <TableCell>Requested By</TableCell>
                   <TableCell>Created</TableCell>
                   <TableCell>Status</TableCell>
                   <TableCell>Actions</TableCell>
@@ -517,6 +544,11 @@ const ConflictsManagement = () => {
                           color="primary" 
                           variant="filled"
                         />
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2">
+                          {(conflict as any).conflictDetails?.requestedBy || (conflict as any).originalPayload?.user_email || 'Unknown'}
+                        </Typography>
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2">
