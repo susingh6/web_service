@@ -33,6 +33,7 @@ import {
   Notifications,
   FiberNew,
   SmartToy,
+  InfoOutlined,
 } from '@mui/icons-material';
 import { visuallyHidden } from '@mui/utils';
 import { useAppDispatch } from '@/lib/store';
@@ -521,6 +522,46 @@ const EntityTable = ({
                         <Typography variant="body2" fontWeight={500}>
                           {entity.name}
                         </Typography>
+                        {((entity as any)?.is_entity_owner === false) && !!((entity as any)?.owner_entity_ref_name?.entity_owner_name) && (
+                          <Tooltip
+                            placement="top"
+                            arrow
+                            slotProps={{
+                              tooltip: {
+                                sx: {
+                                  bgcolor: 'transparent',
+                                  p: 0,
+                                  boxShadow: 'none'
+                                }
+                              },
+                              arrow: { sx: { color: 'background.paper' } }
+                            }}
+                            title={
+                              <Paper elevation={1} sx={{ p: 1.25, borderRadius: 1, minWidth: 220 }}>
+                                <Box>
+                                  <Typography variant="caption" color="text.secondary">Entity Owner Name</Typography>
+                                  <Typography variant="body2" fontWeight={600}>
+                                    {(entity as any).owner_entity_ref_name.entity_owner_name}
+                                  </Typography>
+                                </Box>
+                                <Box mt={0.5}>
+                                  <Typography variant="caption" color="text.secondary">Entity Owner Team</Typography>
+                                  <Typography variant="body2" fontWeight={600}>
+                                    {(entity as any).owner_entity_ref_name.entity_owner_team_name || '—'}
+                                  </Typography>
+                                </Box>
+                                <Box mt={0.5}>
+                                  <Typography variant="caption" color="text.secondary">Entity Owner Tenant</Typography>
+                                  <Typography variant="body2" fontWeight={600}>
+                                    {(entity as any).owner_entity_ref_name.entity_owner_tenant_name || '—'}
+                                  </Typography>
+                                </Box>
+                              </Paper>
+                            }
+                          >
+                            <InfoOutlined fontSize="small" sx={{ color: 'primary.main', opacity: 0.9, cursor: 'help' }} />
+                          </Tooltip>
+                        )}
                       </Box>
                     </TableCell>
                     
