@@ -637,7 +637,7 @@ const ConflictsManagement = () => {
               <Card variant="outlined">
                 <CardContent>
                   <Typography variant="h6" gutterBottom>
-                    Applied Payload
+                    {((detailsConflict as any)?.status === 'rejected') ? 'Rejected Payload' : 'Applied Payload'}
                   </Typography>
                   <Paper sx={{ mt: 1, p: 2, bgcolor: 'grey.50' }}>
                     <Typography variant="caption" component="pre" sx={{ fontSize: '0.75rem', whiteSpace: 'pre-wrap' }}>

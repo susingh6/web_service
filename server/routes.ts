@@ -1588,7 +1588,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       await redisCache.patchConflict(notificationId, {
-        status: 'resolved',
+        status: (resolutionType === 'reject_shared') ? 'rejected' : 'resolved',
         resolutionType: resolutionType || 'create_shared',
         resolutionNotes: resolutionNotes || '',
         appliedPayload: effectivePayload,
@@ -1678,7 +1678,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       await redisCache.patchConflict(notificationId, {
-        status: 'resolved',
+        status: (resolutionType === 'reject_shared') ? 'rejected' : 'resolved',
         resolutionType: resolutionType || 'create_shared',
         resolutionNotes: resolutionNotes || '',
         appliedPayload: effectivePayload,
