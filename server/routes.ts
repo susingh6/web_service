@@ -3929,14 +3929,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { entityType, entityName } = req.params;
       const teamName = typeof req.query.teamName === 'string' ? req.query.teamName : undefined;
-      const tenantName = typeof req.query.tenantName === 'string' ? req.query.tenantName : undefined;
+      let tenantName = typeof req.query.tenantName === 'string' ? req.query.tenantName : undefined;
 
       const normalizedType = (entityType === 'table' || entityType === 'dag') ? (entityType as Entity['type']) : undefined;
       if (!teamName || !normalizedType) {
         return sendError(res, 400, 'teamName and valid entityType (table|dag) are required');
       }
 
-      // Slim-only delete by composite identifiers
+      // Resolve tenantName if not provided (needed to build entities hash field)
+      if (!tenantName) {
+        try {
+          const teams = await redisCache.getAllTeams();
+          const tenants = await redisCache.getAllTenants();
+          const matches = teams.filter((t: any) => (t.name || '') === teamName);
+          if (matches.length > 0) {
+            const tenantIds = Array.from(new Set(matches.map((t: any) => t.tenant_id)));
+            if (tenantIds.length === 1) {
+              const tn = tenants.find((t: any) => t.id === tenantIds[0]);
+              tenantName = tn ? tn.name : undefined;
+            }
+          }
+        } catch {}
+      }
+
+      // Slim-only delete by composite identifiers (now includes tenantName when resolvable)
       const removed = await redisCache.deleteSlimEntityByComposite({
         tenantName,
         teamName,

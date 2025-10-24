@@ -63,6 +63,8 @@ export const CACHE_KEYS = {
   USERS: 'sla:users',
   ENTITY_INDEX: 'sla:entity_index',
   CONFLICT_INDEX_KEYS: 'sla:entity_conflicts_index:keys',
+  CONFLICT_HASH: 'sla:entity_conflicts_index',
+  ENTITIES_HASH: 'sla:entities_hash',
 };
 
 export class RedisCache {
@@ -151,22 +153,17 @@ export class RedisCache {
     updates: Record<string, any>;
   }): Promise<any | null> {
     if (!this.useRedis || !this.redis) return null;
-    const expireTime = Math.floor(this.CACHE_DURATION_MS / 1000) + 300;
-
-    const raw = await this.redis.get(CACHE_KEYS.ENTITIES);
-    const list: any[] = raw ? JSON.parse(raw) : [];
-
-    // Find by names to avoid tenant_id mismatches
-    const idx = list.findIndex((x: any) => {
-      const sameTenant = params.tenantName ? (x.tenant_name === params.tenantName) : true;
-      const sameTeam = (x.team_name === params.teamName);
-      const sameType = ((x.entity_type || x.type) === params.entityType);
-      const sameName = ((x.entity_name || x.name) === params.entityName);
-      return sameTenant && sameTeam && sameType && sameName;
-    });
-    if (idx < 0) return null;
-
-    const current = list[idx];
+    // O(1) HASH-based lookup by names (case-insensitive)
+    const stub = {
+      tenant_name: params.tenantName,
+      team_name: params.teamName,
+      entity_type: params.entityType,
+      entity_name: params.entityName,
+    } as any;
+    const field = this.buildEntitiesHashField(stub);
+    const currentRaw = await (this.redis as any).hget(CACHE_KEYS.ENTITIES_HASH, field);
+    if (!currentRaw) return null;
+    const current = JSON.parse(currentRaw);
     const allowedKeys = new Set([
       'entity_schedule',
       'expected_runtime_minutes',
@@ -216,9 +213,13 @@ export class RedisCache {
       }
     });
 
-    // Persist
-    list[idx] = next;
-    await this.redis.setex(CACHE_KEYS.ENTITIES, expireTime, JSON.stringify(list));
+    // Persist (hash-only)
+    await (this.redis as any).hset(CACHE_KEYS.ENTITIES_HASH, field, JSON.stringify(next));
+    // Apply TTL to the entire hash to match hydrate cadence (best-effort)
+    try {
+      const expireTime = Math.floor(this.CACHE_DURATION_MS / 1000) + 300;
+      await (this.redis as any).expire(CACHE_KEYS.ENTITIES_HASH, expireTime);
+    } catch {}
 
     // Keep entity_index in sync for owner entities
     if (next.is_entity_owner === true) {
@@ -241,21 +242,22 @@ export class RedisCache {
   }): Promise<boolean> {
     if (!this.useRedis || !this.redis) return false;
     const expireTime = Math.floor(this.CACHE_DURATION_MS / 1000) + 300;
-    const raw = await this.redis.get(CACHE_KEYS.ENTITIES);
-    const list: any[] = raw ? JSON.parse(raw) : [];
+    // O(1) hash-based remove
+    const stubSlim = { tenant_name: params.tenantName, team_name: params.teamName, entity_type: params.entityType, entity_name: params.entityName } as any;
+    const field = this.buildEntitiesHashField(stubSlim);
+    const removedRaw = await (this.redis as any).hget(CACHE_KEYS.ENTITIES_HASH, field);
+    if (!removedRaw) return false;
+    const removed = JSON.parse(removedRaw);
+    await (this.redis as any).hdel(CACHE_KEYS.ENTITIES_HASH, field);
 
-    const idx = list.findIndex((x: any) => {
-      const sameTenant = params.tenantName ? (x.tenant_name === params.tenantName) : true;
-      const sameTeam = (x.team_name === params.teamName);
-      const sameType = ((x.entity_type || x.type) === params.entityType);
-      const sameName = ((x.entity_name || x.name) === params.entityName);
-      return sameTenant && sameTeam && sameType && sameName;
-    });
-    if (idx < 0) return false;
-
-    const removed = list[idx];
-    list.splice(idx, 1);
-    await this.redis.setex(CACHE_KEYS.ENTITIES, expireTime, JSON.stringify(list));
+    // If the removed entity was an owner, update conflict index accordingly
+    try {
+      if (removed && removed.is_entity_owner === true) {
+        // Remove from fast lookup index for owners
+        await this.removeFromEntityIndex(removed);
+        await this.removeOwnerFromConflictIndex(removed);
+      }
+    } catch {}
 
     // Track recent change
     await this.appendSlimRecentChange(removed, 'deleted');
@@ -264,18 +266,19 @@ export class RedisCache {
 
   private async upsertSlimEntity(slim: any): Promise<void> {
     if (!this.useRedis || !this.redis) return;
-    const expireTime = Math.floor(this.CACHE_DURATION_MS / 1000) + 300;
-    const dataRaw = await this.redis.get(CACHE_KEYS.ENTITIES);
-    const list: any[] = dataRaw ? JSON.parse(dataRaw) : [];
-    const key = this.buildSlimCompositeKey(slim);
-    const idx = list.findIndex((x: any) => this.buildSlimCompositeKey(x) === key);
-    if (idx >= 0) list[idx] = { ...list[idx], ...slim };
-    else list.push(slim);
-    await this.redis.setex(CACHE_KEYS.ENTITIES, expireTime, JSON.stringify(list));
-    // Only index entity owners
-    if (slim.is_entity_owner === true) {
-      await this.updateEntityIndex(slim);
-    }
+    try {
+      // O(1) upsert into entities HASH
+      const field = this.buildEntitiesHashField(slim);
+      await (this.redis as any).hset(CACHE_KEYS.ENTITIES_HASH, field, JSON.stringify(slim));
+      // Apply TTL to the entire hash to match hydrate cadence
+      const expireTime = Math.floor(this.CACHE_DURATION_MS / 1000) + 300;
+      await (this.redis as any).expire(CACHE_KEYS.ENTITIES_HASH, expireTime);
+      // Maintain indexes for owners
+      if (slim.is_entity_owner === true) {
+        await this.updateEntityIndex(slim);
+        await this.updateConflictIndexForOwner(slim);
+      }
+    } catch {}
   }
 
   private async removeSlimEntityByKey(slimKey: string): Promise<void> {
@@ -330,66 +333,106 @@ export class RedisCache {
     return s.length > 0 ? s : 'null';
   }
 
-  private buildConflictIndexKey(tenantName: string, entityDisplayName: string, serverName?: string | null): string {
+  private buildConflictField(tenantName: string, entityDisplayName: string, serverName?: string | null): string {
     const t = this.normalizeKeyPart(tenantName);
     const e = this.normalizeKeyPart(entityDisplayName);
     const s = this.normalizeKeyPart(serverName);
-    return `sla:entity_conflicts_index:${t}:${e}:${s}`;
+    return `${t}:${e}:${s}`;
+  }
+
+  // ---------- O(1) HASH for slim entities ----------
+  private buildEntitiesHashField(slim: any): string {
+    // Use names per request; normalize to lowercase to avoid casing duplication
+    const t = this.normalizeKeyPart(slim.tenant_name);
+    const team = this.normalizeKeyPart(slim.team_name);
+    const type = this.normalizeKeyPart(slim.entity_type || slim.type);
+    const name = this.normalizeKeyPart(slim.entity_name || slim.name);
+    return `${t}:${team}:${type}:${name}`;
+  }
+
+  // Recompute current owners for a conflict key by scanning sla:entities_hash.
+  // This ensures we don't remove a team from conflict owners if other owner entries remain.
+  private async recomputeOwnersForConflictField(tenantName: string, entityDisplayName: string, serverName?: string | null): Promise<string[]> {
+    if (!this.redis) return [];
+    try {
+      const t = this.normalizeKeyPart(tenantName);
+      const e = this.normalizeKeyPart(entityDisplayName);
+      const s = this.normalizeKeyPart(serverName);
+      const rows: string[] = await (this.redis as any).hvals(CACHE_KEYS.ENTITIES_HASH);
+      const owners: string[] = [];
+      const seen = new Set<string>();
+      for (const row of rows) {
+        try {
+          const item = JSON.parse(row);
+          if (!item || item.is_entity_owner !== true) continue;
+          const it = this.normalizeKeyPart(item.tenant_name);
+          if (it !== t) continue;
+          const ie = this.normalizeKeyPart(item.entity_display_name || item.entity_name);
+          if (ie !== e) continue;
+          const is = this.normalizeKeyPart(item.server_name ?? null);
+          if (is !== s) continue;
+          const team = (item.team_name || '').toString();
+          const key = team.toLowerCase();
+          if (!seen.has(key)) {
+            seen.add(key);
+            owners.push(team);
+          }
+        } catch {}
+      }
+      return owners;
+    } catch {
+      return [];
+    }
+  }
+
+  private async upsertSlimIntoEntitiesHash(slim: any): Promise<void> {
+    if (!this.redis) return;
+    try {
+      const field = this.buildEntitiesHashField(slim);
+      await (this.redis as any).hset(CACHE_KEYS.ENTITIES_HASH, field, JSON.stringify(slim));
+    } catch {}
+  }
+
+  private async removeSlimFromEntitiesHash(slim: any): Promise<void> {
+    if (!this.redis) return;
+    try {
+      const field = this.buildEntitiesHashField(slim);
+      await (this.redis as any).hdel(CACHE_KEYS.ENTITIES_HASH, field);
+    } catch {}
   }
 
   private async updateConflictIndexForOwner(slim: any): Promise<void> {
     if (!this.redis) return;
     try {
-      const key = this.buildConflictIndexKey(slim.tenant_name, (slim.entity_display_name || slim.entity_name), slim.server_name);
-      
-      // Get existing members to check for case-insensitive duplicates
-      const members = await this.redis.smembers(key);
-      const teamNameLower = slim.team_name.toLowerCase();
-      const existingMember = members.find(m => m.toLowerCase() === teamNameLower);
-      
-      // If team already exists with different casing, remove old and add new
-      if (existingMember && existingMember !== slim.team_name) {
-        await this.redis.srem(key, existingMember);
-      }
-      
-      // Add team name with current casing
-      await this.redis.sadd(key, slim.team_name);
-      await this.redis.sadd(CACHE_KEYS.CONFLICT_INDEX_KEYS, key);
+      const field = this.buildConflictField(slim.tenant_name, (slim.entity_display_name || slim.entity_name), slim.server_name);
+      const raw = await (this.redis as any).hget(CACHE_KEYS.CONFLICT_HASH, field);
+      const owners: string[] = raw ? JSON.parse(raw) : [];
+      const teamNameLower = (slim.team_name || '').toString().toLowerCase();
+      const existingIdx = owners.findIndex(m => (m || '').toString().toLowerCase() === teamNameLower);
+      if (existingIdx >= 0) owners[existingIdx] = slim.team_name; else owners.push(slim.team_name);
+      await (this.redis as any).hset(CACHE_KEYS.CONFLICT_HASH, field, JSON.stringify(owners));
+      await (this.redis as any).sadd(CACHE_KEYS.CONFLICT_INDEX_KEYS, field);
     } catch {}
   }
 
   private async removeOwnerFromConflictIndex(slim: any): Promise<void> {
     if (!this.redis) return;
     try {
-      const key = this.buildConflictIndexKey(slim.tenant_name, (slim.entity_display_name || slim.entity_name), slim.server_name);
-      
-      // Get all members and find case-insensitive match
-      const members = await this.redis.smembers(key);
-      if (members && members.length > 0) {
-        const teamNameLower = slim.team_name.toLowerCase();
-        const matchingMember = members.find(m => m.toLowerCase() === teamNameLower);
-        
-        // Remove the actual member (with its original casing)
-        if (matchingMember) {
-          await this.redis.srem(key, matchingMember);
-        }
-      }
-      
-      const count = await this.redis.scard(key);
-      if (count === 0) {
-        await this.redis.del(key);
-        await (this.redis as any).srem(CACHE_KEYS.CONFLICT_INDEX_KEYS, key);
-      }
+      const display = (slim.entity_display_name || slim.entity_name);
+      const field = this.buildConflictField(slim.tenant_name, display, slim.server_name);
+      const owners = await this.recomputeOwnersForConflictField(slim.tenant_name, display, slim.server_name);
+      // Persist recomputed owners; keep the registry key even if empty
+      await (this.redis as any).hset(CACHE_KEYS.CONFLICT_HASH, field, JSON.stringify(owners));
+      await (this.redis as any).sadd(CACHE_KEYS.CONFLICT_INDEX_KEYS, field);
     } catch {}
   }
 
   async checkOwnershipConflict(params: { tenant_name: string; team_name: string; entity_display_name: string; server_name?: string | null; }): Promise<{ allow: boolean; owners: string[] }>
   {
     if (!this.redis) return { allow: true, owners: [] };
-    const key = this.buildConflictIndexKey(params.tenant_name, params.entity_display_name, params.server_name);
-    
-    // Get all owners and do case-insensitive comparison
-    const owners = await this.redis.smembers(key);
+    const field = this.buildConflictField(params.tenant_name, params.entity_display_name, params.server_name);
+    const raw = await (this.redis as any).hget(CACHE_KEYS.CONFLICT_HASH, field);
+    const owners: string[] = raw ? JSON.parse(raw) : [];
     if (!owners || owners.length === 0) return { allow: true, owners: [] };
     
     // Check if current team is already an owner (case-insensitive)
@@ -633,11 +676,12 @@ export class RedisCache {
       const list = this.fallbackData ? this.fallbackData.entities : await storage.getEntities();
       return list.map(e => this.projectSlimEntity(e));
     }
-    const raw = await this.redis.get(CACHE_KEYS.ENTITIES);
-    if (!raw) return [];
     try {
-      const list = JSON.parse(raw);
-      return Array.isArray(list) ? list : [];
+      const values: string[] = await (this.redis as any).hvals(CACHE_KEYS.ENTITIES_HASH);
+      if (!values || values.length === 0) return [];
+      return values.map(v => {
+        try { return JSON.parse(v); } catch { return null; }
+      }).filter(Boolean);
     } catch {
       return [];
     }
@@ -1439,7 +1483,19 @@ export class RedisCache {
     // Store all cache data atomically with expiration
     // Prefer slim list when provided by FastAPI worker; fallback to full entities
     const entitiesForCache = Array.isArray(data.entitiesSlim) ? data.entitiesSlim : data.entities;
-    multi.setex(CACHE_KEYS.ENTITIES, expireTime, JSON.stringify(entitiesForCache));
+    // Rebuild ENTITIES_HASH (hash-only for O(1) upserts)
+    multi.del(CACHE_KEYS.ENTITIES_HASH);
+    const slimArr: any[] = [];
+    if (Array.isArray(entitiesForCache)) {
+      for (const e of entitiesForCache as any[]) {
+        const slim = this.projectSlimEntity(e);
+        const field = this.buildEntitiesHashField(slim);
+        multi.hset(CACHE_KEYS.ENTITIES_HASH, field, JSON.stringify(slim));
+        slimArr.push(slim);
+      }
+    }
+    // Apply TTL to the hash key as a whole
+    multi.expire(CACHE_KEYS.ENTITIES_HASH, expireTime);
     multi.setex(CACHE_KEYS.TEAMS, expireTime, JSON.stringify(data.teams));
     multi.setex(CACHE_KEYS.TENANTS, expireTime, JSON.stringify(data.tenants));
     multi.setex(CACHE_KEYS.PERMISSIONS, expireTime, JSON.stringify(data.permissions || []));
@@ -1485,13 +1541,13 @@ export class RedisCache {
         multi.hset(CACHE_KEYS.ENTITY_INDEX, field, JSON.stringify(arr));
       });
 
-      // Rebuild conflict per-entity sets (clear existing ones)
+      // Rebuild conflict HASH and keys registry
+      multi.del(CACHE_KEYS.CONFLICT_HASH);
       multi.del(CACHE_KEYS.CONFLICT_INDEX_KEYS);
-      conflictMap.forEach((teamSet, key) => {
+      conflictMap.forEach((teamSet, field) => {
         if (teamSet.size > 0) {
-          multi.del(key);
-          multi.sadd(key, ...Array.from(teamSet));
-          multi.sadd(CACHE_KEYS.CONFLICT_INDEX_KEYS, key);
+          multi.hset(CACHE_KEYS.CONFLICT_HASH, field, JSON.stringify(Array.from(teamSet)));
+          multi.sadd(CACHE_KEYS.CONFLICT_INDEX_KEYS, field);
         }
       });
     } catch (e) {
@@ -2403,19 +2459,11 @@ export class RedisCache {
       // Pipeline writes for ENTITIES (slim list), RECENT_CHANGES, LAST_UPDATED
       const pipe1 = this.redis.pipeline();
       // Ensure slim ENTITIES stores only slim projection list
-      try {
-        const existingSlimRaw = await this.redis.get(CACHE_KEYS.ENTITIES);
-        const slimList: any[] = existingSlimRaw ? JSON.parse(existingSlimRaw) : [];
-        // Upsert slim into list synchronously for the pipeline write
-        const key = this.buildSlimCompositeKey(slim);
-        const idx = slimList.findIndex((x: any) => this.buildSlimCompositeKey(x) === key);
-        if (idx >= 0) slimList[idx] = { ...slimList[idx], ...slim };
-        else slimList.push(slim);
-        pipe1.setex(CACHE_KEYS.ENTITIES, expireTime, JSON.stringify(slimList));
-      } catch {
-        // Fallback: write just the single slim as list if read failed
-        pipe1.setex(CACHE_KEYS.ENTITIES, expireTime, JSON.stringify([slim]));
-      }
+    try {
+      // O(1) upsert into hash
+      const field = this.buildEntitiesHashField(slim);
+      await (this.redis as any).hset(CACHE_KEYS.ENTITIES_HASH, field, JSON.stringify(slim));
+    } catch {}
       pipe1.setex(CACHE_KEYS.RECENT_CHANGES, expireTime, JSON.stringify(recentChanges));
       pipe1.setex(CACHE_KEYS.LAST_UPDATED, expireTime, JSON.stringify(new Date()));
       await pipe1.exec();
