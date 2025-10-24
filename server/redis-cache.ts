@@ -1509,6 +1509,21 @@ export class RedisCache {
     multi.setex(CACHE_KEYS.RECENT_CHANGES, expireTime, JSON.stringify(data.recentChanges || []));
     multi.setex(CACHE_KEYS.LAST_UPDATED, expireTime, JSON.stringify(data.lastUpdated));
 
+    // Conflicts: hydrate full history from FastAPI (resolved/rejected/pending)
+    try {
+      if (Array.isArray(data.conflicts)) {
+        // Replace the list atomically: delete then LPUSH in order (newest first is optional)
+        multi.del('sla:conflicts');
+        // Push newest first to keep UI ordering consistent
+        const conflictsArray = data.conflicts as any[];
+        for (let i = conflictsArray.length - 1; i >= 0; i--) {
+          multi.lpush('sla:conflicts', JSON.stringify(conflictsArray[i]));
+        }
+        // Trim to a sane upper bound
+        multi.ltrim('sla:conflicts', 0, 999);
+      }
+    } catch {}
+
     // Atomically rebuild the owner index from the slim list we just wrote
     try {
       const indexMap = new Map<string, any[]>();
