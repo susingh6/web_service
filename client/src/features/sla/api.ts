@@ -72,33 +72,20 @@ async function expressApiRequest(
 
   if (!response.ok) {
     const text = (await response.text()) || response.statusText;
-
-    // Try to parse as JSON and build a friendly message (flatten zod-style errors)
     try {
-      const errorData = JSON.parse(text);
-      if (errorData) {
-        let msg: string | undefined = typeof errorData.message === 'string' ? errorData.message : undefined;
-        // Flatten common zod error shape: { field: { _errors: [..] }, _errors: [] }
-        if (errorData.errors && typeof errorData.errors === 'object') {
-          const parts: string[] = [];
-          for (const [key, val] of Object.entries(errorData.errors)) {
-            if (key === '_errors') continue;
-            const errs = (val as any)?._errors;
-            if (Array.isArray(errs) && errs.length > 0) {
-              parts.push(`${key}: ${errs.join('; ')}`);
-            }
-          }
-          if (parts.length > 0) {
-            msg = msg ? `${msg}: ${parts.join(', ')}` : parts.join(', ');
-          }
+      const data = JSON.parse(text);
+      if (data && typeof data.message === 'string') throw new Error(data.message);
+      if (data && data.errors && typeof data.errors === 'object') {
+        const parts: string[] = [];
+        for (const [key, val] of Object.entries<any>(data.errors)) {
+          if (key === '_errors') continue;
+          const errs = (val as any)?._errors;
+          if (Array.isArray(errs) && errs.length > 0) parts.push(`${key}: ${errs.join('; ')}`);
         }
-        if (msg) throw new Error(msg);
+        if (parts.length > 0) throw new Error(parts.join(', '));
       }
-    } catch {
-      // ignore JSON parse failure
-    }
-
-    throw new Error(text || `${response.status}`);
+    } catch {}
+    throw new Error(text);
   }
   
   return response;
@@ -206,7 +193,7 @@ export const entitiesApi = {
           const json = text ? JSON.parse(text) : {};
           throw new Error(json.message || text || `Create failed (${res.status})`);
         } catch {
-          throw new Error(text || `Create failed (${res.status})`);
+          throw new Error(text);
         }
       }
       const entity = await res.json();
@@ -220,7 +207,7 @@ export const entitiesApi = {
           const json = text ? JSON.parse(text) : {};
           throw new Error(json.message || text || `Create failed (${res.status})`);
         } catch {
-          throw new Error(text || `Create failed (${res.status})`);
+          throw new Error(text);
         }
       }
       const entity = await res.json();

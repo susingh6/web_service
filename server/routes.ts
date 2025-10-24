@@ -71,26 +71,12 @@ function createRollbackAuditLog(event: string, req: Request, additionalData?: an
   };
 }
 import { setupSimpleAuth, authorizeRollbackWithFastAPI } from "./simple-auth";
+import { createErrorResponse, createValidationErrorResponse, sendError } from './utils/http';
 import { setupTestRoutes } from "./test-routes";
 
-// Structured error response helpers
-function createValidationErrorResponse(error: z.ZodError, message: string = "Validation failed") {
-  return {
-    message,
-    errors: error.format(),
-    timestamp: new Date().toISOString(),
-    type: 'validation_error'
-  };
-}
+// Structured error helpers moved to ./utils/http
 
-function createErrorResponse(message: string, type: string = 'server_error', details?: any) {
-  return {
-    message,
-    type,
-    timestamp: new Date().toISOString(),
-    ...(details && { details })
-  };
-}
+// (sendError provided by ./utils/http)
 
 // Helper function for rollback cache invalidation using existing patterns
 async function invalidateRollbackCaches(rolledBackEntity: Entity) {
@@ -279,7 +265,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (req.isAuthenticated()) {
       return next();
     }
-    res.status(401).json({ message: "Unauthorized" });
+    return sendError(res, 401, 'Unauthorized');
   };
   
   // Middleware to validate scheduler API token
@@ -311,7 +297,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/user", isAuthenticated, async (req: Request, res: Response) => {
     try {
       if (!req.user?.id) {
-        return res.status(401).json({ message: "User not authenticated" });
+        return sendError(res, 401, 'User not authenticated');
       }
 
       // Try to get user from cache first
@@ -325,13 +311,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Fallback to storage if not in cache
       const user = await storage.getUser(req.user.id);
       if (!user) {
-        return res.status(404).json({ message: "User not found" });
+        return sendError(res, 404, 'User not found');
       }
 
       res.json(user);
     } catch (error) {
       console.error("Error fetching user profile:", error);
-      res.status(500).json({ message: "Failed to fetch user profile" });
+      return sendError(res, 500, 'Failed to fetch user profile');
     }
   });
   
@@ -350,7 +336,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(users);
       }
     } catch (error) {
-      res.status(500).json({ message: "Failed to fetch users" });
+      return sendError(res, 500, 'Failed to fetch users');
     }
   });
 
@@ -382,7 +368,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }));
       res.json(transformedUsers);
     } catch (error) {
-      res.status(500).json({ message: "Failed to fetch users from FastAPI fallback" });
+      return sendError(res, 500, 'Failed to fetch users from FastAPI fallback');
     }
   });
 
@@ -703,7 +689,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const roles = await storage.getUserRoles();
       res.json(roles);
     } catch (error) {
-      res.status(500).json({ message: "Failed to fetch user roles" });
+      return sendError(res, 500, 'Failed to fetch user roles');
     }
   });
 
@@ -723,7 +709,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const roles = await storage.getRoles();
       return res.json(roles);
     } catch (error) {
-      res.status(500).json({ message: "Failed to fetch roles" });
+      return sendError(res, 500, 'Failed to fetch roles');
     }
   });
 
@@ -782,7 +768,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json(newRole);
     } catch (error) {
       console.error('Error creating role:', error);
-      res.status(500).json({ message: "Failed to create role" });
+      return sendError(res, 500, 'Failed to create role');
     }
   });
   // PATCH /api/v1/roles/{roleName} - Update role by name
@@ -803,7 +789,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           : -1;
         
         if (roleIndex === -1) {
-          return res.status(404).json({ message: `Role '${roleName}' not found` });
+          return sendError(res, 404, `Role '${roleName}' not found`);
         }
         
         // Merge existing role with updates
@@ -826,7 +812,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         updatedRole = await storage.updateRole(roleName, roleData);
       
       if (!updatedRole) {
-        return res.status(404).json({ message: `Role '${roleName}' not found` });
+        return sendError(res, 404, `Role '${roleName}' not found`);
       }
       
         // Invalidate cache so next GET fetches fresh data from storage
@@ -842,7 +828,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(updatedRole);
     } catch (error) {
       console.error(`Error updating role '${req.params.roleName}':`, error);
-      res.status(500).json({ message: "Failed to update role" });
+      return sendError(res, 500, 'Failed to update role');
     }
   });
 
@@ -859,7 +845,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const roleExists = Array.isArray(existingRoles) && existingRoles.some((role: any) => role.role_name === roleName);
         
         if (!roleExists) {
-          return res.status(404).json({ message: `Role '${roleName}' not found` });
+          return sendError(res, 404, `Role '${roleName}' not found`);
         }
         
         const updatedRoles = existingRoles.filter((role: any) => role.role_name !== roleName);
@@ -874,7 +860,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const success = await storage.deleteRole(roleName);
       
       if (!success) {
-        return res.status(404).json({ message: `Role '${roleName}' not found` });
+        return sendError(res, 404, `Role '${roleName}' not found`);
       }
       
         // Invalidate cache so next GET fetches fresh data from storage
@@ -890,7 +876,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true, message: `Role '${roleName}' deleted` });
     } catch (error) {
       console.error(`Error deleting role '${req.params.roleName}':`, error);
-      res.status(500).json({ message: "Failed to delete role" });
+      return sendError(res, 500, 'Failed to delete role');
     }
   });
 
@@ -912,7 +898,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(permissions);
     } catch (error) {
       console.error('Error fetching permissions from /api/v1/get_all_permissions:', error);
-      res.status(500).json({ message: "Failed to fetch permissions" });
+      return sendError(res, 500, 'Failed to fetch permissions');
     }
   });
 
@@ -934,7 +920,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(permissions);
     } catch (error) {
       console.error('Error fetching permissions:', error);
-      res.status(500).json({ message: "Failed to fetch permissions" });
+      return sendError(res, 500, 'Failed to fetch permissions');
     }
   });
 
@@ -990,7 +976,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json(newPermission);
     } catch (error) {
       console.error('Error creating permission from /api/v1/permissions:', error);
-      res.status(500).json({ message: "Failed to create permission" });
+      return sendError(res, 500, 'Failed to create permission');
     }
   });
 
@@ -1012,7 +998,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           : -1;
         
         if (permissionIndex === -1) {
-          return res.status(404).json({ message: `Permission '${name}' not found` });
+          return sendError(res, 404, `Permission '${name}' not found`);
         }
         
         // Merge existing permission with updates
@@ -1034,7 +1020,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // In-memory mode: update in storage
         updatedPermission = await storage.updatePermission(name, permissionData);
       if (!updatedPermission) {
-        return res.status(404).json({ message: `Permission '${name}' not found` });
+        return sendError(res, 404, `Permission '${name}' not found`);
       }
         
         // Invalidate cache so next GET fetches fresh data from storage
@@ -1050,7 +1036,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(updatedPermission);
     } catch (error) {
       console.error(`Error updating permission '${req.params.name}' from /api/v1/permissions:`, error);
-      res.status(500).json({ message: "Failed to update permission" });
+      return sendError(res, 500, 'Failed to update permission');
     }
   });
 
@@ -1067,7 +1053,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const permissionExists = Array.isArray(existingPermissions) && existingPermissions.some((perm: any) => perm.permission_name === name);
         
         if (!permissionExists) {
-          return res.status(404).json({ message: `Permission '${name}' not found` });
+          return sendError(res, 404, `Permission '${name}' not found`);
         }
         
         const updatedPermissions = existingPermissions.filter((perm: any) => perm.permission_name !== name);
@@ -1081,7 +1067,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // In-memory mode: delete from storage
       const success = await storage.deletePermission(name);
       if (!success) {
-        return res.status(404).json({ message: `Permission '${name}' not found` });
+        return sendError(res, 404, `Permission '${name}' not found`);
       }
         
         // Invalidate cache so next GET fetches fresh data from storage
@@ -1097,7 +1083,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true, message: `Permission '${name}' deleted` });
     } catch (error) {
       console.error(`Error deleting permission '${req.params.name}' from /api/v1/permissions:`, error);
-      res.status(500).json({ message: "Failed to delete permission" });
+      return sendError(res, 500, 'Failed to delete permission');
     }
   });
 
@@ -1133,7 +1119,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json(newPermission);
     } catch (error) {
       console.error('Error creating permission:', error);
-      res.status(500).json({ message: "Failed to create permission" });
+      return sendError(res, 500, 'Failed to create permission');
     }
   });
 
@@ -1145,7 +1131,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updatedPermission = await storage.updatePermission(name, permissionData);
       
       if (!updatedPermission) {
-        return res.status(404).json({ message: `Permission '${name}' not found` });
+        return sendError(res, 404, `Permission '${name}' not found`);
       }
       
       // Update cache based on mode
@@ -1176,7 +1162,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(updatedPermission);
     } catch (error) {
       console.error(`Error updating permission '${req.params.name}':`, error);
-      res.status(500).json({ message: "Failed to update permission" });
+      return sendError(res, 500, 'Failed to update permission');
     }
   });
 
@@ -1187,7 +1173,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const success = await storage.deletePermission(name);
       
       if (!success) {
-        return res.status(404).json({ message: `Permission '${name}' not found` });
+        return sendError(res, 404, `Permission '${name}' not found`);
       }
       
       // Update cache based on mode
@@ -1218,7 +1204,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true, message: `Permission '${name}' deleted` });
     } catch (error) {
       console.error(`Error deleting permission '${req.params.name}':`, error);
-      res.status(500).json({ message: "Failed to delete permission" });
+      return sendError(res, 500, 'Failed to delete permission');
     }
   });
 
@@ -1246,7 +1232,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(activeAlerts);
     } catch (error) {
       console.error('Failed to fetch alerts:', error);
-      res.status(500).json({ message: "Failed to fetch system alerts" });
+      return sendError(res, 500, 'Failed to fetch system alerts');
     }
   });
 
@@ -1376,7 +1362,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.json(messages);
     } catch (error) {
       console.error('Failed to fetch broadcast messages:', error);
-      res.status(500).json({ message: "Failed to fetch broadcast messages" });
+      return sendError(res, 500, 'Failed to fetch broadcast messages');
     }
   });
 
@@ -1525,7 +1511,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.json(conflicts);
     } catch (error) {
       console.error('Failed to fetch conflicts:', error);
-      return res.status(500).json({ message: "Failed to fetch conflicts" });
+      return sendError(res, 500, 'Failed to fetch conflicts');
     }
   });
   // POST /api/v1/conflicts/:notificationId/resolve - Express fallback to resolve conflicts when FastAPI unavailable
@@ -1550,7 +1536,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Express fallback: apply the resolution locally
       const conflict = await redisCache.getConflictById(notificationId);
       if (!conflict) {
-        return res.status(404).json({ message: 'Conflict not found' });
+        return sendError(res, 404, 'Conflict not found');
       }
 
       // Allow admin to edit payload in-place prior to resolution
@@ -1611,7 +1597,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       return res.json({ message: 'Conflict resolved (fallback)', notificationId });
     } catch (error) {
-      return res.status(500).json({ message: 'Failed to resolve conflict' });
+      return sendError(res, 500, 'Failed to resolve conflict');
     }
   });
 
@@ -1644,7 +1630,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Local fallback resolution (same logic as /api/v1/conflicts/:id/resolve)
       const conflict = await redisCache.getConflictById(notificationId);
       if (!conflict) {
-        return res.status(404).json({ message: 'Conflict not found' });
+        return sendError(res, 404, 'Conflict not found');
       }
 
       const effectivePayload = payload || conflict.record.originalPayload || {};
@@ -1701,7 +1687,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       return res.json({ message: 'Conflict resolved (fallback)', notificationId });
     } catch (error) {
-      return res.status(500).json({ message: 'Failed to resolve conflict' });
+      return sendError(res, 500, 'Failed to resolve conflict');
     }
   });
 
@@ -1724,7 +1710,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(alerts);
     } catch (error) {
       console.error("Error fetching alerts via Express fallback:", error);
-      res.status(500).json({ message: "Failed to fetch alerts" });
+      return sendError(res, 500, 'Failed to fetch alerts');
     }
   });
 
@@ -1876,7 +1862,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.json(teamsWithTenantName);
     } catch (error) {
       console.error('Error fetching teams:', error);
-      res.status(500).json({ message: "Failed to fetch teams from cache" });
+      return sendError(res, 500, 'Failed to fetch teams from cache');
     }
   });
 
@@ -1902,7 +1888,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(tenants || []);
     } catch (error) {
-      res.status(500).json({ message: "Failed to fetch tenants" });
+      return sendError(res, 500, 'Failed to fetch tenants');
     }
   });
 
@@ -1935,7 +1921,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(tenants || []);
     } catch (error) {
-      res.status(500).json({ message: "Failed to fetch tenants from FastAPI fallback" });
+      return sendError(res, 500, 'Failed to fetch tenants from FastAPI fallback');
     }
   });
 
@@ -2071,6 +2057,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           'dashboard_summary:*',
           'entities:*'
         ],
+        // Rebuild TEAMS and METRICS so summaries for the new tenant name are immediately available
         mainCacheKeys: ['TEAMS', 'METRICS'],
         refreshAffectedData: true
       });
@@ -2178,7 +2165,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.json(teamsWithTenantName);
     } catch (error) {
       console.error('Error fetching teams (FastAPI fallback):', error);
-      res.status(500).json({ message: "Failed to fetch teams from FastAPI fallback" });
+      return sendError(res, 500, 'Failed to fetch teams from FastAPI fallback');
     }
   });
 
@@ -2482,7 +2469,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: "Debug: All teams with IDs from cache"
       });
     } catch (error) {
-      res.status(500).json({ message: "Failed to fetch teams for debug" });
+      return sendError(res, 500, 'Failed to fetch teams for debug');
     }
   });
 
@@ -2638,7 +2625,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const status = await redisCache.getCacheStatus();
       res.json(status);
     } catch (error) {
-      res.status(500).json({ message: "Failed to get cache status" });
+      return sendError(res, 500, 'Failed to get cache status');
     }
   });
 
@@ -2647,7 +2634,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await redisCache.forceRefresh();
       res.json({ message: "Cache refreshed successfully" });
     } catch (error) {
-      res.status(500).json({ message: "Failed to refresh cache" });
+      return sendError(res, 500, 'Failed to refresh cache');
     }
   });
 
@@ -2740,7 +2727,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const endDate = req.query.endDate as string;
       
       if (!tenantName) {
-        return res.status(400).json({ message: "Tenant parameter is required" });
+        return sendError(res, 400, 'Tenant parameter is required');
       }
       
       const isTeamDashboard = teamName && teamName !== '0';
@@ -2767,7 +2754,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         if (!metrics) {
           const scope = isTeamDashboard ? `team=${teamName}` : 'tenant-wide';
-          return res.status(404).json({ message: `No data found for the specified ${scope} and range` });
+          return sendError(res, 404, `No data found for the specified ${scope} and range`);
         }
         
         const logScope = isTeamDashboard ? `team=${teamName}` : 'tenant-wide';
@@ -2805,7 +2792,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         if (!metrics) {
           const scope = isTeamDashboard ? `team=${teamName}` : 'tenant';
-          return res.status(404).json({ message: `No data found for the specified ${scope} and date range` });
+          return sendError(res, 404, `No data found for the specified ${scope} and date range`);
         }
         
         const logScope = isTeamDashboard ? `team=${teamName}` : 'tenant-wide';
@@ -2835,7 +2822,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       if (!metrics) {
-        return res.status(404).json({ message: "No data found for the specified tenant" });
+        return sendError(res, 404, 'No data found for the specified tenant');
       }
       
       console.log(`GET /api/dashboard/summary - Parameters: tenant=${tenantName} (default 30-day) - status: 200`);
@@ -2863,7 +2850,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const teamName = req.query.team as string;
       
       if (!tenantName) {
-        return res.status(400).json({ message: "Tenant parameter is required" });
+        return sendError(res, 400, 'Tenant parameter is required');
       }
       
       const isTeamDashboard = teamName && teamName !== '0';
@@ -2917,7 +2904,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const result = insertTeamSchema.safeParse(req.body);
       
       if (!result.success) {
-        return res.status(400).json({ message: "Invalid team data", errors: result.error.format() });
+        return res.status(400).json(createValidationErrorResponse(result.error));
       }
       
       const team = await storage.createTeam(result.data);
@@ -2940,7 +2927,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.status(201).json(team);
     } catch (error) {
-      res.status(500).json({ message: "Failed to create team" });
+      return sendError(res, 500, 'Failed to create team');
     }
   });
   
@@ -2948,17 +2935,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
-        return res.status(400).json({ message: "Invalid team ID" });
+        return sendError(res, 400, 'Invalid team ID');
       }
       
       const team = await storage.getTeam(id);
       if (!team) {
-        return res.status(404).json({ message: "Team not found" });
+        return sendError(res, 404, 'Team not found');
       }
       
       res.json(team);
     } catch (error) {
-      res.status(500).json({ message: "Failed to fetch team" });
+      return sendError(res, 500, 'Failed to fetch team');
     }
   });
 
@@ -3129,7 +3116,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         
         if (!team) {
-          return res.status(404).json({ message: "Team not found" });
+          return sendError(res, 404, 'Team not found');
         }
 
         // Members: only from team.team_members_ids (no derivation from users)
@@ -3153,7 +3140,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const team = await storage.getTeamByName(teamName);
         
         if (!team) {
-          return res.status(404).json({ message: "Team not found" });
+          return sendError(res, 404, 'Team not found');
         }
 
         // Get actual team members from storage
@@ -3171,7 +3158,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(teamDetails);
     } catch (error) {
       console.error('Team details error:', error);
-      res.status(500).json({ message: "Failed to get team details" });
+      return sendError(res, 500, 'Failed to get team details');
     }
   });
 
@@ -3198,7 +3185,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         
         if (!team) {
-          return res.status(404).json({ message: "Team not found" });
+          return sendError(res, 404, 'Team not found');
         }
 
         // Members: only from team.team_members_ids (no derivation from users)
@@ -3239,7 +3226,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(teamDetails);
     } catch (error) {
-      res.status(500).json({ message: "Failed to fetch team details" });
+      return sendError(res, 500, 'Failed to fetch team details');
     }
   });
 
@@ -3292,7 +3279,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const members = await storage.getTeamMembers(teamName);
       res.json(members);
     } catch (error) {
-      res.status(500).json({ message: "Failed to fetch team members" });
+      return sendError(res, 500, 'Failed to fetch team members');
     }
   });
 
@@ -3343,7 +3330,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const members = await storage.getTeamMembers(teamName);
       res.json(members);
     } catch (error) {
-      res.status(500).json({ message: "Failed to fetch team members" });
+      return sendError(res, 500, 'Failed to fetch team members');
     }
   });
 
@@ -3362,7 +3349,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(users);
       }
     } catch (error) {
-      res.status(500).json({ message: "Failed to fetch users" });
+      return sendError(res, 500, 'Failed to fetch users');
     }
   });
 
@@ -3381,7 +3368,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(users);
       }
     } catch (error) {
-      res.status(500).json({ message: "Failed to fetch users" });
+      return sendError(res, 500, 'Failed to fetch users');
     }
   });
 
@@ -3419,7 +3406,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (tnt) idx = Array.isArray(teams) ? teams.findIndex((t: any) => t?.name === teamName && t?.tenant_id === tnt.id) : -1;
         }
         if (idx === -1) idx = Array.isArray(teams) ? teams.findIndex((t: any) => t?.name === teamName) : -1;
-        if (idx === -1) return res.status(404).json({ message: 'Team not found' });
+        if (idx === -1) return sendError(res, 404, 'Team not found');
 
         const team = teams[idx];
         const ids: string[] = Array.isArray(team.team_members_ids) ? [...team.team_members_ids] : [];
@@ -3454,7 +3441,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updatedTeam = await storage.updateTeamMembers(teamName, memberData, oauthContext);
       
       if (!updatedTeam) {
-        return res.status(404).json({ message: "Team not found" });
+        return sendError(res, 404, 'Team not found');
       }
 
       // Use centralized cache invalidation system with real-time updates
@@ -3491,7 +3478,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const result = memberSchema.safeParse(req.body);
       if (!result.success) {
-        return res.status(400).json({ message: 'Invalid team member data', errors: result.error.format() });
+        return res.status(400).json(createValidationErrorResponse(result.error));
       }
 
       const memberData = req.body;
@@ -3506,7 +3493,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (tnt) idx = Array.isArray(teams) ? teams.findIndex((t: any) => t?.name === teamName && t?.tenant_id === tnt.id) : -1;
         }
         if (idx === -1) idx = Array.isArray(teams) ? teams.findIndex((t: any) => t?.name === teamName) : -1;
-        if (idx === -1) return res.status(404).json({ message: 'Team not found' });
+        if (idx === -1) return sendError(res, 404, 'Team not found');
 
         const team = teams[idx];
         const ids: string[] = Array.isArray(team.team_members_ids) ? [...team.team_members_ids] : [];
@@ -3536,7 +3523,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         tenant: tenantFromQuery || 'Data Engineering',
         username: 'azure_test_user'
       });
-      if (!updatedTeam) return res.status(404).json({ message: 'Team not found' });
+      if (!updatedTeam) return sendError(res, 404, 'Team not found');
       await redisCache.invalidateTeamData(teamName, {
         action: memberData.action,
         memberId: memberData.memberId,
@@ -3545,7 +3532,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       return res.json({ success: true });
     } catch (error) {
-      return res.status(500).json({ message: 'Failed to update team members' });
+      return sendError(res, 500, 'Failed to update team members');
     }
   });
   
@@ -3573,7 +3560,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       return res.json(entities);
     } catch (error) {
-      return res.status(500).json({ message: 'Failed to fetch entities' });
+      return sendError(res, 500, 'Failed to fetch entities');
     }
   });
 
@@ -3582,7 +3569,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const type = String(req.query.type || '').toLowerCase();
         if (type !== 'table' && type !== 'dag') {
-        return res.status(400).json({ message: 'Invalid type. Expected "table" or "dag"' });
+        return sendError(res, 400, 'Invalid type. Expected "table" or "dag"');
       }
       const q = typeof req.query.q === 'string' ? req.query.q : undefined;
       const limit = req.query.limit ? Math.min(200, Math.max(1, Number(req.query.limit))) : 50;
@@ -3593,7 +3580,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.json(names);
     } catch (error: any) {
       console.error('owner-reference-options error:', error);
-      return res.status(500).json({ message: 'Failed to load owner reference options' });
+      return sendError(res, 500, 'Failed to load owner reference options');
     }
   });
   
@@ -3630,7 +3617,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const tenantName = tenant as string;
       
       if (team_id && isNaN(teamId!)) {
-        return res.status(400).json({ message: "Invalid team_id parameter" });
+        return sendError(res, 400, 'Invalid team_id parameter');
       }
       
       // Call storage directly - no caching for custom queries
@@ -3647,7 +3634,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
     } catch (error) {
-      res.status(500).json({ message: "Failed to fetch entities for custom date range" });
+      return sendError(res, 500, 'Failed to fetch entities for custom date range');
     }
   });
   // Create entity - bypass auth in development for testing
@@ -3656,7 +3643,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const result = insertEntitySchema.safeParse(req.body);
       
       if (!result.success) {
-        return res.status(400).json({ message: "Invalid entity data", errors: result.error.format() });
+        return res.status(400).json(createValidationErrorResponse(result.error));
       }
       
       // Normalize payload with team/tenant metadata to avoid cross-team leakage
@@ -3727,12 +3714,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const refName = typeof payload.owner_entity_reference === 'string' ? payload.owner_entity_reference.trim() : undefined;
         if (!isOwner) {
           if (!refName) {
-            return res.status(400).json({ message: 'owner_entity_reference is required when is_entity_owner is false' });
+            return sendError(res, 400, 'owner_entity_reference is required when is_entity_owner is false');
           }
           const refType: 'table' | 'dag' = payload.type === 'table' ? 'table' : 'dag';
           const matches = await redisCache.findSlimEntitiesByNameCI(refName, refType);
           if (!matches || matches.length === 0) {
-            return res.status(404).json({ message: `Owner Entity Reference not found: ${refName}` });
+            return sendError(res, 404, `Owner Entity Reference not found: ${refName}`);
           }
           // Populate owner_entity_ref_name from the first match (team/tenant context can refine later)
           const m = matches[0];
@@ -3842,7 +3829,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   originalPayload: req.body,
                 });
               }
-              return res.status(409).json({ message: 'Ownership conflict detected', owners: conflict.owners });
+              const ownersList = (conflict.owners || []).join(', ');
+              return res.status(409).json(createErrorResponse(`Ownership conflict detected. Current owner(s): ${ownersList}. Please contact an admin for resolution.`, 'conflict'));
             }
           }
         }
@@ -3894,7 +3882,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.status(201).json(entity);
     } catch (error) {
-      res.status(500).json({ message: "Failed to create entity" });
+      return sendError(res, 500, 'Failed to create entity');
     }
   });
   // Transactional bulk create (all-or-nothing) for Express fallback - bypass auth in development
@@ -3902,7 +3890,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const items = Array.isArray(req.body) ? req.body : [];
       if (items.length === 0) {
-        return res.status(400).json({ message: 'Invalid payload - expected non-empty array' });
+        return sendError(res, 400, 'Invalid payload - expected non-empty array');
       }
 
       const created: any[] = [];
@@ -3932,7 +3920,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.status(201).json(created);
     } catch (error) {
-      res.status(500).json({ message: 'Bulk create failed' });
+      return sendError(res, 500, 'Bulk create failed');
     }
   });
 
@@ -3945,7 +3933,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const normalizedType = (entityType === 'table' || entityType === 'dag') ? (entityType as Entity['type']) : undefined;
       if (!teamName || !normalizedType) {
-        return res.status(400).json({ message: 'teamName and valid entityType (table|dag) are required' });
+        return sendError(res, 400, 'teamName and valid entityType (table|dag) are required');
       }
 
       // Slim-only delete by composite identifiers
@@ -3956,11 +3944,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         entityName,
       });
       if (!removed) {
-        return res.status(404).json({ message: 'Entity not found' });
+        return sendError(res, 404, 'Entity not found');
       }
       return res.status(204).end();
     } catch (error) {
-      res.status(500).json({ message: 'Failed to delete entity' });
+      return sendError(res, 500, 'Failed to delete entity');
     }
   });
 
@@ -3975,7 +3963,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Require teamName and entityType
       if (!teamName || !normalizedType) {
-        return res.status(400).json({ message: 'teamName and valid entityType (table|dag) are required' });
+        return sendError(res, 400, 'teamName and valid entityType (table|dag) are required');
       }
 
       // If tenantName not provided, attempt to resolve from teams; if ambiguous, require it
@@ -3985,11 +3973,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const tenants = await redisCache.getAllTenants();
           const matches = teams.filter((t: any) => t.name === teamName);
           if (matches.length === 0) {
-            return res.status(404).json({ message: `Team not found: ${teamName}` });
+            return sendError(res, 404, `Team not found: ${teamName}`);
           }
           const tenantIds = Array.from(new Set(matches.map((t: any) => t.tenant_id)));
           if (tenantIds.length > 1) {
-            return res.status(400).json({ message: 'Multiple tenants found for team name. Provide tenantName to disambiguate.' });
+            return sendError(res, 400, 'Multiple tenants found for team name. Provide tenantName to disambiguate.');
           }
           const tenant = tenants.find(t => t.id === tenantIds[0]);
           tenantName = tenant ? tenant.name : undefined;
@@ -4002,11 +3990,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const refName = typeof req.body?.owner_entity_reference === 'string' ? req.body.owner_entity_reference.trim() : undefined;
         if (isOwner === false) {
           if (!refName) {
-            return res.status(400).json({ message: 'owner_entity_reference is required when is_entity_owner is false' });
+            return sendError(res, 400, 'owner_entity_reference is required when is_entity_owner is false');
           }
           const matches = await redisCache.findSlimEntitiesByNameCI(refName, normalizedType as 'table' | 'dag');
           if (!matches || matches.length === 0) {
-            return res.status(404).json({ message: `Owner Entity Reference not found: ${refName}` });
+            return sendError(res, 404, `Owner Entity Reference not found: ${refName}`);
           }
           const m = matches[0];
           // Prepare owner ref object and merge into updates payload
@@ -4113,7 +4101,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   originalPayload: req.body,
                 });
               }
-              return res.status(409).json({ message: 'Ownership conflict detected', owners: conflict.owners });
+              const ownersList2 = (conflict.owners || []).join(', ');
+              return res.status(409).json(createErrorResponse(`Ownership conflict detected. Current owner(s): ${ownersList2}. Please contact an admin for resolution.`, 'conflict'));
             }
           }
         }
@@ -4128,11 +4117,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         updates: req.body || {}
       });
       if (!slimUpdated) {
-        return res.status(404).json({ message: 'Entity not found' });
+        return sendError(res, 404, 'Entity not found');
       }
       return res.json(slimUpdated);
     } catch (error) {
-      res.status(500).json({ message: 'Failed to update entity' });
+      return sendError(res, 500, 'Failed to update entity');
     }
   });
 
@@ -4140,17 +4129,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
-        return res.status(400).json({ message: "Invalid issue ID" });
+        return sendError(res, 400, 'Invalid issue ID');
       }
       
       const resolvedIssue = await storage.resolveIssue(id);
       if (!resolvedIssue) {
-        return res.status(404).json({ message: "Issue not found" });
+        return sendError(res, 404, 'Issue not found');
       }
       
       res.json(resolvedIssue);
     } catch (error) {
-      res.status(500).json({ message: "Failed to resolve issue" });
+      return sendError(res, 500, 'Failed to resolve issue');
     }
   });
 
@@ -4166,14 +4155,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const entity = await redisCache.getEntityByName({ name: entityName, type: normalizedType, teamName });
       if (!entity) {
-        return res.status(404).json({ message: "Entity not found" });
+        return sendError(res, 404, 'Entity not found');
       }
       
       const timelines = await storage.getNotificationTimelines(entity.id);
       res.json(timelines);
     } catch (error) {
       console.error("Error fetching notification timelines:", error);
-      res.status(500).json({ message: "Failed to fetch notification timelines" });
+      return sendError(res, 500, 'Failed to fetch notification timelines');
     }
   });
 
@@ -4183,7 +4172,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { team, name } = req.query;
       
       if (!team || !name) {
-        return res.status(400).json({ message: "Missing required parameters: team, name" });
+        return sendError(res, 400, 'Missing required parameters: team, name');
       }
       
       // Find the DAG entity by team name and entity name
@@ -4192,12 +4181,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const teamObj = teams.find(t => t.name === team);
       if (!teamObj) {
-        return res.status(404).json({ message: "Team not found" });
+        return sendError(res, 404, 'Team not found');
       }
       
       const entity = entities.find(e => e.name === name && e.type === 'dag' && e.teamId === teamObj.id);
       if (!entity) {
-        return res.status(404).json({ message: "DAG not found" });
+        return sendError(res, 404, 'DAG not found');
       }
       
       // Return current DAG settings in a standardized format
@@ -4220,7 +4209,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(currentSettings);
     } catch (error) {
       console.error("Error fetching current DAG settings:", error);
-      res.status(500).json({ message: "Failed to fetch current DAG settings" });
+      return sendError(res, 500, 'Failed to fetch current DAG settings');
     }
   });
 
@@ -4230,7 +4219,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { team, name } = req.query;
       
       if (!team || !name) {
-        return res.status(400).json({ message: "Missing required parameters: team, name" });
+        return sendError(res, 400, 'Missing required parameters: team, name');
       }
       
       // Find the Table entity by team name and entity name
@@ -4239,12 +4228,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const teamObj = teams.find(t => t.name === team);
       if (!teamObj) {
-        return res.status(404).json({ message: "Team not found" });
+        return sendError(res, 404, 'Team not found');
       }
       
       const entity = entities.find(e => e.name === name && e.type === 'table' && e.teamId === teamObj.id);
       if (!entity) {
-        return res.status(404).json({ message: "Table not found" });
+        return sendError(res, 404, 'Table not found');
       }
       
       // Return current Table settings in a standardized format
@@ -4268,7 +4257,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(currentSettings);
     } catch (error) {
       console.error("Error fetching current Table settings:", error);
-      res.status(500).json({ message: "Failed to fetch current Table settings" });
+      return sendError(res, 500, 'Failed to fetch current Table settings');
     }
   });
 
@@ -4283,7 +4272,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get entity from cache
       const entity = await redisCache.getEntityByName({ name: entityName, type: normalizedType, teamName });
       if (!entity) {
-        return res.status(404).json({ message: 'Entity not found' });
+        return sendError(res, 404, 'Entity not found');
       }
       
       // Generate 30-day compliance trend data based on entity's current SLA
@@ -4322,7 +4311,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       console.error("Error fetching entity compliance trend:", error);
-      res.status(500).json({ message: "Failed to fetch entity compliance trend" });
+      return sendError(res, 500, 'Failed to fetch entity compliance trend');
     }
   });
 
@@ -4356,7 +4345,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(trends);
     } catch (error) {
       console.error("Error fetching 30-day trends:", error);
-      res.status(500).json({ message: "Failed to fetch 30-day trends" });
+      return sendError(res, 500, 'Failed to fetch 30-day trends');
     }
   });
 
@@ -4386,7 +4375,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(trends);
     } catch (error) {
       console.error("Error fetching 30-day trends (v1):", error);
-      res.status(500).json({ message: "Failed to fetch 30-day trends" });
+      return sendError(res, 500, 'Failed to fetch 30-day trends');
     }
   });
 
@@ -4398,10 +4387,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json(timeline);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Invalid input", errors: error.errors });
+        return res.status(400).json(createValidationErrorResponse(error));
       }
       console.error("Error creating notification timeline:", error);
-      res.status(500).json({ message: "Failed to create notification timeline" });
+      return sendError(res, 500, 'Failed to create notification timeline');
     }
   });
 
@@ -4413,7 +4402,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ message: "Timeline retrieval not yet implemented" });
     } catch (error) {
       console.error("Error fetching notification timeline:", error);
-      res.status(500).json({ message: "Failed to fetch notification timeline" });
+      return sendError(res, 500, 'Failed to fetch notification timeline');
     }
   });
 
@@ -4439,13 +4428,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const timeline = await storage.updateNotificationTimeline(timelineId, timelineData);
       
       if (!timeline) {
-        return res.status(404).json({ message: "Notification timeline not found" });
+        return sendError(res, 404, 'Notification timeline not found');
       }
       
       res.json(timeline);
     } catch (error) {
       console.error("Error updating notification timeline:", error);
-      res.status(500).json({ message: "Failed to update notification timeline" });
+      return sendError(res, 500, 'Failed to update notification timeline');
     }
   });
   // Delete notification timeline - bypass auth in development
@@ -4455,13 +4444,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const deleted = await storage.deleteNotificationTimeline(timelineId);
       
       if (!deleted) {
-        return res.status(404).json({ message: "Notification timeline not found" });
+        return sendError(res, 404, 'Notification timeline not found');
       }
       
       res.status(204).send();
     } catch (error) {
       console.error("Error deleting notification timeline:", error);
-      res.status(500).json({ message: "Failed to delete notification timeline" });
+      return sendError(res, 500, 'Failed to delete notification timeline');
     }
   });
 
@@ -4470,7 +4459,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/subscriptions", ...(isDevelopment ? [checkActiveUserDev] : [isAuthenticated]), async (req: Request, res: Response) => {
     try {
       if (!req.user?.id) {
-        return res.status(401).json({ message: "User not authenticated" });
+        return sendError(res, 401, 'User not authenticated');
       }
 
       const subscriptionData = {
@@ -4483,10 +4472,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json(subscription);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Invalid input", errors: error.errors });
+        return res.status(400).json(createValidationErrorResponse(error));
       }
       console.error("Error creating subscription:", error);
-      res.status(500).json({ message: "Failed to create subscription" });
+      return sendError(res, 500, 'Failed to create subscription');
     }
   });
 
@@ -4494,20 +4483,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/subscriptions/:timelineId", ...(isDevelopment ? [checkActiveUserDev] : [isAuthenticated]), async (req: Request, res: Response) => {
     try {
       if (!req.user?.id) {
-        return res.status(401).json({ message: "User not authenticated" });
+        return sendError(res, 401, 'User not authenticated');
       }
 
       const timelineId = req.params.timelineId;
       const unsubscribed = await storage.unsubscribeFromNotificationTimeline(req.user.id, timelineId);
       
       if (!unsubscribed) {
-        return res.status(404).json({ message: "Subscription not found" });
+        return sendError(res, 404, 'Subscription not found');
       }
       
       res.status(204).send();
     } catch (error) {
       console.error("Error removing subscription:", error);
-      res.status(500).json({ message: "Failed to remove subscription" });
+      return sendError(res, 500, 'Failed to remove subscription');
     }
   });
 
@@ -4515,14 +4504,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/me/subscriptions", isAuthenticated, async (req: Request, res: Response) => {
     try {
       if (!req.user?.id) {
-        return res.status(401).json({ message: "User not authenticated" });
+        return sendError(res, 401, 'User not authenticated');
       }
 
       const subscriptions = await storage.getUserSubscriptions(req.user.id);
       res.json(subscriptions);
     } catch (error) {
       console.error("Error fetching user subscriptions:", error);
-      res.status(500).json({ message: "Failed to fetch subscriptions" });
+      return sendError(res, 500, 'Failed to fetch subscriptions');
     }
   });
 
@@ -4576,7 +4565,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       console.error("Error fetching timeline subscriptions:", error);
-      res.status(500).json({ message: "Failed to fetch timeline subscriptions" });
+      return sendError(res, 500, 'Failed to fetch timeline subscriptions');
     }
   });
 
@@ -4587,7 +4576,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const entityName = req.params.entityName;
       
       if (!entityName) {
-        return res.status(400).json({ message: "Invalid entity name" });
+        return sendError(res, 400, 'Invalid entity name');
       }
 
       // Find the DAG entity by name to get its ID for mock service
@@ -4595,7 +4584,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const dagEntity = entities.find(e => e.name === entityName && e.type === 'dag');
       
       if (!dagEntity) {
-        return res.status(404).json({ message: "DAG entity not found" });
+        return sendError(res, 404, 'DAG entity not found');
       }
 
       // Use mock service to generate tasks (imports mockTaskService for consistency)
@@ -4617,7 +4606,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(formattedTasks);
     } catch (error) {
       console.error("Error fetching DAG tasks by entity name:", error);
-      res.status(500).json({ message: "Failed to fetch DAG tasks" });
+      return sendError(res, 500, 'Failed to fetch DAG tasks');
     }
   });
 
@@ -4626,7 +4615,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const dagId = parseInt(req.params.dagId);
       if (isNaN(dagId)) {
-        return res.status(400).json({ message: "Invalid DAG ID" });
+        return sendError(res, 400, 'Invalid DAG ID');
       }
 
       // For now, return mock data as tasks are not stored in database yet
@@ -4661,7 +4650,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(mockTasks);
     } catch (error) {
       console.error("Error fetching DAG tasks:", error);
-      res.status(500).json({ message: "Failed to fetch DAG tasks" });
+      return sendError(res, 500, 'Failed to fetch DAG tasks');
     }
   });
 
@@ -4675,7 +4664,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(allTasksData.dagTasks); // Return just the dagTasks array
     } catch (error) {
       console.error("Error fetching all tasks data:", error);
-      res.status(500).json({ message: "Failed to fetch all tasks data" });
+      return sendError(res, 500, 'Failed to fetch all tasks data');
     }
   });
   // GET endpoint for team-scoped AI task priorities - FastAPI compatible endpoint
@@ -4685,11 +4674,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const teamName = req.query.team as string;
 
       if (!entityName) {
-        return res.status(400).json({ message: "Entity name is required" });
+        return sendError(res, 400, 'Entity name is required');
       }
 
       if (!teamName) {
-        return res.status(400).json({ message: "team parameter is required" });
+        return sendError(res, 400, 'team parameter is required');
       }
 
       // Get AI tasks from Redis cache using team-scoped key
@@ -4712,7 +4701,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       console.error("Error fetching AI task priorities:", error);
-      res.status(500).json({ message: "Failed to fetch AI task priorities" });
+      return sendError(res, 500, 'Failed to fetch AI task priorities');
     }
   });
 
@@ -4723,11 +4712,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const teamName = req.query.team as string;
 
       if (!entityName) {
-        return res.status(400).json({ message: "Entity name is required" });
+        return sendError(res, 400, 'Entity name is required');
       }
 
       if (!teamName) {
-        return res.status(400).json({ message: "team parameter is required" });
+        return sendError(res, 400, 'team parameter is required');
       }
 
       // Get AI tasks from Redis cache using team-scoped key
@@ -4748,7 +4737,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       console.error("Error fetching AI task priorities:", error);
-      res.status(500).json({ message: "Failed to fetch AI task priorities" });
+      return sendError(res, 500, 'Failed to fetch AI task priorities');
     }
   });
 
@@ -4757,18 +4746,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const entityName = req.params.entity_name;
       if (!entityName) {
-        return res.status(400).json({ message: "Entity name is required" });
+        return sendError(res, 400, 'Entity name is required');
       }
 
       const { tasks, team_name, tenant_name, user } = req.body;
       
       // Validation
       if (!Array.isArray(tasks)) {
-        return res.status(400).json({ message: "Tasks array is required" });
+        return sendError(res, 400, 'Tasks array is required');
       }
       
       if (!team_name || !tenant_name) {
-        return res.status(400).json({ message: "team_name and tenant_name are required" });
+        return sendError(res, 400, 'team_name and tenant_name are required');
       }
 
       // Validate each task priority
@@ -4853,7 +4842,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       console.error("Error updating task priorities:", error);
-      res.status(500).json({ message: "Failed to update task priorities" });
+      return sendError(res, 500, 'Failed to update task priorities');
     }
   });
 
@@ -4862,18 +4851,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const entityName = req.params.entity_name;
       if (!entityName) {
-        return res.status(400).json({ message: "Entity name is required" });
+        return sendError(res, 400, 'Entity name is required');
       }
 
       const { tasks, team_name, tenant_name, user } = req.body;
       
       // Validation
       if (!Array.isArray(tasks)) {
-        return res.status(400).json({ message: "Tasks array is required" });
+        return sendError(res, 400, 'Tasks array is required');
       }
       
       if (!team_name || !tenant_name) {
-        return res.status(400).json({ message: "team_name and tenant_name are required" });
+        return sendError(res, 400, 'team_name and tenant_name are required');
       }
 
       // Validate each task priority
@@ -4947,7 +4936,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       console.error("Error updating task priorities (Express fallback):", error);
-      res.status(500).json({ message: "Failed to update task priorities" });
+      return sendError(res, 500, 'Failed to update task priorities');
     }
   });
 
@@ -4976,7 +4965,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       console.error("Error in agent chat:", error);
-      res.status(500).json({ message: "Failed to process agent chat" });
+      return sendError(res, 500, 'Failed to process agent chat');
     }
   });
   
@@ -4998,7 +4987,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       console.error("Error loading agent conversation:", error);
-      res.status(500).json({ message: "Failed to load conversation history" });
+      return sendError(res, 500, 'Failed to load conversation history');
     }
   });
   
@@ -5019,7 +5008,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       console.error("Error saving agent conversation:", error);
-      res.status(500).json({ message: "Failed to save conversation" });
+      return sendError(res, 500, 'Failed to save conversation');
     }
   });
 
@@ -5039,7 +5028,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       console.error('Admin tenants fetch error:', error);
-      res.status(500).json({ message: "Failed to fetch tenants" });
+      return sendError(res, 500, 'Failed to fetch tenants');
     }
   });
 
@@ -5081,7 +5070,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json(newTenant);
     } catch (error) {
       console.error('Tenant creation error:', error);
-      res.status(500).json({ message: "Failed to create tenant" });
+      return sendError(res, 500, 'Failed to create tenant');
     }
   });
 
@@ -5120,7 +5109,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json(team);
     } catch (error) {
       console.error('Admin team creation error:', error);
-      res.status(500).json({ message: "Failed to create team" });
+      return sendError(res, 500, 'Failed to create team');
     }
   });
   
@@ -5534,7 +5523,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       });
     } catch (error) {
-      res.status(500).json({ message: "Failed to fetch dashboard summary" });
+      return sendError(res, 500, 'Failed to fetch dashboard summary');
     }
   });
   
@@ -5545,7 +5534,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(dags);
     } catch (error) {
       console.error("Error fetching DAGs:", error);
-      res.status(500).json({ message: "Failed to fetch DAGs" });
+      return sendError(res, 500, 'Failed to fetch DAGs');
     }
   });
 
@@ -5581,7 +5570,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json(newDag);
     } catch (error) {
       console.error("Error creating DAG:", error);
-      res.status(500).json({ message: "Failed to create DAG" });
+      return sendError(res, 500, 'Failed to create DAG');
     }
   });
 
@@ -5592,7 +5581,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(tables);
     } catch (error) {
       console.error("Error fetching Tables:", error);
-      res.status(500).json({ message: "Failed to fetch Tables" });
+      return sendError(res, 500, 'Failed to fetch Tables');
     }
   });
 
@@ -5628,7 +5617,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json(newTable);
     } catch (error) {
       console.error("Error creating Table:", error);
-      res.status(500).json({ message: "Failed to create table" });
+      return sendError(res, 500, 'Failed to create table');
     }
   });
   
@@ -5671,7 +5660,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       console.error("Failed to create test user:", error);
-      res.status(500).json({ message: "Failed to create test user" });
+      return sendError(res, 500, 'Failed to create test user');
     }
   });
   
@@ -5698,11 +5687,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         });
       } else {
-        res.status(404).json({ message: "Test user not found" });
+        return sendError(res, 404, 'Test user not found');
       }
     } catch (error) {
       console.error("Error checking test user:", error);
-      res.status(500).json({ message: "Error checking test user" });
+      return sendError(res, 500, 'Error checking test user');
     }
   });
   
@@ -5737,7 +5726,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       console.error("Error resetting test user:", error);
-      res.status(500).json({ message: "Error resetting test user" });
+      return sendError(res, 500, 'Error resetting test user');
     }
   });
 
@@ -5772,7 +5761,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     } catch (error) {
       console.error('Cache incremental update error:', error);
-      res.status(500).json({ message: 'Failed to update cache' });
+      return sendError(res, 500, 'Failed to update cache');
     }
   });
 
@@ -5791,7 +5780,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       console.error('Recent changes error:', error);
-      res.status(500).json({ message: 'Failed to fetch recent changes' });
+      return sendError(res, 500, 'Failed to fetch recent changes');
     }
   });
 
@@ -5811,7 +5800,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
       
       if (!entity) {
-        return res.status(404).json({ message: 'Entity not found' });
+        return sendError(res, 404, 'Entity not found');
       }
       
       // Lookup owner's is_active status from users table
@@ -5848,7 +5837,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       console.error('Owner SLA settings error:', error);
-      res.status(500).json({ message: 'Failed to fetch owner and SLA settings' });
+      return sendError(res, 500, 'Failed to fetch owner and SLA settings');
     }
   });
 
@@ -6067,7 +6056,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ days });
     } catch (error) {
       console.error('SLA status 30 days error:', error);
-      res.status(500).json({ message: 'Failed to fetch SLA status data' });
+      return sendError(res, 500, 'Failed to fetch SLA status data');
     }
   });
 
@@ -6110,7 +6099,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ changes });
     } catch (error) {
       console.error('Settings changes error:', error);
-      res.status(500).json({ message: 'Failed to fetch settings changes' });
+      return sendError(res, 500, 'Failed to fetch settings changes');
     }
   });
 
@@ -6124,7 +6113,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.redirect(307, req.url);
     } catch (error) {
       console.error('Owner SLA settings v1 alias error:', error);
-      res.status(500).json({ message: 'Failed to fetch owner and SLA settings' });
+      return sendError(res, 500, 'Failed to fetch owner and SLA settings');
     }
   });
 
@@ -6135,7 +6124,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.redirect(307, req.url);
     } catch (error) {
       console.error('SLA status 30 days v1 alias error:', error);
-      res.status(500).json({ message: 'Failed to fetch SLA status data' });
+      return sendError(res, 500, 'Failed to fetch SLA status data');
     }
   });
 
@@ -6146,7 +6135,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.redirect(307, req.url);
     } catch (error) {
       console.error('Settings changes v1 alias error:', error);
-      res.status(500).json({ message: 'Failed to fetch settings changes' });
+      return sendError(res, 500, 'Failed to fetch settings changes');
     }
   });
 
@@ -6693,9 +6682,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ));
     }
   });
-
-
-
   const httpServer = createServer(app);
   // Setup WebSocket server with authentication and subscriptions
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' });

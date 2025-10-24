@@ -180,7 +180,12 @@ const TenantsManagement = () => {
       toast({ title: 'Success', description: 'New tenant has been successfully created.' });
       setDialogOpen(false);
     } catch (error: any) {
-      toast({ title: 'Creation Failed', description: 'Failed to create tenant. Please try again.', variant: 'destructive' });
+      const raw = error?.message || 'Failed to create tenant. Please try again.';
+      let msg = raw;
+      if (typeof raw === 'string' && raw.trim().startsWith('{')) {
+        try { const j = JSON.parse(raw); if (j?.message) msg = j.message; } catch {}
+      }
+      toast({ title: 'Creation Failed', description: msg, variant: 'destructive' });
     }
   };
 
@@ -198,7 +203,12 @@ const TenantsManagement = () => {
         }));
       }
     } catch (error: any) {
-      toast({ title: 'Update Failed', description: 'Failed to update tenant. Please try again.', variant: 'destructive' });
+      const raw = error?.message || 'Failed to update tenant. Please try again.';
+      let msg = raw;
+      if (typeof raw === 'string' && raw.trim().startsWith('{')) {
+        try { const j = JSON.parse(raw); if (j?.message) msg = j.message; } catch {}
+      }
+      toast({ title: 'Update Failed', description: msg, variant: 'destructive' });
     }
   };
 

@@ -363,7 +363,14 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
       try {
         const result = await createEntity(entityData);
       } catch (err: any) {
-        const msg = err?.message || 'Failed to create entity';
+        let msg = err?.message || 'Failed to create entity';
+        // If backend returned a JSON error blob, extract the clean message
+        if (typeof msg === 'string' && msg.trim().startsWith('{')) {
+          try {
+            const parsed = JSON.parse(msg);
+            if (parsed && typeof parsed.message === 'string') msg = parsed.message;
+          } catch {}
+        }
         // Close modal first, then show toast for a few seconds (default behavior)
         onClose();
         toast({ title: 'Create Entity Failed', description: msg, variant: 'destructive' });
