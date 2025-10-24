@@ -1605,6 +1605,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: 'resolved',
         resolutionType: resolutionType || 'create_shared',
         resolutionNotes: resolutionNotes || '',
+        appliedPayload: effectivePayload,
         resolvedAt: new Date().toISOString(),
       });
 
@@ -1694,6 +1695,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: 'resolved',
         resolutionType: resolutionType || 'create_shared',
         resolutionNotes: resolutionNotes || '',
+        appliedPayload: effectivePayload,
         resolvedAt: new Date().toISOString(),
       });
 
@@ -6695,7 +6697,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 
   const httpServer = createServer(app);
-
   // Setup WebSocket server with authentication and subscriptions
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
   

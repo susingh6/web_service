@@ -412,6 +412,13 @@ const ConflictsManagement = () => {
     setDialogOpen(true);
   };
 
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [detailsConflict, setDetailsConflict] = useState<ConflictNotification | null>(null);
+  const openResolutionDetails = (conflict: ConflictNotification) => {
+    setDetailsConflict(conflict);
+    setDetailsOpen(true);
+  };
+
   const handleResolveConflict = (conflictId: string, resolution: any) => {
     resolveConflictMutation.mutate({ conflictId, resolution });
   };
@@ -577,11 +584,13 @@ const ConflictsManagement = () => {
                             Resolve
                           </Button>
                         ) : (
-                          <Chip 
-                            label="Resolved" 
-                            size="small" 
-                            color="success"
-                          />
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            onClick={() => openResolutionDetails(conflict)}
+                          >
+                            Resolution Details
+                          </Button>
                         )}
                       </TableCell>
                     </TableRow>
@@ -600,6 +609,50 @@ const ConflictsManagement = () => {
         onResolve={handleResolveConflict}
         isResolving={resolveConflictMutation.isPending}
       />
+
+      {/* Read-only resolution details dialog */}
+      <Dialog open={detailsOpen} onClose={() => setDetailsOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle>Resolution Details: {detailsConflict?.notificationId}</DialogTitle>
+        <DialogContent>
+          <Grid container spacing={3}>
+            <Grid size={12} sx={{ md: 6 }}>
+              <Card variant="outlined">
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    Summary
+                  </Typography>
+                  <Typography variant="body2" gutterBottom>
+                    <strong>Status:</strong> {detailsConflict?.status}
+                  </Typography>
+                  <Typography variant="body2" gutterBottom>
+                    <strong>Resolution:</strong> {(detailsConflict as any)?.resolutionType || 'Unknown'}
+                  </Typography>
+                  <Typography variant="body2" gutterBottom>
+                    <strong>Notes:</strong> {(detailsConflict as any)?.resolutionNotes || '—'}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid size={12} sx={{ md: 6 }}>
+              <Card variant="outlined">
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    Applied Payload
+                  </Typography>
+                  <Paper sx={{ mt: 1, p: 2, bgcolor: 'grey.50' }}>
+                    <Typography variant="caption" component="pre" sx={{ fontSize: '0.75rem', whiteSpace: 'pre-wrap' }}>
+                      {JSON.stringify((detailsConflict as any)?.appliedPayload || (detailsConflict as any)?.originalPayload || {}, null, 2)}
+                    </Typography>
+                  </Paper>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDetailsOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };
