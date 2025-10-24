@@ -826,8 +826,10 @@ export function useEntityMutation() {
         teamId
       };
     },
-    onError: (_err, _vars, ctx) => {
+    onError: (err: any, _vars, ctx) => {
       if (ctx?.previous) queryClient.setQueryData(ctx.key, ctx.previous);
+      // Error will be caught and displayed by the calling component
+      console.error('[CREATE_ENTITY_MUTATION] Error:', err?.message || err);
     },
     onSuccess: (result, _vars, ctx) => {
       if (ctx?.key && ctx?.optimisticId) {

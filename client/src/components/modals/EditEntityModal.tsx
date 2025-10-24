@@ -397,10 +397,8 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
 
       onClose();
     } catch (error) {
-      console.error('❌ ENTITY UPDATE ERROR:', error);
-      console.error('❌ ERROR TYPE:', typeof error);
-      console.error('❌ ERROR DETAILS:', JSON.stringify(error, null, 2));
-
+      // Close modal first so the toast is visible unobstructed
+      onClose();
       toast({
         title: 'Error',
         description: `Failed to update: ${error}`,

@@ -2274,17 +2274,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           redisCache.getEntitiesForApi({ tenantName: tenantNameStr }),
           redisCache.getAllTeams(),
         ]);
-        const activeTeamIds = new Set<number>(teams.filter((t: any) => (t as any).isActive !== false).map((t: any) => t.id));
+          const activeTeamIds = new Set<number>(teams.filter((t: any) => (t as any).isActive !== false).map((t: any) => t.id));
         entities = allEntities.filter((e: any) => (
           e.tenant_name === tenantNameStr &&
           e.is_entity_owner === true &&
           e.is_active !== false &&
           activeTeamIds.has((e.teamId ?? e.team_id) as number)
         ));
-        console.log(`GET /api/v1/entities - Parameters: tenant=${tenant} - status: 200`);
-      } else {
+          console.log(`GET /api/v1/entities - Parameters: tenant=${tenant} - status: 200`);
+        } else {
         entities = await redisCache.getEntitiesForApi({});
-        console.log(`GET /api/v1/entities - status: 200`);
+          console.log(`GET /api/v1/entities - status: 200`);
       }
       
       res.json(entities);
@@ -3526,6 +3526,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Non-fatal: if lookup fails we proceed with provided values
       }
 
+      // If not entity owner, require and validate owner_entity_reference strictly (entity_name + entity_type, case-insensitive)
+      try {
+        const isOwner = payload.is_entity_owner === true;
+        const refName = typeof payload.owner_entity_reference === 'string' ? payload.owner_entity_reference.trim() : undefined;
+        if (!isOwner) {
+          if (!refName) {
+            return res.status(400).json({ message: 'owner_entity_reference is required when is_entity_owner is false' });
+          }
+          const refType: 'table' | 'dag' = payload.type === 'table' ? 'table' : 'dag';
+          const matches = await redisCache.findSlimEntitiesByNameCI(refName, refType);
+          if (!matches || matches.length === 0) {
+            return res.status(404).json({ message: `Owner Entity Reference not found: ${refName}` });
+          }
+          // Populate owner_entity_ref_name from the first match (team/tenant context can refine later)
+          const m = matches[0];
+          payload.owner_entity_ref_name = {
+            entity_owner_name: m.entity_name,
+            entity_owner_tenant_id: m.tenant_id ?? null,
+            entity_owner_tenant_name: m.tenant_name ?? null,
+            entity_owner_team_id: m.team_id ?? null,
+            entity_owner_team_name: m.team_name ?? null,
+          };
+          // Also carry through owner_entity_reference for downstream persistence/backward compatibility
+          payload.owner_entity_reference = refName;
+          // Always align schedule/runtime to the referenced owner entity for non-owners
+          if ((m as any).entity_schedule) payload.entity_schedule = (m as any).entity_schedule;
+          if ((m as any).expected_runtime_minutes != null) payload.expected_runtime_minutes = (m as any).expected_runtime_minutes;
+        }
+      } catch {}
+
       // Create entity (automatically handles Redis vs storage based on mode)
       const entity = await redisCache.createEntity(payload);
       
@@ -3674,6 +3704,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
           tenantName = tenant ? tenant.name : undefined;
         } catch {}
       }
+
+      // If turning into non-owner with owner reference, validate reference exists before update
+      try {
+        const isOwner = req.body?.is_entity_owner === true ? true : (req.body?.is_entity_owner === false ? false : undefined);
+        const refName = typeof req.body?.owner_entity_reference === 'string' ? req.body.owner_entity_reference.trim() : undefined;
+        if (isOwner === false) {
+          if (!refName) {
+            return res.status(400).json({ message: 'owner_entity_reference is required when is_entity_owner is false' });
+          }
+          const matches = await redisCache.findSlimEntitiesByNameCI(refName, normalizedType as 'table' | 'dag');
+          if (!matches || matches.length === 0) {
+            return res.status(404).json({ message: `Owner Entity Reference not found: ${refName}` });
+          }
+          const m = matches[0];
+          // Prepare owner ref object and merge into updates payload
+          req.body.owner_entity_ref_name = {
+            entity_owner_name: m.entity_name,
+            entity_owner_tenant_id: m.tenant_id ?? null,
+            entity_owner_tenant_name: m.tenant_name ?? null,
+            entity_owner_team_id: m.team_id ?? null,
+            entity_owner_team_name: m.team_name ?? null,
+          };
+          req.body.owner_entity_reference = refName;
+          // Always align schedule/runtime to the referenced owner entity for non-owners
+          if ((m as any).entity_schedule) req.body.entity_schedule = (m as any).entity_schedule;
+          if ((m as any).expected_runtime_minutes != null) req.body.expected_runtime_minutes = (m as any).expected_runtime_minutes;
+        }
+      } catch {}
 
       // Redis-first slim update attempt by composite identifiers (tenantName + teamName + type + name)
       const slimUpdated = await redisCache.updateSlimEntityByComposite({

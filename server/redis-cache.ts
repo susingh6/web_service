@@ -132,6 +132,7 @@ export class RedisCache {
       is_entity_owner: e.is_entity_owner === true,
       is_active: e.is_active !== false,
       owner_entity_ref_name: ownerRef,
+      server_name: e.server_name ?? null,
     };
   }
 
@@ -169,6 +170,7 @@ export class RedisCache {
       'is_active',
       'owner_entity_ref_name',
       'entity_display_name',
+      'server_name',
     ]);
 
     const next = { ...current };
@@ -240,6 +242,10 @@ export class RedisCache {
     if (idx >= 0) list[idx] = { ...list[idx], ...slim };
     else list.push(slim);
     await this.redis.setex(CACHE_KEYS.ENTITIES, expireTime, JSON.stringify(list));
+    // Only index entity owners
+    if (slim.is_entity_owner === true) {
+      await this.updateEntityIndex(slim);
+    }
   }
 
   private async removeSlimEntityByKey(slimKey: string): Promise<void> {
@@ -249,6 +255,11 @@ export class RedisCache {
     const list: any[] = dataRaw ? JSON.parse(dataRaw) : [];
     const out = list.filter((x: any) => this.buildSlimCompositeKey(x) !== slimKey);
     await this.redis.setex(CACHE_KEYS.ENTITIES, expireTime, JSON.stringify(out));
+    // Best-effort: remove from index by reconstructing a stub slim from key
+    try {
+      const [tenantId, teamId, type, name] = slimKey.split(':');
+      await this.removeFromEntityIndex({ tenant_id: Number(tenantId), team_id: Number(teamId), entity_type: type, entity_name: name });
+    } catch {}
   }
 
   private async appendSlimRecentChange(slim: any, changeType: 'created' | 'updated' | 'deleted'): Promise<void> {
@@ -275,6 +286,77 @@ export class RedisCache {
       case 'thismonth': return 'this_month';
       default: return 'last_30_days';
     }
+  }
+
+  // ---------- Fast lookup index for slim entities by (type:name) ----------
+  private buildEntityIndexKey(entityType: string, entityName: string): string {
+    // Store index in lowercase for case-insensitive lookup
+    return `${String(entityType).toLowerCase()}:${String(entityName).toLowerCase()}`;
+  }
+
+  private async updateEntityIndex(slim: any): Promise<void> {
+    if (!this.useRedis || !this.redis) return;
+    try {
+      // Guard: index only entity owners
+      if (slim.is_entity_owner !== true) return;
+      const type = (slim.entity_type || slim.type || '').toString();
+      const name = (slim.entity_name || slim.name || '').toString();
+      if (!type || !name) return;
+      const indexKey = this.buildEntityIndexKey(type, name);
+      const raw = await this.redis.hget(CACHE_KEYS.ENTITY_INDEX, indexKey);
+      const arr: any[] = raw ? JSON.parse(raw) : [];
+      const composite = this.buildSlimCompositeKey(slim);
+      const idx = arr.findIndex((x: any) => this.buildSlimCompositeKey(x) === composite);
+      if (idx >= 0) arr[idx] = { ...arr[idx], ...slim };
+      else arr.push(slim);
+      await this.redis.hset(CACHE_KEYS.ENTITY_INDEX, indexKey, JSON.stringify(arr));
+    } catch {}
+  }
+
+  private async removeFromEntityIndex(slim: any): Promise<void> {
+    if (!this.useRedis || !this.redis) return;
+    try {
+      const type = (slim.entity_type || slim.type || '').toString();
+      const name = (slim.entity_name || slim.name || '').toString();
+      if (!type || !name) return;
+      const indexKey = this.buildEntityIndexKey(type, name);
+      const raw = await this.redis.hget(CACHE_KEYS.ENTITY_INDEX, indexKey);
+      if (!raw) return;
+      const arr: any[] = JSON.parse(raw);
+      const composite = this.buildSlimCompositeKey(slim);
+      const filtered = arr.filter((x: any) => this.buildSlimCompositeKey(x) !== composite);
+      if (filtered.length === 0) {
+        await this.redis.hdel(CACHE_KEYS.ENTITY_INDEX, indexKey);
+      } else {
+        await this.redis.hset(CACHE_KEYS.ENTITY_INDEX, indexKey, JSON.stringify(filtered));
+      }
+    } catch {}
+  }
+
+  // Public lookup: find slim entities by type+name using index, fall back to scan
+  async findSlimEntitiesByNameAndType(entityName: string, entityType: 'table' | 'dag'): Promise<any[]> {
+    if (!this.useRedis || !this.redis) return [];
+    try {
+      const indexKey = this.buildEntityIndexKey(entityType, entityName);
+      const raw = await this.redis.hget(CACHE_KEYS.ENTITY_INDEX, indexKey);
+      if (raw) {
+        return JSON.parse(raw);
+      }
+    } catch {}
+    // Fallback scan of ENTITIES list
+    try {
+      const listRaw = await this.redis.get(CACHE_KEYS.ENTITIES);
+      const list: any[] = listRaw ? JSON.parse(listRaw) : [];
+      const lowerRef = String(entityName).toLowerCase();
+      return list.filter((x: any) => (x.entity_type || x.type) === entityType && String(x.entity_name || x.name).toLowerCase() === lowerRef);
+    } catch {
+      return [];
+    }
+  }
+
+  // Strict case-insensitive finder by entity_name + entity_type only (no tenant/team scoping)
+  async findSlimEntitiesByNameCI(entityName: string, entityType: 'table' | 'dag'): Promise<any[]> {
+    return this.findSlimEntitiesByNameAndType(entityName, entityType);
   }
 
   private mapStatusFromCompliance(last_sla_status?: string | null): string {
@@ -353,6 +435,8 @@ export class RedisCache {
         name: e.entity_name,
         // Map display_name for table case to UI table_name field
         table_name: e.entity_type === 'table' ? (e.entity_display_name || e.entity_name) : undefined,
+        // Map display_name for dag case to UI dag_name field
+        dag_name: e.entity_type === 'dag' ? (e.entity_display_name || e.entity_name) : undefined,
         // enrich from compliance
         status: this.mapStatusFromCompliance(comp?.last_sla_status),
         currentSla: typeof comp?.last_sla_compliance_pct === 'number' ? comp.last_sla_compliance_pct : null,
@@ -1913,6 +1997,30 @@ export class RedisCache {
 
       // Also update slim cache immediately (ensure tenant_id via team lookup if missing)
       let slim = this.projectSlimEntity(entity);
+      // Enrich owner reference for non-owners using flexible lookup when missing
+      try {
+        if (slim.is_entity_owner === false && (!slim.owner_entity_ref_name || !slim.owner_entity_ref_name.entity_owner_name)) {
+          const refName = (entity as any).owner_entity_reference || (slim as any).owner_entity_reference;
+          const refType: 'table' | 'dag' = (entity as any).type === 'table' ? 'table' : 'dag';
+          if (refName) {
+            const matches = await this.findSlimEntitiesByNameCI(refName, refType);
+            if (matches && matches.length > 0) {
+              const m = matches[0];
+              slim.owner_entity_ref_name = {
+                entity_owner_name: m.entity_name,
+                entity_owner_tenant_id: m.tenant_id ?? null,
+                entity_owner_tenant_name: m.tenant_name ?? null,
+                entity_owner_team_id: m.team_id ?? null,
+                entity_owner_team_name: m.team_name ?? null,
+              };
+              // Persist owner_entity_reference for downstream consumers
+              (slim as any).owner_entity_reference = refName;
+              if ((m as any).entity_schedule) slim.entity_schedule = (m as any).entity_schedule;
+              if ((m as any).expected_runtime_minutes != null) slim.expected_runtime_minutes = (m as any).expected_runtime_minutes;
+            }
+          }
+        }
+      } catch {}
       if (!slim.tenant_id) {
         try {
           const teams = await this.getAllTeams();

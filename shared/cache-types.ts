@@ -42,6 +42,7 @@ export interface SlimEntity {
     entity_owner_team_id: number | null;
     entity_owner_team_name: string | null;
   };
+  server_name?: string | null;
 }
 
 // Redis-first compliance payload item used in sla:entitiescompliance

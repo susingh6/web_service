@@ -233,6 +233,7 @@ async function fetchSlaFromFastAPI(buildType: 'Regular' | 'Forced' = 'Regular'):
       is_entity_owner: e.is_entity_owner === true,
       is_active: e.is_active !== false,
       owner_entity_ref_name: e.owner_entity_ref_name ?? null,
+      server_name: e.server_name ?? null,
     } as SlimEntity;
   });
 }
@@ -494,6 +495,7 @@ function mapSlaDataToEntities(slaData: any[]): Entity[] {
     source_system: item.source_system || null,
     created_by_user_id: item.created_by_user_id || null,
     is_entity_owner: item.is_entity_owner !== false,
+    owner_entity_reference: item.owner_entity_reference ?? null,
     // Add missing required properties
     nextRefresh: item.next_refresh ? new Date(item.next_refresh) : new Date(Date.now() + 24 * 60 * 60 * 1000),
     owner: item.owner || item.owner_email || 'Unknown',

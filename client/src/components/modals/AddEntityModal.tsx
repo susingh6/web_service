@@ -37,6 +37,7 @@ import {
 import { InfoOutlined } from '@mui/icons-material';
 import { validateTenant, validateTeam, validateDag, updateCacheWithNewValue } from '@/lib/validationUtils';
 import { useAuth } from '@/hooks/use-auth';
+import { useToast } from '@/hooks/use-toast';
 import { fetchWithCacheGeneric, getFromCacheGeneric } from '@/lib/cacheUtils';
 import { 
   buildTableSchema as tableSchemaBuilder, 
@@ -106,6 +107,7 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
   
   // Use the new entity mutation hook with entity-type-specific cache invalidation
   const { createEntity } = useEntityMutation();
+  const { toast } = useToast();
   
   // Get authenticated user's email
   const { user } = useAuth();
@@ -318,11 +320,22 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
         refreshFrequency: data.refreshFrequency || 'Daily',
         owner: data.owner || data.owner_email || '',
         ownerEmail: data.ownerEmail || data.owner_email || '',
+        // Optional server fields (DAGs may provide; tables default to null)
+        server_name: data.server_name || null,
+        // For non-owner entities, pass the reference for server validation
+        ...(isEntityOwner ? {} : { owner_entity_reference: data.owner_entity_reference }),
       };
       
       // Use React Query mutation for proper cache invalidation
-      
-      const result = await createEntity(entityData);
+      try {
+        const result = await createEntity(entityData);
+      } catch (err: any) {
+        const msg = err?.message || 'Failed to create entity';
+        // Close modal first, then show toast for a few seconds (default behavior)
+        onClose();
+        toast({ title: 'Create Entity Failed', description: msg, variant: 'destructive' });
+        return;
+      }
       
       // Update local caches for dropdowns
       if (entityType === 'dag') {

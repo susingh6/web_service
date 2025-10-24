@@ -403,8 +403,8 @@ const EntityDetailsModal = ({ open, onClose, entity, teams, tenantName: propTena
       onClose();
       
     } catch (error) {
-      
-      
+      // Close confirm dialog so toast isn't hidden behind it
+      setOpenDeleteDialog(false);
       toast({
         title: 'Error',
         description: `Failed to delete ${entity.type}: ${error}`,

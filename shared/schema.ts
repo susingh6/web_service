@@ -76,6 +76,7 @@ export const entities = pgTable("entities", {
   user_email: text("user_email"),
   is_active: boolean("is_active").notNull().default(true), // Active status for admin management
   is_entity_owner: boolean("is_entity_owner").notNull().default(false), // Entity owner flag for frontend permissions
+  owner_entity_reference: text("owner_entity_reference"), // Reference to owner entity name for non-owners
   lastRun: timestamp("last_run"),
   lastStatus: text("last_status"),
   

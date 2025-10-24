@@ -185,14 +185,29 @@ export const entitiesApi = {
   create: async (entityData: any) => {
     try {
       const res = await environmentAwareApiRequest('POST', endpoints.entities, entityData);
-      if (res.ok) {
-        const entity = await res.json();
-        return normalizeEntity(entity);
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        try {
+          const json = text ? JSON.parse(text) : {};
+          throw new Error(json.message || text || `Create failed (${res.status})`);
+        } catch {
+          throw new Error(text || `Create failed (${res.status})`);
+        }
       }
-      return res;
+      const entity = await res.json();
+      return normalizeEntity(entity);
     } catch (err: any) {
       // If FastAPI path is missing in dev, fall back to Express route
       const res = await expressApiRequest('POST', '/api/entities', entityData);
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        try {
+          const json = text ? JSON.parse(text) : {};
+          throw new Error(json.message || text || `Create failed (${res.status})`);
+        } catch {
+          throw new Error(text || `Create failed (${res.status})`);
+        }
+      }
       const entity = await res.json();
       return normalizeEntity(entity);
     }
