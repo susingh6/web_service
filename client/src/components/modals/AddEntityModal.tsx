@@ -282,9 +282,21 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
       // These validations will be repeated on the server for security
       
       // Basic validation - check required fields based on entity owner status
-      let requiredFields = entityType === 'table' 
-        ? ['entity_name', 'tenant_name', 'team_name']
-        : ['dag_name', 'tenant_name', 'team_name'];
+      let requiredFields = ['tenant_name', 'team_name'];
+      if (entityType === 'table') {
+        requiredFields.unshift('entity_name');
+        if (isEntityOwner) {
+          // For owner tables, ensure schema and table name are also provided
+          requiredFields.push('schema_name', 'table_name');
+        }
+      } else {
+        // DAGs: owners must supply dag_name; non-owners use entity_name reference
+        if (isEntityOwner) {
+          requiredFields.unshift('dag_name');
+        } else {
+          requiredFields.unshift('entity_name');
+        }
+      }
       
       // Only require owner_email if user is marked as entity owner
       if (isEntityOwner) {
@@ -541,57 +553,63 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
                 )}
               />
               
-              <Controller
-                name="schema_name"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    label={fieldDefinitions.schema_name.label}
-                    fullWidth
-                    margin="normal"
-                    required
-                    error={!!(errors as any).schema_name}
-                    helperText={(errors as any).schema_name?.message}
-                    placeholder="e.g., public, sales, marketing"
-                  />
-                )}
-              />
+              {false && isEntityOwner && (
+                <Controller
+                  name="schema_name"
+                  control={control}
+                  render={({ field }) => (
+                    <TextField
+                      {...field}
+                      label={fieldDefinitions.schema_name.label}
+                      fullWidth
+                      margin="normal"
+                      required
+                      error={!!(errors as any).schema_name}
+                      helperText={(errors as any).schema_name?.message}
+                      placeholder="e.g., public, sales, marketing"
+                    />
+                  )}
+                />
+              )}
               
-              <Controller
-                name="table_name"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    label={fieldDefinitions.table_name.label}
-                    fullWidth
-                    margin="normal"
-                    required
-                    error={!!(errors as any).table_name}
-                    helperText={(errors as any).table_name?.message}
-                    placeholder="e.g., customer_master, orders, products"
-                  />
-                )}
-              />
+              {false && isEntityOwner && (
+                <Controller
+                  name="table_name"
+                  control={control}
+                  render={({ field }) => (
+                    <TextField
+                      {...field}
+                      label={fieldDefinitions.table_name.label}
+                      fullWidth
+                      margin="normal"
+                      required
+                      error={!!(errors as any).table_name}
+                      helperText={(errors as any).table_name?.message}
+                      placeholder="e.g., customer_master, orders, products"
+                    />
+                  )}
+                />
+              )}
               
-              <Controller
-                name="table_description"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    label={fieldDefinitions.table_description.label}
-                    fullWidth
-                    margin="normal"
-                    multiline
-                    rows={3}
-                    error={!!(errors as any).table_description}
-                    helperText={(errors as any).table_description?.message}
-                    placeholder="Brief description of this table"
-                  />
-                )}
-              />
+              {false && isEntityOwner && (
+                <Controller
+                  name="table_description"
+                  control={control}
+                  render={({ field }) => (
+                    <TextField
+                      {...field}
+                      label={fieldDefinitions.table_description.label}
+                      fullWidth
+                      margin="normal"
+                      multiline
+                      rows={3}
+                      error={!!(errors as any).table_description}
+                      helperText={(errors as any).table_description?.message}
+                      placeholder="Brief description of this table"
+                    />
+                  )}
+                />
+              )}
 
               {!isEntityOwner && (
                 <Controller
@@ -684,6 +702,58 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
 
               {isEntityOwner && (
                 <>
+                  {/* Table owner fields moved below toggle */}
+                  <Controller
+                    name="schema_name"
+                    control={control}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        label={fieldDefinitions.schema_name.label}
+                        fullWidth
+                        margin="normal"
+                        required
+                        error={!!(errors as any).schema_name}
+                        helperText={(errors as any).schema_name?.message}
+                        placeholder="e.g., public, sales, marketing"
+                      />
+                    )}
+                  />
+
+                  <Controller
+                    name="table_name"
+                    control={control}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        label={fieldDefinitions.table_name.label}
+                        fullWidth
+                        margin="normal"
+                        required
+                        error={!!(errors as any).table_name}
+                        helperText={(errors as any).table_name?.message}
+                        placeholder="e.g., customer_master, orders, products"
+                      />
+                    )}
+                  />
+
+                  <Controller
+                    name="table_description"
+                    control={control}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        label={fieldDefinitions.table_description.label}
+                        fullWidth
+                        margin="normal"
+                        multiline
+                        rows={3}
+                        error={!!(errors as any).table_description}
+                        helperText={(errors as any).table_description?.message}
+                        placeholder="Brief description of this table"
+                      />
+                    )}
+                  />
                   <Controller
                     name="table_schedule"
                     control={control}
@@ -904,52 +974,51 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
                 )}
               />
               
-              {entityType === 'dag' && (
+              {false && entityType === 'dag' && isEntityOwner && (
                 <Controller
                   name="dag_name"
                   control={control}
                   render={({ field: { onChange, value, onBlur } }) => (
-                  <Autocomplete
-                    value={value}
-                    onChange={(_, newValue) => {
-                      onChange(newValue);
-                    }}
-                    onInputChange={(_, newInputValue, reason) => {
-                      if (reason === 'input' && newInputValue.trim() !== '') {
-                        // Don't make API calls during typing - only when submitting
-                        // This improves performance significantly
-                      }
-                    }}
-                    freeSolo
-                    options={dagOptions}
-                    loading={loadingDags}
-                    renderInput={(params) => (
-                      <TextField
-                        {...params}
-                        label={fieldDefinitions.dag_name.label}
-                        required
-                        fullWidth
-                        margin="normal"
-                        error={!!(errors as any).dag_name}
-                        helperText={(errors as any).dag_name?.message}
-                        onBlur={onBlur}
-                        InputProps={{
-                          ...params.InputProps,
-                          endAdornment: (
-                            <>
-                              {loadingDags ? <CircularProgress color="inherit" size={20} /> : null}
-                              {params.InputProps.endAdornment}
-                            </>
-                          ),
-                        }}
-                      />
-                    )}
-                  />
+                    <Autocomplete
+                      value={value}
+                      onChange={(_, newValue) => {
+                        onChange(newValue);
+                      }}
+                      onInputChange={(_, newInputValue, reason) => {
+                        if (reason === 'input' && newInputValue.trim() !== '') {
+                          // Don't make API calls during typing - only when submitting
+                        }
+                      }}
+                      freeSolo
+                      options={dagOptions}
+                      loading={loadingDags}
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          label={fieldDefinitions.dag_name.label}
+                          required
+                          fullWidth
+                          margin="normal"
+                          error={!!(errors as any).dag_name}
+                          helperText={(errors as any).dag_name?.message}
+                          onBlur={onBlur}
+                          InputProps={{
+                            ...params.InputProps,
+                            endAdornment: (
+                              <>
+                                {loadingDags ? <CircularProgress color="inherit" size={20} /> : null}
+                                {params.InputProps.endAdornment}
+                              </>
+                            ),
+                          }}
+                        />
+                      )}
+                    />
                   )}
                 />
               )}
               
-              {entityType === 'dag' && (
+              {false && entityType === 'dag' && isEntityOwner && (
                 <Controller
                   name="dag_description"
                   control={control}
@@ -1059,8 +1128,63 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
                 sx={{ mt: 2 }}
               />
 
+              {/* Owner-only block: DAG fields first, then table fields */}
               {isEntityOwner && entityType === 'dag' && (
                 <>
+                  {/* DAG Name & Description now below the toggle */}
+                  <Controller
+                    name="dag_name"
+                    control={control}
+                    render={({ field: { onChange, value, onBlur } }) => (
+                      <Autocomplete
+                        value={value}
+                        onChange={(_, newValue) => {
+                          onChange(newValue);
+                        }}
+                        freeSolo
+                        options={dagOptions}
+                        loading={loadingDags}
+                        renderInput={(params) => (
+                          <TextField
+                            {...params}
+                            label={fieldDefinitions.dag_name.label}
+                            required
+                            fullWidth
+                            margin="normal"
+                            error={!!(errors as any).dag_name}
+                            helperText={(errors as any).dag_name?.message}
+                            onBlur={onBlur}
+                            InputProps={{
+                              ...params.InputProps,
+                              endAdornment: (
+                                <>
+                                  {loadingDags ? <CircularProgress color="inherit" size={20} /> : null}
+                                  {params.InputProps.endAdornment}
+                                </>
+                              ),
+                            }}
+                          />
+                        )}
+                      />
+                    )}
+                  />
+
+                  <Controller
+                    name="dag_description"
+                    control={control}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        label={fieldDefinitions.dag_description.label}
+                        fullWidth
+                        margin="normal"
+                        multiline
+                        rows={2}
+                        error={!!(errors as any).dag_description}
+                        helperText={(errors as any).dag_description?.message}
+                      />
+                    )}
+                  />
                   <Controller
                     name="dag_schedule"
                     control={control}

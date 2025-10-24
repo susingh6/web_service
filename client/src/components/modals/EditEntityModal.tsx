@@ -578,7 +578,7 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
                 )}
               />
 
-              {entityType === 'table' && (
+              {entityType === 'table' && entityDetails?.is_entity_owner && (
                 <>
                   <Controller
                     name="schema_name"
@@ -632,7 +632,7 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
               )}
 
 
-              {entityType === 'dag' && (
+              {entityType === 'dag' && entityDetails?.is_entity_owner && (
                 <>
 
               <Controller
@@ -644,9 +644,15 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
                     onChange={(_, newValue) => {
                       onChange(newValue);
                     }}
+                    openOnFocus
                     freeSolo
                     options={dagOptions}
                     loading={loadingDags}
+                    onInputChange={(_e, newInputValue, reason) => {
+                      if (reason === 'input' || reason === 'clear') {
+                        onChange(newInputValue || '');
+                      }
+                    }}
                     renderInput={(params) => (
                       <TextField
                         {...params}
@@ -704,6 +710,7 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
                 <Autocomplete
                   value={value}
                   onChange={(_, newValue) => onChange(newValue)}
+                  openOnFocus
                   onOpen={() => {
                     const typeParam: 'table' | 'dag' = (entity?.type || 'dag') === 'table' ? 'table' : 'dag';
                     fetch(`/api/entities/owner-reference-options?type=${encodeURIComponent(typeParam)}&limit=50&ts=${Date.now()}`, { cache: 'no-store' as RequestCache })
@@ -711,8 +718,18 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
                       .then(names => setOwnerRefOptions(Array.isArray(names) ? names : []))
                       .catch(() => setOwnerRefOptions([]));
                   }}
-                  onInputChange={async (_e, newInputValue) => {
+                  onFocus={() => {
+                    const typeParam: 'table' | 'dag' = (entity?.type || 'dag') === 'table' ? 'table' : 'dag';
+                    fetch(`/api/entities/owner-reference-options?type=${encodeURIComponent(typeParam)}&limit=50&ts=${Date.now()}`, { cache: 'no-store' as RequestCache })
+                      .then(r => r.json())
+                      .then(names => setOwnerRefOptions(Array.isArray(names) ? names : []))
+                      .catch(() => setOwnerRefOptions([]));
+                  }}
+                  onInputChange={async (_e, newInputValue, reason) => {
                     try {
+                      if (reason === 'input' || reason === 'clear') {
+                        onChange(newInputValue || '');
+                      }
                       const q = newInputValue?.trim();
                       const typeParam = (entity?.type || 'dag') === 'table' ? 'table' : 'dag';
                       const url = `/api/entities/owner-reference-options?type=${encodeURIComponent(typeParam)}${q ? `&q=${encodeURIComponent(q)}` : ''}&limit=50`;

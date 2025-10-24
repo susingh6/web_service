@@ -186,6 +186,26 @@ export class RedisCache {
         next.entity_display_name = schema ? `${schema}.${effectiveTable}` : effectiveTable;
       }
     }
+    // Map dag_name into entity_display_name for DAGs
+    if (params.entityType === 'dag') {
+      const dagName = params.updates.dag_name ?? null;
+      if (typeof dagName === 'string' && dagName.trim() !== '') {
+        next.entity_display_name = dagName.trim();
+      }
+    }
+
+    // For non-owner updates with a valid owner_entity_reference, mirror owner display_name and runtime/schedule
+    if (params.updates && params.updates.owner_entity_reference && next.is_entity_owner === false) {
+      try {
+        const matches = await this.findSlimEntitiesByNameCI(String(params.updates.owner_entity_reference), params.entityType);
+        if (matches && matches.length > 0) {
+          const m = matches[0] as any;
+          if (m.entity_display_name) next.entity_display_name = m.entity_display_name;
+          if (m.entity_schedule) (next as any).entity_schedule = m.entity_schedule;
+          if (m.expected_runtime_minutes != null) (next as any).expected_runtime_minutes = m.expected_runtime_minutes;
+        }
+      } catch {}
+    }
 
     // Apply allowed updates directly if present
     Object.keys(params.updates || {}).forEach(k => {
@@ -197,6 +217,11 @@ export class RedisCache {
     // Persist
     list[idx] = next;
     await this.redis.setex(CACHE_KEYS.ENTITIES, expireTime, JSON.stringify(list));
+
+    // Keep entity_index in sync for owner entities
+    if (next.is_entity_owner === true) {
+      await this.updateEntityIndex(next);
+    }
 
     // Track recent change
     await this.appendSlimRecentChange(next, 'updated');
@@ -1217,6 +1242,29 @@ export class RedisCache {
     }
     multi.setex(CACHE_KEYS.RECENT_CHANGES, expireTime, JSON.stringify(data.recentChanges || []));
     multi.setex(CACHE_KEYS.LAST_UPDATED, expireTime, JSON.stringify(data.lastUpdated));
+
+    // Atomically rebuild the owner index from the slim list we just wrote
+    try {
+      const indexMap = new Map<string, any[]>();
+      if (Array.isArray(entitiesForCache)) {
+        for (const e of entitiesForCache as any[]) {
+          if (!e || e.is_entity_owner !== true) continue; // owners only
+          const type = (e.entity_type || e.type || '').toString();
+          const name = (e.entity_name || e.name || '').toString();
+          if (!type || !name) continue;
+          const indexKey = `${type.toLowerCase()}:${name.toLowerCase()}`;
+          if (!indexMap.has(indexKey)) indexMap.set(indexKey, []);
+          indexMap.get(indexKey)!.push(e);
+        }
+      }
+      // Clear the hash and set fresh values in the same transaction
+      multi.del(CACHE_KEYS.ENTITY_INDEX);
+      indexMap.forEach((arr, field) => {
+        multi.hset(CACHE_KEYS.ENTITY_INDEX, field, JSON.stringify(arr));
+      });
+    } catch (e) {
+      // If index rebuild scheduling fails, proceed without blocking hydrate
+    }
     
     const results = await multi.exec();
     
@@ -1224,8 +1272,29 @@ export class RedisCache {
     if (!results || results.some(result => result[0] !== null)) {
       throw new Error('Atomic cache storage failed');
     }
-    
     // Cache data stored atomically in Redis successfully
+  }
+
+  // Rebuild sla:entity_index from current sla:entities (owners only)
+  private async rebuildEntityIndexFromSlim(): Promise<void> {
+    if (!this.redis) return;
+    const raw = await this.redis.get(CACHE_KEYS.ENTITIES);
+    const list: any[] = raw ? JSON.parse(raw) : [];
+
+    // Clear existing index
+    try {
+      const keys = await (this.redis as any).hkeys(CACHE_KEYS.ENTITY_INDEX);
+      if (Array.isArray(keys) && keys.length > 0) {
+        await (this.redis as any).hdel(CACHE_KEYS.ENTITY_INDEX, ...keys);
+      }
+    } catch (_) {}
+
+    // Re-index owners only
+    for (const item of list) {
+      if (item && item.is_entity_owner === true) {
+        await this.updateEntityIndex(item);
+      }
+    }
   }
 
   private async getCacheRefreshData(): Promise<CachedData> {
@@ -2030,24 +2099,27 @@ export class RedisCache {
       let slim = this.projectSlimEntity(entity);
       // Enrich owner reference for non-owners using flexible lookup when missing
       try {
-        if (slim.is_entity_owner === false && (!slim.owner_entity_ref_name || !slim.owner_entity_ref_name.entity_owner_name)) {
-          const refName = (entity as any).owner_entity_reference || (slim as any).owner_entity_reference;
+        if (slim.is_entity_owner === false) {
+          const refName = (entity as any).owner_entity_reference || (slim as any).owner_entity_reference || (slim as any).owner_entity_ref_name?.entity_owner_name;
           const refType: 'table' | 'dag' = (entity as any).type === 'table' ? 'table' : 'dag';
           if (refName) {
             const matches = await this.findSlimEntitiesByNameCI(refName, refType);
             if (matches && matches.length > 0) {
               const m = matches[0];
-              slim.owner_entity_ref_name = {
-                entity_owner_name: m.entity_name,
-                entity_owner_tenant_id: m.tenant_id ?? null,
-                entity_owner_tenant_name: m.tenant_name ?? null,
-                entity_owner_team_id: m.team_id ?? null,
-                entity_owner_team_name: m.team_name ?? null,
-              };
+              if (!slim.owner_entity_ref_name || !slim.owner_entity_ref_name.entity_owner_name) {
+                slim.owner_entity_ref_name = {
+                  entity_owner_name: m.entity_name,
+                  entity_owner_tenant_id: m.tenant_id ?? null,
+                  entity_owner_tenant_name: m.tenant_name ?? null,
+                  entity_owner_team_id: m.team_id ?? null,
+                  entity_owner_team_name: m.team_name ?? null,
+                };
+              }
               // Persist owner_entity_reference for downstream consumers
               (slim as any).owner_entity_reference = refName;
               if ((m as any).entity_schedule) slim.entity_schedule = (m as any).entity_schedule;
               if ((m as any).expected_runtime_minutes != null) slim.expected_runtime_minutes = (m as any).expected_runtime_minutes;
+              if ((m as any).entity_display_name) (slim as any).entity_display_name = (m as any).entity_display_name;
             }
           }
         }

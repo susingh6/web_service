@@ -3405,7 +3405,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/entities/owner-reference-options', async (req: Request, res: Response) => {
     try {
       const type = String(req.query.type || '').toLowerCase();
-      if (type !== 'table' && type !== 'dag') {
+        if (type !== 'table' && type !== 'dag') {
         return res.status(400).json({ message: 'Invalid type. Expected "table" or "dag"' });
       }
       const q = typeof req.query.q === 'string' ? req.query.q : undefined;

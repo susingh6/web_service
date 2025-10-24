@@ -1000,6 +1000,7 @@ export class MemStorage implements IStorage {
       owner: insertEntity.is_entity_owner === true ? (insertEntity.owner ?? null) : null,
       ownerEmail: insertEntity.is_entity_owner === true ? (insertEntity.ownerEmail ?? null) : null,
       owner_email: insertEntity.is_entity_owner === true ? (insertEntity.owner_email ?? insertEntity.ownerEmail ?? null) : null,
+      owner_entity_reference: insertEntity.owner_entity_reference ?? null,
       user_email: insertEntity.user_email ?? null, // Never fallback to ownerEmail
       tenant_name: insertEntity.tenant_name ?? null,
       team_name: insertEntity.team_name ?? null,
@@ -1047,6 +1048,7 @@ export class MemStorage implements IStorage {
       owner: mergedEntity.is_entity_owner === true ? (updates.owner ?? clonedEntity.owner ?? null) : null,
       ownerEmail: mergedEntity.is_entity_owner === true ? (updates.ownerEmail ?? clonedEntity.ownerEmail ?? null) : null,
       owner_email: mergedEntity.is_entity_owner === true ? (updates.owner_email ?? clonedEntity.owner_email ?? null) : null,
+      owner_entity_reference: mergedEntity.is_entity_owner === true ? null : (updates.owner_entity_reference ?? clonedEntity.owner_entity_reference ?? null),
     };
     this.entities.set(id, updatedEntity);
     return updatedEntity;
