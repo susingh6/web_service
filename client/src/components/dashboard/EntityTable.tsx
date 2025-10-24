@@ -82,9 +82,10 @@ const getHeadCells = (showActions: boolean, type: 'table' | 'dag', isTeamDashboa
   { id: type === 'table' ? 'table_name' : 'dag_name', label: type === 'table' ? 'Table Name' : 'DAG Name', numeric: false, disablePadding: false, sortable: true, width: '200px' },
   { id: isTeamDashboard ? 'is_active' as keyof Entity : 'teamId', label: isTeamDashboard ? 'Active' : 'Team', numeric: false, disablePadding: false, sortable: true, width: '120px' },
   { id: 'status', label: 'Status', numeric: false, disablePadding: false, sortable: true, width: '100px' },
-  { id: 'currentSla', label: 'Current SLA', numeric: true, disablePadding: false, sortable: true, width: '120px' },
-  { id: 'trend', label: trendLabel, numeric: true, disablePadding: false, sortable: false, width: '140px' },
-  { id: 'lastRefreshed', label: 'Last Updated', numeric: false, disablePadding: false, sortable: true, width: '150px' },
+  ...(isTeamDashboard ? [{ id: 'expectedFinish' as keyof Entity, label: 'Expected Finish', numeric: false, disablePadding: false, sortable: false, width: '150px' }] : []),
+  { id: 'currentSla', label: 'Current SLA', numeric: true, disablePadding: false, sortable: true, width: '110px' },
+  { id: 'trend', label: trendLabel, numeric: true, disablePadding: false, sortable: false, width: '160px' },
+  { id: 'lastRefreshed', label: 'Last Updated', numeric: false, disablePadding: false, sortable: true, width: '170px' },
   ...(showActions ? [{ id: 'actions' as const, label: 'Actions', numeric: false, disablePadding: false, sortable: false, width: '120px' }] : []),
 ];
 
@@ -194,9 +195,13 @@ const EntityTable = ({
     }
     
     // If metrics are unavailable for the selected range on team dashboard,
-    // show only recently created/updated entities (new entries should always show).
+    // prefer to show recent entities but do not hide everything when timestamps are missing.
     if (isTeamDashboard && !hasMetrics) {
-      result = result.filter(isEntityRecent);
+      const anyHasTimestamps = result.some(e => e.lastRefreshed || e.updatedAt);
+      if (anyHasTimestamps) {
+        const recentOnly = result.filter(isEntityRecent);
+        result = recentOnly.length > 0 ? recentOnly : result;
+      }
     }
 
     // Apply sorting
@@ -334,6 +339,59 @@ const EntityTable = ({
     } catch (error) {
       // In case toDateString fails
       return format(dateObj, 'MMM d, yyyy');
+    }
+  };
+
+  // Compute next expected finish timestamp from cron-like schedule and runtime
+  const computeExpectedFinish = (schedule: string | null | undefined, runtimeMinutes: number | null | undefined): string => {
+    if (!schedule || runtimeMinutes == null) return '—';
+    try {
+      const parts = schedule.trim().split(/\s+/);
+      if (parts.length < 5) return '—';
+      const [minField, hourField, domField] = [parts[0], parts[1], parts[2]];
+
+      const parseList = (field: string, min: number, max: number): number[] => {
+        if (field === '*') {
+          return Array.from({ length: max - min + 1 }, (_, i) => i + min);
+        }
+        const stepMatch = field.match(/^\*(?:\/(\d+))?$/);
+        if (stepMatch) {
+          const step = Number(stepMatch[1] || '1');
+          const arr: number[] = [];
+          for (let v = min; v <= max; v += step) arr.push(v);
+          return arr;
+        }
+        return field.split(',')
+          .map(v => Number(v))
+          .filter(v => !Number.isNaN(v) && v >= min && v <= max)
+          .sort((a, b) => a - b);
+      };
+
+      const minutes = parseList(minField, 0, 59);
+      const hours = parseList(hourField, 0, 23);
+      if (minutes.length === 0 || hours.length === 0) return '—';
+
+      const lastMinute = Math.max(...minutes);
+      const lastHour = Math.max(...hours);
+      const now = new Date();
+
+      // Monthly: choose configured day this month (cap to month's last day), at last hour:minute
+      if (domField !== '*') {
+        let dom = Number(domField);
+        if (Number.isNaN(dom) || dom < 1) dom = 1;
+        const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+        dom = Math.min(dom, lastDayOfMonth);
+        const candidate = new Date(now.getFullYear(), now.getMonth(), dom, lastHour, lastMinute, 0, 0);
+        const finish = new Date(candidate.getTime() + runtimeMinutes * 60 * 1000);
+        return format(finish, 'MMM d, hh:mm a');
+      }
+
+      // Daily/Hourly: choose the last scheduled time of the current day (ignore most recent run)
+      const candidate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), lastHour, lastMinute, 0, 0);
+      const finish = new Date(candidate.getTime() + runtimeMinutes * 60 * 1000);
+      return format(finish, 'MMM d, hh:mm a');
+    } catch {
+      return '—';
     }
   };
 
@@ -573,7 +631,7 @@ const EntityTable = ({
                         }
                       </Typography>
                     </TableCell>
-                    
+
                     <TableCell sx={{ width: '120px' }}>
                       <Typography variant="body2">
                         {isTeamDashboard ? (entity.is_active ? 'Yes' : 'No') : getTeamName(entity.teamId)}
@@ -620,13 +678,22 @@ const EntityTable = ({
                       </Box>
                     </TableCell>
                     
-                    <TableCell align="right" sx={{ width: '120px' }}>
+                    {/* Expected Finish (after Status) - Only on Team dashboards */}
+                    {isTeamDashboard && (
+                      <TableCell sx={{ width: '170px' }}>
+                        <Typography variant="body2">
+                          {computeExpectedFinish((entity as any).entity_schedule || (entity as any).dag_schedule || (entity as any).table_schedule, (entity as any).expected_runtime_minutes)}
+                        </Typography>
+                      </TableCell>
+                    )}
+                    
+                    <TableCell align="right" sx={{ width: '110px' }}>
                       <Typography variant="body2" fontWeight={500}>
                         {hasMetrics && typeof entity.currentSla === 'number' ? `${entity.currentSla.toFixed(1)}%` : '—'}
                       </Typography>
                     </TableCell>
                     
-                    <TableCell align="right" sx={{ width: '140px' }}>
+                    <TableCell align="right" sx={{ width: '160px', pr: 1.5 }}>
                       {hasMetrics ? (
                         <Box display="flex" alignItems="center" justifyContent="flex-end">
                           <Box component="span" color={`${trendData.color}.main`} display="flex" alignItems="center" mr={0.5}>
@@ -641,7 +708,7 @@ const EntityTable = ({
                       )}
                     </TableCell>
                     
-                    <TableCell sx={{ width: '150px' }}>
+                    <TableCell sx={{ width: '150px', pl: 2 }}>
                       <Typography variant="body2" color="text.secondary">
                         {formatDate(entity.lastRefreshed)}
                       </Typography>

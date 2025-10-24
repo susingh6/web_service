@@ -347,7 +347,8 @@ async function refreshFromFastAPI(buildType: 'Regular' | 'Forced' = 'Regular'): 
       lastUpdated: new Date(),
       source: 'fastapi',
       // New Redis-first payloads
-      entitiesSlim: slaData as SlimEntity[],
+      // Pass through last_reported_at if present so slim cache can use it as fallback
+      entitiesSlim: (slaData as any[]).map((e: any) => ({ ...e, last_reported_at: e.last_reported_at ?? null })) as SlimEntity[],
       entitiesCompliance: complianceData as EntitiesComplianceData[],
     };
 

@@ -133,6 +133,8 @@ export class RedisCache {
       is_active: e.is_active !== false,
       owner_entity_ref_name: ownerRef,
       server_name: e.server_name ?? null,
+      // Populate last_reported_at from source if provided; new creates/updates can set now()
+      last_reported_at: e.last_reported_at || null,
     };
   }
 
@@ -267,7 +269,7 @@ export class RedisCache {
     const expireTime = Math.floor(this.CACHE_DURATION_MS / 1000) + 300;
     const dataRaw = await this.redis.get(CACHE_KEYS.RECENT_CHANGES);
     let changes: any[] = dataRaw ? JSON.parse(dataRaw) : [];
-    changes.unshift({ ...slim, change_type: changeType, timestamp: new Date() });
+    changes.unshift({ ...slim, change_type: changeType, timestamp: new Date(), last_reported_at: slim.last_reported_at || new Date().toISOString() });
     if (changes.length > 50) changes = changes.slice(0, 50);
     await this.redis.setex(CACHE_KEYS.RECENT_CHANGES, expireTime, JSON.stringify(changes));
   }
@@ -437,10 +439,18 @@ export class RedisCache {
         table_name: e.entity_type === 'table' ? (e.entity_display_name || e.entity_name) : undefined,
         // Map display_name for dag case to UI dag_name field
         dag_name: e.entity_type === 'dag' ? (e.entity_display_name || e.entity_name) : undefined,
+        // Ensure schedule fields are available for UI (entity_schedule OR fallback to dag/table_schedule)
+        dag_schedule: e.entity_type === 'dag' ? (e.entity_schedule || e.dag_schedule) : undefined,
+        table_schedule: e.entity_type === 'table' ? (e.entity_schedule || e.table_schedule) : undefined,
         // enrich from compliance
         status: this.mapStatusFromCompliance(comp?.last_sla_status),
         currentSla: typeof comp?.last_sla_compliance_pct === 'number' ? comp.last_sla_compliance_pct : null,
-        lastRefreshed: comp?.last_reported_at ? new Date(comp.last_reported_at) : new Date(),
+        // When FastAPI compliance is unavailable, don't fabricate a shared timestamp.
+        // Leave null so UI shows '—' and avoids copying the same time to all entities.
+        // Prefer compliance last_reported_at; fallback to slim.last_reported_at so UI always has a timestamp
+        lastRefreshed: comp?.last_reported_at
+          ? new Date(comp.last_reported_at)
+          : (e.last_reported_at ? new Date(e.last_reported_at) : null),
       };
     });
 
@@ -2030,6 +2040,10 @@ export class RedisCache {
           }
         } catch {}
       }
+      // Ensure last_reported_at exists for newly created/updated entities
+      if (!slim.last_reported_at) {
+        slim.last_reported_at = new Date().toISOString();
+      }
       await this.upsertSlimEntity(slim);
       
       // Record the change
@@ -2049,7 +2063,8 @@ export class RedisCache {
       recentChanges.unshift({
         ...(slim as any),
         change_type: 'created',
-        timestamp: new Date()
+        timestamp: new Date(),
+        last_reported_at: (slim as any).last_reported_at || new Date().toISOString(),
       } as any);
       
       // Keep only last 50 changes

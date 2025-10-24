@@ -72,18 +72,33 @@ async function expressApiRequest(
 
   if (!response.ok) {
     const text = (await response.text()) || response.statusText;
-    
-    // Try to parse as JSON to extract a specific error message
+
+    // Try to parse as JSON and build a friendly message (flatten zod-style errors)
     try {
       const errorData = JSON.parse(text);
-      if (errorData && typeof errorData.message === 'string') {
-        throw new Error(errorData.message);
+      if (errorData) {
+        let msg: string | undefined = typeof errorData.message === 'string' ? errorData.message : undefined;
+        // Flatten common zod error shape: { field: { _errors: [..] }, _errors: [] }
+        if (errorData.errors && typeof errorData.errors === 'object') {
+          const parts: string[] = [];
+          for (const [key, val] of Object.entries(errorData.errors)) {
+            if (key === '_errors') continue;
+            const errs = (val as any)?._errors;
+            if (Array.isArray(errs) && errs.length > 0) {
+              parts.push(`${key}: ${errs.join('; ')}`);
+            }
+          }
+          if (parts.length > 0) {
+            msg = msg ? `${msg}: ${parts.join(', ')}` : parts.join(', ');
+          }
+        }
+        if (msg) throw new Error(msg);
       }
-    } catch (parseError) {
-      // If JSON parsing fails, fall back to original behavior
+    } catch {
+      // ignore JSON parse failure
     }
-    
-    throw new Error(`${response.status}: ${text}`);
+
+    throw new Error(text || `${response.status}`);
   }
   
   return response;

@@ -380,6 +380,9 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
         teamId: entity.teamId, // Keep existing team
         user_email: userEmail, // Use authenticated user's email
         ...data,
+        // Ensure schedule/runtime are present for immediate Expected Finish display
+        entity_schedule: entityType === 'dag' ? data.dag_schedule : data.table_schedule,
+        expected_runtime_minutes: data.expected_runtime_minutes,
       };
 
       console.log('🚀 ENTITY UPDATE START:', { entityName: entity.name, entityType, entityData });

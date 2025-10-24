@@ -314,6 +314,9 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
         teamId: team.id, // Add team ID for cache invalidation
         
         is_entity_owner: isEntityOwner, // CRITICAL: Map the ownership state to the entity field
+        // Feed schedule/runtime so Expected Finish can render immediately (optimistic)
+        entity_schedule: entityType === 'dag' ? data.dag_schedule : data.table_schedule,
+        expected_runtime_minutes: data.expected_runtime_minutes,
         // Ensure required fields are included for both table and DAG entities
         slaTarget: data.slaTarget || 95,
         status: data.status || 'Active', 
