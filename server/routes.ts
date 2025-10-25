@@ -1562,6 +1562,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } as any;
         await (redisCache as any).upsertSlimEntity(slim, { broadcast: true });
         try { await (redisCache as any).updateConflictIndexForOwner(slim); } catch {}
+        // Notify clients that entities changed so team dashboards refresh
+        try {
+          await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.ENTITIES, {
+            action: 'upsert',
+            entityType,
+            entityName: entityDisplayName,
+            teamName: requestTeam,
+            tenantName,
+            timestamp: new Date().toISOString(),
+          });
+        } catch {}
       }
 
       await redisCache.patchConflict(notificationId, {
@@ -1652,6 +1663,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } as any;
         await (redisCache as any).upsertSlimEntity(slim, { broadcast: true });
         try { await (redisCache as any).updateConflictIndexForOwner(slim); } catch {}
+        try {
+          await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.ENTITIES, {
+            action: 'upsert',
+            entityType,
+            entityName: entityDisplayName,
+            teamName: requestTeam,
+            tenantName,
+            timestamp: new Date().toISOString(),
+          });
+        } catch {}
       }
 
       await redisCache.patchConflict(notificationId, {
@@ -3842,6 +3863,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     if (officialId) {
                       await redisCache.replaceConflictNotificationId(tempId, officialId);
                     }
+                    try {
+                      await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.CONFLICTS, {
+                        action: 'create',
+                        id: officialId || tempId,
+                        timestamp: new Date().toISOString(),
+                      });
+                    } catch {}
                   }
                 } else {
                   // Fallback to Redis-only recording
@@ -3856,6 +3884,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     user_email: req.user?.email || req.body?.user_email || null,
                     originalPayload: req.body,
                   });
+                  try {
+                    await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.CONFLICTS, {
+                      action: 'create',
+                      id: `local-${Date.now()}`,
+                      timestamp: new Date().toISOString(),
+                    });
+                  } catch {}
                 }
               } catch {
                 // Best-effort fallback to Redis log
@@ -3870,6 +3905,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   user_email: req.user?.email || req.body?.user_email || null,
                   originalPayload: req.body,
                 });
+                try {
+                  await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.CONFLICTS, {
+                    action: 'create',
+                    id: `fallback-${Date.now()}`,
+                    timestamp: new Date().toISOString(),
+                  });
+                } catch {}
               }
               const ownersList = (conflict.owners || []).join(', ');
               return res.status(409).json(createErrorResponse(`Ownership conflict detected. Current owner(s): ${ownersList}. Please contact an admin for resolution.`, 'conflict'));

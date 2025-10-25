@@ -208,6 +208,12 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
                   queryClient.invalidateQueries({ queryKey: ['admin', 'permissions'] });
                   break;
                 }
+                case 'conflicts-cache': {
+                  // Update System Overview and Conflicts pages
+                  queryClient.invalidateQueries({ queryKey: ['admin', 'conflicts', 'overview'] });
+                  queryClient.invalidateQueries({ queryKey: ['admin', 'conflicts', 'v2'] });
+                  break;
+                }
                 case 'tenants-cache': {
                   queryClient.invalidateQueries({ queryKey: ['admin', 'tenants'] });
                   queryClient.invalidateQueries({ queryKey: [buildUrl(endpoints.tenants)] });
@@ -219,6 +225,14 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
                   // Teams listings and related views
                   queryClient.invalidateQueries({ queryKey: ['admin', 'teams'] });
                   queryClient.invalidateQueries({ queryKey: [buildUrl(endpoints.teams)] });
+                  break;
+                }
+                case 'entities-cache': {
+                  // Refresh tenant/team entity lists and dashboard summary
+                  queryClient.invalidateQueries({ queryKey: ['/api/entities'] });
+                  queryClient.invalidateQueries({ queryKey: ['/api/v1/entities'] });
+                  queryClient.invalidateQueries({ queryKey: ['/api/dashboard/summary'] });
+                  queryClient.invalidateQueries({ queryKey: ['/api/v1/dashboard/summary'] });
                   break;
                 }
                 default:
