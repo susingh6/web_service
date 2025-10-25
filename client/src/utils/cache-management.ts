@@ -856,11 +856,10 @@ export function useEntityMutation() {
   // UPDATE
   const updateMutation = useMutation<any, Error, { entityName: string; entityType: Entity['type']; entityData: any }, UpdateMutationContext>({
     mutationFn: async ({ entityName, entityType, entityData }) => {
-      // Use the name-based updateEntity function with FastAPI/Express fallback
+      // Use the name-based updateEntity function with canonical updates only
       return await entitiesApi.updateEntity({
         type: entityType,
         entityName: entityName,
-        entity: { name: entityName, type: entityType, ...entityData },
         updates: entityData
       });
     },

@@ -294,7 +294,9 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
         team_name: entityDetails.team_name || '',
         notification_preferences: entityDetails.notification_preferences || [],
         is_entity_owner: entityDetails.is_entity_owner || false,
-        owner_entity_ref_name: (entityDetails as any).owner_entity_ref_name || (entityDetails as any).owner_entity_reference || '',
+        owner_entity_ref_name: (typeof (entityDetails as any).owner_entity_ref_name === 'string'
+          ? (entityDetails as any).owner_entity_ref_name
+          : (entityDetails as any).owner_entity_ref_name?.entity_owner_name) || (entityDetails as any).owner_entity_reference || '',
 
         is_active: entityDetails.is_active !== undefined ? entityDetails.is_active : true,
         expected_runtime_minutes: entityDetails.expected_runtime_minutes || 60,
@@ -311,7 +313,9 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
         team_name: entityDetails.team_name || '',
         notification_preferences: entityDetails.notification_preferences || [],
         is_entity_owner: entityDetails.is_entity_owner || false,
-        owner_entity_ref_name: (entityDetails as any).owner_entity_ref_name || (entityDetails as any).owner_entity_reference || '',
+        owner_entity_ref_name: (typeof (entityDetails as any).owner_entity_ref_name === 'string'
+          ? (entityDetails as any).owner_entity_ref_name
+          : (entityDetails as any).owner_entity_ref_name?.entity_owner_name) || (entityDetails as any).owner_entity_reference || '',
 
         is_active: entityDetails.is_active !== undefined ? entityDetails.is_active : true,
         expected_runtime_minutes: entityDetails.expected_runtime_minutes || 60,
@@ -374,18 +378,85 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
         return;
       }
 
-      // Convert form data to entity format
-      const entityData = {
-        name: data.entity_name, // Use entity_name from form
-        description: entityType === 'table' ? data.table_description : data.dag_description,
-        type: entityType,
-        teamId: entity.teamId, // Keep existing team
-        user_email: userEmail, // Use authenticated user's email
-        ...data,
-        // Ensure schedule/runtime are present for immediate Expected Finish display
-        entity_schedule: entityType === 'dag' ? data.dag_schedule : data.table_schedule,
-        expected_runtime_minutes: data.expected_runtime_minutes,
+      // Build canonical PATCH updates: send only changed fields; use null when user cleared
+      const prev: any = entityDetails || {};
+      const updates: any = {};
+
+      const toNull = (v: any) => {
+        if (v === undefined || v === null) return null;
+        if (typeof v === 'string' && v.trim() === '') return null;
+        return v;
       };
+      const changed = (next: any, prevVal: any) => JSON.stringify(next ?? null) !== JSON.stringify(prevVal ?? null);
+
+      // Common fields (both types)
+      if (changed(data.is_active, prev.is_active)) updates.is_active = !!data.is_active;
+      if (changed(data.expected_runtime_minutes, prev.expected_runtime_minutes)) updates.expected_runtime_minutes = toNull(data.expected_runtime_minutes);
+      if (changed(data.server_name, prev.server_name)) updates.server_name = toNull(data.server_name);
+      if (changed(data.donemarker_location, prev.donemarker_location)) updates.donemarker_location = toNull(data.donemarker_location);
+      if (changed(data.donemarker_lookback, prev.donemarker_lookback)) updates.donemarker_lookback = (data.donemarker_lookback ?? null);
+
+      const wasOwner = !!prev.is_entity_owner;
+      const nowOwner = data.is_entity_owner === true ? true : (data.is_entity_owner === false ? false : wasOwner);
+
+      if (entityType === 'dag') {
+        if (nowOwner) {
+          // Owner editable fields
+          if (changed(data.dag_name, prev.dag_name)) updates.dag_name = toNull(data.dag_name);
+          if (changed(data.dag_schedule, prev.dag_schedule)) updates.dag_schedule = toNull(data.dag_schedule);
+          if (changed((data as any).dag_description, prev.dag_description)) updates.dag_description = toNull((data as any).dag_description);
+          if (changed((data as any).dag_dependency, prev.dag_dependency)) updates.dag_dependency = toNull((data as any).dag_dependency);
+          // If switching from non-owner to owner, clear reference
+          if (!wasOwner && nowOwner) updates.owner_entity_ref_name = null;
+        } else {
+          // Non-owner: require/reference owner; null-out owner-only fields
+          if (changed((data as any).owner_entity_ref_name, prev.owner_entity_ref_name?.entity_owner_name || prev.owner_entity_reference)) {
+            updates.owner_entity_ref_name = toNull((data as any).owner_entity_ref_name);
+          }
+          updates.owner_email = null;
+          updates.dag_name = null;
+          updates.dag_schedule = null;
+          updates.dag_description = null;
+          updates.dag_dependency = null;
+          updates.expected_runtime_minutes = null;
+          updates.donemarker_location = null;
+          updates.donemarker_lookback = null;
+        }
+      } else {
+        // table
+        if (nowOwner) {
+          if (changed(data.schema_name, prev.schema_name)) updates.schema_name = toNull(data.schema_name);
+          if (changed(data.table_name, prev.table_name)) updates.table_name = toNull(data.table_name);
+          if (changed(data.table_schedule, prev.table_schedule)) updates.table_schedule = toNull(data.table_schedule);
+          if (changed((data as any).table_description, prev.table_description)) updates.table_description = toNull((data as any).table_description);
+          if (changed((data as any).table_dependency, prev.table_dependency)) updates.table_dependency = toNull((data as any).table_dependency);
+          if (!wasOwner && nowOwner) updates.owner_entity_ref_name = null;
+        } else {
+          if (changed((data as any).owner_entity_ref_name, prev.owner_entity_ref_name?.entity_owner_name || prev.owner_entity_reference)) {
+            updates.owner_entity_ref_name = toNull((data as any).owner_entity_ref_name);
+          }
+          updates.owner_email = null;
+          updates.table_name = null;
+          updates.table_schedule = null;
+          updates.table_description = null;
+          updates.table_dependency = null;
+          updates.expected_runtime_minutes = null;
+          updates.donemarker_location = null;
+          updates.donemarker_lookback = null;
+        }
+      }
+
+      // Always include current team_name and tenant_name for FastAPI/Express compatibility (no change of ownership context)
+      if (!('team_name' in updates) && prev.team_name) {
+        updates.team_name = prev.team_name;
+      }
+      if (!('tenant_name' in updates) && prev.tenant_name) {
+        updates.tenant_name = prev.tenant_name;
+      }
+      // Final cleanup: remove undefined, keep nulls (intentional clears)
+      Object.keys(updates).forEach(k => updates[k] === undefined && delete updates[k]);
+
+      const entityData = updates;
 
       console.log('🚀 ENTITY UPDATE START:', { entityName: entity.name, entityType, entityData });
 
@@ -404,9 +475,25 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
     } catch (error) {
       // Close modal first so the toast is visible unobstructed
       onClose();
+      const extractMessage = (err: any): string => {
+        const raw = err?.message ?? String(err ?? 'Unknown error');
+        try {
+          const maybe = JSON.parse(raw);
+          if (maybe && typeof maybe.message === 'string') return maybe.message;
+        } catch {}
+        const jsonStart = raw.indexOf('{');
+        if (jsonStart !== -1) {
+          try {
+            const inner = JSON.parse(raw.slice(jsonStart));
+            if (inner && typeof inner.message === 'string') return inner.message;
+          } catch {}
+        }
+        return raw;
+      };
+      const cleanMessage = extractMessage(error);
       toast({
         title: 'Error',
-        description: `Failed to update: ${error}`,
+        description: `Failed to update: ${cleanMessage}`,
         variant: 'destructive',
       });
     } finally {
