@@ -227,11 +227,11 @@ export const useGetDagTasks = (dagId?: number) => {
     queryKey: dagId ? CACHE_PATTERNS.TASKS.BY_DAG(dagId) : ['tasks'],
     queryFn: async () => {
       if (!dagId) return [];
-      
       try {
-        const response = await apiRequest('GET', endpoints.entity.tasks(dagId));
+        // Legacy Express fallback by numeric ID
+        const response = await fetch(`/api/dags/${dagId}/tasks`, { credentials: 'include' });
+        if (!response.ok) throw new Error('Failed to fetch tasks');
         const allTasks = await response.json();
-        
         return allTasks.map((task: any) => ({
           id: task.id,
           name: task.name,
@@ -243,13 +243,43 @@ export const useGetDagTasks = (dagId?: number) => {
           dependencies: task.dependencies || [],
         })) as Task[];
       } catch (error) {
-        console.error('Error fetching tasks:', error);
+        console.error('Error fetching tasks by dagId:', error);
         return [];
       }
     },
     enabled: !!dagId,
-    staleTime: 6 * 60 * 60 * 1000, // 6 hours - same as entities/teams/tenants
-    gcTime: 6 * 60 * 60 * 1000, // Keep in cache for 6 hours
+    staleTime: 6 * 60 * 60 * 1000,
+    gcTime: 6 * 60 * 60 * 1000,
+  });
+};
+
+// Preferred: Fetch tasks by entity name to match /api/v1/dags/:entityName/tasks
+export const useGetDagTasksByName = (entityName?: string) => {
+  return useQuery({
+    queryKey: entityName ? CACHE_PATTERNS.TASKS.BY_DAG_NAME(entityName) : ['tasks'],
+    queryFn: async () => {
+      if (!entityName) return [];
+      try {
+        const response = await apiRequest('GET', endpoints.entity.tasks(entityName));
+        const allTasks = await response.json();
+        return allTasks.map((task: any) => ({
+          id: task.id,
+          name: task.name,
+          description: task.description,
+          priority: task.task_type === 'AI' ? 'high' : 'normal',
+          task_type: task.task_type,
+          status: task.status,
+          duration: task.duration,
+          dependencies: task.dependencies || [],
+        })) as Task[];
+      } catch (error) {
+        console.error('Error fetching tasks by entityName:', error);
+        return [];
+      }
+    },
+    enabled: !!entityName,
+    staleTime: 6 * 60 * 60 * 1000,
+    gcTime: 6 * 60 * 60 * 1000,
   });
 };
 

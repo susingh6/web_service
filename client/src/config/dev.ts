@@ -87,7 +87,6 @@ export const devConfig = {
     
     // Entity operations - FastAPI
     entity: {
-      byId: (id: number) => `/api/v1/entities/${id}`,
       byTeam: (teamId: number) => `/api/v1/entities?teamId=${teamId}`,
       history: (entityId: number) => `/api/v1/entities/${entityId}/history`,
       issues: (entityId: number) => `/api/v1/entities/${entityId}/issues`,

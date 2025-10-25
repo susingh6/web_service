@@ -540,7 +540,7 @@ const EntityTable = ({
                    pageEntities[index - 1].is_entity_owner !== entity.is_entity_owner);
                 
                 const groupHeaderRow = shouldShowGroupHeader ? (
-                  <TableRow key={`group-header-${entity.is_entity_owner ? 'owners' : 'non-owners'}`}>
+                  <TableRow key={`group-header-${entity.is_entity_owner ? 'owners' : 'non-owners'}-${index}`}>
                     <TableCell 
                       colSpan={headCells.length + 1}
                       sx={{ 
@@ -563,7 +563,7 @@ const EntityTable = ({
                     role="checkbox"
                     aria-checked={isItemSelected}
                     tabIndex={-1}
-                    key={entity.id}
+                    key={`${entity.id ?? entity.name}-${index}`}
                     selected={isItemSelected}
                   >
                     <TableCell padding="checkbox" onClick={(e) => e.stopPropagation()}>

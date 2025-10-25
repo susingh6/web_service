@@ -167,10 +167,6 @@ export const entitiesApi = {
     const entities = await res.json();
     return entities.map(normalizeEntity);
   },
-  getById: async (id: number) => {
-    const res = await environmentAwareApiRequest('GET', endpoints.entity.byId(id));
-    return await res.json();
-  },
   getByTeam: async (teamId: number) => {
     // In development, prefer Express for team lists to stay consistent with Express delete fallback
     const res = isDevelopment
@@ -234,14 +230,6 @@ export const entitiesApi = {
     const res = await expressApiRequest('POST', '/api/entities/bulk', entities);
     const data = await res.json();
     return Array.isArray(data) ? data.map(normalizeEntity) : data;
-  },
-  update: async (payload: { id: number; updates: any }) => {
-    const res = await environmentAwareApiRequest('PUT', endpoints.entity.byId(payload.id), payload.updates);
-    if (res.ok) {
-      const entity = await res.json();
-      return normalizeEntity(entity);
-    }
-    return res;
   },
   updateEntity: async ({ type, entityName, entity, updates }: { 
     type: Entity['type']; 
@@ -428,19 +416,11 @@ export const dagsApi = {
     const res = await environmentAwareApiRequest('GET', '/api/dags');
     return await res.json();
   },
-  getById: async (id: number): Promise<Entity> => {
-    const res = await environmentAwareApiRequest('GET', endpoints.entity.byId(id));
-    return await res.json();
-  },
 };
 
 export const tablesApi = {
   getAll: async (): Promise<Entity[]> => {
     const res = await environmentAwareApiRequest('GET', '/api/tables');
-    return await res.json();
-  },
-  getById: async (id: number): Promise<Entity> => {
-    const res = await environmentAwareApiRequest('GET', endpoints.entity.byId(id));
     return await res.json();
   },
 };

@@ -195,6 +195,14 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
                   queryClient.invalidateQueries({ queryKey: ['admin', 'users', 'v2'] });
                   break;
                 }
+                case 'roles-cache': {
+                  queryClient.invalidateQueries({ queryKey: ['admin', 'roles'] });
+                  break;
+                }
+                case 'permissions-cache': {
+                  queryClient.invalidateQueries({ queryKey: ['admin', 'permissions'] });
+                  break;
+                }
                 case 'tenants-cache': {
                   queryClient.invalidateQueries({ queryKey: ['admin', 'tenants'] });
                   queryClient.invalidateQueries({ queryKey: [buildUrl(endpoints.tenants)] });

@@ -66,12 +66,7 @@ export const fetchEntities = createAsyncThunk(
   }
 );
 
-export const fetchEntity = createAsyncThunk(
-  'entities/fetchOne',
-  async (id: number) => {
-    return await entitiesApi.getById(id);
-  }
-);
+// Removed id-based fetch; use name-based reads where needed
 
 export const fetchTeams = createAsyncThunk(
   'entities/fetchTeams',
@@ -168,20 +163,7 @@ const entitiesSlice = createSlice({
         state.error = action.error.message || 'Failed to fetch entities';
       })
       
-      // fetchEntity
-      .addCase(fetchEntity.pending, (state) => {
-        state.isLoading = true;
-        state.error = null;
-      })
-      .addCase(fetchEntity.fulfilled, (state, action) => {
-        state.isLoading = false;
-        // Deep clone to prevent nested reference sharing with list entities
-        state.selectedEntity = structuredClone(action.payload);
-      })
-      .addCase(fetchEntity.rejected, (state, action) => {
-        state.isLoading = false;
-        state.error = action.error.message || 'Failed to fetch entity';
-      })
+      // removed id-based fetchEntity handlers
       
       // fetchTeams
       .addCase(fetchTeams.pending, (state) => {
