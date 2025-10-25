@@ -23,6 +23,7 @@ export const WEBSOCKET_CONFIG = {
     METRICS: 'metrics-cache',
     ROLES: 'roles-cache',
     PERMISSIONS: 'permissions-cache',
+    ADMIN_MESSAGES: 'admin-messages-cache',
     GENERAL: 'general-cache', // Fallback for operations affecting multiple areas
   },
   
@@ -45,6 +46,7 @@ export const WEBSOCKET_CONFIG = {
     'metrics-cache': ['summary-dashboard', 'team-dashboard', 'singleton'],
     'roles-cache': ['roles-management', 'singleton'],
     'permissions-cache': ['roles-management', 'singleton'],
+    'admin-messages-cache': ['singleton'],
     'general-cache': ['summary-dashboard', 'team-dashboard', 'teams-management', 'singleton'], // Broad updates
   } as Record<string, string[]>,
   

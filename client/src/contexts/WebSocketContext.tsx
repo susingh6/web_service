@@ -195,6 +195,11 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
                   queryClient.invalidateQueries({ queryKey: ['admin', 'users', 'v2'] });
                   break;
                 }
+                case 'admin-messages-cache': {
+                  // Refetch broadcast messages list so non-popup UIs update instantly
+                  queryClient.invalidateQueries({ queryKey: ['broadcast-messages'] });
+                  break;
+                }
                 case 'roles-cache': {
                   queryClient.invalidateQueries({ queryKey: ['admin', 'roles'] });
                   break;

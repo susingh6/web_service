@@ -1355,6 +1355,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             expiresAt: newMessage.expiresAt ? new Date(newMessage.expiresAt) : null,
             createdAt: new Date(newMessage.createdAt),
           });
+          // Also emit cache-updated to force instant refetch for clients that rely on query polling
+          try {
+            await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.ADMIN_MESSAGES, {
+              action: 'create',
+              id: newMessage.id,
+              timestamp: new Date().toISOString(),
+            });
+          } catch {}
         }
 
         return res.status(201).json({
@@ -1384,6 +1392,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           createdAt: typeof newMessage.createdAt === 'string' ? new Date(newMessage.createdAt) : newMessage.createdAt,
           expiresAt: newMessage.expiresAt ? (typeof newMessage.expiresAt === 'string' ? new Date(newMessage.expiresAt) : newMessage.expiresAt) : null
         });
+        try {
+          await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.ADMIN_MESSAGES, {
+            action: 'create',
+            id: newMessage.id,
+            timestamp: new Date().toISOString(),
+          });
+        } catch {}
       }
 
       res.status(201).json({
@@ -1438,6 +1453,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         success: true,
         message: "Broadcast message deactivated successfully"
       });
+
+      // Notify clients to refetch admin messages immediately
+      try {
+        await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.ADMIN_MESSAGES, {
+          action: 'delete',
+          id: messageId,
+          timestamp: new Date().toISOString(),
+        });
+      } catch {}
     } catch (error) {
       console.error('Failed to deactivate broadcast message:', error);
       res.status(500).json({ 
