@@ -60,7 +60,9 @@ export const CACHE_KEYS = {
   TASKS: 'sla:tasks',
   PERMISSIONS: 'sla:permissions',
   ROLES: 'sla:roles',
-  USERS: 'sla:users',
+  USERS_HASH: 'sla:users_hash',
+  USERS_ID_INDEX: 'sla:users_id_index', // id -> email
+  USERS_ID_SEQ: 'sla:users_id_seq',
   ENTITY_INDEX: 'sla:entity_index',
   CONFLICT_INDEX_KEYS: 'sla:entity_conflicts_index:keys',
   CONFLICT_HASH: 'sla:entity_conflicts_index',
@@ -348,6 +350,122 @@ export class RedisCache {
     const type = this.normalizeKeyPart(slim.entity_type || slim.type);
     const name = this.normalizeKeyPart(slim.entity_name || slim.name);
     return `${t}:${team}:${type}:${name}`;
+  }
+
+  // ---------- O(1) USERS HASH HELPERS ----------
+  private normalizeEmail(email?: string | null): string | null {
+    if (!email) return null;
+    const e = String(email).trim().toLowerCase();
+    return e.length > 0 ? e : null;
+  }
+
+  async getAllUsersFromHash(): Promise<any[]> {
+    if (!this.redis) return [];
+    try {
+      const rows: string[] = await (this.redis as any).hvals(CACHE_KEYS.USERS_HASH);
+      return rows.map((r: string) => {
+        try { return JSON.parse(r); } catch { return null; }
+      }).filter(Boolean);
+    } catch { return []; }
+  }
+
+  async getUserByEmailFromHash(email: string): Promise<any | null> {
+    if (!this.redis) return null;
+    const field = this.normalizeEmail(email);
+    if (!field) return null;
+    const raw = await (this.redis as any).hget(CACHE_KEYS.USERS_HASH, field);
+    return raw ? JSON.parse(raw) : null;
+  }
+
+  async getUserByIdFromHash(id: number): Promise<any | null> {
+    if (!this.redis) return null;
+    const email = await (this.redis as any).hget(CACHE_KEYS.USERS_ID_INDEX, String(id));
+    if (!email) return null;
+    const raw = await (this.redis as any).hget(CACHE_KEYS.USERS_HASH, email);
+    return raw ? JSON.parse(raw) : null;
+  }
+
+  async createUserInHash(adminUserData: any): Promise<any> {
+    if (!this.redis) return null;
+    const email = this.normalizeEmail(adminUserData.user_email || adminUserData.email);
+    if (!email) throw new Error('Email required');
+    const exists = await (this.redis as any).hexists(CACHE_KEYS.USERS_HASH, email);
+    if (exists) throw Object.assign(new Error('Email already exists'), { code: 409 });
+
+    // Generate ID using sequence; initialize if missing
+    let idNum: number;
+    try {
+      idNum = Number(await (this.redis as any).incr(CACHE_KEYS.USERS_ID_SEQ));
+    } catch {
+      idNum = Date.now();
+    }
+
+    const userNormalized = {
+      id: idNum,
+      username: adminUserData.user_name || adminUserData.username || email,
+      email,
+      displayName: adminUserData.user_name || adminUserData.displayName || adminUserData.username || email,
+      user_slack: adminUserData.user_slack ?? null,
+      user_pagerduty: adminUserData.user_pagerduty ?? null,
+      is_active: adminUserData.is_active ?? true,
+      role: adminUserData.role ?? 'user',
+      team: adminUserData.team ?? null,
+      azureObjectId: adminUserData.azureObjectId ?? null,
+    };
+
+    await (this.redis as any).hset(CACHE_KEYS.USERS_HASH, email, JSON.stringify(userNormalized));
+    await (this.redis as any).hset(CACHE_KEYS.USERS_ID_INDEX, String(idNum), email);
+    await this.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.USERS, { timestamp: new Date().toISOString() });
+    return userNormalized;
+  }
+
+  async updateUserByIdInHash(id: number, updates: any): Promise<any | null> {
+    if (!this.redis) return null;
+    const existingEmail = await (this.redis as any).hget(CACHE_KEYS.USERS_ID_INDEX, String(id));
+    if (!existingEmail) return null;
+    const existingRaw = await (this.redis as any).hget(CACHE_KEYS.USERS_HASH, existingEmail);
+    if (!existingRaw) return null;
+    const current = JSON.parse(existingRaw);
+
+    // Handle email change
+    const nextEmail = this.normalizeEmail(updates.user_email || updates.email) || existingEmail;
+    if (nextEmail !== existingEmail) {
+      const dup = await (this.redis as any).hget(CACHE_KEYS.USERS_HASH, nextEmail);
+      if (dup) throw Object.assign(new Error('Email already exists'), { code: 409 });
+    }
+
+    const next = {
+      ...current,
+      username: updates.user_name ?? updates.username ?? current.username,
+      displayName: updates.user_name ?? updates.displayName ?? current.displayName,
+      email: nextEmail,
+      user_slack: updates.user_slack ?? current.user_slack ?? null,
+      user_pagerduty: updates.user_pagerduty ?? current.user_pagerduty ?? null,
+      is_active: (typeof updates.is_active === 'boolean') ? updates.is_active : (current.is_active ?? true),
+      role: updates.role ?? current.role ?? 'user',
+      team: updates.team ?? current.team ?? null,
+      azureObjectId: updates.azureObjectId ?? current.azureObjectId ?? null,
+    };
+
+    if (nextEmail !== existingEmail) {
+      await (this.redis as any).hdel(CACHE_KEYS.USERS_HASH, existingEmail);
+      await (this.redis as any).hset(CACHE_KEYS.USERS_HASH, nextEmail, JSON.stringify(next));
+      await (this.redis as any).hset(CACHE_KEYS.USERS_ID_INDEX, String(id), nextEmail);
+    } else {
+      await (this.redis as any).hset(CACHE_KEYS.USERS_HASH, existingEmail, JSON.stringify(next));
+    }
+    await this.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.USERS, { timestamp: new Date().toISOString() });
+    return next;
+  }
+
+  async deleteUserByIdInHash(id: number): Promise<boolean> {
+    if (!this.redis) return false;
+    const email = await (this.redis as any).hget(CACHE_KEYS.USERS_ID_INDEX, String(id));
+    if (!email) return false;
+    await (this.redis as any).hdel(CACHE_KEYS.USERS_HASH, email);
+    await (this.redis as any).hdel(CACHE_KEYS.USERS_ID_INDEX, String(id));
+    await this.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.USERS, { timestamp: new Date().toISOString() });
+    return true;
   }
 
   // Recompute current owners for a conflict key by scanning sla:entities_hash.
@@ -1508,6 +1626,35 @@ export class RedisCache {
     }
     multi.setex(CACHE_KEYS.RECENT_CHANGES, expireTime, JSON.stringify(data.recentChanges || []));
     multi.setex(CACHE_KEYS.LAST_UPDATED, expireTime, JSON.stringify(data.lastUpdated));
+    // Users: rebuild users hash and id index atomically from FastAPI
+    try {
+      multi.del(CACHE_KEYS.USERS_HASH);
+      multi.del(CACHE_KEYS.USERS_ID_INDEX);
+      if (Array.isArray(data.users)) {
+        for (const u of data.users as any[]) {
+          const email = ((u.email || u.user_email || '') as string).trim();
+          if (!email) continue;
+          const field = email.toLowerCase();
+          // Normalize user shape minimally for admin panel
+          const userNormalized = {
+            id: Number(u.id ?? u.user_id ?? 0),
+            username: u.username ?? u.user_name ?? email,
+            email,
+            displayName: u.displayName ?? u.user_name ?? u.username ?? email,
+            user_slack: u.user_slack ?? null,
+            user_pagerduty: u.user_pagerduty ?? null,
+            is_active: u.is_active ?? true,
+            role: u.role ?? 'user',
+            team: u.team ?? null,
+            azureObjectId: u.azureObjectId ?? null,
+          };
+          multi.hset(CACHE_KEYS.USERS_HASH, field, JSON.stringify(userNormalized));
+          if (userNormalized.id && userNormalized.id > 0) {
+            multi.hset(CACHE_KEYS.USERS_ID_INDEX, String(userNormalized.id), field);
+          }
+        }
+      }
+    } catch {}
 
     // Conflicts: hydrate full history from FastAPI (resolved/rejected/pending)
     try {

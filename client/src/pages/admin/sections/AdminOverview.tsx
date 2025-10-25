@@ -62,7 +62,7 @@ const AdminOverview = () => {
 
   // Fetch overview data
   const { data: teams = [] } = useQuery({
-    queryKey: ['/api/teams'],
+    queryKey: [buildUrl(endpoints.teams)],
     queryFn: async () => {
       const response = await fetch(buildUrl(endpoints.teams));
       return response.json();
@@ -95,7 +95,7 @@ const AdminOverview = () => {
   });
 
   const { data: tenants = [] } = useQuery({
-    queryKey: ['/api/tenants'],
+    queryKey: [buildUrl(endpoints.tenants)],
     queryFn: async () => {
       const response = await fetch(buildUrl(endpoints.tenants));
       return response.json();
@@ -154,15 +154,15 @@ const AdminOverview = () => {
       const detail = event?.detail || {};
       // Refresh tenants and teams data when admin updates occur
       if (detail.source === 'tenant-status-update' || detail.tenantId) {
-        queryClient.invalidateQueries({ queryKey: ['/api/tenants'] });
-        queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
+        queryClient.invalidateQueries({ queryKey: [buildUrl(endpoints.tenants)] });
+        queryClient.invalidateQueries({ queryKey: [buildUrl(endpoints.teams)] });
       }
     };
     
     const handleTeamsRefresh = () => {
       // Refresh teams data when teams are updated
-      queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/tenants'] }); // Teams affect tenant counts
+      queryClient.invalidateQueries({ queryKey: [buildUrl(endpoints.teams)] });
+      queryClient.invalidateQueries({ queryKey: [buildUrl(endpoints.tenants)] }); // Teams affect tenant counts
     };
     
     // Listen for various update events

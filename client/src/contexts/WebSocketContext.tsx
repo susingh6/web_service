@@ -1,4 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
+import { queryClient } from '@/lib/queryClient';
+import { buildUrl, endpoints } from '@/config';
 import { config } from '@/config';
 import { getLogger } from '@/lib/logger';
 
@@ -183,6 +185,34 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
                   log.error('[WebSocket Singleton] Error in cache listener:', error);
                 }
               });
+            }
+
+            // Global invalidation so late navigation reflects updates without manual refresh
+            try {
+              switch (message.cacheType) {
+                case 'users-cache': {
+                  queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+                  queryClient.invalidateQueries({ queryKey: ['admin', 'users', 'v2'] });
+                  break;
+                }
+                case 'tenants-cache': {
+                  queryClient.invalidateQueries({ queryKey: ['admin', 'tenants'] });
+                  queryClient.invalidateQueries({ queryKey: [buildUrl(endpoints.tenants)] });
+                  break;
+                }
+                case 'team-members-cache':
+                case 'team-details-cache':
+                case 'team-notifications-cache': {
+                  // Teams listings and related views
+                  queryClient.invalidateQueries({ queryKey: ['admin', 'teams'] });
+                  queryClient.invalidateQueries({ queryKey: [buildUrl(endpoints.teams)] });
+                  break;
+                }
+                default:
+                  break;
+              }
+            } catch (e) {
+              log.warn('[WebSocket Singleton] Invalidation error:', e);
             }
           }
         } catch (error) {

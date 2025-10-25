@@ -44,6 +44,8 @@ import { buildUrl, endpoints } from '@/config';
 import { apiRequest } from '@/lib/queryClient';
 import { User } from '@shared/schema';
 import { useOptimisticMutation, CACHE_PATTERNS, INVALIDATION_SCENARIOS } from '@/utils/cache-management';
+import { useWebSocket } from '@/hooks/useWebSocket';
+import { WEBSOCKET_CONFIG } from '../../../../../shared/websocket-config';
 
 interface UserFormDialogProps {
   open: boolean;
@@ -183,6 +185,16 @@ const UsersManagement = () => {
   const { updateUser: updateUserAdmin } = useAdminMutation();
   const { executeWithOptimism, cacheManager } = useOptimisticMutation();
   
+  // WebSocket: auto-refresh users table on server broadcasts
+  useWebSocket({
+    componentType: WEBSOCKET_CONFIG.componentTypes.USERS_MANAGEMENT,
+    onCacheUpdated: async (_data, cacheType) => {
+      if (cacheType === WEBSOCKET_CONFIG.cacheUpdateTypes.USERS) {
+        await queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+      }
+    }
+  });
+
   // Debounce search query for better performance
   const deferredSearchQuery = useDeferredValue(searchQuery);
 

@@ -166,13 +166,27 @@ export function setupSimpleAuth(app: Express) {
     done(null, user.id);
   });
 
-  // Deserialize user from the session
+  // Deserialize user from the session (Redis-first to avoid mock cross-filtering)
   passport.deserializeUser(async (id: number, done) => {
     try {
-      const user = await storage.getUser(id);
-      done(null, user);
+      // Try Redis users hash first
+      try {
+        const { redisCache } = await import('./redis-cache');
+        if (redisCache) {
+          const redisUser = await redisCache.getUserByIdFromHash(Number(id));
+          if (redisUser) {
+            return done(null, redisUser as any);
+          }
+        }
+      } catch (_) {
+        // ignore and fall back to storage
+      }
+
+      // Fallback to storage (dev mock) only if not found in Redis
+      const user = await storage.getUser(Number(id));
+      return done(null, user);
     } catch (error) {
-      done(error);
+      return done(error);
     }
   });
 
@@ -344,7 +358,7 @@ export function setupSimpleAuth(app: Express) {
     }
   });
 
-  // Azure SSO validation endpoint with admin cache checking
+  // Azure SSO validation endpoint with admin cache checking (Redis-first)
   app.post("/api/auth/azure/validate", async (req: Request, res: Response) => {
     try {
       const { token, claims } = req.body;
@@ -374,17 +388,15 @@ export function setupSimpleAuth(app: Express) {
         // Continue to admin cache checking logic below instead of early return
       }
       
-      // ENHANCED LOGIC: Check if user exists in admin users cache first
-      let existingAdminUser = null;
+      // Redis-first: Check if user exists in Redis users hash only (avoid storage cross-filtering in dev)
+      let existingAdminUser: any = null;
       try {
-        // Check admin users (using same endpoint as frontend cache)
-        const adminUsers = await storage.getUsers();
-        existingAdminUser = adminUsers.find(user => 
-          user.email === userEmail || 
-          user.username === userEmail
-        );
+        const { redisCache } = await import('./redis-cache');
+        if (redisCache && userEmail) {
+          existingAdminUser = await redisCache.getUserByEmailFromHash(userEmail);
+        }
       } catch (error) {
-        console.log('Could not fetch admin users cache, proceeding with OAuth user creation');
+        // Non-fatal: proceed to ephemeral session user creation below if not found in Redis
       }
 
       if (existingAdminUser) {
@@ -392,6 +404,19 @@ export function setupSimpleAuth(app: Express) {
         console.log(`Existing admin user found: ${userEmail}. Using cached admin details.`);
         console.log('Admin cache data structure:', JSON.stringify(existingAdminUser, null, 2));
         
+        // If claim provides a role and it differs from stored role, update Redis so session persists as admin
+        try {
+          if (userRole && existingAdminUser.role !== userRole) {
+            const { redisCache } = await import('./redis-cache');
+            if (redisCache) {
+              await redisCache.updateUserByIdInHash(Number(existingAdminUser.id), { role: userRole });
+              existingAdminUser.role = userRole;
+            }
+          }
+        } catch (_e) {
+          // non-fatal
+        }
+
         // Transform admin cache data to Express.User session format
         // Handle different possible field name formats from admin cache
         const sessionUser = {
@@ -401,7 +426,7 @@ export function setupSimpleAuth(app: Express) {
           displayName: displayName || existingAdminUser.displayName || existingAdminUser.username,
           team: existingAdminUser.team || 'Data Engineering', // Default team
           password: 'azure-sso-user', // Placeholder for Azure users
-          role: existingAdminUser.role || 'admin', // Ensure admin role for existing users
+          role: (userRole || existingAdminUser.role || 'admin'), // Prefer claim role if provided
           azureObjectId: azureObjectId,
           user_slack: existingAdminUser.user_slack || [],
           user_pagerduty: existingAdminUser.user_pagerduty || [],
@@ -429,63 +454,53 @@ export function setupSimpleAuth(app: Express) {
         });
         return;
       } else {
-        // NEW USER: Not found in admin cache - create from OAuth token data
-        console.log(`New user: ${userEmail}. Creating from OAuth token data using only email and name.`);
-        
-        // For new users, only use email and name from OAuth token
+        // NEW USER (Redis miss): create a persistent user in Redis users hash (Express fallback)
+        console.log(`New user (Redis create): ${userEmail}. Creating in sla:users_hash from OAuth claims.`);
+
         if (!userEmail || !displayName) {
           logAuthenticationEvent("azure-validate", userEmail || 'unknown', req.sessionContext, req.requestId, false);
-          return res.status(400).json({ 
-            success: false,
-            message: "OAuth token must contain both email and name for new user creation.",
-            errorCode: "MISSING_OAUTH_DATA"
-          });
+          return res.status(400).json({ success: false, message: "OAuth token must contain both email and name.", errorCode: "MISSING_OAUTH_DATA" });
         }
-        
-        // Create new user with only email and name from OAuth token
-        const userData = {
-          username: userEmail, // Use email as username
-          email: userEmail,    // Email from OAuth
-          displayName: displayName, // Name from OAuth
-          password: 'azure-sso-user', // Placeholder for Azure users
-          team: 'Data Engineering', // Default team for new users
-          is_active: true // New users are active by default
-        };
-        
-        // Create new user in storage
-        const newUser = await storage.createUser(userData);
-        
-        // Transform to include both session and profile formats
-        const sessionUser = {
-          ...newUser,
-          user_id: newUser.id,
-          user_name: newUser.username,
-          user_email: newUser.email,
-          user_slack: [], // Empty array for new users
-          user_pagerduty: [], // Empty array for new users
-          role: 'admin' // Grant admin role to new OAuth users
-        };
-        
-        // Log the user into the Express session
-        req.login(sessionUser, (err) => {
-          if (err) {
-            logAuthenticationEvent("azure-login", sessionUser.username, undefined, req.requestId, false);
-            return res.status(500).json({ 
-              success: false,
-              message: "Session creation failed"
-            });
-          }
-          
-          logAuthenticationEvent("azure-login", sessionUser.username, undefined, req.requestId, true);
-          
-          const { password, ...userWithoutPassword } = sessionUser;
-          return res.json({
-            success: true,
-            user: userWithoutPassword,
-            message: "Azure SSO validation successful - new user created from OAuth email and name"
+
+        try {
+          const { redisCache } = await import('./redis-cache');
+          const created = await redisCache.createUserInHash({
+            user_name: displayName || userEmail,
+            user_email: userEmail,
+            user_slack: null,
+            user_pagerduty: null,
+            is_active: true,
+            role: userRole || 'admin',
           });
-        });
-        return;
+
+          const sessionUser = {
+            id: created.id,
+            username: created.username,
+            email: created.email,
+            displayName: created.displayName,
+            team: created.team || 'Data Engineering',
+            password: 'azure-sso-user',
+            role: created.role || 'admin',
+            azureObjectId: azureObjectId,
+            user_slack: created.user_slack || [],
+            user_pagerduty: created.user_pagerduty || [],
+            is_active: created.is_active !== undefined ? created.is_active : true,
+          } as any;
+
+          req.login(sessionUser, (err) => {
+            if (err) {
+              logAuthenticationEvent("azure-login", sessionUser.username, undefined, req.requestId, false);
+              return res.status(500).json({ success: false, message: "Session creation failed" });
+            }
+            logAuthenticationEvent("azure-login", sessionUser.username, undefined, req.requestId, true);
+            const { password, ...userWithoutPassword } = sessionUser;
+            return res.json({ success: true, user: userWithoutPassword, message: "Azure SSO validation successful - user created in Redis" });
+          });
+          return;
+        } catch (e) {
+          console.error('Failed to create user in Redis users_hash:', e);
+          return res.status(500).json({ success: false, message: "Failed to create user in Redis", errorCode: "REDIS_CREATE_FAILED" });
+        }
       }
       
     } catch (error) {

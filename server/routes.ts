@@ -62,7 +62,7 @@ function createRollbackAuditLog(event: string, req: Request, additionalData?: an
     user_id: req.user?.id || null,
     email: req.user?.email || req.user?.username || 'unknown',
     session_type: 'local',
-    roles: (req.user as any)?.role || 'user',
+    roles: (req.user as any)?.role || 'admin',
     request_id: req.requestId || 'unknown',
     logger: 'app.rollback.security',
     level: 'info' as const,
@@ -327,9 +327,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const status = await redisCache.getCacheStatus();
       
       if (status.connected) {
-        // Redis mode: read from cache or return empty
-        const cachedUsers = await redisCache.get(CACHE_KEYS.USERS);
-        res.json(cachedUsers || []);
+        // Redis mode: read from users hash (O(1) storage)
+        const users = await redisCache.getAllUsersFromHash();
+        res.json(users || []);
       } else {
         // In-memory mode: fallback to storage
       const users = await storage.getUsers();
@@ -347,8 +347,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const redisConnected = status && status.mode === 'redis';
 
       if (redisConnected) {
-        // Redis-first: read from Redis only, return empty if key doesn't exist
-        const users = await redisCache.get(CACHE_KEYS.USERS) || [];
+        // Redis-first: read from users hash (HVALS)
+        const users = await redisCache.getAllUsersFromHash();
         const transformedUsers = Array.isArray(users) ? users.map((user: any) => ({
           id: user.id,
           name: user.username,
@@ -386,39 +386,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Update cache based on mode
       const status = await redisCache.getCacheStatus();
       if (status && status.mode === 'redis') {
-        // Redis mode: generate ID from Redis (do NOT rely on storage mock counters)
-        const existingUsers = await redisCache.get(CACHE_KEYS.USERS) || [];
-        const nextId = Array.isArray(existingUsers) && existingUsers.length > 0
-          ? Math.max(...existingUsers.map((u: any) => Number(u?.id) || 0)) + 1
-          : 1;
-
-        const newUser = {
-          id: nextId,
-          username: user_name,
-          password: "temp-password",
-          email: user_email,
-          displayName: user_name,
-          user_slack: user_slack || [],
-          user_pagerduty: user_pagerduty || [],
-          is_active: is_active,
-          role: "user" as const,
-          team: null,
-          azureObjectId: null,
-        };
-
-        const updatedUsers = Array.isArray(existingUsers) ? [...existingUsers, newUser] : [newUser];
-        await redisCache.set(CACHE_KEYS.USERS, updatedUsers, 6 * 60 * 60);
-        await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.USERS, {
-          timestamp: new Date().toISOString()
+        // Redis mode: O(1) create in users hash
+        const created = await redisCache.createUserInHash({
+          user_name,
+          user_email,
+          user_slack,
+          user_pagerduty,
+          is_active,
         });
-
         return res.status(201).json({
-          user_id: newUser.id,
-          user_name: newUser.username,
-          user_email: newUser.email || '',
-          user_slack: newUser.user_slack || null,
-          user_pagerduty: newUser.user_pagerduty || null,
-          is_active: newUser.is_active ?? true
+          user_id: created.id,
+          user_name: created.username,
+          user_email: created.email || '',
+          user_slack: created.user_slack || null,
+          user_pagerduty: created.user_pagerduty || null,
+          is_active: created.is_active ?? true
         });
       }
 
@@ -437,7 +419,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await redisCache.invalidateCache({
         keys: ['all_users', 'users_list'],
         patterns: ['user_*'],
-        mainCacheKeys: ['USERS'],
+        mainCacheKeys: ['USERS_HASH'],
         refreshAffectedData: true
       });
 
@@ -480,7 +462,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (updateData.is_active !== undefined) internalUpdateData.is_active = updateData.is_active;
 
       // Update user
-      const updatedUser = await storage.updateUser(userId, internalUpdateData);
+      let updatedUser: any = await storage.updateUser(userId, internalUpdateData);
       if (!updatedUser) {
         return res.status(404).json(createErrorResponse("User not found", "not_found"));
       }
@@ -488,17 +470,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Update cache based on mode
       const status = await redisCache.getCacheStatus();
       if (status && status.mode === 'redis') {
-        // Redis mode: write directly to Redis
-        const existingUsers = await redisCache.get(CACHE_KEYS.USERS) || [];
-        const updatedUsers = Array.isArray(existingUsers)
-          ? existingUsers.map((user: any) => user.id === userId ? updatedUser : user)
-          : [updatedUser];
-        await redisCache.set(CACHE_KEYS.USERS, updatedUsers, 6 * 60 * 60);
-        
-        // Broadcast update to connected clients
-        await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.USERS, {
-          timestamp: new Date().toISOString()
-        });
+        // Redis mode: O(1) update by id in users hash
+        const next = await redisCache.updateUserByIdInHash(userId, updateData);
+        if (!next) {
+          return res.status(404).json(createErrorResponse("User not found", "not_found"));
+        }
+        updatedUser = next;
       } else {
         // In-memory mode: invalidate cache so next GET fetches fresh data from storage
       await redisCache.invalidateUserData();
@@ -538,38 +515,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updateData = validationResult.data;
       const status = await redisCache.getCacheStatus();
 
-      let updatedUser: any;
+      let updatedUser: any = undefined;
 
       if (status && status.mode === 'redis') {
-        // Redis mode: update Redis directly without touching storage
-        const existingUsers = await redisCache.get(CACHE_KEYS.USERS) || [];
-        const userIndex = Array.isArray(existingUsers) ? existingUsers.findIndex((u: any) => u.id === userId) : -1;
-        
-        if (userIndex === -1) {
+        // Redis mode: O(1) update by id in users hash
+        updatedUser = await redisCache.updateUserByIdInHash(userId, updateData);
+        if (!updatedUser) {
           return res.status(404).json(createErrorResponse("User not found", "not_found"));
         }
-
-        const currentUser = existingUsers[userIndex];
-        
-        // Apply updates while preserving Redis data structure
-        updatedUser = {
-          ...currentUser,
-          username: updateData.user_name || currentUser.username,
-          email: updateData.user_email || currentUser.email,
-          user_slack: updateData.user_slack !== undefined ? updateData.user_slack : currentUser.user_slack,
-          user_pagerduty: updateData.user_pagerduty !== undefined ? updateData.user_pagerduty : currentUser.user_pagerduty,
-          is_active: updateData.is_active !== undefined ? updateData.is_active : currentUser.is_active,
-          updatedAt: new Date().toISOString()
-        };
-
-        const updatedUsers = [...existingUsers];
-        updatedUsers[userIndex] = updatedUser;
-        await redisCache.set(CACHE_KEYS.USERS, updatedUsers, 6 * 60 * 60);
-        
-        // Broadcast update to connected clients
-        await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.USERS, {
-          timestamp: new Date().toISOString()
-        });
       } else {
         // In-memory mode: update storage
       const internalUpdateData: any = {};
@@ -590,7 +543,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // CRITICAL: Also invalidate profile cache for this user so profile page shows updated data
       await redisCache.invalidateCache({
-        keys: [`profile_${updatedUser.id}`, `profile_${updatedUser.email}`],
+        keys: updatedUser ? [`profile_${updatedUser.id}`, `profile_${updatedUser.email}`] : [],
         refreshAffectedData: false
       });
 
@@ -2034,6 +1987,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await redisCache.set(CACHE_KEYS.TENANTS, updatedList, 6 * 60 * 60);
 
         // CASCADE: If tenant became inactive, also update teams in Redis
+        let cascaded = false;
         if (beforeTenant && beforeTenant.isActive && updatedTenant.isActive === false) {
           const existingTeams = await redisCache.getAllTeams();
           const updatedTeams = Array.isArray(existingTeams)
@@ -2044,7 +1998,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
               )
             : [];
           await redisCache.set(CACHE_KEYS.TEAMS, updatedTeams, 6 * 60 * 60);
+          cascaded = true;
         }
+
+        // Broadcast cache updates for tenants, and teams if cascade occurred
+        try {
+          await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.TENANTS, {
+            action: 'update',
+            tenantId: updatedTenant.id,
+            timestamp: new Date().toISOString()
+          });
+          if (cascaded) {
+            await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.TEAM_DETAILS, {
+              action: 'cascade-inactivate',
+              tenantId: updatedTenant.id,
+              timestamp: new Date().toISOString()
+            });
+          }
+        } catch {}
       } else {
         // In-memory mode: invalidate cache so next GET fetches fresh data from storage
       await redisCache.invalidateTenants();
@@ -2061,6 +2032,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         mainCacheKeys: ['TEAMS', 'METRICS'],
         refreshAffectedData: true
       });
+
+      // Broadcast general tenants update (and teams detail to be safe)
+      try {
+        await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.TENANTS, {
+          action: 'update',
+          tenantId: updatedTenant.id,
+          timestamp: new Date().toISOString()
+        });
+        await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.TEAM_DETAILS, {
+          action: 'cascade-inactivate',
+          tenantId: updatedTenant.id,
+          timestamp: new Date().toISOString()
+        });
+      } catch {}
       }
 
       res.json(updatedTenant);
@@ -2216,6 +2201,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
           );
           await redisCache.set(CACHE_KEYS.TENANTS, updatedTenants, 6 * 60 * 60);
         }
+
+        // Broadcast cache updates inline with other components
+        try {
+          await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.TEAM_DETAILS, {
+            action: 'create',
+            teamId: newTeam.id,
+            teamName: newTeam.name,
+            timestamp: new Date().toISOString()
+          });
+          await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.TENANTS, {
+            action: 'team-count-updated',
+            tenantId: newTeam.tenant_id,
+            timestamp: new Date().toISOString()
+          });
+        } catch {}
 
         return res.status(201).json(newTeam);
       }
@@ -2993,7 +2993,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await redisCache.set(CACHE_KEYS.TEAMS, updatedList, 6 * 60 * 60);
 
         // If team's isActive status changed, update tenant's teamsCount
-        if (beforeTeam && beforeTeam.isActive !== updatedTeam.isActive) {
+        const statusChanged = beforeTeam && beforeTeam.isActive !== updatedTeam.isActive;
+        if (statusChanged) {
           const existingTenants = await redisCache.getAllTenants();
           if (Array.isArray(existingTenants) && existingTenants.length > 0) {
             // Recalculate active teams count for this tenant
@@ -3009,6 +3010,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
             await redisCache.set(CACHE_KEYS.TENANTS, updatedTenants, 6 * 60 * 60);
           }
         }
+
+        // Broadcast team details update; if status changed, also broadcast tenants cache
+        try {
+          await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.TEAM_DETAILS, {
+            action: 'update',
+            teamId,
+            teamName: updatedTeam.name,
+            timestamp: new Date().toISOString()
+          });
+          if (statusChanged) {
+            await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.TENANTS, {
+              action: 'team-count-updated',
+              tenantId: updatedTeam.tenant_id,
+              timestamp: new Date().toISOString()
+            });
+          }
+        } catch {}
       } else {
         // In-memory mode: invalidate cache so next GET fetches fresh data from storage
       await redisCache.invalidateCache({
@@ -3241,7 +3259,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const tenantName = req.query.tenant as string;
         const teams = await redisCache.get(CACHE_KEYS.TEAMS) || [];
         const tenants = await redisCache.get(CACHE_KEYS.TENANTS) || [];
-        const users = await redisCache.get(CACHE_KEYS.USERS) || [];
+        const users = await redisCache.getAllUsersFromHash() || [];
         let team: any = null;
         if (tenantName && Array.isArray(tenants) && tenants.length > 0) {
           const tnt = tenants.find((tn: any) => tn?.name === tenantName);
@@ -3293,7 +3311,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const tenantName = req.query.tenant as string;
         const teams = await redisCache.get(CACHE_KEYS.TEAMS) || [];
         const tenants = await redisCache.get(CACHE_KEYS.TENANTS) || [];
-        const users = await redisCache.get(CACHE_KEYS.USERS) || [];
+        const users = await redisCache.getAllUsersFromHash() || [];
         let team: any = null;
         if (tenantName && Array.isArray(tenants) && tenants.length > 0) {
           const tnt = tenants.find((tn: any) => tn?.name === tenantName);
@@ -3340,8 +3358,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const status = await redisCache.getCacheStatus();
       
       if (status.connected) {
-        // Redis mode: read from cache or return empty
-        const cachedUsers = await redisCache.get(CACHE_KEYS.USERS);
+        // Redis mode: read from users hash
+        const cachedUsers = await redisCache.getAllUsersFromHash();
         res.json(cachedUsers || []);
       } else {
         // In-memory mode: fallback to storage
@@ -3359,8 +3377,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const status = await redisCache.getCacheStatus();
       
       if (status.connected) {
-        // Redis mode: read from cache or return empty
-        const cachedUsers = await redisCache.get(CACHE_KEYS.USERS);
+        // Redis mode: read from users hash
+        const cachedUsers = await redisCache.getAllUsersFromHash();
         res.json(cachedUsers || []);
       } else {
         // In-memory mode: fallback to storage
@@ -5147,8 +5165,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       let users;
       if (redisConnected) {
-        // Redis mode: read from Redis only, return empty if key doesn't exist
-        users = await redisCache.get(CACHE_KEYS.USERS) || [];
+        // Redis mode: read from users hash
+        users = await redisCache.getAllUsersFromHash() || [];
       } else {
         // In-memory mode: return mock users from storage
         users = await storage.getUsers();
@@ -5191,39 +5209,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Update cache based on mode
       const status = await redisCache.getCacheStatus();
       if (status && status.mode === 'redis') {
-        // Redis mode: generate ID from Redis (do NOT rely on storage mock counters)
-        const existingUsers = await redisCache.get(CACHE_KEYS.USERS) || [];
-        const nextId = Array.isArray(existingUsers) && existingUsers.length > 0
-          ? Math.max(...existingUsers.map((u: any) => Number(u?.id) || 0)) + 1
-          : 1;
-
-        const user = {
-          id: nextId,
-        username: adminUserData.user_name,
-          password: "default-password",
-        email: adminUserData.user_email,
-        displayName: adminUserData.user_name,
-        user_slack: adminUserData.user_slack || null,
-        user_pagerduty: adminUserData.user_pagerduty || null,
-        is_active: adminUserData.is_active ?? true,
-          role: "user" as const,
-          team: null,
-          azureObjectId: null,
-        };
-
-        const updatedUsers = Array.isArray(existingUsers) ? [...existingUsers, user] : [user];
-        await redisCache.set(CACHE_KEYS.USERS, updatedUsers, 6 * 60 * 60);
-        await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.USERS, {
-          timestamp: new Date().toISOString()
-        });
-
+        // Redis mode: O(1) create in users hash
+        const created = await redisCache.createUserInHash(adminUserData);
         return res.status(201).json({
-          user_id: user.id,
-          user_name: user.username,
-          user_email: user.email || '',
-          user_slack: user.user_slack || null,
-          user_pagerduty: user.user_pagerduty || null,
-          is_active: user.is_active ?? true
+          user_id: created.id,
+          user_name: created.username,
+          user_email: created.email || '',
+          user_slack: created.user_slack || null,
+          user_pagerduty: created.user_pagerduty || null,
+          is_active: created.is_active ?? true
         });
       }
 
@@ -5292,7 +5286,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (adminUserData.is_active !== undefined) updateData.is_active = adminUserData.is_active;
       
       // Persist user update in storage so is_active changes are saved
-      const updatedUser = await storage.updateUser(userId, updateData) || {
+      let updatedUser: any = await storage.updateUser(userId, updateData) || {
         ...existingUser,
         ...updateData
       };
@@ -5367,17 +5361,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Update cache based on mode
       const status = await redisCache.getCacheStatus();
       if (status && status.mode === 'redis') {
-        // Redis mode: write directly to Redis
-        const existingUsersCache = await redisCache.get(CACHE_KEYS.USERS) || [];
-        const updatedUsersCache = Array.isArray(existingUsersCache)
-          ? existingUsersCache.map((u: any) => u.id === userId ? updatedUser : u)
-          : [updatedUser];
-        await redisCache.set(CACHE_KEYS.USERS, updatedUsersCache, 6 * 60 * 60);
-        
-        // Broadcast update to connected clients
-        await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.USERS, {
-          timestamp: new Date().toISOString()
-        });
+        // Redis mode: O(1) update by id in users hash
+        const next = await redisCache.updateUserByIdInHash(userId, adminUserData);
+        if (!next) {
+          return res.status(404).json(createErrorResponse("User not found"));
+        }
+        updatedUser = next;
       } else {
         // In-memory mode: invalidate cache so next GET fetches fresh data from storage
       await redisCache.invalidateUserData();

@@ -527,7 +527,7 @@ const TeamsManagement = () => {
         // Invalidate teams cache to refresh the table
         await queryClient.invalidateQueries({ queryKey: ['admin', 'teams'] });
         await invalidateAdminCaches(queryClient);
-        await queryClient.invalidateQueries({ queryKey: ['/api/v1/teams'] });
+        await queryClient.invalidateQueries({ queryKey: [buildUrl(endpoints.teams)] });
         
         // Invalidate users cache when USERS cache is updated
         if (data.cacheType === WEBSOCKET_CONFIG.cacheUpdateTypes.USERS) {
@@ -542,7 +542,7 @@ const TeamsManagement = () => {
       
       // Also invalidate related caches
       await invalidateAdminCaches(queryClient);
-      await queryClient.invalidateQueries({ queryKey: ['/api/v1/teams'] });
+      await queryClient.invalidateQueries({ queryKey: [buildUrl(endpoints.teams)] });
       
       // Show toast notification for the update
       if (data.type === 'member-added') {
@@ -569,6 +569,7 @@ const TeamsManagement = () => {
   useEffect(() => {
     const handleRefreshTeams = () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'teams'] });
+      queryClient.invalidateQueries({ queryKey: [buildUrl(endpoints.teams)] });
     };
     
     window.addEventListener('refresh-teams-data', handleRefreshTeams);
