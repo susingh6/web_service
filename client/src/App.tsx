@@ -2,7 +2,8 @@ import { Suspense, lazy, useState } from "react";
 import { Switch, Route, useRoute } from "wouter";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
-import { AuthProvider } from "@/hooks/use-auth";
+import { AuthProvider, useAuth } from "@/hooks/use-auth";
+import { WebSocketProvider } from "@/contexts/WebSocketContext";
 import { useInactivityTimeout } from "@/hooks/use-inactivity-timeout";
 import { Toaster } from "@/components/ui/toaster";
 import { AdminRoute } from "@/lib/admin-route";
@@ -182,16 +183,34 @@ function InactivityHandler() {
   return null;
 }
 
+function AppWithProviders() {
+  const { isAuthenticated } = useAuth();
+  return (
+    <>
+      <InactivityHandler />
+      {isAuthenticated ? (
+        <WebSocketProvider>
+          <AppLayout>
+            <Router />
+          </AppLayout>
+          <Toaster />
+          <BroadcastMessagePopup />
+        </WebSocketProvider>
+      ) : (
+        <>
+          <Router />
+          <Toaster />
+        </>
+      )}
+    </>
+  );
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <InactivityHandler />
-        <AppLayout>
-          <Router />
-        </AppLayout>
-        <Toaster />
-        <BroadcastMessagePopup />
+        <AppWithProviders />
       </AuthProvider>
     </QueryClientProvider>
   );

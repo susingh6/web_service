@@ -2,7 +2,6 @@ import { createRoot } from "react-dom/client";
 import { Provider } from "react-redux";
 import { ThemeProvider } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
-import { WebSocketProvider } from "@/contexts/WebSocketContext";
 import { store } from "./lib/store";
 import theme from "./lib/theme";
 import App from "./App";
@@ -23,9 +22,7 @@ createRoot(document.getElementById("root")!).render(
   <Provider store={store}>
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <WebSocketProvider>
-        <App />
-      </WebSocketProvider>
+      <App />
     </ThemeProvider>
   </Provider>
 );
