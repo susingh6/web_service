@@ -78,6 +78,75 @@ import { setupTestRoutes } from "./test-routes";
 
 // (sendError provided by ./utils/http)
 
+// Sanitize incoming entity payloads for conflict/original payload storage and logging
+function sanitizeEntityPayloadForConflict(raw: any): any {
+  try {
+    const p = raw || {};
+    const type = ((p as any).entity_type || p.type) === 'table' ? 'table' : 'dag';
+    const base: any = {
+    type,
+      tenant_name: p.tenant_name ?? null,
+      team_name: p.team_name ?? null,
+      is_entity_owner: p.is_entity_owner === false ? false : true,
+      expected_runtime_minutes: p.expected_runtime_minutes ?? null,
+      server_name: p.server_name ?? null,
+      owner_email: p.owner_email ?? p.user_email ?? null,
+      user_email: p.user_email ?? null,
+    };
+    if (type === 'dag') {
+      base.dag_name = p.dag_name ?? p.entity_display_name ?? p.name ?? p.entity_name ?? null;
+      base.entity_display_name = p.entity_display_name ?? p.dag_name ?? null;
+      base.dag_schedule = p.dag_schedule ?? p.entity_schedule ?? null;
+      base.owner_entity_reference = p.owner_entity_reference || '';
+    } else {
+      base.table_name = p.table_name ?? p.entity_display_name ?? p.name ?? p.entity_name ?? null;
+      base.entity_display_name = p.entity_display_name ?? p.table_name ?? null;
+      base.table_schedule = p.table_schedule ?? p.entity_schedule ?? null;
+      base.schema_name = p.schema_name ?? null;
+      base.owner_entity_reference = p.owner_entity_reference || '';
+    }
+    Object.keys(base).forEach((k) => { if (base[k] === undefined) delete base[k]; });
+    return base;
+  } catch {
+    return raw;
+  }
+}
+
+// Lightweight API validation schema for entity creation (name-based; IDs resolved server-side)
+const apiEntitySchema = z.union([
+  z.object({
+    entity_type: z.literal('dag'),
+    tenant_name: z.string().min(1),
+    team_name: z.string().min(1),
+    entity_name: z.string().min(1),
+    entity_display_name: z.string().optional(),
+    dag_name: z.string().optional(),
+    dag_schedule: z.string().nullable().optional(),
+    is_entity_owner: z.boolean().optional(),
+    expected_runtime_minutes: z.number().int().nonnegative().nullable().optional(),
+    server_name: z.string().nullable().optional(),
+    owner_entity_reference: z.string().optional(),
+    owner_email: z.string().email().nullable().optional(),
+    user_email: z.string().email().nullable().optional(),
+  }),
+  z.object({
+    entity_type: z.literal('table'),
+    tenant_name: z.string().min(1),
+    team_name: z.string().min(1),
+    entity_name: z.string().min(1),
+    entity_display_name: z.string().optional(),
+    schema_name: z.string().nullable().optional(),
+    table_name: z.string().optional(),
+    table_schedule: z.string().nullable().optional(),
+    is_entity_owner: z.boolean().optional(),
+    expected_runtime_minutes: z.number().int().nonnegative().nullable().optional(),
+    server_name: z.string().nullable().optional(),
+    owner_entity_reference: z.string().optional(),
+    owner_email: z.string().email().nullable().optional(),
+    user_email: z.string().email().nullable().optional(),
+  })
+]);
+
 // Helper function for rollback cache invalidation using existing patterns
 async function invalidateRollbackCaches(rolledBackEntity: Entity) {
   const { team_name, tenant_name, type, is_active, is_entity_owner } = rolledBackEntity;
@@ -3703,14 +3772,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create entity - bypass auth in development for testing
   app.post("/api/entities", ...(isDevelopment ? [checkActiveUserDev] : requireActiveUser), async (req: Request, res: Response) => {
     try {
-      const result = insertEntitySchema.safeParse(req.body);
+      // For entity creation, prune client fluff to a canonical payload before validation
+      const raw = req.body || {};
+      // Accept entity_type or type
+      const incomingType = ((raw as any).entity_type || raw.type) === 'table' ? 'table' : 'dag';
+      const canonical: any = {
+        type: incomingType,
+        tenant_name: raw.tenant_name,
+        team_name: raw.team_name,
+        is_entity_owner: raw.is_entity_owner !== false,
+        expected_runtime_minutes: raw.expected_runtime_minutes ?? null,
+        server_name: raw.server_name ?? null,
+        owner_email: (raw.is_entity_owner === false) ? null : (raw.owner_email ?? raw.user_email ?? null),
+        user_email: raw.user_email ?? null,
+      };
+      if (incomingType === 'dag') {
+        canonical.entity_name = raw.entity_name || raw.name || raw.dag_name;
+        canonical.entity_display_name = raw.entity_display_name || raw.dag_name || canonical.entity_name;
+        canonical.dag_name = raw.dag_name || canonical.entity_display_name;
+        canonical.dag_schedule = raw.dag_schedule || raw.entity_schedule || null;
+        canonical.owner_entity_ref_name = raw.owner_entity_ref_name || raw.owner_entity_reference || '';
+      } else {
+        canonical.entity_name = raw.entity_name || raw.name || raw.table_name;
+        canonical.entity_display_name = raw.entity_display_name || raw.table_name || canonical.entity_name;
+        canonical.schema_name = raw.schema_name ?? null;
+        canonical.table_name = raw.table_name || canonical.entity_display_name;
+        canonical.table_schedule = raw.table_schedule || raw.entity_schedule || null;
+        canonical.owner_entity_ref_name = raw.owner_entity_ref_name || raw.owner_entity_reference || '';
+      }
+      // Validate using lightweight API schema to avoid legacy fields
+      const result = apiEntitySchema.safeParse({ ...canonical, entity_type: incomingType });
       
       if (!result.success) {
         return res.status(400).json(createValidationErrorResponse(result.error));
       }
       
       // Normalize payload with team/tenant metadata to avoid cross-team leakage
-      const payload = { ...result.data } as any;
+      const payload = { ...canonical } as any;
       const status = await redisCache.getCacheStatus();
 
       try {
@@ -3771,15 +3869,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Non-fatal: if lookup fails we proceed with provided values
       }
 
-      // If not entity owner, require and validate owner_entity_reference strictly (entity_name + entity_type, case-insensitive)
+      // If not entity owner, require and validate owner_entity_ref_name/owner_entity_reference strictly (entity_name + entity_type, case-insensitive)
       try {
         const isOwner = payload.is_entity_owner === true;
-        const refName = typeof payload.owner_entity_reference === 'string' ? payload.owner_entity_reference.trim() : undefined;
+        const refName = typeof (payload as any).owner_entity_ref_name === 'string'
+          ? (payload as any).owner_entity_ref_name.trim()
+          : (typeof (payload as any).owner_entity_reference === 'string' ? (payload as any).owner_entity_reference.trim() : undefined);
         if (!isOwner) {
           if (!refName) {
-            return sendError(res, 400, 'owner_entity_reference is required when is_entity_owner is false');
+            return sendError(res, 400, 'owner_entity_ref_name is required when is_entity_owner is false');
           }
-          const refType: 'table' | 'dag' = payload.type === 'table' ? 'table' : 'dag';
+          const refType: 'table' | 'dag' = ((payload as any).type === 'table' || (payload as any).entity_type === 'table') ? 'table' : 'dag';
           const matches = await redisCache.findSlimEntitiesByNameCI(refName, refType);
           if (!matches || matches.length === 0) {
             return sendError(res, 404, `Owner Entity Reference not found: ${refName}`);
@@ -3830,7 +3930,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     entityType,
                     entityName: displayName,
                     conflictingTeams: dedupTeams,
-                    originalPayload: req.body,
+                    originalPayload: sanitizeEntityPayloadForConflict(req.body),
                     conflictDetails: {
                       existingOwner: owners.join(', ') || 'Unknown',
                       requestedBy: req.user?.email || req.body?.user_email || null,
@@ -3849,7 +3949,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     tenant_name: payload.tenant_name,
                     server_name: serverName,
                     owners,
-                    originalPayload: req.body,
+                    originalPayload: sanitizeEntityPayloadForConflict(req.body),
                     user_email: req.user?.email || req.body?.user_email || null,
                   });
                   const resp = await fetch(`${FASTAPI_BASE_URL}/api/v1/conflicts`, {
@@ -3882,7 +3982,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     owners: conflict.owners,
                     entity_type: (payload.type === 'table' ? 'table' : 'dag'),
                     user_email: req.user?.email || req.body?.user_email || null,
-                    originalPayload: req.body,
+                    originalPayload: sanitizeEntityPayloadForConflict(req.body),
                   });
                   try {
                     await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.CONFLICTS, {
@@ -3903,7 +4003,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   owners: conflict.owners,
                   entity_type: (payload.type === 'table' ? 'table' : 'dag'),
                   user_email: req.user?.email || req.body?.user_email || null,
-                  originalPayload: req.body,
+                  originalPayload: sanitizeEntityPayloadForConflict(req.body),
                 });
                 try {
                   await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.CONFLICTS, {
@@ -4087,10 +4187,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // If turning into non-owner with owner reference, validate reference exists before update
       try {
         const isOwner = req.body?.is_entity_owner === true ? true : (req.body?.is_entity_owner === false ? false : undefined);
-        const refName = typeof req.body?.owner_entity_reference === 'string' ? req.body.owner_entity_reference.trim() : undefined;
+        const refName = typeof req.body?.owner_entity_ref_name === 'string'
+          ? (req.body.owner_entity_ref_name as string).trim()
+          : (typeof req.body?.owner_entity_reference === 'string' ? (req.body.owner_entity_reference as string).trim() : undefined);
         if (isOwner === false) {
           if (!refName) {
-            return sendError(res, 400, 'owner_entity_reference is required when is_entity_owner is false');
+            return sendError(res, 400, 'owner_entity_ref_name is required when is_entity_owner is false');
           }
           const matches = await redisCache.findSlimEntitiesByNameCI(refName, normalizedType as 'table' | 'dag');
           if (!matches || matches.length === 0) {

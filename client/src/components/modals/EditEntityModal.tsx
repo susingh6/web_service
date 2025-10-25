@@ -55,7 +55,7 @@ const baseSchema = yup.object().shape({
   team_name: yup.string().required('Team name is required'),
   notification_preferences: yup.array().of(yup.string()).default([]),
   is_entity_owner: fieldDefinitions.is_entity_owner.validation,
-  owner_entity_reference: yup.string()
+  owner_entity_ref_name: yup.string()
     .when('is_entity_owner', {
       is: false,
       then: (schema) => fieldDefinitions.owner_entity_reference.validation,
@@ -238,7 +238,7 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
       team_name: '',
       notification_preferences: [],
       is_entity_owner: false,
-      owner_entity_reference: '',
+      owner_entity_ref_name: '',
       is_active: true,
       expected_runtime_minutes: 60,
       donemarker_location: '',
@@ -259,7 +259,7 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
       team_name: '',
       notification_preferences: [],
       is_entity_owner: false,
-      owner_entity_reference: '',
+      owner_entity_ref_name: '',
       is_active: true,
       expected_runtime_minutes: 60,
       donemarker_location: '',
@@ -294,7 +294,7 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
         team_name: entityDetails.team_name || '',
         notification_preferences: entityDetails.notification_preferences || [],
         is_entity_owner: entityDetails.is_entity_owner || false,
-        owner_entity_reference: (entityDetails as any).owner_entity_reference || '',
+        owner_entity_ref_name: (entityDetails as any).owner_entity_ref_name || (entityDetails as any).owner_entity_reference || '',
 
         is_active: entityDetails.is_active !== undefined ? entityDetails.is_active : true,
         expected_runtime_minutes: entityDetails.expected_runtime_minutes || 60,
@@ -311,7 +311,7 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
         team_name: entityDetails.team_name || '',
         notification_preferences: entityDetails.notification_preferences || [],
         is_entity_owner: entityDetails.is_entity_owner || false,
-        owner_entity_reference: (entityDetails as any).owner_entity_reference || '',
+        owner_entity_ref_name: (entityDetails as any).owner_entity_ref_name || (entityDetails as any).owner_entity_reference || '',
 
         is_active: entityDetails.is_active !== undefined ? entityDetails.is_active : true,
         expected_runtime_minutes: entityDetails.expected_runtime_minutes || 60,
@@ -704,7 +704,7 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
 
           {!entityDetails?.is_entity_owner && (
             <Controller
-              name="owner_entity_reference"
+              name="owner_entity_ref_name"
               control={control}
               render={({ field: { onChange, value, onBlur } }) => (
                 <Autocomplete
@@ -753,8 +753,8 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
                       required
                       fullWidth
                       margin="normal"
-                      error={!!(errors as any).owner_entity_reference}
-                      helperText={(errors as any).owner_entity_reference?.message}
+                      error={!!(errors as any).owner_entity_ref_name}
+                      helperText={(errors as any).owner_entity_ref_name?.message}
                       onBlur={onBlur}
                       InputProps={{
                         ...params.InputProps,

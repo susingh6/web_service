@@ -326,38 +326,38 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
         return;
       }
       
-      // Create the entity object to submit with proper field mapping
-      // CRITICAL: Exclude table_name and dag_name from spread to prevent identifier conflicts
-      const { table_name, dag_name, ...cleanData } = data;
-      const entityData = {
-        ...cleanData,
-        user_email: userEmail, // Use authenticated user's email
-        // Map form fields to API fields - use entity_name for both table and DAG
-        name: data.entity_name,
-        entity_name: data.entity_name, // Explicit mapping
-        // Preserve user-provided identifiers for table/dag names
-        table_name: data.table_name,
-        dag_name: data.dag_name,
-        schema_name: data.schema_name,
-        description: entityType === 'dag' ? data.dag_description : data.description,
-        type: entityType,
-        teamId: team.id, // Add team ID for cache invalidation
-        
-        is_entity_owner: isEntityOwner, // CRITICAL: Map the ownership state to the entity field
-        // Feed schedule/runtime so Expected Finish can render immediately (optimistic)
-        entity_schedule: entityType === 'dag' ? data.dag_schedule : data.table_schedule,
+      // Create minimal, canonical entity payload (no UI-only fields)
+      const ownerEmailValue = (data.ownerEmail || data.owner_email || data.owner || '').trim();
+      const entityData: any = {
+        tenant_name: data.tenant_name,
+        team_name: data.team_name,
+        entity_type: entityType,
+        entity_name: data.entity_name,
+        is_active: (data as any).is_active !== undefined ? (data as any).is_active : true,
+        is_entity_owner: isEntityOwner,
         expected_runtime_minutes: data.expected_runtime_minutes,
-        // Ensure required fields are included for both table and DAG entities
-        slaTarget: data.slaTarget || 95,
-        status: data.status || 'Active', 
-        refreshFrequency: data.refreshFrequency || 'Daily',
-        owner: data.owner || data.owner_email || '',
-        ownerEmail: data.ownerEmail || data.owner_email || '',
-        // Optional server fields (DAGs may provide; tables default to null)
+        owner_email: isEntityOwner ? (ownerEmailValue || userEmail || null) : null,
+        user_email: userEmail,
         server_name: data.server_name || null,
-        // For non-owner entities, pass the reference for server validation
-        ...(isEntityOwner ? {} : { owner_entity_reference: data.owner_entity_reference }),
+        // Always send owner_entity_ref_name; null when the entity is an owner
+        owner_entity_ref_name: isEntityOwner ? null : (data.owner_entity_reference || null),
+        // Donemarker fields (required by backend semantics)
+        donemarker_location: data.donemarker_location ?? null,
+        donemarker_lookback: data.donemarker_lookback ?? null,
       };
+      if (entityType === 'dag') {
+        entityData.dag_name = data.dag_name;
+        entityData.dag_schedule = data.dag_schedule || data.entity_schedule || null;
+        entityData.dag_description = (data as any).dag_description ?? '';
+        entityData.dag_dependency = (data as any).dag_dependency ?? '';
+      } else {
+        entityData.schema_name = data.schema_name;
+        entityData.table_name = data.table_name;
+        entityData.table_schedule = data.table_schedule || data.entity_schedule || null;
+      }
+      if (!isEntityOwner && data.owner_entity_reference) {
+        entityData.owner_entity_ref_name = data.owner_entity_reference;
+      }
       
       // Use React Query mutation for proper cache invalidation
       try {
