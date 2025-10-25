@@ -328,6 +328,11 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
       
       // Create minimal, canonical entity payload (no UI-only fields)
       const ownerEmailValue = (data.ownerEmail || data.owner_email || data.owner || '').trim();
+      const toNull = (v: any) => {
+        if (v === undefined || v === null) return null;
+        if (typeof v === 'string' && v.trim() === '') return null;
+        return v;
+      };
       const entityData: any = {
         tenant_name: data.tenant_name,
         team_name: data.team_name,
@@ -335,25 +340,27 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
         entity_name: data.entity_name,
         is_active: (data as any).is_active !== undefined ? (data as any).is_active : true,
         is_entity_owner: isEntityOwner,
-        expected_runtime_minutes: data.expected_runtime_minutes,
+        expected_runtime_minutes: isEntityOwner ? data.expected_runtime_minutes : null,
         owner_email: isEntityOwner ? (ownerEmailValue || userEmail || null) : null,
         user_email: userEmail,
         server_name: data.server_name || null,
         // Always send owner_entity_ref_name; null when the entity is an owner
         owner_entity_ref_name: isEntityOwner ? null : (data.owner_entity_reference || null),
         // Donemarker fields (required by backend semantics)
-        donemarker_location: data.donemarker_location ?? null,
-        donemarker_lookback: data.donemarker_lookback ?? null,
+        donemarker_location: isEntityOwner ? toNull(data.donemarker_location) : null,
+        donemarker_lookback: isEntityOwner ? (data.donemarker_lookback ?? null) : null,
       };
       if (entityType === 'dag') {
-        entityData.dag_name = data.dag_name;
-        entityData.dag_schedule = data.dag_schedule || data.entity_schedule || null;
-        entityData.dag_description = (data as any).dag_description ?? '';
-        entityData.dag_dependency = (data as any).dag_dependency ?? '';
+        entityData.dag_name = isEntityOwner ? (data.dag_name || null) : null;
+        entityData.dag_schedule = isEntityOwner ? (data.dag_schedule || data.entity_schedule || null) : null;
+        entityData.dag_description = isEntityOwner ? toNull((data as any).dag_description) : null;
+        entityData.dag_dependency = isEntityOwner ? toNull((data as any).dag_dependency) : null;
       } else {
         entityData.schema_name = data.schema_name;
-        entityData.table_name = data.table_name;
-        entityData.table_schedule = data.table_schedule || data.entity_schedule || null;
+        entityData.table_name = isEntityOwner ? (data.table_name || null) : null;
+        entityData.table_schedule = isEntityOwner ? (data.table_schedule || data.entity_schedule || null) : null;
+        entityData.table_description = isEntityOwner ? toNull((data as any).table_description) : null;
+        entityData.table_dependency = isEntityOwner ? toNull((data as any).table_dependency) : null;
       }
       if (!isEntityOwner && data.owner_entity_reference) {
         entityData.owner_entity_ref_name = data.owner_entity_reference;
