@@ -451,7 +451,7 @@ const ConflictsManagement = () => {
         (c as any).entityName || '',
         (c.conflictingTeams || []).join(' '),
         (c as any).conflictDetails?.existingOwner || '',
-        (c as any).conflictDetails?.requestedBy || (c as any).originalPayload?.user_email || ''
+        (c as any).conflictDetails?.requestedBy || (c as any).originalPayload?.action_by_user_email || (c as any).originalPayload?.user_email || ''
       ].join(' ').toLowerCase();
       return tokens.every(tok => fields.includes(tok));
     });
@@ -554,7 +554,7 @@ const ConflictsManagement = () => {
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2">
-                          {(conflict as any).conflictDetails?.requestedBy || (conflict as any).originalPayload?.user_email || 'Unknown'}
+                          {(conflict as any).conflictDetails?.requestedBy || (conflict as any).originalPayload?.action_by_user_email || (conflict as any).originalPayload?.user_email || 'Unknown'}
                         </Typography>
                       </TableCell>
                       <TableCell>

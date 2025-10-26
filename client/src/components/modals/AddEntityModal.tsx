@@ -201,7 +201,7 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
       setLoadingOwnerRef(false);
     }
   };
-
+  
 
   const {
     control,
@@ -214,9 +214,12 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
   } = useForm({
     // Bypass complex schema validation that's causing TypeScript issues
     mode: 'onChange',
+    shouldUnregister: false,
     defaultValues: {
+      // Seed all potential fields so newly mounted inputs never start as undefined
       ...configDefaultValues.common,
-      ...(entityType === 'table' ? configDefaultValues.table : configDefaultValues.dag)
+      ...configDefaultValues.table,
+      ...configDefaultValues.dag,
     },
   });
 
@@ -327,12 +330,56 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
       }
       
       // Create minimal, canonical entity payload (no UI-only fields)
-      const ownerEmailValue = (data.ownerEmail || data.owner_email || data.owner || '').trim();
+      const rawOwnerEmail = (data.ownerEmail || data.owner_email || data.owner);
+      const parseOwnerEmail = (val: any): string | string[] | null => {
+        if (val === undefined || val === null) return null;
+        if (Array.isArray(val)) {
+          const emails = val.map(v => String(v).trim()).filter(v => v.length > 0);
+          return emails.length > 1 ? emails : (emails[0] || null);
+        }
+        const s = String(val).trim();
+        if (!s) return null;
+        if (s.includes(',')) {
+          const emails = s.split(',').map(e => e.trim()).filter(e => e.length > 0);
+          return emails.length > 1 ? emails : (emails[0] || null);
+        }
+        return s;
+      };
+      const ownerEmailValue = parseOwnerEmail(rawOwnerEmail);
       const toNull = (v: any) => {
         if (v === undefined || v === null) return null;
         if (typeof v === 'string' && v.trim() === '') return null;
         return v;
       };
+      const parseLookback = (val: any): number | number[] | null => {
+        if (val === undefined || val === null || val === '') return null;
+        if (Array.isArray(val)) {
+          const nums = val.map(v => parseInt(String(v), 10)).filter(v => !isNaN(v) && v >= 0);
+          return nums.length > 0 ? nums : null;
+        }
+        const s = String(val).trim();
+        if (s.includes(',')) {
+          const nums = s.split(',').map(x => parseInt(x.trim(), 10)).filter(v => !isNaN(v) && v >= 0);
+          return nums.length > 0 ? nums : null;
+        }
+        const n = parseInt(s, 10);
+        return isNaN(n) ? null : n;
+      };
+      const parseStringOrList = (val: any): string | string[] | null => {
+        if (val === undefined || val === null) return null;
+        if (Array.isArray(val)) {
+          const items = val.map((x: any) => String(x).trim()).filter((x: string) => x.length > 0);
+          return items.length > 1 ? items : (items[0] || null);
+        }
+        const s = String(val).trim();
+        if (!s) return null;
+        if (s.includes(',')) {
+          const items = s.split(',').map((x) => x.trim()).filter((x) => x.length > 0);
+          return items.length > 1 ? items : (items[0] || null);
+        }
+        return s;
+      };
+
       const entityData: any = {
         tenant_name: data.tenant_name,
         team_name: data.team_name,
@@ -342,25 +389,40 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
         is_entity_owner: isEntityOwner,
         expected_runtime_minutes: isEntityOwner ? data.expected_runtime_minutes : null,
         owner_email: isEntityOwner ? (ownerEmailValue || userEmail || null) : null,
-        user_email: userEmail,
+        action_by_user_email: userEmail,
         server_name: data.server_name || null,
         // Always send owner_entity_ref_name; null when the entity is an owner
         owner_entity_ref_name: isEntityOwner ? null : (data.owner_entity_reference || null),
-        // Donemarker fields (required by backend semantics)
-        donemarker_location: isEntityOwner ? toNull(data.donemarker_location) : null,
-        donemarker_lookback: isEntityOwner ? (data.donemarker_lookback ?? null) : null,
+        // Donemarker fields (allow string or list of strings)
+        dag_donemarker_location: entityType === 'dag' ? (isEntityOwner ? (() => {
+          const v = (data as any).donemarker_location;
+          if (v === undefined || v === null || v === '') return null;
+          if (Array.isArray(v)) return v.map((x: any) => String(x).trim()).filter((x: string) => x.length > 0);
+          const s = String(v).trim();
+          if (s.includes(',')) return s.split(',').map(x => x.trim()).filter(x => x.length > 0);
+          return s || null;
+        })() : null) : undefined,
+        table_donemarker_location: entityType === 'table' ? (isEntityOwner ? (() => {
+          const v = (data as any).donemarker_location;
+          if (v === undefined || v === null || v === '') return null;
+          if (Array.isArray(v)) return v.map((x: any) => String(x).trim()).filter((x: string) => x.length > 0);
+          const s = String(v).trim();
+          if (s.includes(',')) return s.split(',').map(x => x.trim()).filter(x => x.length > 0);
+          return s || null;
+        })() : null) : undefined,
+        donemarker_lookback: isEntityOwner ? parseLookback(data.donemarker_lookback) : null,
       };
       if (entityType === 'dag') {
         entityData.dag_name = isEntityOwner ? (data.dag_name || null) : null;
         entityData.dag_schedule = isEntityOwner ? (data.dag_schedule || data.entity_schedule || null) : null;
         entityData.dag_description = isEntityOwner ? toNull((data as any).dag_description) : null;
-        entityData.dag_dependency = isEntityOwner ? toNull((data as any).dag_dependency) : null;
+        entityData.dag_dependency = isEntityOwner ? parseStringOrList((data as any).dag_dependency) : null;
       } else {
         entityData.schema_name = data.schema_name;
         entityData.table_name = isEntityOwner ? (data.table_name || null) : null;
         entityData.table_schedule = isEntityOwner ? (data.table_schedule || data.entity_schedule || null) : null;
         entityData.table_description = isEntityOwner ? toNull((data as any).table_description) : null;
-        entityData.table_dependency = isEntityOwner ? toNull((data as any).table_dependency) : null;
+        entityData.table_dependency = isEntityOwner ? parseStringOrList((data as any).table_dependency) : null;
       }
       if (!isEntityOwner && data.owner_entity_reference) {
         entityData.owner_entity_ref_name = data.owner_entity_reference;
@@ -368,7 +430,7 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
       
       // Use React Query mutation for proper cache invalidation
       try {
-        const result = await createEntity(entityData);
+      const result = await createEntity(entityData);
       } catch (err: any) {
         let msg = err?.message || 'Failed to create entity';
         // If backend returned a JSON error blob, extract the clean message
@@ -467,6 +529,7 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
                 render={({ field }) => (
                   <TextField
                     {...field}
+                    value={field.value ?? ''}
                     label={fieldDefinitions.entity_name.label}
                     required={fieldDefinitions.entity_name.required}
                     type={fieldDefinitions.entity_name.type}
@@ -485,14 +548,15 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
                 render={({ field: { onChange, value, onBlur, ref } }) => (
                   <Autocomplete
                     disabled={isLockedContext}
-                    value={value}
+                    value={value ?? ''}
+                    getOptionLabel={(opt) => (typeof opt === 'string' ? opt : (opt as any)?.label ?? '')}
+                    isOptionEqualToValue={(opt, val) => String(opt ?? '') === String(val ?? '')}
                     onChange={(_, newValue) => {
                       onChange(newValue);
                     }}
                     onInputChange={(_, newInputValue, reason) => {
                       if (reason === 'input' && newInputValue.trim() !== '') {
-                        // Don't make API calls during typing - only when submitting
-                        // This improves performance significantly
+                        // noop typing
                       }
                     }}
                     freeSolo={!isLockedContext}
@@ -529,7 +593,9 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
                 render={({ field: { onChange, value, onBlur, ref } }) => (
                   <Autocomplete
                     disabled={isLockedContext}
-                    value={value}
+                    value={value ?? ''}
+                    getOptionLabel={(opt) => (typeof opt === 'string' ? opt : (opt as any)?.label ?? '')}
+                    isOptionEqualToValue={(opt, val) => String(opt ?? '') === String(val ?? '')}
                     onChange={(_, newValue) => {
                       onChange(newValue);
                     }}
@@ -568,61 +634,61 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
               />
               
               {false && isEntityOwner && (
-                <Controller
-                  name="schema_name"
-                  control={control}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      label={fieldDefinitions.schema_name.label}
-                      fullWidth
-                      margin="normal"
-                      required
-                      error={!!(errors as any).schema_name}
-                      helperText={(errors as any).schema_name?.message}
-                      placeholder="e.g., public, sales, marketing"
-                    />
-                  )}
-                />
+              <Controller
+                name="schema_name"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label={fieldDefinitions.schema_name.label}
+                    fullWidth
+                    margin="normal"
+                    required
+                    error={!!(errors as any).schema_name}
+                    helperText={(errors as any).schema_name?.message}
+                    placeholder="e.g., public, sales, marketing"
+                  />
+                )}
+              />
               )}
               
               {false && isEntityOwner && (
-                <Controller
-                  name="table_name"
-                  control={control}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      label={fieldDefinitions.table_name.label}
-                      fullWidth
-                      margin="normal"
-                      required
-                      error={!!(errors as any).table_name}
-                      helperText={(errors as any).table_name?.message}
-                      placeholder="e.g., customer_master, orders, products"
-                    />
-                  )}
-                />
+              <Controller
+                name="table_name"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label={fieldDefinitions.table_name.label}
+                    fullWidth
+                    margin="normal"
+                    required
+                    error={!!(errors as any).table_name}
+                    helperText={(errors as any).table_name?.message}
+                    placeholder="e.g., customer_master, orders, products"
+                  />
+                )}
+              />
               )}
               
               {false && isEntityOwner && (
-                <Controller
-                  name="table_description"
-                  control={control}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      label={fieldDefinitions.table_description.label}
-                      fullWidth
-                      margin="normal"
-                      multiline
-                      rows={3}
-                      error={!!(errors as any).table_description}
-                      helperText={(errors as any).table_description?.message}
-                      placeholder="Brief description of this table"
-                    />
-                  )}
-                />
+              <Controller
+                name="table_description"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label={fieldDefinitions.table_description.label}
+                    fullWidth
+                    margin="normal"
+                    multiline
+                    rows={3}
+                    error={!!(errors as any).table_description}
+                    helperText={(errors as any).table_description?.message}
+                    placeholder="Brief description of this table"
+                  />
+                )}
+              />
               )}
 
               {!isEntityOwner && (
@@ -631,7 +697,9 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
                   control={control}
                   render={({ field: { onChange, value, onBlur } }) => (
                     <Autocomplete
-                      value={value}
+                      value={value ?? ''}
+                      getOptionLabel={(opt) => (typeof opt === 'string' ? opt : (opt as any)?.label ?? '')}
+                      isOptionEqualToValue={(opt, val) => String(opt ?? '') === String(val ?? '')}
                       onChange={(_, newValue) => onChange(newValue)}
                       onOpen={() => fetchOwnerRefOptions('table')}
                       onInputChange={async (_e, newInputValue) => {
@@ -653,18 +721,18 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
                       options={ownerRefOptions}
                       loading={loadingOwnerRef}
                       renderInput={(params) => (
-                        <TextField
+                    <TextField
                           {...params}
-                          label={`${fieldDefinitions.owner_entity_reference.label} *`}
-                          required
-                          fullWidth
-                          margin="normal"
-                          error={!!(errors as any).owner_entity_reference}
-                          helperText={(errors as any).owner_entity_reference?.message}
+                      label={`${fieldDefinitions.owner_entity_reference.label} *`}
+                      required
+                      fullWidth
+                      margin="normal"
+                      error={!!(errors as any).owner_entity_reference}
+                      helperText={(errors as any).owner_entity_reference?.message}
                           onBlur={onBlur}
-                          InputProps={{
+                      InputProps={{
                             ...params.InputProps,
-                            endAdornment: (
+                        endAdornment: (
                               <>
                                 {loadingOwnerRef ? <CircularProgress color="inherit" size={20} /> : null}
                                 {params.InputProps.endAdornment}
@@ -723,6 +791,7 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
                     render={({ field }) => (
                       <TextField
                         {...field}
+                        value={field.value ?? ''}
                         label={fieldDefinitions.schema_name.label}
                         fullWidth
                         margin="normal"
@@ -733,6 +802,7 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
                       />
                     )}
                   />
+                  {/* Removed stray owner helper texts under Schema Name */}
 
                   <Controller
                     name="table_name"
@@ -740,6 +810,7 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
                     render={({ field }) => (
                       <TextField
                         {...field}
+                        value={field.value ?? ''}
                         label={fieldDefinitions.table_name.label}
                         fullWidth
                         margin="normal"
@@ -757,6 +828,7 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
                     render={({ field }) => (
                       <TextField
                         {...field}
+                        value={field.value ?? ''}
                         label={fieldDefinitions.table_description.label}
                         fullWidth
                         margin="normal"
@@ -774,6 +846,7 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
                     render={({ field }) => (
                       <TextField
                         {...field}
+                        value={field.value ?? ''}
                         label="Table Schedule *"
                         fullWidth
                         margin="normal"
@@ -814,6 +887,7 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
                     render={({ field }) => (
                       <TextField
                         {...field}
+                        value={field.value ?? ''}
                         label={fieldDefinitions.table_dependency.label}
                         fullWidth
                         margin="normal"
@@ -827,18 +901,47 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
                   <Controller
                     name="donemarker_lookback"
                     control={control}
-                    render={({ field }) => (
+                    render={({ field }) => {
+                      const list: (string | number)[] = Array.isArray(field.value)
+                        ? field.value
+                        : (field.value === undefined || field.value === null || (typeof field.value === 'string' && field.value === '')
+                            ? ['']
+                            : [Number.isFinite(field.value as any) ? Number(field.value) : String(field.value)]);
+                      const setAt = (idx: number, val: string) => {
+                        const next: any[] = [...list];
+                        next[idx] = val === '' ? '' : Number(val);
+                        field.onChange(next);
+                      };
+                      const addOne = () => field.onChange([...list, '']);
+                      const removeAt = (idx: number) => {
+                        const next = list.filter((_, i) => i !== idx);
+                        field.onChange(next.length > 0 ? next : ['']);
+                      };
+                      return (
+                        <div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            {list.map((v: any, idx: number) => (
+                              <div key={`lookback-table-${idx}`} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                       <TextField
-                        {...field}
-                        label="Donemarker Lookback (Days) *"
+                                  label={idx === 0 ? 'Donemarker Lookback (Days) *' : 'Additional Lookback'}
                         type="number"
                         fullWidth
                         margin="normal"
-                        error={!!errors.donemarker_lookback}
-                        helperText={errors.donemarker_lookback?.message || "Default is 0"}
-                        inputProps={{ min: 0 }}
-                      />
-                    )}
+                                  value={v ?? ''}
+                                  onChange={(e) => setAt(idx, e.target.value)}
+                                  inputProps={{ min: 0, inputMode: 'numeric' }}
+                                />
+                                <Button variant="outlined" onClick={() => removeAt(idx)} disabled={list.length === 1}>Remove</Button>
+                              </div>
+                            ))}
+                          </div>
+                          <Tooltip title="Use this to add another lookback window when you have multiple done marker locations and need different lookback period for each.">
+                            <Button variant="text" onClick={addOne} sx={{ mt: 1 }}>Add Additional Lookback</Button>
+                          </Tooltip>
+                          <div style={{ color: 'rgba(0,0,0,0.6)', fontSize: 12, marginTop: 4 }}>Default is 0</div>
+                        </div>
+                      );
+                    }}
                   />
 
                   <Controller
@@ -847,6 +950,7 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
                     render={({ field }) => (
                       <TextField
                         {...field}
+                        value={field.value ?? ''}
                         label={`${fieldDefinitions.donemarker_location.label} *`}
                         required
                         type={fieldDefinitions.donemarker_location.type}
@@ -854,7 +958,7 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
                         fullWidth
                         margin="normal"
                         error={!!errors.donemarker_location}
-                        helperText={errors.donemarker_location?.message}
+                        helperText={errors.donemarker_location?.message || 'Comma-separated list for multiple done marker locations'}
                       />
                     )}
                   />
@@ -865,14 +969,15 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
                     render={({ field }) => (
                       <TextField
                         {...field}
+                        value={field.value ?? ''}
                         label={`${fieldDefinitions.owner_email.label} *`}
                         required
-                        type={fieldDefinitions.owner_email.type}
+                        type="text"
                         placeholder={fieldDefinitions.owner_email.placeholder}
                         fullWidth
                         margin="normal"
                         error={!!errors.owner_email}
-                        helperText={errors.owner_email?.message}
+                        helperText={errors.owner_email?.message || 'Comma-separated list for multiple owners'}
                       />
                     )}
                   />
@@ -888,6 +993,7 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
                 render={({ field }) => (
                   <TextField
                     {...field}
+                    value={field.value ?? ''}
                     label={fieldDefinitions.entity_name.label}
                     required={fieldDefinitions.entity_name.required}
                     type={fieldDefinitions.entity_name.type}
@@ -906,7 +1012,9 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
                 render={({ field: { onChange, value, onBlur, ref } }) => (
                   <Autocomplete
                     disabled={isLockedContext}
-                    value={value}
+                    value={value ?? ''}
+                    getOptionLabel={(opt) => (typeof opt === 'string' ? opt : (opt as any)?.label ?? '')}
+                    isOptionEqualToValue={(opt, val) => String(opt ?? '') === String(val ?? '')}
                     onChange={(_, newValue) => {
                       onChange(newValue);
                     }}
@@ -950,7 +1058,9 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
                 render={({ field: { onChange, value, onBlur, ref } }) => (
                   <Autocomplete
                     disabled={isLockedContext}
-                    value={value}
+                    value={value ?? ''}
+                    getOptionLabel={(opt) => (typeof opt === 'string' ? opt : (opt as any)?.label ?? '')}
+                    isOptionEqualToValue={(opt, val) => String(opt ?? '') === String(val ?? '')}
                     onChange={(_, newValue) => {
                       onChange(newValue);
                     }}
@@ -993,41 +1103,43 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
                   name="dag_name"
                   control={control}
                   render={({ field: { onChange, value, onBlur } }) => (
-                    <Autocomplete
-                      value={value}
-                      onChange={(_, newValue) => {
-                        onChange(newValue);
-                      }}
-                      onInputChange={(_, newInputValue, reason) => {
-                        if (reason === 'input' && newInputValue.trim() !== '') {
-                          // Don't make API calls during typing - only when submitting
-                        }
-                      }}
-                      freeSolo
-                      options={dagOptions}
-                      loading={loadingDags}
-                      renderInput={(params) => (
-                        <TextField
-                          {...params}
-                          label={fieldDefinitions.dag_name.label}
-                          required
-                          fullWidth
-                          margin="normal"
-                          error={!!(errors as any).dag_name}
-                          helperText={(errors as any).dag_name?.message}
-                          onBlur={onBlur}
-                          InputProps={{
-                            ...params.InputProps,
-                            endAdornment: (
-                              <>
-                                {loadingDags ? <CircularProgress color="inherit" size={20} /> : null}
-                                {params.InputProps.endAdornment}
-                              </>
-                            ),
-                          }}
-                        />
-                      )}
-                    />
+                  <Autocomplete
+                    value={watch('dag_name') ?? ''}
+                    getOptionLabel={(opt) => (typeof opt === 'string' ? opt : (opt as any)?.label ?? '')}
+                    isOptionEqualToValue={(opt, val) => String(opt ?? '') === String(val ?? '')}
+                    onChange={(_, newValue) => {
+                      onChange(newValue);
+                    }}
+                    onInputChange={(_, newInputValue, reason) => {
+                      if (reason === 'input' && newInputValue.trim() !== '') {
+                        // Don't make API calls during typing - only when submitting
+                      }
+                    }}
+                    freeSolo
+                    options={dagOptions}
+                    loading={loadingDags}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label={fieldDefinitions.dag_name.label}
+                        required
+                        fullWidth
+                        margin="normal"
+                        error={!!(errors as any).dag_name}
+                        helperText={(errors as any).dag_name?.message}
+                        onBlur={onBlur}
+                        InputProps={{
+                          ...params.InputProps,
+                          endAdornment: (
+                            <>
+                              {loadingDags ? <CircularProgress color="inherit" size={20} /> : null}
+                              {params.InputProps.endAdornment}
+                            </>
+                          ),
+                        }}
+                      />
+                    )}
+                  />
                   )}
                 />
               )}
@@ -1081,18 +1193,18 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
                       options={ownerRefOptions}
                       loading={loadingOwnerRef}
                       renderInput={(params) => (
-                        <TextField
+                    <TextField
                           {...params}
-                          label={`${fieldDefinitions.owner_entity_reference.label} *`}
-                          required
-                          fullWidth
-                          margin="normal"
-                          error={!!(errors as any).owner_entity_reference}
-                          helperText={(errors as any).owner_entity_reference?.message}
+                      label={`${fieldDefinitions.owner_entity_reference.label} *`}
+                      required
+                      fullWidth
+                      margin="normal"
+                      error={!!(errors as any).owner_entity_reference}
+                      helperText={(errors as any).owner_entity_reference?.message}
                           onBlur={onBlur}
-                          InputProps={{
+                      InputProps={{
                             ...params.InputProps,
-                            endAdornment: (
+                        endAdornment: (
                               <>
                                 {loadingOwnerRef ? <CircularProgress color="inherit" size={20} /> : null}
                                 {params.InputProps.endAdornment}
@@ -1151,7 +1263,9 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
                     control={control}
                     render={({ field: { onChange, value, onBlur } }) => (
                       <Autocomplete
-                        value={value}
+                        value={value ?? ''}
+                        getOptionLabel={(opt) => (typeof opt === 'string' ? opt : (opt as any)?.label ?? '')}
+                        isOptionEqualToValue={(opt, val) => String(opt ?? '') === String(val ?? '')}
                         onChange={(_, newValue) => {
                           onChange(newValue);
                         }}
@@ -1189,6 +1303,7 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
                     render={({ field }) => (
                       <TextField
                         {...field}
+                        value={field.value ?? ''}
                         label={fieldDefinitions.dag_description.label}
                         fullWidth
                         margin="normal"
@@ -1205,6 +1320,7 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
                     render={({ field }) => (
                       <TextField
                         {...field}
+                        value={field.value ?? ''}
                         label="DAG Schedule *"
                         fullWidth
                         margin="normal"
@@ -1245,6 +1361,7 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
                     render={({ field }) => (
                       <TextField
                         {...field}
+                        value={field.value ?? ''}
                         label={fieldDefinitions.dag_dependency.label}
                         fullWidth
                         margin="normal"
@@ -1258,18 +1375,47 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
                   <Controller
                     name="donemarker_lookback"
                     control={control}
-                    render={({ field }) => (
+                    render={({ field }) => {
+                      const list: (string | number)[] = Array.isArray(field.value)
+                        ? field.value
+                        : (field.value === undefined || field.value === null || (typeof field.value === 'string' && field.value === '')
+                            ? ['']
+                            : [Number.isFinite(field.value as any) ? Number(field.value) : String(field.value)]);
+                      const setAt = (idx: number, val: string) => {
+                        const next: any[] = [...list];
+                        next[idx] = val === '' ? '' : Number(val);
+                        field.onChange(next);
+                      };
+                      const addOne = () => field.onChange([...list, '']);
+                      const removeAt = (idx: number) => {
+                        const next = list.filter((_, i) => i !== idx);
+                        field.onChange(next.length > 0 ? next : ['']);
+                      };
+                      return (
+                        <div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            {list.map((v: any, idx: number) => (
+                              <div key={`lookback-dag-${idx}`} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                       <TextField
-                        {...field}
-                        label="Donemarker Lookback (Days) *"
+                                  label={idx === 0 ? 'Donemarker Lookback (Days) *' : 'Additional Lookback'}
                         type="number"
                         fullWidth
                         margin="normal"
-                        error={!!errors.donemarker_lookback}
-                        helperText={errors.donemarker_lookback?.message || "Default is 0"}
-                        inputProps={{ min: 0 }}
-                      />
-                    )}
+                                  value={v ?? ''}
+                                  onChange={(e) => setAt(idx, e.target.value)}
+                                  inputProps={{ min: 0, inputMode: 'numeric' }}
+                                />
+                                <Button variant="outlined" onClick={() => removeAt(idx)} disabled={list.length === 1}>Remove</Button>
+                              </div>
+                            ))}
+                          </div>
+                          <Tooltip title="Use this to add another lookback window when you have multiple done marker locations and need different lookback period for each.">
+                            <Button variant="text" onClick={addOne} sx={{ mt: 1 }}>Add Additional Lookback</Button>
+                          </Tooltip>
+                          <div style={{ color: 'rgba(0,0,0,0.6)', fontSize: 12, marginTop: 4 }}>Default is 0</div>
+                        </div>
+                      );
+                    }}
                   />
               
                   <Controller
@@ -1278,6 +1424,7 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
                     render={({ field }) => (
                       <TextField
                         {...field}
+                        value={field.value ?? ''}
                         label={fieldDefinitions.server_name.label}
                         fullWidth
                         margin="normal"
@@ -1294,6 +1441,7 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
                     render={({ field }) => (
                       <TextField
                         {...field}
+                        value={field.value ?? ''}
                         label={`${fieldDefinitions.donemarker_location.label} *`}
                         required
                         type={fieldDefinitions.donemarker_location.type}
@@ -1301,7 +1449,7 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
                         fullWidth
                         margin="normal"
                         error={!!errors.donemarker_location}
-                        helperText={errors.donemarker_location?.message}
+                        helperText={errors.donemarker_location?.message || 'Comma-separated list for multiple done marker locations'}
                       />
                     )}
                   />
@@ -1312,14 +1460,15 @@ const AddEntityModal = ({ open, onClose, teams, initialTenantName, initialTeamNa
                     render={({ field }) => (
                       <TextField
                         {...field}
+                        value={field.value ?? ''}
                         label={`${fieldDefinitions.owner_email.label} *`}
                         required
-                        type={fieldDefinitions.owner_email.type}
+                        type="text"
                         placeholder={fieldDefinitions.owner_email.placeholder}
                         fullWidth
                         margin="normal"
                         error={!!errors.owner_email}
-                        helperText={errors.owner_email?.message}
+                        helperText={errors.owner_email?.message || 'Comma-separated list for multiple owners'}
                       />
                     )}
                   />

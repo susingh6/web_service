@@ -84,33 +84,64 @@ function sanitizeEntityPayloadForConflict(raw: any): any {
     const p = raw || {};
     const entityType = ((p as any).entity_type || (p as any).type) === 'table' ? 'table' : 'dag';
     const isOwner = p.is_entity_owner === false ? false : true;
+    const parseStringOrList = (val: any): string[] | null => {
+      if (val === undefined || val === null) return null;
+      if (Array.isArray(val)) {
+        const out = val.map((x) => String(x).trim()).filter((s) => s.length > 0);
+        return out.length > 0 ? out : null;
+      }
+      const s = String(val).trim();
+      if (!s) return null;
+      if (s.includes(',')) {
+        const out = s.split(',').map((x) => x.trim()).filter((t) => t.length > 0);
+        return out.length > 0 ? out : null;
+      }
+      return [s];
+    };
+    const parseIntOrList = (val: any): number | number[] | null => {
+      if (val === undefined || val === null || val === '') return null;
+      if (Array.isArray(val)) {
+        const nums = val.map((x) => parseInt(String(x), 10)).filter((n) => !isNaN(n));
+        return nums.length > 1 ? nums : (nums[0] ?? null);
+      }
+      const s = String(val).trim();
+      if (s.includes(',')) {
+        const nums = s.split(',').map((x) => parseInt(x.trim(), 10)).filter((n) => !isNaN(n));
+        return nums.length > 1 ? nums : (nums[0] ?? null);
+      }
+      const n = parseInt(s, 10);
+      return isNaN(n) ? null : n;
+    };
 
     const base: any = {
       entity_type: entityType,
       tenant_name: p.tenant_name ?? null,
       team_name: p.team_name ?? null,
       entity_name: p.entity_name ?? null,
+      is_active: (typeof p.is_active === 'boolean') ? p.is_active : true,
       is_entity_owner: isOwner,
       expected_runtime_minutes: p.expected_runtime_minutes ?? null,
-      donemarker_location: p.donemarker_location ?? null,
-      donemarker_lookback: p.donemarker_lookback ?? null,
+      donemarker_lookback: parseIntOrList(p.donemarker_lookback),
       server_name: p.server_name ?? null,
-      owner_email: p.owner_email ?? p.user_email ?? null,
-      user_email: p.user_email ?? null,
+      owner_email: p.owner_email ?? p.action_by_user_email ?? p.user_email ?? null,
+      action_by_user_email: p.action_by_user_email ?? p.user_email ?? null,
     };
 
     if (entityType === 'dag') {
       base.dag_name = isOwner ? (p.dag_name ?? p.entity_display_name ?? p.name ?? p.entity_name ?? null) : null;
       base.dag_schedule = isOwner ? (p.dag_schedule ?? p.entity_schedule ?? null) : null;
       base.dag_description = isOwner ? (p.dag_description ?? null) : null;
-      base.dag_dependency = isOwner ? (p.dag_dependency ?? null) : null;
+      base.dag_dependency = isOwner ? parseStringOrList(p.dag_dependency) : null;
+      // Use prefixed field for ownership payloads; fall back to common if provided, normalize to string[]
+      base.dag_donemarker_location = isOwner ? (parseStringOrList(p.dag_donemarker_location ?? p.donemarker_location) ) : null;
       base.owner_entity_ref_name = isOwner ? null : (p.owner_entity_ref_name ?? p.owner_entity_reference ?? null);
     } else {
       base.schema_name = isOwner ? (p.schema_name ?? null) : null;
       base.table_name = isOwner ? (p.table_name ?? p.entity_display_name ?? p.name ?? p.entity_name ?? null) : null;
       base.table_schedule = isOwner ? (p.table_schedule ?? p.entity_schedule ?? null) : null;
       base.table_description = isOwner ? (p.table_description ?? null) : null;
-      base.table_dependency = isOwner ? (p.table_dependency ?? null) : null;
+      base.table_dependency = isOwner ? parseStringOrList(p.table_dependency) : null;
+      base.table_donemarker_location = isOwner ? (parseStringOrList(p.table_donemarker_location ?? p.donemarker_location)) : null;
       base.owner_entity_ref_name = isOwner ? null : (p.owner_entity_ref_name ?? p.owner_entity_reference ?? null);
     }
 
@@ -135,7 +166,7 @@ const apiEntitySchema = z.union([
     expected_runtime_minutes: z.number().int().nonnegative().nullable().optional(),
     server_name: z.string().nullable().optional(),
     owner_entity_reference: z.string().optional(),
-    owner_email: z.string().email().nullable().optional(),
+    owner_email: z.union([z.string().email(), z.array(z.string().email())]).nullable().optional(),
     user_email: z.string().email().nullable().optional(),
   }),
   z.object({
@@ -151,7 +182,7 @@ const apiEntitySchema = z.union([
     expected_runtime_minutes: z.number().int().nonnegative().nullable().optional(),
     server_name: z.string().nullable().optional(),
     owner_entity_reference: z.string().optional(),
-    owner_email: z.string().email().nullable().optional(),
+    owner_email: z.union([z.string().email(), z.array(z.string().email())]).nullable().optional(),
     user_email: z.string().email().nullable().optional(),
   })
 ]);
@@ -449,7 +480,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return sendError(res, 500, 'Failed to fetch users from FastAPI fallback');
     }
   });
-
   // FastAPI fallback route for creating new users
   app.post("/api/v1/users", checkActiveUserDev, async (req: Request, res: Response) => {
     try {
@@ -932,7 +962,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return sendError(res, 500, 'Failed to fetch permissions');
     }
   });
-
   // GET /api/permissions - Redis-first; fallback to mock storage when Redis unavailable
   app.get("/api/permissions", async (req, res) => {
     try {
@@ -1396,7 +1425,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return sendError(res, 500, 'Failed to fetch broadcast messages');
     }
   });
-
   // POST /api/v1/admin/broadcast-messages - Create admin broadcast message
   app.post("/api/v1/admin/broadcast-messages", requireActiveUser, async (req: Request, res: Response) => {
     try {
@@ -1606,6 +1634,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const serverName = (effectivePayload.server_name || conflict.record.conflictDetails?.serverName || conflict.record.server_name || null) as string | null;
         const entityDisplayName = (effectivePayload.entity_display_name || effectivePayload.dag_name || (effectivePayload.schema_name && effectivePayload.table_name ? `${effectivePayload.schema_name}.${effectivePayload.table_name}` : undefined) || conflict.record.entityName || conflict.record.entity_display_name) as string;
         const actionType = (effectivePayload as any)?.action_type || (conflict.record?.originalPayload as any)?.action_type || 'add';
+        const isBulk = actionType === 'bulk_add' && Array.isArray((conflict.record?.originalPayload as any)?.bulkRequest);
 
         // Resolve numeric IDs for team and tenant from cache
         let teamId: number | null = null;
@@ -1624,7 +1653,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         } catch {}
 
-        if (actionType === 'update') {
+        if (isBulk) {
+          // Process entire bulk set without checking conflicts; create non-owner entries by default
+          const bulkItems: any[] = (conflict.record?.originalPayload as any)?.bulkRequest || [effectivePayload];
+          for (const item of bulkItems) {
+            const type: 'table' | 'dag' = ((item as any).entity_type || (item as any).type) === 'table' ? 'table' : 'dag';
+            const displayName = (item.entity_display_name || item.dag_name || (item.schema_name && item.table_name ? `${item.schema_name}.${item.table_name}` : item.entity_name));
+            const itemTeam = (item?.team_name || requestTeam || '').toString();
+            // Original slim upsert path
+            const slim = {
+              entity_type: type,
+              tenant_name: tenantName,
+              tenant_id: tenantId ?? undefined,
+              team_name: itemTeam,
+              team_id: teamId ?? undefined,
+              entity_name: (item as any)?.entity_name || (item as any)?.name || displayName,
+              entity_display_name: displayName,
+              entity_schedule: (item as any)?.entity_schedule || (item as any)?.dag_schedule || (item as any)?.table_schedule || null,
+              expected_runtime_minutes: (item as any)?.expected_runtime_minutes ?? null,
+              is_entity_owner: item?.is_entity_owner === true ? true : false,
+              is_active: (typeof (item as any)?.is_active === 'boolean') ? (item as any).is_active : true,
+              server_name: (item as any)?.server_name || serverName,
+              last_reported_at: new Date().toISOString(),
+            } as any;
+            await (redisCache as any).upsertSlimEntity(slim, { broadcast: true });
+            if (slim.is_entity_owner && itemTeam) {
+              try { await (redisCache as any).updateConflictIndexForOwner(slim); } catch {}
+            }
+            // Immediate team cache invalidate + entity broadcast to mirror add/edit
+            try {
+              if (itemTeam) {
+                await redisCache.invalidateTeamData(itemTeam);
+              }
+              await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.ENTITIES, {
+                action: 'upsert',
+                entityType: type,
+                entityName: displayName,
+                teamName: itemTeam,
+                tenantName,
+                timestamp: new Date().toISOString(),
+              });
+            } catch {}
+          }
+        } else if (actionType === 'update') {
           // Update existing entity by composite identifiers
           const entityNameForWhere = (effectivePayload as any)?.entity_name || (conflict.record?.originalPayload as any)?.entity_name || conflict.record?.entityName || entityDisplayName;
           const updates: any = { entity_display_name: entityDisplayName, is_active: true };
@@ -1656,7 +1727,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             server_name: serverName,
             is_entity_owner: true,
           } as any;
-          try { await (redisCache as any).updateConflictIndexForOwner(ownerSlim); } catch {}
+          try { if (requestTeam) await (redisCache as any).updateConflictIndexForOwner(ownerSlim); } catch {}
           // Broadcast entities-cache for UI refresh (summary, tables)
           try {
             await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.ENTITIES, {
@@ -1669,7 +1740,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             });
           } catch {}
         } else {
-          // Default: add (insert/upsert)
+          // Default: add (single) - original slim upsert path
           const slim = {
             entity_type: entityType,
             tenant_name: tenantName,
@@ -1680,13 +1751,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
             entity_display_name: entityDisplayName,
             entity_schedule: effectivePayload?.entity_schedule || effectivePayload?.dag_schedule || effectivePayload?.table_schedule || null,
             expected_runtime_minutes: effectivePayload?.expected_runtime_minutes ?? null,
-            is_entity_owner: true,
-            is_active: true,
+            is_entity_owner: effectivePayload?.is_entity_owner === true ? true : false,
+            is_active: (typeof effectivePayload?.is_active === 'boolean') ? effectivePayload.is_active : true,
             server_name: serverName,
             last_reported_at: new Date().toISOString(),
           } as any;
           await (redisCache as any).upsertSlimEntity(slim, { broadcast: true });
-          try { await (redisCache as any).updateConflictIndexForOwner(slim); } catch {}
+          if (slim.is_entity_owner && requestTeam) {
+            try { await (redisCache as any).updateConflictIndexForOwner(slim); } catch {}
+          }
         }
         // Notify clients that entities changed so team dashboards refresh
         try {
@@ -1699,6 +1772,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
             timestamp: new Date().toISOString(),
           });
         } catch {}
+
+        // Invalidate team caches and metrics to mimic add/edit behavior
+        try {
+          if (requestTeam && tenantName) {
+            await redisCache.invalidateTeamData(requestTeam);
+            await (redisCache as any).invalidateTeamMetricsCache(tenantName, requestTeam);
+            await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.METRICS, {
+              action: 'refresh',
+              teamName: requestTeam,
+              tenantName,
+              timestamp: new Date().toISOString(),
+            });
+          }
+        } catch {}
       }
 
       await redisCache.patchConflict(notificationId, {
@@ -1709,12 +1796,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
         resolvedAt: new Date().toISOString(),
       });
 
+      // Invalidate affected team caches so dashboards refresh (and metrics)
+      try {
+        const teamForInvalidate = (effectivePayload.team_name || (conflict.record as any)?.team_name || (conflict.record as any)?.conflictDetails?.requestedByTeam || null) as string | null;
+        const tenantForInvalidate = (effectivePayload.tenant_name || (conflict.record as any)?.tenant_name || (conflict.record as any)?.conflictDetails?.tenantName || null) as string | null;
+        if (teamForInvalidate) await redisCache.invalidateTeamData(teamForInvalidate);
+        if (teamForInvalidate && tenantForInvalidate) {
+          await (redisCache as any).invalidateTeamMetricsCache(tenantForInvalidate, teamForInvalidate);
+          await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.METRICS, {
+            action: 'refresh',
+            teamName: teamForInvalidate,
+            tenantName: tenantForInvalidate,
+            timestamp: new Date().toISOString(),
+          });
+        }
+      } catch {}
+
+      try {
+        await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.CONFLICTS, {
+          action: 'resolve',
+          id: notificationId,
+          timestamp: new Date().toISOString(),
+        });
+      } catch {}
+
       return res.json({ message: 'Conflict resolved (fallback)', notificationId });
     } catch (error) {
       return sendError(res, 500, 'Failed to resolve conflict');
     }
   });
-
   // Proxy-style route: POST /api/fastapi/conflicts/:notificationId/resolve
   // - If FastAPI is enabled and responds OK, proxy response back to client
   // - If FastAPI is disabled or responds non-2xx (e.g., 410 Gone), fall back to the same local resolution logic as /api/v1/conflicts/:id/resolve
@@ -1814,8 +1924,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return sendError(res, 500, 'Failed to resolve conflict');
     }
   });
-
-  // (Removed) conflict payload GET/PATCH endpoints; payload is managed via FastAPI.
 
   // Express fallback endpoints for alerts (following the correct pattern)
   app.get("/api/alerts", async (req, res) => {
@@ -2116,7 +2224,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json(createErrorResponse("Failed to create tenant", "creation_error"));
     }
   });
-
   // FastAPI fallback route for updating tenants
   // PATCH endpoint for tenant updates (FastAPI)
   app.patch("/api/v1/tenants/:tenantId", requireActiveUser, async (req: Request, res: Response) => {
@@ -2561,7 +2668,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json(createErrorResponse("Failed to update team", "update_error"));
     }
   });
-
   // FastAPI fallback route for getting entities (with teamId support)
   // 
   // ⚠️  FASTAPI SERVICE REQUIREMENT ⚠️
@@ -3013,7 +3119,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
   });
-  
   // GET /api/dashboard/presets - Load all preset ranges in one call for efficient caching
   app.get("/api/dashboard/presets", async (req, res) => {
     try {
@@ -3069,409 +3174,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
   });
-  
-  app.post("/api/teams", requireActiveUser, async (req: Request, res: Response) => {
-    try {
-      const result = insertTeamSchema.safeParse(req.body);
-      
-      if (!result.success) {
-        return res.status(400).json(createValidationErrorResponse(result.error));
-      }
-      
-      const team = await storage.createTeam(result.data);
-      
-      // Invalidate all team-related caches using correct main cache keys
-      await redisCache.invalidateCache({
-        keys: [
-          `team_${team.id}`,         // Individual team cache
-          `team_details_${team.name}`, // Team details cache
-          `team_members_${team.name}`  // Team members cache
-        ],
-        patterns: [
-          'team_*',      // All team-related cache keys
-          'dashboard_*', // Dashboard data that uses team filters
-          'summary_*'    // Dashboard summary with team filters
-        ],
-        mainCacheKeys: ['TEAMS'], // This invalidates CACHE_KEYS.TEAMS used by getAllTeams()
-        refreshAffectedData: true
-      });
-      
-      res.status(201).json(team);
-    } catch (error) {
-      return sendError(res, 500, 'Failed to create team');
-    }
-  });
-  
-  app.get("/api/teams/:id", async (req, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) {
-        return sendError(res, 400, 'Invalid team ID');
-      }
-      
-      const team = await storage.getTeam(id);
-      if (!team) {
-        return sendError(res, 404, 'Team not found');
-      }
-      
-      res.json(team);
-    } catch (error) {
-      return sendError(res, 500, 'Failed to fetch team');
-    }
-  });
-
-  // PATCH endpoint for team updates (FastAPI)
-  app.patch("/api/v1/teams/:teamId", requireActiveUser, async (req: Request, res: Response) => {
-    try {
-      const teamId = parseInt(req.params.teamId);
-      if (isNaN(teamId)) {
-        return res.status(400).json(createErrorResponse("Invalid team ID", "validation_error"));
-      }
-
-      // Validate request body
-      const validationResult = updateTeamSchema.safeParse(req.body);
-      if (!validationResult.success) {
-        return res.status(400).json(createValidationErrorResponse(validationResult.error));
-      }
-
-      const updateData = validationResult.data;
-
-      // Update team
-      const beforeTeam = await storage.getTeam(teamId);
-      const updatedTeam = await storage.updateTeam(teamId, updateData);
-      if (!updatedTeam) {
-        return res.status(404).json(createErrorResponse("Team not found", "not_found"));
-      }
-
-      // If team name changed, propagate to entities and users so fallback metrics (and Redis keys) match new name
-      if (updateData.name && beforeTeam && updateData.name !== beforeTeam.name) {
-        await storage.updateEntitiesTeamName(teamId, updateData.name);
-        await storage.updateUsersTeamName(beforeTeam.name, updateData.name);
-        await redisCache.invalidateTeamData(beforeTeam.name);
-        await redisCache.invalidateTeamData(updateData.name);
-        await redisCache.invalidateTeamMetricsCache(beforeTeam.tenant_id ? String(beforeTeam.tenant_id) : 'UnknownTenant', beforeTeam.name);
-        await redisCache.invalidateTeamMetricsCache(beforeTeam.tenant_id ? String(beforeTeam.tenant_id) : 'UnknownTenant', updateData.name);
-      }
-
-      // Update cache based on mode
-      const status2 = await redisCache.getCacheStatus();
-      if (status2 && status2.mode === 'redis') {
-        // Redis mode: write directly to Redis
-        const existingTeams = await redisCache.getAllTeams();
-        const updatedList = Array.isArray(existingTeams)
-          ? existingTeams.map((t: any) => (t.id === updatedTeam.id ? updatedTeam : t))
-          : [updatedTeam];
-        await redisCache.set(CACHE_KEYS.TEAMS, updatedList, 6 * 60 * 60);
-
-        // If team's isActive status changed, update tenant's teamsCount
-        const statusChanged = beforeTeam && beforeTeam.isActive !== updatedTeam.isActive;
-        if (statusChanged) {
-          const existingTenants = await redisCache.getAllTenants();
-          if (Array.isArray(existingTenants) && existingTenants.length > 0) {
-            // Recalculate active teams count for this tenant
-            const activeTeamsForTenant = updatedList.filter((t: any) => 
-              t.tenant_id === updatedTeam.tenant_id && t.isActive !== false
-            ).length;
-            
-            const updatedTenants = existingTenants.map((tenant: any) =>
-              tenant.id === updatedTeam.tenant_id
-                ? { ...tenant, teamsCount: activeTeamsForTenant }
-                : tenant
-            );
-            await redisCache.set(CACHE_KEYS.TENANTS, updatedTenants, 6 * 60 * 60);
-          }
-        }
-
-        // Broadcast team details update; if status changed, also broadcast tenants cache
-        try {
-          await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.TEAM_DETAILS, {
-            action: 'update',
-            teamId,
-            teamName: updatedTeam.name,
-            timestamp: new Date().toISOString()
-          });
-          if (statusChanged) {
-            await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.TENANTS, {
-              action: 'team-count-updated',
-              tenantId: updatedTeam.tenant_id,
-              timestamp: new Date().toISOString()
-            });
-          }
-        } catch {}
-      } else {
-        // In-memory mode: invalidate cache so next GET fetches fresh data from storage
-      await redisCache.invalidateCache({
-        keys: ['all_teams', 'teams_summary', 'all_tenants'],
-        patterns: [
-            'team_details_*',
-            'team_members_*',
-          'team_entities:*',
-          'team_metrics:*',
-          'team_trends:*',
-          'dashboard_summary:*',
-          'entities:*'
-        ],
-        mainCacheKeys: ['TEAMS', 'TENANTS'],
-        refreshAffectedData: true
-      });
-      // Explicitly invalidate tenants cache to ensure team count updates
-      await redisCache.invalidateTenants();
-      }
-
-      res.json(updatedTeam);
-    } catch (error) {
-      console.error('Team update error:', error);
-      res.status(500).json(createErrorResponse("Failed to update team", "update_error"));
-    }
-  });
-  // PATCH endpoint for team updates (Express fallback)
-  app.patch("/api/teams/:teamId", requireActiveUser, async (req: Request, res: Response) => {
-    try {
-      const teamId = parseInt(req.params.teamId);
-      if (isNaN(teamId)) {
-        return res.status(400).json(createErrorResponse("Invalid team ID", "validation_error"));
-      }
-
-      // Validate request body
-      const validationResult = updateTeamSchema.safeParse(req.body);
-      if (!validationResult.success) {
-        return res.status(400).json(createValidationErrorResponse(validationResult.error));
-      }
-
-      const updateData = validationResult.data;
-
-      // Update team
-      const beforeTeam2 = await storage.getTeam(teamId);
-      const updatedTeam = await storage.updateTeam(teamId, updateData);
-      if (!updatedTeam) {
-        return res.status(404).json(createErrorResponse("Team not found", "not_found"));
-      }
-
-      // If team name changed, propagate to entities and users so fallback metrics (and Redis keys) match new name
-      if (updateData.name && beforeTeam2 && updateData.name !== beforeTeam2.name) {
-        await storage.updateEntitiesTeamName(teamId, updateData.name);
-        await storage.updateUsersTeamName(beforeTeam2.name, updateData.name);
-        await redisCache.invalidateTeamData(beforeTeam2.name);
-        await redisCache.invalidateTeamData(updateData.name);
-        await redisCache.invalidateTeamMetricsCache(beforeTeam2.tenant_id ? String(beforeTeam2.tenant_id) : 'UnknownTenant', beforeTeam2.name);
-        await redisCache.invalidateTeamMetricsCache(beforeTeam2.tenant_id ? String(beforeTeam2.tenant_id) : 'UnknownTenant', updateData.name);
-      }
-
-      // Invalidate all team-related caches
-      await redisCache.invalidateCache({
-        keys: ['all_teams', 'teams_summary', 'all_tenants'],
-        patterns: [
-          'team_details_*',  // Fixed: use underscore to match actual cache keys
-          'team_members_*',   // Fixed: use underscore to match actual cache keys
-          'team_entities:*',
-          'team_metrics:*',
-          'team_trends:*',
-          'dashboard_summary:*',
-          'entities:*'
-        ],
-        mainCacheKeys: ['TEAMS', 'TENANTS'],
-        refreshAffectedData: true
-      });
-
-      // Explicitly invalidate tenants cache to ensure team count updates
-      await redisCache.invalidateTenants();
-
-      res.json(updatedTeam);
-    } catch (error) {
-      console.error('Team update error:', error);
-      res.status(500).json(createErrorResponse("Failed to update team", "update_error"));
-    }
-  });
-  // Redis-first team details endpoint (v1)
-  app.get("/api/v1/get_team_details/:teamName", async (req, res) => {
-    try {
-      const { teamName } = req.params;
-      const tenantName = req.query.tenant as string;
-      const status = await redisCache.getCacheStatus();
-      
-      if (status && status.mode === 'redis') {
-        // Redis-first: read from Redis only, no Express/mock backfill
-        const teams = await redisCache.get(CACHE_KEYS.TEAMS) || [];
-        const tenants = await redisCache.get(CACHE_KEYS.TENANTS) || [];
-        let team: any = null;
-        if (tenantName && Array.isArray(tenants) && tenants.length > 0) {
-          const tnt = tenants.find((tn: any) => tn?.name === tenantName);
-          if (tnt) {
-            team = Array.isArray(teams) ? teams.find((t: any) => t?.name === teamName && t?.tenant_id === tnt.id) : null;
-          }
-        }
-        if (!team) {
-          team = Array.isArray(teams) ? teams.find((t: any) => t?.name === teamName) : null;
-        }
-        
-        if (!team) {
-          return sendError(res, 404, 'Team not found');
-        }
-
-        // Members: only from team.team_members_ids (no derivation from users)
-        const members = (team.team_members_ids && Array.isArray(team.team_members_ids)) 
-          ? team.team_members_ids 
-          : [];
-
-        const teamDetails = {
-          ...team,
-          members: members
-        };
-
-        return res.json(teamDetails);
-      }
-      
-      // Redis unavailable: fallback to Express/mock
-      const cacheKey = tenantName ? `team_details_${tenantName}_${teamName}` : `team_details_${teamName}`;
-      let teamDetails = await redisCache.get(cacheKey);
-      
-      if (!teamDetails) {
-        const team = await storage.getTeamByName(teamName);
-        
-        if (!team) {
-          return sendError(res, 404, 'Team not found');
-        }
-
-        // Get actual team members from storage
-        const members = await storage.getTeamMembers(teamName);
-
-        teamDetails = {
-          ...team,
-          members: members
-        };
-
-        // Cache for 6 hours like other data
-        await redisCache.set(cacheKey, teamDetails, 6 * 60 * 60);
-      }
-
-      res.json(teamDetails);
-    } catch (error) {
-      console.error('Team details error:', error);
-      return sendError(res, 500, 'Failed to get team details');
-    }
-  });
-
-  // Get team details by team name with member information (legacy)
-  app.get("/api/get_team_details/:teamName", async (req, res) => {
-    try {
-      const { teamName } = req.params;
-      const tenantName = req.query.tenant as string;
-      const status = await redisCache.getCacheStatus();
-      
-      if (status && status.mode === 'redis') {
-        // Redis-first: read from Redis only, no Express/mock backfill
-        const teams = await redisCache.get(CACHE_KEYS.TEAMS) || [];
-        const tenants = await redisCache.get(CACHE_KEYS.TENANTS) || [];
-        let team: any = null;
-        if (tenantName && Array.isArray(tenants) && tenants.length > 0) {
-          const tnt = tenants.find((tn: any) => tn?.name === tenantName);
-          if (tnt) {
-            team = Array.isArray(teams) ? teams.find((t: any) => t?.name === teamName && t?.tenant_id === tnt.id) : null;
-          }
-        }
-        if (!team) {
-          team = Array.isArray(teams) ? teams.find((t: any) => t?.name === teamName) : null;
-        }
-        
-        if (!team) {
-          return sendError(res, 404, 'Team not found');
-        }
-
-        // Members: only from team.team_members_ids (no derivation from users)
-        const members = (team.team_members_ids && Array.isArray(team.team_members_ids)) 
-          ? team.team_members_ids 
-          : [];
-
-        const teamDetails = {
-          ...team,
-          members: members
-        };
-
-        return res.json(teamDetails);
-      }
-      
-      // Redis unavailable: fallback to Express/mock
-      const cacheKey = tenantName ? `team_details_${tenantName}_${teamName}` : `team_details_${teamName}`;
-      let teamDetails = await redisCache.get(cacheKey);
-      
-      if (!teamDetails) {
-        const team = await storage.getTeamByName(teamName);
-        
-        if (!team) {
-          return res.status(404).json({ message: "Team not found" });
-        }
-
-        // Get actual team members from storage
-        const members = await storage.getTeamMembers(teamName);
-
-        teamDetails = {
-          ...team,
-          members: members
-        };
-
-        // Cache for 6 hours like other data
-        await redisCache.set(cacheKey, teamDetails, 6 * 60 * 60);
-      }
-
-      res.json(teamDetails);
-    } catch (error) {
-      return sendError(res, 500, 'Failed to fetch team details');
-    }
-  });
-
-  // Get team members endpoint with caching
-  app.get("/api/get_team_members/:teamName", async (req, res) => {
-    try {
-      const { teamName } = req.params;
-      const status = await redisCache.getCacheStatus();
-
-      if (status && status.mode === 'redis') {
-        // Redis-first: resolve members from Redis TEAMS and USERS with tenant isolation
-      const tenantName = req.query.tenant as string;
-        const teams = await redisCache.get(CACHE_KEYS.TEAMS) || [];
-        const tenants = await redisCache.get(CACHE_KEYS.TENANTS) || [];
-        const users = await redisCache.getAllUsersFromHash() || [];
-        let team: any = null;
-        if (tenantName && Array.isArray(tenants) && tenants.length > 0) {
-          const tnt = tenants.find((tn: any) => tn?.name === tenantName);
-          if (tnt) team = Array.isArray(teams) ? teams.find((t: any) => t?.name === teamName && t?.tenant_id === tnt.id) : null;
-        }
-        if (!team) team = Array.isArray(teams) ? teams.find((t: any) => t?.name === teamName) : null;
-
-        const memberIds: string[] = (team?.team_members_ids && Array.isArray(team.team_members_ids))
-          ? team.team_members_ids
-          : [];
-
-        const members = memberIds
-          .map((memberKey: string) => {
-            const u = Array.isArray(users)
-              ? users.find((usr: any) => usr?.username === memberKey || String(usr?.id) === String(memberKey))
-              : null;
-            if (!u) return null; // drop unresolved mock references
-            return {
-              id: u.id,
-              name: u.username,
-              username: u.username,
-              displayName: u.displayName || u.username,
-              email: u.email || '',
-              user_slack: u.user_slack || [],
-              user_pagerduty: u.user_pagerduty || [],
-              is_active: u.is_active !== false,
-            };
-          })
-          .filter(Boolean);
-
-        return res.json(members);
-      }
-
-      // In-memory mode: fallback to storage
-      const members = await storage.getTeamMembers(teamName);
-      res.json(members);
-    } catch (error) {
-      return sendError(res, 500, 'Failed to fetch team members');
-    }
-  });
-
   // FastAPI-style alias: Get team members (development fallback) - Redis-first
   app.get("/api/v1/get_team_members/:teamName", async (req, res) => {
     try {
@@ -3832,7 +3534,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // For entity creation, prune client fluff to a canonical payload before validation
       const raw = req.body || {};
       // Accept entity_type or type
-      const incomingType = ((raw as any).entity_type || raw.type) === 'table' ? 'table' : 'dag';
+      const incomingType = ((raw as any).entity_type || raw.type) === 'dag' ? 'dag' : (((raw as any).entity_type || raw.type) === 'table' ? 'table' : 'dag');
       const canonical: any = {
         type: incomingType,
         tenant_name: raw.tenant_name,
@@ -3962,10 +3664,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         if (payload.is_entity_owner === true && payload.team_name && payload.tenant_name) {
           const serverName = payload.server_name ?? null;
-          const displayName = (payload.entity_display_name
-            || (payload.schema_name && payload.table_name ? `${payload.schema_name}.${payload.table_name}` : undefined)
+          // Prefer schema.table form for tables to match conflict index keys
+          const displayName = (
+            (payload.schema_name && payload.table_name ? `${payload.schema_name}.${payload.table_name}` : undefined)
             || payload.dag_name
-            || payload.entity_name);
+            || payload.entity_name
+            || payload.entity_display_name
+          );
           if (displayName) {
             const conflict = await redisCache.checkOwnershipConflict({
               tenant_name: payload.tenant_name,
@@ -3990,7 +3695,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     originalPayload: { ...sanitizeEntityPayloadForConflict(req.body), action_type: 'add' },
                     conflictDetails: {
                       existingOwner: owners.join(', ') || 'Unknown',
-                      requestedBy: req.user?.email || req.body?.user_email || null,
+                      requestedBy: req.user?.email || req.body?.action_by_user_email || req.body?.user_email || null,
                       tenantName: payload.tenant_name || null,
                       serverName: serverName ?? null,
                       reason: 'Ownership conflict detected',
@@ -4007,7 +3712,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     server_name: serverName,
                     owners,
                     originalPayload: { ...sanitizeEntityPayloadForConflict(req.body), action_type: 'add' },
-                    user_email: req.user?.email || req.body?.user_email || null,
+                    action_by_user_email: req.user?.email || req.body?.action_by_user_email || req.body?.user_email || null,
                   });
                   const resp = await fetch(`${FASTAPI_BASE_URL}/api/v1/conflicts`, {
                     method: 'POST',
@@ -4038,7 +3743,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     server_name: serverName,
                     owners: conflict.owners,
                     entity_type: (payload.type === 'table' ? 'table' : 'dag'),
-                    user_email: req.user?.email || req.body?.user_email || null,
+                    action_by_user_email: req.user?.email || req.body?.action_by_user_email || req.body?.user_email || null,
                     originalPayload: { ...sanitizeEntityPayloadForConflict(req.body), action_type: 'add' },
                   });
                   try {
@@ -4059,7 +3764,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   server_name: serverName,
                   owners: conflict.owners,
                   entity_type: (payload.type === 'table' ? 'table' : 'dag'),
-                  user_email: req.user?.email || req.body?.user_email || null,
+                  action_by_user_email: req.user?.email || req.body?.action_by_user_email || req.body?.user_email || null,
                   originalPayload: { ...sanitizeEntityPayloadForConflict(req.body), action_type: 'add' },
                 });
                 try {
@@ -4135,13 +3840,220 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const created: any[] = [];
+      const status = await redisCache.getCacheStatus();
+
       for (const raw of items) {
-        const result = insertEntitySchema.safeParse(raw);
-        if (!result.success) {
-          throw new Error('Validation failed');
+        // Build the same canonical payload as single create endpoint
+        const incomingType = ((raw as any).entity_type || (raw as any).type) === 'dag' ? 'dag' : (((raw as any).entity_type || (raw as any).type) === 'table' ? 'table' : 'dag');
+        const canonical: any = {
+          type: incomingType,
+          tenant_name: (raw as any).tenant_name,
+          team_name: (raw as any).team_name,
+          is_entity_owner: (raw as any).is_entity_owner !== false,
+          expected_runtime_minutes: (raw as any).expected_runtime_minutes ?? null,
+          server_name: (raw as any).server_name ?? null,
+          owner_email: ((raw as any).is_entity_owner === false) ? null : ((raw as any).owner_email ?? (raw as any).user_email ?? null),
+          user_email: (raw as any).action_by_user_email ?? (raw as any).user_email ?? null,
+          is_active: (raw as any).is_active ?? true,
+        };
+        if (incomingType === 'dag') {
+          canonical.entity_name = (raw as any).entity_name || (raw as any).name || (raw as any).dag_name;
+          canonical.entity_display_name = (raw as any).entity_display_name || (raw as any).dag_name || canonical.entity_name;
+          canonical.dag_name = (raw as any).dag_name || canonical.entity_display_name;
+          canonical.dag_schedule = (raw as any).dag_schedule || (raw as any).entity_schedule || null;
+          canonical.dag_description = (raw as any).dag_description ?? null;
+          canonical.dag_dependency = Array.isArray((raw as any).dag_dependency) ? (raw as any).dag_dependency : ((raw as any).dag_dependency ? String((raw as any).dag_dependency).split(',').map((s: string) => s.trim()) : null);
+          canonical.dag_donemarker_location = (() => {
+            const v = (raw as any).dag_donemarker_location ?? (raw as any).donemarker_location;
+            if (v === undefined || v === null || v === '') return null;
+            if (Array.isArray(v)) return v.map((x: any) => String(x).trim()).filter((s: string) => s.length > 0);
+            const s = String(v).trim();
+            if (s.includes(',')) return s.split(',').map((x) => x.trim()).filter((t) => t.length > 0);
+            return s || null;
+          })();
+          canonical.owner_entity_ref_name = (raw as any).is_entity_owner === true ? null : ((raw as any).owner_entity_ref_name ?? (raw as any).owner_entity_reference ?? '');
+        } else {
+          canonical.entity_name = (raw as any).entity_name || (raw as any).name || (raw as any).table_name;
+          canonical.entity_display_name = (raw as any).entity_display_name || (raw as any).table_name || canonical.entity_name;
+          canonical.schema_name = (raw as any).schema_name ?? null;
+          canonical.table_name = (raw as any).table_name || canonical.entity_display_name;
+          canonical.table_schedule = (raw as any).table_schedule || (raw as any).entity_schedule || null;
+          canonical.table_description = (raw as any).table_description ?? null;
+          canonical.table_dependency = Array.isArray((raw as any).table_dependency) ? (raw as any).table_dependency : ((raw as any).table_dependency ? String((raw as any).table_dependency).split(',').map((s: string) => s.trim()) : null);
+          canonical.table_donemarker_location = (() => {
+            const v = (raw as any).table_donemarker_location ?? (raw as any).donemarker_location;
+            if (v === undefined || v === null || v === '') return null;
+            if (Array.isArray(v)) return v.map((x: any) => String(x).trim()).filter((s: string) => s.length > 0);
+            const s = String(v).trim();
+            if (s.includes(',')) return s.split(',').map((x) => x.trim()).filter((t) => t.length > 0);
+            return s || null;
+          })();
+          canonical.owner_entity_ref_name = (raw as any).is_entity_owner === true ? null : ((raw as any).owner_entity_ref_name ?? (raw as any).owner_entity_reference ?? '');
         }
-        const entity = await redisCache.createEntity(result.data as any);
+
+        // donemarker lookback parsing (number or list)
+        canonical.donemarker_lookback = (() => {
+          const v = (raw as any).donemarker_lookback;
+          if (v === undefined || v === null || v === '') return null;
+          if (Array.isArray(v)) {
+            const nums = v.map((x: any) => parseInt(String(x), 10)).filter((n: number) => !isNaN(n) && n >= 0);
+            return nums.length > 0 ? nums : null;
+          }
+          const s = String(v);
+          if (s.includes(',')) {
+            const nums = s.split(',').map((x) => parseInt(x.trim(), 10)).filter((n) => !isNaN(n) && n >= 0);
+            return nums.length > 0 ? nums : null;
+          }
+          const n = parseInt(s, 10);
+          return isNaN(n) ? null : n;
+        })();
+
+        // Validate with lightweight API schema
+        const result = apiEntitySchema.safeParse({ ...canonical, entity_type: incomingType });
+        if (!result.success) {
+          return res.status(400).json(createValidationErrorResponse(result.error));
+        }
+
+        // Resolve team/tenant context similar to single create
+        const payload = { ...canonical } as any;
+        try {
+          if (status && status.mode === 'redis') {
+            const teams = await redisCache.get(CACHE_KEYS.TEAMS) || [];
+            const tenants = await redisCache.get(CACHE_KEYS.TENANTS) || [];
+            if (!payload.teamId && payload.team_name) {
+              const teamByName = Array.isArray(teams) ? teams.find((t: any) => t.name === payload.team_name) : null;
+              if (teamByName) {
+                payload.teamId = teamByName.id;
+                payload.team_name = teamByName.name;
+                const tenant = Array.isArray(tenants) ? tenants.find((t: any) => t.id === teamByName.tenant_id) : null;
+                if (tenant) payload.tenant_name = payload.tenant_name || tenant.name;
+              }
+            }
+            if (payload.teamId) {
+              const team = Array.isArray(teams) ? teams.find((t: any) => t.id === payload.teamId) : null;
+              if (team) {
+                payload.team_name = payload.team_name || team.name;
+                const tenant = Array.isArray(tenants) ? tenants.find((t: any) => t.id === team.tenant_id) : null;
+                if (tenant) payload.tenant_name = payload.tenant_name || tenant.name;
+              }
+            }
+          } else {
+            if (!payload.teamId && payload.team_name) {
+              const teamByName = await storage.getTeamByName(payload.team_name);
+              if (teamByName) {
+                payload.teamId = teamByName.id;
+                payload.team_name = teamByName.name;
+                const tenants = await storage.getTenants();
+                const tenant = tenants.find(t => t.id === teamByName.tenant_id);
+                if (tenant) payload.tenant_name = payload.tenant_name || tenant.name;
+              }
+            }
+            if (payload.teamId) {
+              const team = await storage.getTeam(payload.teamId);
+              if (team) {
+                payload.team_name = payload.team_name || team.name;
+                const tenants = await storage.getTenants();
+                const tenant = tenants.find(t => t.id === team.tenant_id);
+                if (tenant) payload.tenant_name = payload.tenant_name || tenant.name;
+              }
+            }
+          }
+        } catch {}
+
+        // If non-owner, resolve owner reference name details
+        try {
+          const isOwner = payload.is_entity_owner === true;
+          const refName = typeof (payload as any).owner_entity_ref_name === 'string'
+            ? (payload as any).owner_entity_ref_name.trim()
+            : (typeof (payload as any).owner_entity_reference === 'string' ? (payload as any).owner_entity_reference.trim() : undefined);
+          if (!isOwner && refName) {
+            const refType: 'table' | 'dag' = (payload.type === 'table' || payload.entity_type === 'table') ? 'table' : 'dag';
+            const matches = await redisCache.findSlimEntitiesByNameCI(refName, refType);
+            if (matches && matches.length > 0) {
+              const m = matches[0];
+              payload.owner_entity_ref_name = {
+                entity_owner_name: m.entity_name,
+                entity_owner_tenant_id: m.tenant_id ?? null,
+                entity_owner_tenant_name: m.tenant_name ?? null,
+                entity_owner_team_id: m.team_id ?? null,
+                entity_owner_team_name: m.team_name ?? null,
+              };
+              payload.owner_entity_reference = refName;
+              if ((m as any).entity_schedule) payload.entity_schedule = (m as any).entity_schedule;
+              if ((m as any).expected_runtime_minutes != null) payload.expected_runtime_minutes = (m as any).expected_runtime_minutes;
+            }
+          }
+        } catch {}
+
+        // Pre-check ownership conflict for owner entities (before creating)
+        try {
+          if (payload.is_entity_owner === true && payload.team_name && payload.tenant_name) {
+            const serverName = payload.server_name ?? null;
+            const displayName = (
+              (payload.schema_name && payload.table_name ? `${payload.schema_name}.${payload.table_name}` : undefined)
+              || payload.dag_name
+              || payload.entity_name
+              || payload.entity_display_name
+            );
+            if (displayName) {
+              const conflict = await redisCache.checkOwnershipConflict({
+                tenant_name: payload.tenant_name,
+                team_name: payload.team_name,
+                entity_display_name: displayName,
+                server_name: serverName
+              });
+              if (!conflict.allow) {
+                // Roll back any previously created items in this bulk request
+                for (const createdEntity of created.reverse()) {
+                  try {
+                    await redisCache.deleteEntityByName({ name: createdEntity.entity_name || createdEntity.name, type: createdEntity.type, teamName: createdEntity.team_name });
+                  } catch {}
+                }
+                // Record conflict with action_type bulk_add
+                try {
+                  const owners = Array.isArray(conflict.owners) ? conflict.owners : [];
+                  const bulkRequest = items.map((it: any) => ({ ...sanitizeEntityPayloadForConflict(it), action_type: 'bulk_add' }));
+                  await redisCache.appendConflictRecord({
+                    entity_type: (payload.type === 'table' ? 'table' : 'dag'),
+                    tenant_name: payload.tenant_name,
+                    team_name: payload.team_name,
+                    entity_display_name: displayName,
+                    server_name: serverName,
+                    owners,
+                    originalPayload: { action_type: 'bulk_add', bulkRequest, failedItem: { ...sanitizeEntityPayloadForConflict(raw), action_type: 'bulk_add' } },
+                    action_by_user_email: payload.user_email,
+                  });
+                } catch {}
+                return sendError(res, 409, `Ownership conflict detected for ${displayName}`);
+              }
+            }
+          }
+        } catch {}
+
+        const entity = await redisCache.createEntity(payload);
         created.push(entity);
+        // Immediate broadcast so dashboards update without waiting for cache refresh cycles
+        try {
+          const entityTypeForWs = (payload.type === 'table' ? 'table' : 'dag');
+          const displayForWs = (
+            (payload.schema_name && payload.table_name ? `${payload.schema_name}.${payload.table_name}` : undefined)
+            || payload.dag_name
+            || payload.entity_name
+            || payload.entity_display_name
+          );
+          // Invalidate team caches immediately (like add/edit path)
+          if (payload.team_name) {
+            await redisCache.invalidateTeamData(payload.team_name);
+          }
+          await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.ENTITIES, {
+            action: 'create',
+            entityType: entityTypeForWs,
+            entityName: displayForWs || (entity as any)?.name || (entity as any)?.entity_name,
+            teamName: payload.team_name,
+            tenantName: payload.tenant_name,
+            timestamp: new Date().toISOString(),
+          });
+        } catch {}
       }
 
       await redisCache.invalidateCache({
@@ -4276,10 +4188,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const isOwner = req.body?.is_entity_owner === true || req.body?.is_entity_owner === undefined; // default assume owner unless explicitly false
         if (isOwner && teamName && tenantName) {
           const serverName = (req.body?.server_name ?? null) as string | null;
-          const displayCandidate = (req.body?.entity_display_name
-            || ((normalizedType === 'table' && req.body?.schema_name && req.body?.table_name) ? `${req.body.schema_name}.${req.body.table_name}` : undefined)
-            || req.body?.dag_name
-            || entityName);
+          const displayCandidate = (
+            (normalizedType === 'table' && req.body?.schema_name && req.body?.table_name) ? `${req.body.schema_name}.${req.body.table_name}` : undefined
+          ) || req.body?.dag_name || req.body?.entity_display_name || entityName;
           if (displayCandidate) {
             const conflict = await redisCache.checkOwnershipConflict({
               tenant_name: tenantName,
@@ -4304,7 +4215,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     originalPayload: { ...req.body, action_type: 'update', entity_name: entityName, team_name: teamName, tenant_name: tenantName },
                     conflictDetails: {
                       existingOwner: owners.join(', ') || 'Unknown',
-                      requestedBy: req.user?.email || req.body?.user_email || null,
+                      requestedBy: req.user?.email || req.body?.action_by_user_email || req.body?.user_email || null,
                       tenantName: tenantName || null,
                       serverName: serverName ?? null,
                       reason: 'Ownership conflict detected',
@@ -4320,7 +4231,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     server_name: serverName,
                     owners,
                     originalPayload: { ...req.body, action_type: 'update', entity_name: entityName, team_name: teamName, tenant_name: tenantName },
-                    user_email: req.user?.email || req.body?.user_email || null,
+                    action_by_user_email: req.user?.email || req.body?.action_by_user_email || req.body?.user_email || null,
                   });
                   const resp = await fetch(`${FASTAPI_BASE_URL}/api/v1/conflicts`, {
                     method: 'POST',
@@ -4370,7 +4281,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   server_name: serverName,
                   owners: conflict.owners,
                   entity_type: normalizedType,
-                  user_email: req.user?.email || req.body?.user_email || null,
+                  action_by_user_email: req.user?.email || req.body?.action_by_user_email || req.body?.user_email || null,
                   originalPayload: { ...req.body, action_type: 'update', entity_name: entityName, team_name: teamName, tenant_name: tenantName },
                 });
                 try {
@@ -4404,7 +4315,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return sendError(res, 500, 'Failed to update entity');
     }
   });
-
   app.put("/api/issues/:id/resolve", checkActiveUserDev, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
@@ -4889,7 +4799,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return sendError(res, 500, 'Failed to fetch DAG tasks');
     }
   });
-
   // Get tasks for a specific DAG
   app.get("/api/dags/:dagId/tasks", isAuthenticated, async (req: Request, res: Response) => {
     try {
@@ -5353,46 +5262,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return sendError(res, 500, 'Failed to create tenant');
     }
   });
-
   // Update tenant with optimistic update support
-  // ============================================
-  // ADMIN TEAM MANAGEMENT ENDPOINTS
-  // ============================================
-  
-  // Create new team from admin panel with comprehensive cache invalidation
-  app.post("/api/admin/teams", requireActiveUser, async (req: Request, res: Response) => {
-    try {
-      const result = insertTeamSchema.safeParse(req.body);
-      
-      if (!result.success) {
-        return res.status(400).json({ message: "Invalid team data", errors: result.error.format() });
-      }
-      
-      const team = await storage.createTeam(result.data);
-      
-      // Invalidate all team-related caches using correct main cache keys
-      await redisCache.invalidateCache({
-        keys: [
-          `team_${team.id}`,         // Individual team cache
-          `team_details_${team.name}`, // Team details cache
-          `team_members_${team.name}`  // Team members cache
-        ],
-        patterns: [
-          'team_*',      // All team-related cache keys
-          'dashboard_*', // Dashboard data that uses team filters
-          'summary_*'    // Dashboard summary with team filters
-        ],
-        mainCacheKeys: ['TEAMS'], // This invalidates CACHE_KEYS.TEAMS used by getAllTeams()
-        refreshAffectedData: true
-      });
-      
-      res.status(201).json(team);
-    } catch (error) {
-      console.error('Admin team creation error:', error);
-      return sendError(res, 500, 'Failed to create team');
-    }
-  });
-  
   // ============================================
   // ADMIN USER MANAGEMENT ENDPOINTS
   // ============================================
@@ -5835,7 +5705,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return sendError(res, 500, 'Failed to fetch Tables');
     }
   });
-
   // Create Table endpoint (development fallback)
   app.post("/api/tables", requireActiveUser, async (req: Request, res: Response) => {
     try {
@@ -6184,102 +6053,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Development-only fallback routes for owner updates (non-versioned)
-  if (isDevelopment) {
-    // Fallback owner update by entity name for tables (Express fallback when FastAPI unavailable)
-    app.patch('/api/tables/:entityName/owner', checkActiveUserDev, async (req: Request, res: Response) => {
-      try {
-        const { entityName } = req.params;
-        
-        // Find entity by name and type with case-insensitive matching
-        const entities = await redisCache.getAllEntities();
-        const entity = entities.find(e => 
-          (e.name?.toLowerCase() === entityName.toLowerCase() || 
-           (e as any).entity_name?.toLowerCase() === entityName.toLowerCase()) && 
-          e.type === 'table'
-        );
-        
-        if (!entity) {
-          return res.status(404).json(createErrorResponse('Table not found', 'not_found'));
-        }
-
-        const { owner_email, ownerEmail, owners } = req.body || {};
-        // Normalize owners to a comma-separated string stored in ownerEmail/owner_email
-        let emails: string[] = [];
-        if (Array.isArray(owners)) emails = owners;
-        else if (typeof owner_email === 'string') emails = owner_email.split(',');
-        else if (typeof ownerEmail === 'string') emails = ownerEmail.split(',');
-        emails = emails.map((e: string) => e.trim()).filter((e: string) => e.length > 0);
-
-        const updates: any = {};
-        const normalized = emails.join(',');
-        updates.owner_email = normalized;
-        updates.ownerEmail = normalized;
-
-        // Update via redis cache helper
-        const updated = await redisCache.updateEntityById(entity.id, updates);
-        if (!updated) {
-          return res.status(404).json(createErrorResponse('Failed to update table', 'update_error'));
-        }
-
-        // Invalidate caches
-        await redisCache.invalidateEntityData((updated as any).teamId);
-
-        
-        return res.json({ success: true, owner_email: (updated as any).owner_email || (updated as any).ownerEmail || null });
-      } catch (error) {
-        console.error('Update table owner fallback error:', error);
-        return res.status(500).json(createErrorResponse('Failed to update owner', 'update_error'));
-      }
-    });
-
-    // Fallback owner update by entity name for DAGs (Express fallback when FastAPI unavailable)
-    app.patch('/api/dags/:entityName/owner', checkActiveUserDev, async (req: Request, res: Response) => {
-      try {
-        const { entityName } = req.params;
-        
-        // Find entity by name and type with case-insensitive matching
-        const entities = await redisCache.getAllEntities();
-        const entity = entities.find(e => 
-          (e.name?.toLowerCase() === entityName.toLowerCase() || 
-           (e as any).entity_name?.toLowerCase() === entityName.toLowerCase()) && 
-          e.type === 'dag'
-        );
-        
-        if (!entity) {
-          return res.status(404).json(createErrorResponse('DAG not found', 'not_found'));
-        }
-
-        const { owner_email, ownerEmail, owners } = req.body || {};
-        // Normalize owners to a comma-separated string stored in ownerEmail/owner_email
-        let emails: string[] = [];
-        if (Array.isArray(owners)) emails = owners;
-        else if (typeof owner_email === 'string') emails = owner_email.split(',');
-        else if (typeof ownerEmail === 'string') emails = ownerEmail.split(',');
-        emails = emails.map((e: string) => e.trim()).filter((e: string) => e.length > 0);
-
-        const updates: any = {};
-        const normalized = emails.join(',');
-        updates.owner_email = normalized;
-        updates.ownerEmail = normalized;
-
-        // Update via redis cache helper
-        const updated = await redisCache.updateEntityById(entity.id, updates);
-        if (!updated) {
-          return res.status(404).json(createErrorResponse('Failed to update DAG', 'update_error'));
-        }
-
-        // Invalidate caches
-        await redisCache.invalidateEntityData((updated as any).teamId);
-
-        
-        return res.json({ success: true, owner_email: (updated as any).owner_email || (updated as any).ownerEmail || null });
-      } catch (error) {
-        console.error('Update DAG owner fallback error:', error);
-        return res.status(500).json(createErrorResponse('Failed to update owner', 'update_error'));
-      }
-    });
-  }
   // SLA status 30 days endpoint for entity details modal
   app.get('/api/teams/:teamName/:entityType/:entityName/sla_status_30days', async (req: Request, res: Response) => {
     try {
@@ -6310,7 +6083,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return sendError(res, 500, 'Failed to fetch SLA status data');
     }
   });
-
   // Settings changes endpoint for entity details modal
   app.get('/api/teams/:teamName/:entityType/:entityName/settings_changes', async (req: Request, res: Response) => {
     try {
@@ -6727,7 +6499,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ===== END AUDIT ENDPOINTS =====
-
   // Secured rollback endpoint for entity details modal
   app.post('/api/teams/:teamName/:entityType/:entityName/rollback', 
     async (req: Request, res: Response) => {

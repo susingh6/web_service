@@ -584,7 +584,7 @@ export class RedisCache {
         conflictingTeams: dedupTeams,
         conflictDetails: {
           existingOwner: owners.length > 0 ? owners.join(', ') : 'Unknown',
-          requestedBy: (record.user_email || record.userEmail || null) as string | null,
+          requestedBy: (record.action_by_user_email || record.user_email || record.userEmail || null) as string | null,
           reason: (record.reason || 'Ownership conflict detected') as string,
           tenantName: (record.tenant_name || null) as string | null,
           serverName: (record.server_name ?? null) as string | null,
@@ -596,6 +596,14 @@ export class RedisCache {
 
       await (this.redis as any).lpush('sla:conflicts', JSON.stringify(conflictEntry));
       await (this.redis as any).ltrim('sla:conflicts', 0, 999);
+      // Broadcast for Admin UI to refresh conflicts list in real time
+      try {
+        await this.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.CONFLICTS, {
+          action: 'create',
+          id: notificationId,
+          timestamp: now.toISOString(),
+        });
+      } catch {}
     } catch {}
   }
 

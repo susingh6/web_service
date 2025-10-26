@@ -23,6 +23,7 @@ import {
   Alert,
   IconButton,
   Box,
+  Tooltip,
 } from '@mui/material';
 import { Close as CloseIcon } from '@mui/icons-material';
 import { validateTenant, validateTeam, validateDag } from '@/lib/validationUtils';
@@ -387,14 +388,46 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
         if (typeof v === 'string' && v.trim() === '') return null;
         return v;
       };
+      const parseStringOrList = (val: any): string | string[] | null => {
+        if (val === undefined || val === null) return null;
+        if (Array.isArray(val)) {
+          const out = val.map((x) => String(x).trim()).filter((s) => s.length > 0);
+          return out.length > 1 ? out : (out[0] || null);
+        }
+        const s = String(val).trim();
+        if (!s) return null;
+        if (s.includes(',')) {
+          const out = s.split(',').map((x) => x.trim()).filter((t) => t.length > 0);
+          return out.length > 1 ? out : (out[0] || null);
+        }
+        return s;
+      };
+      const parseIntOrList = (val: any): number | number[] | null => {
+        if (val === undefined || val === null || val === '') return null;
+        if (Array.isArray(val)) {
+          const nums = val.map((x) => parseInt(String(x), 10)).filter((n) => !isNaN(n) && n >= 0);
+          return nums.length > 0 ? nums : null;
+        }
+        const s = String(val).trim();
+        if (s.includes(',')) {
+          const nums = s.split(',').map((x) => parseInt(x.trim(), 10)).filter((n) => !isNaN(n) && n >= 0);
+          return nums.length > 0 ? nums : null;
+        }
+        const n = parseInt(s, 10);
+        return isNaN(n) ? null : n;
+      };
       const changed = (next: any, prevVal: any) => JSON.stringify(next ?? null) !== JSON.stringify(prevVal ?? null);
 
       // Common fields (both types)
       if (changed(data.is_active, prev.is_active)) updates.is_active = !!data.is_active;
       if (changed(data.expected_runtime_minutes, prev.expected_runtime_minutes)) updates.expected_runtime_minutes = toNull(data.expected_runtime_minutes);
       if (changed(data.server_name, prev.server_name)) updates.server_name = toNull(data.server_name);
-      if (changed(data.donemarker_location, prev.donemarker_location)) updates.donemarker_location = toNull(data.donemarker_location);
-      if (changed(data.donemarker_lookback, prev.donemarker_lookback)) updates.donemarker_lookback = (data.donemarker_lookback ?? null);
+      // Map common field to prefixed ownership fields
+      if (changed(data.donemarker_location, prev.donemarker_location)) {
+        if (String(entityType) === 'dag') updates.dag_donemarker_location = parseStringOrList(data.donemarker_location);
+        if (String(entityType) === 'table') updates.table_donemarker_location = parseStringOrList(data.donemarker_location);
+      }
+      if (changed(data.donemarker_lookback, prev.donemarker_lookback)) updates.donemarker_lookback = parseIntOrList(data.donemarker_lookback);
 
       const wasOwner = !!prev.is_entity_owner;
       const nowOwner = data.is_entity_owner === true ? true : (data.is_entity_owner === false ? false : wasOwner);
@@ -405,7 +438,8 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
           if (changed(data.dag_name, prev.dag_name)) updates.dag_name = toNull(data.dag_name);
           if (changed(data.dag_schedule, prev.dag_schedule)) updates.dag_schedule = toNull(data.dag_schedule);
           if (changed((data as any).dag_description, prev.dag_description)) updates.dag_description = toNull((data as any).dag_description);
-          if (changed((data as any).dag_dependency, prev.dag_dependency)) updates.dag_dependency = toNull((data as any).dag_dependency);
+          if (changed((data as any).dag_dependency, prev.dag_dependency)) updates.dag_dependency = parseStringOrList((data as any).dag_dependency);
+          if (changed((data as any).owner_email, prev.owner_email)) updates.owner_email = parseStringOrList((data as any).owner_email);
           // If switching from non-owner to owner, clear reference
           if (!wasOwner && nowOwner) updates.owner_entity_ref_name = null;
         } else {
@@ -419,7 +453,8 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
           updates.dag_description = null;
           updates.dag_dependency = null;
           updates.expected_runtime_minutes = null;
-          updates.donemarker_location = null;
+          if (String(entityType) === 'dag') updates.dag_donemarker_location = null;
+          if (String(entityType) === 'table') updates.table_donemarker_location = null;
           updates.donemarker_lookback = null;
         }
       } else {
@@ -429,7 +464,8 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
           if (changed(data.table_name, prev.table_name)) updates.table_name = toNull(data.table_name);
           if (changed(data.table_schedule, prev.table_schedule)) updates.table_schedule = toNull(data.table_schedule);
           if (changed((data as any).table_description, prev.table_description)) updates.table_description = toNull((data as any).table_description);
-          if (changed((data as any).table_dependency, prev.table_dependency)) updates.table_dependency = toNull((data as any).table_dependency);
+          if (changed((data as any).table_dependency, prev.table_dependency)) updates.table_dependency = parseStringOrList((data as any).table_dependency);
+          if (changed((data as any).owner_email, prev.owner_email)) updates.owner_email = parseStringOrList((data as any).owner_email);
           if (!wasOwner && nowOwner) updates.owner_entity_ref_name = null;
         } else {
           if (changed((data as any).owner_entity_ref_name, prev.owner_entity_ref_name?.entity_owner_name || prev.owner_entity_reference)) {
@@ -441,7 +477,8 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
           updates.table_description = null;
           updates.table_dependency = null;
           updates.expected_runtime_minutes = null;
-          updates.donemarker_location = null;
+          if (String(entityType) === 'dag') updates.dag_donemarker_location = null;
+          if (String(entityType) === 'table') updates.table_donemarker_location = null;
           updates.donemarker_lookback = null;
         }
       }
@@ -456,7 +493,7 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
       // Final cleanup: remove undefined, keep nulls (intentional clears)
       Object.keys(updates).forEach(k => updates[k] === undefined && delete updates[k]);
 
-      const entityData = updates;
+      const entityData = { ...updates, action_by_user_email: userEmail };
 
       console.log('🚀 ENTITY UPDATE START:', { entityName: entity.name, entityType, entityData });
 
@@ -834,12 +871,12 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
                   options={ownerRefOptions}
                   loading={loadingOwnerRef}
                   renderInput={(params) => (
-                    <TextField
+                <TextField
                       {...params}
-                      label={`${fieldDefinitions.owner_entity_reference.label} *`}
-                      required
-                      fullWidth
-                      margin="normal"
+                  label={`${fieldDefinitions.owner_entity_reference.label} *`}
+                  required
+                  fullWidth
+                  margin="normal"
                       error={!!(errors as any).owner_entity_ref_name}
                       helperText={(errors as any).owner_entity_ref_name?.message}
                       onBlur={onBlur}
@@ -918,7 +955,7 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
                     required
                     placeholder={fieldDefinitions.donemarker_location?.placeholder}
                     error={!!errors.donemarker_location}
-                    helperText={errors.donemarker_location?.message}
+                    helperText={errors.donemarker_location?.message || 'Comma-separated list for multiple done marker locations'}
                   />
                 )}
               />
@@ -926,20 +963,49 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
               <Controller
                 name="donemarker_lookback"
                 control={control}
-                render={({ field }) => (
+                render={({ field }) => {
+                  const list: (string | number)[] = Array.isArray(field.value)
+                    ? field.value
+                    : (field.value === undefined || field.value === null || (typeof field.value === 'string' && field.value === '')
+                        ? ['']
+                        : [Number.isFinite(field.value as any) ? Number(field.value) : String(field.value)]);
+                  const setAt = (idx: number, val: string) => {
+                    const next: any[] = [...list];
+                    next[idx] = val === '' ? '' : Number(val);
+                    field.onChange(next);
+                  };
+                  const addOne = () => field.onChange([...list, '']);
+                  const removeAt = (idx: number) => {
+                    const next = list.filter((_, i) => i !== idx);
+                    field.onChange(next.length > 0 ? next : ['']);
+                  };
+                  return (
+                    <div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {list.map((v: any, idx: number) => (
+                          <div key={`lookback-edit-${idx}`} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                   <TextField
-                    {...field}
-                    label="Done Marker Lookback (Days) *"
+                              label={idx === 0 ? 'Done Marker Lookback (Days) *' : 'Additional Lookback'}
                     type="number"
                     fullWidth
                     margin="normal"
-                    inputProps={{
-                      min: 0,
-                    }}
-                    error={!!errors.donemarker_lookback}
-                    helperText={errors.donemarker_lookback?.message}
-                  />
-                )}
+                              value={v ?? ''}
+                              onChange={(e) => setAt(idx, e.target.value)}
+                              inputProps={{ min: 0, inputMode: 'numeric' }}
+                            />
+                            <Button variant="outlined" onClick={() => removeAt(idx)} disabled={list.length === 1}>Remove</Button>
+                          </div>
+                        ))}
+                      </div>
+                      <Tooltip
+                        title="Use this to add another lookback window when you have multiple done marker locations and need different lookback period for each."
+                        componentsProps={{ tooltip: { sx: { zIndex: 99999 } } }}
+                      >
+                        <Button variant="text" onClick={addOne} sx={{ mt: 1, position: 'relative', zIndex: 99999 }}>Add Additional Lookback</Button>
+                      </Tooltip>
+                    </div>
+                  );
+                }}
               />
 
               {entityType === 'table' && (
@@ -972,7 +1038,7 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
                         margin="normal"
                         placeholder="e.g., upstream_table1, upstream_table2"
                         error={!!errors.table_dependency}
-                        helperText={errors.table_dependency?.message}
+                    helperText={errors.table_dependency?.message || 'Comma-separated list for multiple table names'}
                       />
                     )}
                   />
@@ -1009,7 +1075,7 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
                         margin="normal"
                         placeholder="e.g., upstream_dag1, upstream_dag2"
                         error={!!errors.dag_dependency}
-                        helperText={errors.dag_dependency?.message}
+                        helperText={errors.dag_dependency?.message || 'Comma-separated list for multiple DAG names'}
                       />
                     )}
                   />

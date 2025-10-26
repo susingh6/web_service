@@ -66,13 +66,13 @@ interface BaseEntity {
   entity_name: string;
   tenant_name: string;
   team_name: string;
-  expected_runtime_minutes?: number;
-  donemarker_location?: string;
-  donemarker_lookback?: number;
+  expected_runtime_minutes?: number | null;
+  donemarker_lookback?: number | null;
   user_email: string;
-  owner_email?: string;
+  owner_email?: string | null;
   is_active?: boolean;
-  is_entity_owner?: boolean; // New field to control conditional validation
+  is_entity_owner?: boolean; // controls conditional validation
+  owner_entity_ref_name?: string | null; // canonical for non-owners
 }
 
 interface TableEntity extends BaseEntity {
@@ -81,6 +81,7 @@ interface TableEntity extends BaseEntity {
   table_description?: string;
   table_schedule?: string; // Optional if not entity owner
   table_dependency?: string | string[];  // Can be either a comma-separated string or string array
+  table_donemarker_location?: string | null; // canonical ownership field
 }
 
 interface DagEntity extends BaseEntity {
@@ -89,6 +90,7 @@ interface DagEntity extends BaseEntity {
   dag_schedule?: string; // Optional if not entity owner
   dag_dependency?: string | string[];  // Can be either a comma-separated string or string array
   needs_dag_validation?: boolean;  // Flag to indicate if this is a new DAG that needs backend validation
+  dag_donemarker_location?: string | null; // canonical ownership field
 }
 
 type Entity = TableEntity | DagEntity;
@@ -156,26 +158,12 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
   const [loadingTeams, setLoadingTeams] = useState(false);
   const [loadingDags, setLoadingDags] = useState(false);
   
-  // Effect to fetch options when modal opens
+  // Removed DAG-tab fetch on open; all network calls happen on Validate
   useEffect(() => {
-    if (open) {
-      // Initial load of cached options
-      fetchTenantOptions();
-      fetchTeamOptions();
-      
-      if (tabValue === 'dags') {
-        fetchDagOptions();
-      }
-    }
+    // no-op
   }, [open, tabValue]);
 
-  // Effect to re-validate entities when tab changes
-  useEffect(() => {
-    if (parsedEntities.length > 0 && currentStep === 'validate') {
-      // Re-run validation when tab changes and we have entities to validate
-      validateEntities(parsedEntities);
-    }
-  }, [tabValue]); // Only re-validate when tabValue changes
+  // Removed automatic re-validation on tab toggle to avoid extra API calls
   
   // Functions to fetch options
   const fetchTenantOptions = async () => {
@@ -276,20 +264,15 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
       errors.push({ field: 'team_name', message: `${fieldDefinitions.team_name.label} "${entity.team_name}" is not in the known list. New team names are not allowed.` });
     }
     
-    // User email is required with valid format using centralized field definitions
-    if (!entity.user_email) {
-      errors.push({ field: 'user_email', message: `${fieldDefinitions.user_email.label} is required` });
-    } else if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(entity.user_email)) {
-      errors.push({ field: 'user_email', message: `Invalid ${fieldDefinitions.user_email.label.toLowerCase()} format` });
-    }
+    // Action By user email is auto-populated from the authenticated session; no upload validation
     
     // Entity Owner conditional fields
     if (entity.is_entity_owner === true) {
       // Expected runtime is required for entity owners
-      if (!entity.expected_runtime_minutes) {
+      if (entity.expected_runtime_minutes === undefined || entity.expected_runtime_minutes === null || entity.expected_runtime_minutes === '') {
         errors.push({ field: 'expected_runtime_minutes', message: `${fieldDefinitions.expected_runtime_minutes.label} is required when Entity Owner is enabled` });
-      } else if (isNaN(Number(entity.expected_runtime_minutes))) {
-        errors.push({ field: 'expected_runtime_minutes', message: `${fieldDefinitions.expected_runtime_minutes.label} must be a number` });
+      } else if (isNaN(Number(entity.expected_runtime_minutes)) || !Number.isInteger(Number(entity.expected_runtime_minutes))) {
+        errors.push({ field: 'expected_runtime_minutes', message: `${fieldDefinitions.expected_runtime_minutes.label} must be an integer` });
       } else if (Number(entity.expected_runtime_minutes) < 1 || Number(entity.expected_runtime_minutes) > 1440) {
         errors.push({ field: 'expected_runtime_minutes', message: `${fieldDefinitions.expected_runtime_minutes.label} must be between 1 and 1440 minutes` });
       }
@@ -310,37 +293,57 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
       }
       
       // Done marker location is required for entity owners
-      if (!entity.donemarker_location) {
-        errors.push({ field: 'donemarker_location', message: `${fieldDefinitions.donemarker_location.label} is required when Entity Owner is enabled` });
+      const ownerDonemarker2 = (entityType === 'tables') ? (entity as TableEntity).table_donemarker_location : (entity as DagEntity).dag_donemarker_location;
+      if (!ownerDonemarker2) {
+        const missingField = (entityType === 'tables') ? 'table_donemarker_location' : 'dag_donemarker_location';
+        errors.push({ field: missingField, message: `${fieldDefinitions.donemarker_location.label} is required when Entity Owner is enabled` });
+      } else {
+        const vals = Array.isArray(ownerDonemarker2)
+          ? ownerDonemarker2
+          : (typeof ownerDonemarker2 === 'string' && ownerDonemarker2.includes(',')
+              ? ownerDonemarker2.split(',').map((s: string) => s.trim())
+              : [String(ownerDonemarker2)]);
+        if (vals.some((s: string) => s.length === 0)) {
+          errors.push({ field: (entityType === 'tables') ? 'table_donemarker_location' : 'dag_donemarker_location', message: `${fieldDefinitions.donemarker_location.label} entries must be non-empty` });
+        }
       }
       
       // Done marker lookback is required for entity owners
       if (entity.donemarker_lookback === undefined || entity.donemarker_lookback === null || entity.donemarker_lookback === '') {
         errors.push({ field: 'donemarker_lookback', message: `${fieldDefinitions.donemarker_lookback.label} is required when Entity Owner is enabled` });
-      } else if (isNaN(Number(entity.donemarker_lookback))) {
-        errors.push({ field: 'donemarker_lookback', message: `${fieldDefinitions.donemarker_lookback.label} must be a number` });
+      } else if (Array.isArray(entity.donemarker_lookback)) {
+        const bad = entity.donemarker_lookback.some((v: any) => isNaN(Number(v)) || !Number.isInteger(Number(v)) || Number(v) < 0);
+        if (bad) {
+          errors.push({ field: 'donemarker_lookback', message: `${fieldDefinitions.donemarker_lookback.label} must be integer(s)` });
+        }
+      } else if (typeof entity.donemarker_lookback === 'string' && entity.donemarker_lookback.includes(',')) {
+        const parts = String(entity.donemarker_lookback).split(',').map(s => s.trim());
+        const bad = parts.some((p) => isNaN(Number(p)) || !Number.isInteger(Number(p)) || Number(p) < 0);
+        if (bad) {
+          errors.push({ field: 'donemarker_lookback', message: `${fieldDefinitions.donemarker_lookback.label} must be integer(s)` });
+        }
+      } else if (isNaN(Number(entity.donemarker_lookback)) || !Number.isInteger(Number(entity.donemarker_lookback))) {
+        errors.push({ field: 'donemarker_lookback', message: `${fieldDefinitions.donemarker_lookback.label} must be an integer` });
       } else if (Number(entity.donemarker_lookback) < 0) {
         errors.push({ field: 'donemarker_lookback', message: `${fieldDefinitions.donemarker_lookback.label} must be a non-negative number` });
       }
     } else if (entity.is_entity_owner === false) {
       // Owner Entity Reference is required for non-entity owners
-      if (!(entity as any).owner_entity_reference) {
-        errors.push({ field: 'owner_entity_reference', message: `${fieldDefinitions.owner_entity_reference.label} is required when Entity Owner is disabled` });
+      if (!(entity as any).owner_entity_ref_name) {
+        errors.push({ field: 'owner_entity_ref_name', message: `owner_entity_ref_name is required when Entity Owner is disabled` });
       }
     }
     
     // Entity type specific validation using centralized field definitions
     if (entityType === 'tables') {
-      if (!entity.schema_name) {
-        errors.push({ field: 'schema_name', message: `${fieldDefinitions.schema_name.label} is required` });
-      }
-      
-      if (!entity.table_name) {
-        errors.push({ field: 'table_name', message: `${fieldDefinitions.table_name.label} is required` });
-      }
-      
-      // Table schedule only required if entity owner
+      // schema_name and table_name required only for owners
       if (entity.is_entity_owner === true) {
+      if (!entity.schema_name) {
+          errors.push({ field: 'schema_name', message: `${fieldDefinitions.schema_name.label} is required when Entity Owner is enabled` });
+      }
+      if (!entity.table_name) {
+          errors.push({ field: 'table_name', message: `${fieldDefinitions.table_name.label} is required when Entity Owner is enabled` });
+      }
         if (!entity.table_schedule) {
           errors.push({ field: 'table_schedule', message: `${fieldDefinitions.table_schedule.label} is required when Entity Owner is enabled` });
         } else if (!/^[\d*\/ ,\-]+$/.test(entity.table_schedule)) {
@@ -348,8 +351,8 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
         }
       }
     } else { // DAGs validation
-      if (!entity.dag_name) {
-        errors.push({ field: 'dag_name', message: `${fieldDefinitions.dag_name.label} is required` });
+      if (entity.is_entity_owner === true && !entity.dag_name) {
+        errors.push({ field: 'dag_name', message: `${fieldDefinitions.dag_name.label} is required when Entity Owner is enabled` });
       } else if (isNewDag) {
         // Only warn about new DAG names, don't treat as error since backend will validate
         // We already set the needs_dag_validation flag above
@@ -443,10 +446,13 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
   };
   
   // Validate all entities in the parsed file
-  const validateEntities = (entities: any[]) => {
+  const validateEntities = async (entities: any[]) => {
     setIsValidating(true);
     
     try {
+      // Lazy-load options needed for validation on demand
+      if (tenantOptions.length === 0) await fetchTenantOptions();
+      if (teamOptions.length === 0) await fetchTeamOptions();
       // Validate each entity
       const results = entities.map(entity => validateEntity(entity, tabValue as 'tables' | 'dags'));
       
@@ -547,9 +553,90 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
     }
     
     // Get only the valid entities for upload
+    const toNull = (v: any) => (v === '' || v === undefined ? null : v);
     const validEntities = validationResults
       .filter(result => result.valid)
-      .map(result => result.entity);
+      .map(result => {
+        const e: any = { ...result.entity };
+        const isTable = (tabValue === 'tables');
+        const canonical: any = {
+          entity_type: isTable ? 'table' : 'dag',
+          entity_name: e.entity_name,
+          tenant_name: e.tenant_name,
+          team_name: e.team_name,
+          is_active: e.is_active ?? true,
+          is_entity_owner: e.is_entity_owner ?? false,
+          action_by_user_email: (user as any)?.email || (user as any)?.user_email || e.user_email,
+          expected_runtime_minutes: e.expected_runtime_minutes === undefined || e.expected_runtime_minutes === null || e.expected_runtime_minutes === ''
+            ? null
+            : parseInt(String(e.expected_runtime_minutes), 10),
+          donemarker_lookback: (() => {
+            const v = (e as any).donemarker_lookback;
+            if (v === undefined || v === null || v === '') return null;
+            if (Array.isArray(v)) {
+              const nums = v.map((x: any) => parseInt(String(x), 10)).filter((n: number) => !isNaN(n) && n >= 0);
+              return nums.length > 0 ? nums : null;
+            }
+            const s = String(v);
+            if (s.includes(',')) {
+              const nums = s.split(',').map((x) => parseInt(x.trim(), 10)).filter((n) => !isNaN(n) && n >= 0);
+              return nums.length > 0 ? nums : null;
+            }
+            const n = parseInt(s, 10);
+            return isNaN(n) ? null : n;
+          })(),
+          server_name: toNull(e.server_name),
+        };
+        if (isTable) {
+          canonical.schema_name = toNull(e.schema_name);
+          canonical.table_name = e.table_name;
+          canonical.table_description = toNull(e.table_description);
+          canonical.table_schedule = toNull(e.table_schedule);
+          canonical.table_dependency = Array.isArray(e.table_dependency) ? e.table_dependency : (e.table_dependency ? String(e.table_dependency).split(',').map((s: string) => s.trim()) : null);
+          canonical.table_donemarker_location = (() => {
+            const v = (e as any).table_donemarker_location;
+            if (v === undefined || v === null || v === '') return null;
+            if (Array.isArray(v)) return v.map((x: any) => String(x).trim()).filter((s: string) => s.length > 0);
+            const s = String(v).trim();
+            if (s.includes(',')) return s.split(',').map((x) => x.trim()).filter((t) => t.length > 0);
+            return s || null;
+          })();
+        } else {
+          canonical.dag_name = e.dag_name;
+          canonical.dag_description = toNull(e.dag_description);
+          canonical.dag_schedule = toNull(e.dag_schedule);
+          canonical.dag_dependency = Array.isArray(e.dag_dependency) ? e.dag_dependency : (e.dag_dependency ? String(e.dag_dependency).split(',').map((s: string) => s.trim()) : null);
+          canonical.dag_donemarker_location = (() => {
+            const v = (e as any).dag_donemarker_location;
+            if (v === undefined || v === null || v === '') return null;
+            if (Array.isArray(v)) return v.map((x: any) => String(x).trim()).filter((s: string) => s.length > 0);
+            const s = String(v).trim();
+            if (s.includes(',')) return s.split(',').map((x) => x.trim()).filter((t) => t.length > 0);
+            return s || null;
+          })();
+        }
+        if (canonical.is_entity_owner) {
+          canonical.owner_email = (() => {
+            const v = (e as any).owner_email;
+            if (v === undefined || v === null) return null;
+            if (Array.isArray(v)) {
+              const emails = v.map((x: any) => String(x).trim()).filter((s: string) => s.length > 0);
+              return emails.length > 1 ? emails : (emails[0] || null);
+            }
+            const s = String(v).trim();
+            if (!s) return null;
+            if (s.includes(',')) {
+              const emails = s.split(',').map((x) => x.trim()).filter((t) => t.length > 0);
+              return emails.length > 1 ? emails : (emails[0] || null);
+            }
+            return s;
+          })();
+        } else {
+          canonical.owner_email = null;
+          canonical.owner_entity_ref_name = toNull(e.owner_entity_ref_name || (e as any).owner_entity_reference);
+        }
+        return canonical;
+      });
     
     // If no valid entities, show error
     if (validEntities.length === 0) {
@@ -576,57 +663,12 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
         throw new Error('User email not found. Please log in again.');
       }
 
-      const createdEntities = [];
-      
-      for (const entity of validEntities) {
-        try {
-          // Find the team ID from the team name AND tenant (multi-tenant isolation)
-          const team = teams.find(t => t.name === entity.team_name && t.tenant_name === entity.tenant_name);
-          if (!team) {
-            throw new Error(`Team not found: ${entity.team_name} in tenant ${entity.tenant_name}`);
-          }
-
-          // Format entity data the same way AddEntityModal does
-          const entityType = tabValue === 'dags' ? 'dag' : 'table';
-          const entityWithType = {
-            ...entity,
-            user_email: userEmail, // Use authenticated user's email
-            // Map form fields to API fields - use entity_name for both table and DAG
-            name: entity.entity_name,
-            description: entityType === 'dag' 
-              ? ('dag_description' in entity ? entity.dag_description : '')
-              : ('table_description' in entity ? entity.table_description : ''),
-            type: entityType,
-            teamId: team.id, // Use correct tenant-aware team ID
-            
-            is_entity_owner: entity.is_entity_owner || false,
-            // Ensure required fields are included for both table and DAG entities
-            owner: entity.owner_email || '',
-            // Add missing required schema fields
-            slaTarget: 95,
-            status: 'Active', 
-            refreshFrequency: 'Daily',
-          };
-          
-          console.log('Creating entity with formatted data:', entityWithType);
-          
-          // Use React Query mutation for proper cache invalidation
-          console.log(`⏳ Creating ${entityType} entity with cache invalidation...`);
-          
-          const createdEntity = await createEntity(entityWithType);
-          createdEntities.push(createdEntity);
-          
-          console.log('Successfully created entity:', createdEntity);
-        } catch (entityError: any) {
-          console.error('Failed to create entity:', entityError);
-          throw new Error(`Failed to create ${entity.entity_name}: ${entityError.message || 'Unknown error'}`);
-        }
-      }
-      
-      const result = { entities: createdEntities };
+      // Redis-first bulk via Express transactional fallback; environment-aware API handles FastAPI when available
+      const apiModule = await import('@/features/sla/api');
+      const result = await apiModule.entitiesApi.bulkCreate(validEntities);
       
       // Update upload summary with results
-      const successCount = createdEntities.length;
+      const successCount = Array.isArray(result) ? result.length : (result?.entities?.length || validEntities.length);
       const failedCount = 0; // All or nothing - if we get here, all succeeded
       
       setUploadSummary(prev => ({
@@ -693,7 +735,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
         onClose();
       }, 1500);
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error during bulk upload:', error);
       
       // Update summary to show all failed
@@ -703,11 +745,47 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
         failedCount: validEntities.length
       }));
       
+      // Extract a clean human-readable message from API error shapes
+      let message = 'All entities failed to upload. Please try again.';
+      if (error && typeof error === 'object') {
+        const data = (error as any).data || (error as any).response?.data || error;
+        if (typeof data === 'string') {
+          // Some layers stringify JSON into the message string
+          const trimmed = data.trim();
+          if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+            try {
+              const parsed = JSON.parse(trimmed);
+              message = parsed?.message || parsed?.error || parsed?.detail || trimmed;
+            } catch {
+              message = trimmed;
+            }
+          } else {
+            message = data;
+          }
+        } else if (data && typeof data === 'object') {
+          message = data.message || data.error || data.detail || message;
+        }
+      }
+      
+      // Final safety: if message itself still looks like JSON, unwrap it
+      if (typeof message === 'string') {
+        const trimmedMsg = message.trim();
+        if (trimmedMsg.startsWith('{') || trimmedMsg.startsWith('[')) {
+          try {
+            const parsed = JSON.parse(trimmedMsg);
+            message = parsed?.message || parsed?.error || parsed?.detail || trimmedMsg;
+          } catch {}
+        }
+      }
+      
       toast({
         title: 'Bulk upload failed',
-        description: error instanceof Error ? error.message : 'All entities failed to upload. Please try again.',
+        description: message,
         variant: 'destructive',
       });
+
+      // Close the modal so the toast is visible and the user can retry
+      try { onClose(); } catch {}
     } finally {
       setIsSubmitting(false);
     }
@@ -726,12 +804,12 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
           schema_name: "analytics",
           table_name: "customer_data",
           table_description: "Contains customer information with demographics",
-          user_email: "john.doe@example.com",
+          action_by_user_email: "john.doe@example.com",
           is_active: true,
           is_entity_owner: true,  // Entity owner - requires owner_email and conditional fields below
           owner_email: "john.doe@example.com",
           expected_runtime_minutes: 45,
-          donemarker_location: "s3://data-warehouse/markers/customer_data/",
+          table_donemarker_location: "s3://data-warehouse/markers/customer_data/",
           donemarker_lookback: 1,
           table_schedule: "0 */4 * * *",  // Every 4 hours
           table_dependency: ["analytics.products", "analytics.orders"]  // Example as string array
@@ -740,13 +818,10 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
           entity_name: "Ad Performance Metrics",
           tenant_name: "Ad Engineering",
           team_name: "Core",
-          schema_name: "reporting",
-          table_name: "ad_performance",
-          table_description: "Aggregated advertising performance metrics",
-          user_email: "jane.smith@example.com",
+          action_by_user_email: "jane.smith@example.com",
           is_active: true,
           is_entity_owner: false,  // Not entity owner - requires owner_entity_reference instead
-          owner_entity_reference: "customer_analytics_table"  // Reference to actual entity owner
+          owner_entity_ref_name: "customer_analytics_table"  // Reference to actual entity owner
         }
       ];
     } else {
@@ -757,12 +832,12 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
           team_name: "IOT",
           dag_name: "device_data_etl",
           dag_description: "Processes and transforms IoT device data",
-          user_email: "alex.johnson@example.com",
+          action_by_user_email: "alex.johnson@example.com",
           is_active: true,
           is_entity_owner: true,  // Entity owner - requires owner_email and conditional fields below
           owner_email: "alex.johnson@example.com",
           expected_runtime_minutes: 30,
-          donemarker_location: "s3://airflow/markers/device_etl/",
+          dag_donemarker_location: "s3://airflow/markers/device_etl/",
           donemarker_lookback: 0,
           dag_schedule: "0 */2 * * *",  // Every 2 hours
           dag_dependency: "sensor_validation,data_quality_check",  // Example as comma-separated string
@@ -774,10 +849,10 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
           team_name: "Viewer Product",
           dag_name: "user_segmentation",
           dag_description: "Creates user segments for targeted advertising",
-          user_email: "sarah.williams@example.com",
+          action_by_user_email: "sarah.williams@example.com",
           is_active: true,
           is_entity_owner: false,  // Not entity owner - requires owner_entity_reference instead
-          owner_entity_reference: "iot_device_data_etl"  // Reference to actual entity owner
+          owner_entity_ref_name: "iot_device_data_etl"  // Reference to actual entity owner
         }
       ];
     }
@@ -868,7 +943,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
               </Typography>
               
               <Typography variant="body2" sx={{ mb: 1 }}>
-                Always Required fields for {tabValue === 'tables' ? 'Tables' : 'DAGs'}:
+                Always Required fields:
               </Typography>
               
               <Typography component="div" variant="body2" sx={{ pl: 2, mb: 1 }}>
@@ -876,17 +951,11 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
                   <li>{fieldDefinitions.entity_name.label}: String</li>
                   <li>{fieldDefinitions.tenant_name.label}: String ("Data Engineering", "Ad Engineering", etc.)</li>
                   <li>{fieldDefinitions.team_name.label}: String ("PGM", "Core", etc.)</li>
-                  <li>{fieldDefinitions.user_email.label}: String</li>
-                  <li>is_entity_owner: Boolean (true if entity owner, false if not)</li>
+                  <li>Action By (auto-populated from your login) — do not include in file</li>
+                  <li>Entity Owner: Boolean (true if entity owner, false if not)</li>
+                  <li>{fieldDefinitions.is_active.label}: Boolean (defaults to true if not specified)</li>
                   <li>{fieldDefinitions.owner_entity_reference.label}: String (required if is_entity_owner is false)</li>
-                  {tabValue === 'tables' ? (
-                    <>
-                      <li>{fieldDefinitions.schema_name.label}: String</li>
-                      <li>{fieldDefinitions.table_name.label}: String</li>
-                    </>
-                  ) : (
-                    <li>{fieldDefinitions.dag_name.label}: String (new DAG names will require backend validation)</li>
-                  )}
+                  {/* No type-specific names required here; they are only required for owners below */}
                 </ul>
               </Typography>
 
@@ -896,9 +965,17 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
               {/* Entity owner conditional fields */}
               <Typography component="div" variant="body2" sx={{ pl: 2, mb: 1 }}>
                 <ul>
+                  {tabValue === 'tables' ? (
+                    <>
+                      <li>{fieldDefinitions.schema_name.label}: String ("roku", "dea", etc.)</li>
+                      <li>{fieldDefinitions.table_name.label}: String ("agg_freeview_play_daily", "agg_brightscript_error_daily")</li>
+                    </>
+                  ) : (
+                    <li>{fieldDefinitions.dag_name.label}: String (new DAG names will require backend validation)</li>
+                  )}
                   <li>{fieldDefinitions.expected_runtime_minutes.label}: Number (must be between 1 and 1440)</li>
                   <li>{fieldDefinitions.owner_email.label}: String (single email or comma-separated multiple emails)</li>
-                  <li>{fieldDefinitions.donemarker_location.label}: String (single location or comma-separated multiple locations)</li>
+                  <li>{tabValue === 'tables' ? 'Table Done Marker Location' : 'DAG Done Marker Location'}: String (single location or comma-separated multiple locations)</li>
                   <li>{fieldDefinitions.donemarker_lookback.label}: Number (must be a non-negative number)</li>
                   {tabValue === 'tables' ? (
                     <li>{fieldDefinitions.table_schedule.label}: String (must be valid cron format)</li>
@@ -909,13 +986,11 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
               </Typography>
               
               <Typography variant="body2" sx={{ mb: 1 }}>
-                Optional fields for both entity types:
+                Optional fields for owner entity types:
               </Typography>
               
               <Typography component="div" variant="body2" sx={{ pl: 2, mb: 1 }}>
                 <ul>
-                  <li>Entity Owner: Boolean (defaults to false if not specified)</li>
-                  <li>{fieldDefinitions.is_active.label}: Boolean (defaults to true if not specified)</li>
                   {tabValue === 'dags' && (
                     <li>{fieldDefinitions.server_name.label}: String</li>
                   )}
@@ -1127,7 +1202,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
                       ) : (
                         <TableCell>{fieldDefinitions.dag_name.label}</TableCell>
                       )}
-                      <TableCell>{fieldDefinitions.user_email.label}</TableCell>
+              <TableCell>Action By</TableCell>
                       <TableCell>{fieldDefinitions.owner_entity_reference.label}</TableCell>
                       <TableCell>Entity Owner</TableCell>
                       <TableCell>{fieldDefinitions.owner_email.label}</TableCell>
@@ -1139,7 +1214,7 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
                   <TableBody>
                     {filteredValidationResults().map((result, index) => {
                       const entity = result.entity;
-                      const isTable = 'table_name' in entity;
+                      const isTable = tabValue === 'tables';
                       const isNewDag = !isTable && (entity as DagEntity).needs_dag_validation;
                       
                       return (
@@ -1170,8 +1245,8 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
                           <TableCell>{entity.team_name}</TableCell>
                           {isTable ? (
                             <>
-                              <TableCell>{entity.schema_name}</TableCell>
-                              <TableCell>{entity.table_name}</TableCell>
+                              <TableCell>{(entity as any).schema_name}</TableCell>
+                              <TableCell>{(entity as any).table_name}</TableCell>
                             </>
                           ) : (
                             <TableCell>
@@ -1186,11 +1261,11 @@ const BulkUploadModal = ({ open, onClose }: BulkUploadModalProps) => {
                               )}
                             </TableCell>
                           )}
-                          <TableCell>{entity.user_email}</TableCell>
-                          <TableCell>{(entity as any).owner_entity_reference || 'N/A'}</TableCell>
+                          <TableCell>{(user as any)?.email || (user as any)?.user_email || 'Current User'}</TableCell>
+                          <TableCell>{(entity as any).owner_entity_ref_name || (entity as any).owner_entity_reference || 'N/A'}</TableCell>
                           <TableCell>{entity.is_entity_owner ? 'Yes' : 'No'}</TableCell>
                           <TableCell>{entity.owner_email || 'N/A'}</TableCell>
-                          <TableCell>{isTable ? entity.table_schedule : (entity as DagEntity).dag_schedule}</TableCell>
+                          <TableCell>{isTable ? (entity as any).table_schedule : (entity as DagEntity).dag_schedule}</TableCell>
                           <TableCell>{entity.expected_runtime_minutes ? `${entity.expected_runtime_minutes} min` : 'N/A'}</TableCell>
                           <TableCell>
                             {!result.valid && (
