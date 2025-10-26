@@ -1656,17 +1656,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (isBulk) {
           // Process entire bulk set without checking conflicts; create non-owner entries by default
           const bulkItems: any[] = (conflict.record?.originalPayload as any)?.bulkRequest || [effectivePayload];
+          const now = new Date().toISOString();
           for (const item of bulkItems) {
             const type: 'table' | 'dag' = ((item as any).entity_type || (item as any).type) === 'table' ? 'table' : 'dag';
             const displayName = (item.entity_display_name || item.dag_name || (item.schema_name && item.table_name ? `${item.schema_name}.${item.table_name}` : item.entity_name));
             const itemTeam = (item?.team_name || requestTeam || '').toString();
-            // Original slim upsert path
-            const slim = {
+            
+            // Resolve team_id for this specific item if not already resolved
+            let itemTeamId = teamId;
+            if (!itemTeamId && itemTeam) {
+              try {
+                const teams = await redisCache.getAllTeams();
+                const teamMatch = Array.isArray(teams) ? teams.find((t: any) => (t.name || '').toLowerCase() === itemTeam.toLowerCase()) : null;
+                if (teamMatch) {
+                  itemTeamId = teamMatch.id ?? null;
+                }
+              } catch {}
+            }
+            
+            // Build comprehensive slim object with all entity-specific fields
+            const slim: any = {
               entity_type: type,
               tenant_name: tenantName,
               tenant_id: tenantId ?? undefined,
               team_name: itemTeam,
-              team_id: teamId ?? undefined,
+              team_id: itemTeamId ?? undefined,
               entity_name: (item as any)?.entity_name || (item as any)?.name || displayName,
               entity_display_name: displayName,
               entity_schedule: (item as any)?.entity_schedule || (item as any)?.dag_schedule || (item as any)?.table_schedule || null,
@@ -1674,9 +1688,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
               is_entity_owner: item?.is_entity_owner === true ? true : false,
               is_active: (typeof (item as any)?.is_active === 'boolean') ? (item as any).is_active : true,
               server_name: (item as any)?.server_name || serverName,
-              last_reported_at: new Date().toISOString(),
-            } as any;
-            await (redisCache as any).upsertSlimEntity(slim, { broadcast: true });
+              last_reported_at: now,
+              lastRefreshed: now, // Dashboard uses this for "recent" entity filtering
+              updatedAt: now, // Also set updatedAt for consistency
+            };
+            
+            // Add entity-type specific fields
+            if (type === 'table') {
+              slim.schema_name = item.schema_name ?? null;
+              slim.table_name = item.table_name ?? displayName;
+              slim.table_schedule = item.table_schedule || item.entity_schedule || null;
+              slim.table_description = item.table_description ?? null;
+              slim.table_dependency = item.table_dependency ?? null;
+              slim.table_donemarker_location = item.table_donemarker_location ?? null;
+              slim.owner_entity_ref_name = item.owner_entity_ref_name ?? null;
+              slim.owner_email = item.owner_email ?? null;
+              slim.donemarker_lookback = item.donemarker_lookback ?? null;
+            } else {
+              slim.dag_name = item.dag_name ?? displayName;
+              slim.dag_schedule = item.dag_schedule || item.entity_schedule || null;
+              slim.dag_description = item.dag_description ?? null;
+              slim.dag_dependency = item.dag_dependency ?? null;
+              slim.dag_donemarker_location = item.dag_donemarker_location ?? null;
+              slim.owner_entity_ref_name = item.owner_entity_ref_name ?? null;
+              slim.owner_email = item.owner_email ?? null;
+              slim.donemarker_lookback = item.donemarker_lookback ?? null;
+            }
+            
+            // For non-owner entities, resolve the owner reference to get schedule and runtime
+            if (!slim.is_entity_owner && slim.owner_entity_ref_name) {
+              try {
+                const refName = typeof slim.owner_entity_ref_name === 'string' 
+                  ? slim.owner_entity_ref_name.trim() 
+                  : slim.owner_entity_ref_name;
+                if (refName) {
+                  const matches = await redisCache.findSlimEntitiesByNameCI(refName, type);
+                  if (matches && matches.length > 0) {
+                    const ownerEntity = matches[0];
+                    // Enrich with owner details
+                    slim.owner_entity_ref_name = {
+                      entity_owner_name: ownerEntity.entity_name,
+                      entity_owner_tenant_id: ownerEntity.tenant_id ?? null,
+                      entity_owner_tenant_name: ownerEntity.tenant_name ?? null,
+                      entity_owner_team_id: ownerEntity.team_id ?? null,
+                      entity_owner_team_name: ownerEntity.team_name ?? null,
+                    };
+                    // Inherit schedule and runtime from owner
+                    if (ownerEntity.entity_schedule) slim.entity_schedule = ownerEntity.entity_schedule;
+                    if (ownerEntity.expected_runtime_minutes != null) slim.expected_runtime_minutes = ownerEntity.expected_runtime_minutes;
+                    if (ownerEntity.entity_display_name) slim.entity_display_name = ownerEntity.entity_display_name;
+                  }
+                }
+              } catch {}
+            }
+            
+            await (redisCache as any).upsertSlimEntity(slim);
             if (slim.is_entity_owner && itemTeam) {
               try { await (redisCache as any).updateConflictIndexForOwner(slim); } catch {}
             }
@@ -1740,8 +1806,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             });
           } catch {}
         } else {
-          // Default: add (single) - original slim upsert path
-          const slim = {
+          // Default: add (single) - original slim upsert path with comprehensive fields
+          const now = new Date().toISOString();
+          const slim: any = {
             entity_type: entityType,
             tenant_name: tenantName,
             tenant_id: tenantId ?? undefined,
@@ -1754,9 +1821,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
             is_entity_owner: effectivePayload?.is_entity_owner === true ? true : false,
             is_active: (typeof effectivePayload?.is_active === 'boolean') ? effectivePayload.is_active : true,
             server_name: serverName,
-            last_reported_at: new Date().toISOString(),
-          } as any;
-          await (redisCache as any).upsertSlimEntity(slim, { broadcast: true });
+            last_reported_at: now,
+            lastRefreshed: now, // Dashboard uses this for "recent" entity filtering
+            updatedAt: now, // Also set updatedAt for consistency
+          };
+          
+          // Add entity-type specific fields
+          if (entityType === 'table') {
+            slim.schema_name = effectivePayload.schema_name ?? null;
+            slim.table_name = effectivePayload.table_name ?? entityDisplayName;
+            slim.table_schedule = effectivePayload.table_schedule || effectivePayload.entity_schedule || null;
+            slim.table_description = effectivePayload.table_description ?? null;
+            slim.table_dependency = effectivePayload.table_dependency ?? null;
+            slim.table_donemarker_location = effectivePayload.table_donemarker_location ?? null;
+            slim.owner_entity_ref_name = effectivePayload.owner_entity_ref_name ?? null;
+            slim.owner_email = effectivePayload.owner_email ?? null;
+            slim.donemarker_lookback = effectivePayload.donemarker_lookback ?? null;
+          } else {
+            slim.dag_name = effectivePayload.dag_name ?? entityDisplayName;
+            slim.dag_schedule = effectivePayload.dag_schedule || effectivePayload.entity_schedule || null;
+            slim.dag_description = effectivePayload.dag_description ?? null;
+            slim.dag_dependency = effectivePayload.dag_dependency ?? null;
+            slim.dag_donemarker_location = effectivePayload.dag_donemarker_location ?? null;
+            slim.owner_entity_ref_name = effectivePayload.owner_entity_ref_name ?? null;
+            slim.owner_email = effectivePayload.owner_email ?? null;
+            slim.donemarker_lookback = effectivePayload.donemarker_lookback ?? null;
+          }
+          
+          await (redisCache as any).upsertSlimEntity(slim);
           if (slim.is_entity_owner && requestTeam) {
             try { await (redisCache as any).updateConflictIndexForOwner(slim); } catch {}
           }
@@ -1786,7 +1878,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             });
           }
         } catch {}
-      }
+      }  // End of if (resolutionType === 'create_shared')
 
       await redisCache.patchConflict(notificationId, {
         status: (resolutionType === 'reject_shared') ? 'rejected' : 'resolved',
@@ -3714,6 +3806,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     originalPayload: { ...sanitizeEntityPayloadForConflict(req.body), action_type: 'add' },
                     action_by_user_email: req.user?.email || req.body?.action_by_user_email || req.body?.user_email || null,
                   });
+                  // appendConflictRecord already broadcasts, no need for duplicate broadcast here
                   const resp = await fetch(`${FASTAPI_BASE_URL}/api/v1/conflicts`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -3724,14 +3817,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     const officialId = data?.notificationId || data?.id || null;
                     if (officialId) {
                       await redisCache.replaceConflictNotificationId(tempId, officialId);
+                      // Broadcast ID update after replacement
+                      try {
+                        await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.CONFLICTS, {
+                          action: 'update',
+                          id: officialId,
+                          timestamp: new Date().toISOString(),
+                        });
+                      } catch {}
                     }
-                    try {
-                      await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.CONFLICTS, {
-                        action: 'create',
-                        id: officialId || tempId,
-                        timestamp: new Date().toISOString(),
-                      });
-                    } catch {}
                   }
                 } else {
                   // Fallback to Redis-only recording
@@ -3746,13 +3840,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     action_by_user_email: req.user?.email || req.body?.action_by_user_email || req.body?.user_email || null,
                     originalPayload: { ...sanitizeEntityPayloadForConflict(req.body), action_type: 'add' },
                   });
-                  try {
-                    await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.CONFLICTS, {
-                      action: 'create',
-                      id: `local-${Date.now()}`,
-                      timestamp: new Date().toISOString(),
-                    });
-                  } catch {}
+                  // appendConflictRecord already broadcasts
                 }
               } catch {
                 // Best-effort fallback to Redis log
@@ -3767,13 +3855,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   action_by_user_email: req.user?.email || req.body?.action_by_user_email || req.body?.user_email || null,
                   originalPayload: { ...sanitizeEntityPayloadForConflict(req.body), action_type: 'add' },
                 });
-                try {
-                  await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.CONFLICTS, {
-                    action: 'create',
-                    id: `fallback-${Date.now()}`,
-                    timestamp: new Date().toISOString(),
-                  });
-                } catch {}
+                // appendConflictRecord already broadcasts
               }
               const ownersList = (conflict.owners || []).join(', ');
               return res.status(409).json(createErrorResponse(`Ownership conflict detected. Current owner(s): ${ownersList}. Please contact an admin for resolution.`, 'conflict'));
@@ -4030,6 +4112,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         } catch {}
 
+        // Ensure lastRefreshed is set for immediate dashboard visibility
+        if (!payload.lastRefreshed) {
+          payload.lastRefreshed = new Date();
+        }
         const entity = await redisCache.createEntity(payload);
         created.push(entity);
         // Immediate broadcast so dashboards update without waiting for cache refresh cycles
@@ -4056,12 +4142,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } catch {}
       }
 
-      await redisCache.invalidateCache({
-        keys: ['all_entities', 'entities_summary'],
-        patterns: ['entity_details:*','team_entities:*','entities_team_*','dashboard_summary:*'],
-        mainCacheKeys: ['ENTITIES','METRICS'],
-        refreshAffectedData: true
-      });
+      // Per-item invalidation and broadcasts already handled above, no need for heavy cache refresh
 
       res.removeHeader('ETag');
       res.removeHeader('Last-Modified');
@@ -4233,6 +4314,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     originalPayload: { ...req.body, action_type: 'update', entity_name: entityName, team_name: teamName, tenant_name: tenantName },
                     action_by_user_email: req.user?.email || req.body?.action_by_user_email || req.body?.user_email || null,
                   });
+                  // appendConflictRecord already broadcasts
                   const resp = await fetch(`${FASTAPI_BASE_URL}/api/v1/conflicts`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -4243,14 +4325,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     const officialId = data?.notificationId || data?.id || null;
                     if (officialId) {
                       await redisCache.replaceConflictNotificationId(tempId, officialId);
+                      // Broadcast ID update after replacement
+                      try {
+                        await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.CONFLICTS, {
+                          action: 'update',
+                          id: officialId,
+                          timestamp: new Date().toISOString(),
+                        });
+                      } catch {}
                     }
-                    try {
-                      await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.CONFLICTS, {
-                        action: 'create',
-                        id: officialId || tempId,
-                        timestamp: new Date().toISOString(),
-                      });
-                    } catch {}
                   }
                 } else {
                   await redisCache.appendConflictRecord({
@@ -4264,13 +4347,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     user_email: req.user?.email || req.body?.user_email || null,
                     originalPayload: { ...req.body, action_type: 'update', entity_name: entityName, team_name: teamName, tenant_name: tenantName },
                   });
-                  try {
-                    await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.CONFLICTS, {
-                      action: 'create',
-                      id: `local-${Date.now()}`,
-                      timestamp: new Date().toISOString(),
-                    });
-                  } catch {}
+                  // appendConflictRecord already broadcasts
                 }
               } catch {
                 await redisCache.appendConflictRecord({
@@ -4284,13 +4361,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   action_by_user_email: req.user?.email || req.body?.action_by_user_email || req.body?.user_email || null,
                   originalPayload: { ...req.body, action_type: 'update', entity_name: entityName, team_name: teamName, tenant_name: tenantName },
                 });
-                try {
-                  await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.CONFLICTS, {
-                    action: 'create',
-                    id: `fallback-${Date.now()}`,
-                    timestamp: new Date().toISOString(),
-                  });
-                } catch {}
+                // appendConflictRecord already broadcasts
               }
               const ownersList2 = (conflict.owners || []).join(', ');
               return res.status(409).json(createErrorResponse(`Ownership conflict detected. Current owner(s): ${ownersList2}. Please contact an admin for resolution.`, 'conflict'));

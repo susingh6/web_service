@@ -141,6 +141,9 @@ export class RedisCache {
       server_name: e.server_name ?? null,
       // Populate last_reported_at from source if provided; new creates/updates can set now()
       last_reported_at: e.last_reported_at || null,
+      // Include lastRefreshed and updatedAt for dashboard visibility
+      lastRefreshed: e.lastRefreshed || null,
+      updatedAt: e.updatedAt || null,
     };
   }
 
@@ -854,7 +857,7 @@ export class RedisCache {
     let out = (entities as any[]).map((e: any) => {
       const key = this.buildSlimCompositeKey(e);
       const comp = compMap.get(key);
-      return {
+      const mapped = {
         // keep slim fields for API consumers
         ...e,
         // add compatibility aliases expected by UI
@@ -873,11 +876,14 @@ export class RedisCache {
         currentSla: typeof comp?.last_sla_compliance_pct === 'number' ? comp.last_sla_compliance_pct : null,
         // When FastAPI compliance is unavailable, don't fabricate a shared timestamp.
         // Leave null so UI shows '—' and avoids copying the same time to all entities.
-        // Prefer compliance last_reported_at; fallback to slim.last_reported_at so UI always has a timestamp
+        // Prefer compliance last_reported_at; fallback to slim.lastRefreshed, then last_reported_at so UI always has a timestamp
         lastRefreshed: comp?.last_reported_at
           ? new Date(comp.last_reported_at)
-          : (e.last_reported_at ? new Date(e.last_reported_at) : null),
+          : (e.lastRefreshed ? new Date(e.lastRefreshed) : (e.last_reported_at ? new Date(e.last_reported_at) : null)),
+        // Also map updatedAt if present
+        updatedAt: e.updatedAt ? new Date(e.updatedAt) : (e.last_reported_at ? new Date(e.last_reported_at) : null),
       };
+      return mapped;
     });
 
     // Filters identical to existing route logic
