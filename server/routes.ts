@@ -386,14 +386,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       structuredLogger.error('SCHEDULER_TOKEN_NOT_CONFIGURED', req.sessionContext, req.requestId, { 
         logger: 'app.scheduler.security' 
       });
-      return res.status(500).json(createErrorResponse('Scheduler token not configured', 'configuration_error'));
+      return sendError(res, 500, 'Scheduler token not configured', 'configuration_error');
     }
     
     if (!token || token !== expectedToken) {
       structuredLogger.warn('SCHEDULER_INVALID_TOKEN', req.sessionContext, req.requestId, { 
         logger: 'app.scheduler.security'
       });
-      return res.status(401).json(createErrorResponse('Invalid or missing scheduler token', 'unauthorized'));
+      return sendError(res, 401, 'Invalid or missing scheduler token', 'unauthorized');
     }
     
     next();
@@ -541,7 +541,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         is_active: newUser.is_active ?? true
       });
     } catch (error) {
-      res.status(500).json(createErrorResponse("Failed to create user"));
+      sendError(res, 500, "Failed to create user");
     }
   });
 
@@ -550,7 +550,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = parseInt(req.params.userId);
       if (isNaN(userId)) {
-        return res.status(400).json(createErrorResponse("Invalid user ID", "validation_error"));
+        return sendError(res, 400, "Invalid user ID", "validation_error");
       }
 
       // Validate request body
@@ -572,7 +572,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Update user
       let updatedUser: any = await storage.updateUser(userId, internalUpdateData);
       if (!updatedUser) {
-        return res.status(404).json(createErrorResponse("User not found", "not_found"));
+        return sendError(res, 404, "User not found", "not_found");
       }
 
       // Update cache based on mode
@@ -581,7 +581,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Redis mode: O(1) update by id in users hash
         const next = await redisCache.updateUserByIdInHash(userId, updateData);
         if (!next) {
-          return res.status(404).json(createErrorResponse("User not found", "not_found"));
+          return sendError(res, 404, "User not found", "not_found");
         }
         updatedUser = next;
       } else {
@@ -602,7 +602,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(transformedUser);
     } catch (error) {
       console.error('User update error:', error);
-      res.status(500).json(createErrorResponse("Failed to update user", "update_error"));
+      sendError(res, 500, "Failed to update user", "update_error");
     }
   });
 
@@ -611,7 +611,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = parseInt(req.params.userId);
       if (isNaN(userId)) {
-        return res.status(400).json(createErrorResponse("Invalid user ID", "validation_error"));
+        return sendError(res, 400, "Invalid user ID", "validation_error");
       }
 
       // Validate request body
@@ -629,7 +629,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Redis mode: O(1) update by id in users hash
         updatedUser = await redisCache.updateUserByIdInHash(userId, updateData);
         if (!updatedUser) {
-          return res.status(404).json(createErrorResponse("User not found", "not_found"));
+          return sendError(res, 404, "User not found", "not_found");
         }
       } else {
         // In-memory mode: update storage
@@ -642,7 +642,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         updatedUser = await storage.updateUser(userId, internalUpdateData);
       if (!updatedUser) {
-        return res.status(404).json(createErrorResponse("User not found", "not_found"));
+        return sendError(res, 404, "User not found", "not_found");
       }
 
         // Invalidate cache so next GET fetches fresh data from storage
@@ -681,7 +681,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(transformedUser);
     } catch (error) {
       console.error('User update error:', error);
-      res.status(500).json(createErrorResponse("Failed to update user", "update_error"));
+      sendError(res, 500, "Failed to update user", "update_error");
     }
   });
 
@@ -690,7 +690,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = parseInt(req.params.userId);
       if (isNaN(userId)) {
-        return res.status(400).json(createErrorResponse("Invalid user ID", "validation_error"));
+        return sendError(res, 400, "Invalid user ID", "validation_error");
       }
 
       // Validate request body
@@ -712,7 +712,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Update user
       const updatedUser = await storage.updateUser(userId, internalUpdateData);
       if (!updatedUser) {
-        return res.status(404).json(createErrorResponse("User not found", "not_found"));
+        return sendError(res, 404, "User not found", "not_found");
       }
 
       // Transform response to match admin panel format
@@ -741,7 +741,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(transformedUser);
     } catch (error) {
       console.error('User update error:', error);
-      res.status(500).json(createErrorResponse("Failed to update user", "update_error"));
+      sendError(res, 500, "Failed to update user", "update_error");
     }
   });
 
@@ -1363,10 +1363,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Deactivate alert in storage
       const success = await storage.deactivateAlert(alertId);
       if (!success) {
-        return res.status(404).json({ 
-          success: false,
-          message: "Alert not found" 
-        });
+        return sendError(res, 404, "Alert not found");
       }
 
       // Update cache based on mode
@@ -1530,10 +1527,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Deactivate broadcast message in storage
       const success = await storage.deactivateAdminBroadcastMessage(messageId);
       if (!success) {
-        return res.status(404).json({ 
-          success: false,
-          message: "Broadcast message not found" 
-        });
+        return sendError(res, 404, "Broadcast message not found");
       }
 
       // Update cache based on mode
@@ -2064,10 +2058,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const success = await storage.deactivateAlert(alertId);
       if (!success) {
-        return res.status(404).json({ 
-          success: false,
-          message: "Alert not found" 
-        });
+        return sendError(res, 404, "Alert not found");
       }
 
       res.json({
@@ -2123,10 +2114,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const success = await storage.deactivateAdminBroadcastMessage(messageId);
       if (!success) {
-        return res.status(404).json({ 
-          success: false,
-          message: "Broadcast message not found" 
-        });
+        return sendError(res, 404, "Broadcast message not found");
       }
 
       res.json({
@@ -2313,7 +2301,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json(newTenant);
     } catch (error) {
       console.error('Tenant creation error:', error);
-      res.status(500).json(createErrorResponse("Failed to create tenant", "creation_error"));
+      sendError(res, 500, "Failed to create tenant", "creation_error");
     }
   });
   // FastAPI fallback route for updating tenants
@@ -2322,7 +2310,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const tenantId = parseInt(req.params.tenantId);
       if (isNaN(tenantId)) {
-        return res.status(400).json(createErrorResponse("Invalid tenant ID", "validation_error"));
+        return sendError(res, 400, "Invalid tenant ID", "validation_error");
       }
 
       // Validate request body
@@ -2336,7 +2324,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Update tenant (may cascade to teams if tenant becomes inactive)
       const updatedTenant = await storage.updateTenant(tenantId, updateData);
       if (!updatedTenant) {
-        return res.status(404).json(createErrorResponse("Tenant not found", "not_found"));
+        return sendError(res, 404, "Tenant not found", "not_found");
       }
 
       // If tenant name changed, propagate to entities so fallback metrics filter by new name
@@ -2421,7 +2409,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(updatedTenant);
     } catch (error) {
       console.error('Tenant update error:', error);
-      res.status(500).json(createErrorResponse("Failed to update tenant", "update_error"));
+      sendError(res, 500, "Failed to update tenant", "update_error");
     }
   });
 
@@ -2430,7 +2418,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const tenantId = parseInt(req.params.tenantId);
       if (isNaN(tenantId)) {
-        return res.status(400).json(createErrorResponse("Invalid tenant ID", "validation_error"));
+        return sendError(res, 400, "Invalid tenant ID", "validation_error");
       }
 
       // Validate request body
@@ -2444,7 +2432,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Update tenant (may cascade to teams if tenant becomes inactive)
       const updatedTenant = await storage.updateTenant(tenantId, updateData);
       if (!updatedTenant) {
-        return res.status(404).json(createErrorResponse("Tenant not found", "not_found"));
+        return sendError(res, 404, "Tenant not found", "not_found");
       }
 
       // If tenant name changed, propagate to entities so fallback metrics filter by new name
@@ -2473,7 +2461,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(updatedTenant);
     } catch (error) {
       console.error('Tenant update error:', error);
-      res.status(500).json(createErrorResponse("Failed to update tenant", "update_error"));
+      sendError(res, 500, "Failed to update tenant", "update_error");
     }
   });
 
@@ -2611,7 +2599,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json(newTeam);
     } catch (error) {
       console.error('Team creation error:', error);
-      res.status(500).json(createErrorResponse("Failed to create team", "creation_error"));
+      sendError(res, 500, "Failed to create team", "creation_error");
     }
   });
   // FastAPI fallback route for updating teams (Redis-first write)
@@ -2619,7 +2607,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const teamId = parseInt(req.params.teamId);
       if (isNaN(teamId)) {
-        return res.status(400).json(createErrorResponse("Invalid team ID", "validation_error"));
+        return sendError(res, 400, "Invalid team ID", "validation_error");
       }
 
       // Validate request body
@@ -2637,7 +2625,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const idx = Array.isArray(teams) ? teams.findIndex((t: any) => t.id === teamId) : -1;
         
         if (idx === -1) {
-          return res.status(404).json(createErrorResponse("Team not found", "not_found"));
+          return sendError(res, 404, "Team not found", "not_found");
         }
 
         const beforeTeam = teams[idx];
@@ -2667,7 +2655,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const beforeTeam = await storage.getTeam(teamId);
       const updatedTeam = await storage.updateTeam(teamId, updateData);
       if (!updatedTeam) {
-        return res.status(404).json(createErrorResponse("Team not found", "not_found"));
+        return sendError(res, 404, "Team not found", "not_found");
       }
 
       // If team name changed, propagate to entities so fallback metrics (and Redis keys) match new name
@@ -2700,7 +2688,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(updatedTeam);
     } catch (error) {
       console.error('Team update error:', error);
-      res.status(500).json(createErrorResponse("Failed to update team", "update_error"));
+      sendError(res, 500, "Failed to update team", "update_error");
     }
   });
   // Express fallback route for updating teams (for frontend fallback mechanism)
@@ -2708,7 +2696,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const teamId = parseInt(req.params.teamId);
       if (isNaN(teamId)) {
-        return res.status(400).json(createErrorResponse("Invalid team ID", "validation_error"));
+        return sendError(res, 400, "Invalid team ID", "validation_error");
       }
 
       // Validate request body
@@ -2723,7 +2711,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const beforeTeam2 = await storage.getTeam(teamId);
       const updatedTeam = await storage.updateTeam(teamId, updateData);
       if (!updatedTeam) {
-        return res.status(404).json(createErrorResponse("Team not found", "not_found"));
+        return sendError(res, 404, "Team not found", "not_found");
       }
 
       // If team name changed, propagate to entities so fallback metrics (and Redis keys) match new name
@@ -2757,7 +2745,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(updatedTeam);
     } catch (error) {
       console.error('Team update error:', error);
-      res.status(500).json(createErrorResponse("Failed to update team", "update_error"));
+      sendError(res, 500, "Failed to update team", "update_error");
     }
   });
   // FastAPI fallback route for getting entities (with teamId support)
@@ -2794,7 +2782,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (teamId) {
         const teamIdNum = parseInt(teamId as string);
         if (isNaN(teamIdNum)) {
-          return res.status(400).json(createErrorResponse("Invalid team ID", "validation_error"));
+          return sendError(res, 400, "Invalid team ID", "validation_error");
         }
         entities = await redisCache.getEntitiesForApi({ teamId: teamIdNum });
         console.log(`GET /api/v1/entities - Parameters: teamId=${teamId} - status: 200`);
@@ -2824,7 +2812,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(entities);
     } catch (error) {
       console.error('FastAPI fallback GET /api/v1/entities error:', error);
-      res.status(500).json(createErrorResponse("Failed to get entities", "server_error"));
+      sendError(res, 500, "Failed to get entities", "server_error");
     }
   });
 
@@ -2848,7 +2836,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { changes } = req.body;
       
       if (!Array.isArray(changes) || changes.length === 0) {
-        return res.status(400).json(createErrorResponse('Invalid payload: changes array required', 'validation_error'));
+        return sendError(res, 400, 'Invalid payload: changes array required', 'validation_error');
       }
 
       structuredLogger.info('SCHEDULER_UPDATE_RECEIVED', req.sessionContext, req.requestId, {
@@ -2974,7 +2962,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       structuredLogger.error('SCHEDULER_UPDATE_ERROR', req.sessionContext, req.requestId, {
         logger: 'app.scheduler'
       });
-      res.status(500).json(createErrorResponse('Failed to process scheduler updates', 'server_error'));
+      sendError(res, 500, 'Failed to process scheduler updates', 'server_error');
     }
   });
 
@@ -3205,10 +3193,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       console.error('Dashboard summary error:', error);
-      res.status(500).json({ 
-        message: "Failed to fetch dashboard summary from cache",
-        error: error instanceof Error ? error.message : 'Unknown error' 
-      });
+      sendError(res, 500, "Failed to fetch dashboard summary from cache", undefined, { error: error instanceof Error ? error.message : 'Unknown error' });
     }
   });
   // GET /api/dashboard/presets - Load all preset ranges in one call for efficient caching
@@ -3260,10 +3245,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       console.error('Dashboard presets error:', error);
-      res.status(500).json({ 
-        message: "Failed to fetch dashboard presets from cache",
-        error: error instanceof Error ? error.message : 'Unknown error' 
-      });
+      sendError(res, 500, "Failed to fetch dashboard presets from cache", undefined, { error: error instanceof Error ? error.message : 'Unknown error' });
     }
   });
   // FastAPI-style alias: Get team members (development fallback) - Redis-first
@@ -3370,10 +3352,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const result = memberSchema.safeParse(req.body);
       if (!result.success) {
-        return res.status(400).json({ 
-          message: "Invalid team member data", 
-          errors: result.error.format() 
-        });
+        return res.status(400).json(createValidationErrorResponse(result.error, "Invalid team member data"));
       }
       
       const memberData = req.body;
@@ -3440,10 +3419,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error('Team member update error:', error);
       console.error('Request body:', req.body);
       console.error('Team name:', req.params.teamName);
-      res.status(500).json({ 
-        message: "Failed to update team members", 
-        error: error instanceof Error ? error.message : 'Unknown error' 
-      });
+      sendError(res, 500, "Failed to update team members", undefined, { error: error instanceof Error ? error.message : 'Unknown error' });
     }
   });
   
@@ -3574,9 +3550,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Validate required date parameters
       if (!start_date || !end_date) {
-        return res.status(400).json({ 
-          message: "start_date and end_date parameters are required for custom date range queries" 
-        });
+        return sendError(res, 400, "start_date and end_date parameters are required for custom date range queries");
       }
       
       // Parse and validate dates
@@ -3584,15 +3558,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const endDate = new Date(end_date as string);
       
       if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-        return res.status(400).json({ 
-          message: "Invalid date format. Use ISO date format (YYYY-MM-DD or YYYY-MM-DDTHH:mm:ssZ)" 
-        });
+        return sendError(res, 400, "Invalid date format. Use ISO date format (YYYY-MM-DD or YYYY-MM-DDTHH:mm:ssZ)");
       }
       
       if (startDate >= endDate) {
-        return res.status(400).json({ 
-          message: "start_date must be earlier than end_date" 
-        });
+        return sendError(res, 400, "start_date must be earlier than end_date");
       }
       
       // Parse optional filters
@@ -3858,7 +3828,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 // appendConflictRecord already broadcasts
               }
               const ownersList = (conflict.owners || []).join(', ');
-              return res.status(409).json(createErrorResponse(`Ownership conflict detected. Current owner(s): ${ownersList}. Please contact an admin for resolution.`, 'conflict'));
+              return sendError(res, 409, `Ownership conflict detected. Current owner(s): ${ownersList}. Please contact an admin for resolution.`);
             }
           }
         }
@@ -4106,7 +4076,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     action_by_user_email: payload.user_email,
                   });
                 } catch {}
-                return sendError(res, 409, `Ownership conflict detected for ${displayName}`);
+                const ownersList = (conflict.owners || []).join(', ');
+                return sendError(res, 409, `Ownership conflict detected. Current owner(s): ${ownersList}. Please contact an admin for resolution.`);
               }
             }
           }
@@ -4364,7 +4335,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 // appendConflictRecord already broadcasts
               }
               const ownersList2 = (conflict.owners || []).join(', ');
-              return res.status(409).json(createErrorResponse(`Ownership conflict detected. Current owner(s): ${ownersList2}. Please contact an admin for resolution.`, 'conflict'));
+              return sendError(res, 409, `Ownership conflict detected. Current owner(s): ${ownersList2}. Please contact an admin for resolution.`);
             }
           }
         }
@@ -4675,10 +4646,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Validate notification timeline update data
       const result = insertNotificationTimelineSchema.partial().safeParse(req.body);
       if (!result.success) {
-        return res.status(400).json({ 
-          message: "Invalid notification timeline data", 
-          errors: result.error.format() 
-        });
+        return res.status(400).json(createValidationErrorResponse(result.error, "Invalid notification timeline data"));
       }
       
       // Ensure triggers property is properly typed as array if it exists
@@ -5023,9 +4991,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Validate each task priority
       for (const task of tasks) {
         if (!task.task_name || !task.priority || !["high", "normal"].includes(task.priority)) {
-          return res.status(400).json({ 
-            message: `Invalid task format. Each task must have task_name and priority ('high' or 'normal')` 
-          });
+          return sendError(res, 400, "Invalid task format. Each task must have task_name and priority ('high' or 'normal')");
         }
       }
 
@@ -5128,9 +5094,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Validate each task priority
       for (const task of tasks) {
         if (!task.task_name || !task.priority || !["high", "normal"].includes(task.priority)) {
-          return res.status(400).json({ 
-            message: `Invalid task format. Each task must have task_name and priority ('high' or 'normal')` 
-          });
+          return sendError(res, 400, "Invalid task format. Each task must have task_name and priority ('high' or 'normal')");
         }
       }
 
@@ -5302,10 +5266,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const result = tenantSchema.safeParse(req.body);
       if (!result.success) {
-        return res.status(400).json({ 
-          message: "Invalid tenant data", 
-          errors: result.error.format() 
-        });
+        return res.status(400).json(createValidationErrorResponse(result.error, "Invalid tenant data"));
       }
       
       const tenantData = result.data;
@@ -5372,7 +5333,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(adminUsers);
     } catch (error) {
       console.error('Admin users fetch error:', error);
-      res.status(500).json(createErrorResponse("Failed to fetch users"));
+      sendError(res, 500, "Failed to fetch users");
     }
   });
 
@@ -5390,7 +5351,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Check if username already exists (in storage for in-memory mode)
       const existingUser = await storage.getUserByUsername(adminUserData.user_name);
       if (existingUser) {
-        return res.status(409).json(createErrorResponse("Username already exists", "duplicate_username"));
+        return sendError(res, 409, "Username already exists", "duplicate_username");
       }
       
       // Update cache based on mode
@@ -5431,7 +5392,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       console.error('Admin user creation error:', error);
-      res.status(500).json(createErrorResponse("Failed to create user"));
+      sendError(res, 500, "Failed to create user");
     }
   });
   // Update existing user from admin panel
@@ -5439,7 +5400,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = parseInt(req.params.id);
       if (isNaN(userId)) {
-        return res.status(400).json(createErrorResponse("Invalid user ID", "invalid_parameter"));
+        return sendError(res, 400, "Invalid user ID", "invalid_parameter");
       }
 
       const result = adminUserSchema.partial().safeParse(req.body);
@@ -5453,14 +5414,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Check if user exists
       const existingUser = await storage.getUser(userId);
       if (!existingUser) {
-        return res.status(404).json(createErrorResponse("User not found", "user_not_found"));
+        return sendError(res, 404, "User not found", "user_not_found");
       }
       
       // Check if username is being changed and conflicts
       if (adminUserData.user_name && adminUserData.user_name !== existingUser.username) {
         const userWithSameName = await storage.getUserByUsername(adminUserData.user_name);
         if (userWithSameName) {
-          return res.status(409).json(createErrorResponse("Username already exists", "duplicate_username"));
+          return sendError(res, 409, "Username already exists", "duplicate_username");
         }
       }
       
@@ -5551,7 +5512,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Redis mode: O(1) update by id in users hash
         const next = await redisCache.updateUserByIdInHash(userId, adminUserData);
         if (!next) {
-          return res.status(404).json(createErrorResponse("User not found"));
+          return sendError(res, 404, "User not found");
         }
         updatedUser = next;
       } else {
@@ -5572,7 +5533,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(adminUser);
     } catch (error) {
       console.error('Admin user update error:', error);
-      res.status(500).json(createErrorResponse("Failed to update user"));
+      sendError(res, 500, "Failed to update user");
     }
   });
   // FastAPI-style: Update existing user (fallback handler)
@@ -5580,7 +5541,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = parseInt(req.params.id);
       if (isNaN(userId)) {
-        return res.status(400).json(createErrorResponse("Invalid user ID", "invalid_parameter"));
+        return sendError(res, 400, "Invalid user ID", "invalid_parameter");
       }
 
       const result = adminUserSchema.partial().safeParse(req.body);
@@ -5593,7 +5554,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Load existing user
       const existingUser = await storage.getUser(userId);
       if (!existingUser) {
-        return res.status(404).json(createErrorResponse("User not found", "user_not_found"));
+        return sendError(res, 404, "User not found", "user_not_found");
       }
 
       // Prepare update data
@@ -5674,7 +5635,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(adminUser);
     } catch (error) {
       console.error('FastAPI-style user update error:', error);
-      res.status(500).json(createErrorResponse("Failed to update user"));
+      sendError(res, 500, "Failed to update user");
     }
   });
   
@@ -5736,7 +5697,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const result = insertEntitySchema.safeParse(req.body);
       
       if (!result.success) {
-        return res.status(400).json({ message: "Invalid DAG data", errors: result.error.format() });
+        return res.status(400).json(createValidationErrorResponse(result.error, "Invalid DAG data"));
       }
       
       // Ensure this is a DAG entity
@@ -5782,7 +5743,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const result = insertEntitySchema.safeParse(req.body);
       
       if (!result.success) {
-        return res.status(400).json({ message: "Invalid table data", errors: result.error.format() });
+        return res.status(400).json(createValidationErrorResponse(result.error, "Invalid table data"));
       }
       
       // Ensure this is a table entity
@@ -5928,9 +5889,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Validate required fields
       if (!entityName || !entityType || !teamName) {
-        return res.status(400).json({ 
-          message: 'Missing required fields: entityName, entityType, teamName' 
-        });
+        return sendError(res, 400, "Missing required fields: entityName, entityType, teamName");
       }
 
       // Update cache incrementally
@@ -5946,9 +5905,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           tenantName
         });
       } else {
-        res.status(404).json({ 
-          message: `Entity ${entityName} (${entityType}) not found in team ${teamName}` 
-        });
+        sendError(res, 404, "Entity ${entityName} (${entityType}) not found in team ${teamName}");
       }
     } catch (error) {
       console.error('Cache incremental update error:', error);
@@ -6046,7 +6003,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
       
       if (!entity) {
-        return res.status(404).json(createErrorResponse('Table not found', 'not_found'));
+        return sendError(res, 404, 'Table not found', 'not_found');
       }
 
       const { owner_email, ownerEmail, owners } = req.body || {};
@@ -6065,7 +6022,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Update via redis cache helper
       const updated = await redisCache.updateEntityById(entity.id, updates);
       if (!updated) {
-        return res.status(404).json(createErrorResponse('Failed to update table', 'update_error'));
+        return sendError(res, 404, 'Failed to update table', 'update_error');
       }
 
       // Invalidate caches
@@ -6074,7 +6031,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.json({ success: true, owner_email: (updated as any).owner_email || (updated as any).ownerEmail || null });
     } catch (error) {
       console.error('Update table owner error:', error);
-      return res.status(500).json(createErrorResponse('Failed to update owner', 'update_error'));
+      return sendError(res, 500, 'Failed to update owner', 'update_error');
     }
   });
 
@@ -6092,7 +6049,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
       
       if (!entity) {
-        return res.status(404).json(createErrorResponse('DAG not found', 'not_found'));
+        return sendError(res, 404, 'DAG not found', 'not_found');
       }
 
       const { owner_email, ownerEmail, owners } = req.body || {};
@@ -6111,7 +6068,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Update via redis cache helper
       const updated = await redisCache.updateEntityById(entity.id, updates);
       if (!updated) {
-        return res.status(404).json(createErrorResponse('Failed to update DAG', 'update_error'));
+        return sendError(res, 404, 'Failed to update DAG', 'update_error');
       }
 
       // Invalidate caches
@@ -6120,7 +6077,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.json({ success: true, owner_email: (updated as any).owner_email || (updated as any).ownerEmail || null });
     } catch (error) {
       console.error('Update DAG owner error:', error);
-      return res.status(500).json(createErrorResponse('Failed to update owner', 'update_error'));
+      return sendError(res, 500, 'Failed to update owner', 'update_error');
     }
   });
 
@@ -6345,7 +6302,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     } catch (error) {
       console.error('Audit entity name search error:', error);
-      res.status(500).json(createErrorResponse('Failed to fetch audit history by entity name', 'search_error'));
+      sendError(res, 500, 'Failed to fetch audit history by entity name', 'search_error');
     }
   });
 
@@ -6376,7 +6333,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     } catch (error) {
       console.error('Audit entity name search V1 error:', error);
-      res.status(500).json(createErrorResponse('Failed to fetch audit history by entity name', 'search_error'));
+      sendError(res, 500, 'Failed to fetch audit history by entity name', 'search_error');
     }
   });
 
@@ -6408,7 +6365,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     } catch (error) {
       console.error('Audit team tenant search error:', error);
-      res.status(500).json(createErrorResponse('Failed to fetch deleted entities by team/tenant', 'search_error'));
+      sendError(res, 500, 'Failed to fetch deleted entities by team/tenant', 'search_error');
     }
   });
 
@@ -6440,7 +6397,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     } catch (error) {
       console.error('Audit team tenant search V1 error:', error);
-      res.status(500).json(createErrorResponse('Failed to fetch deleted entities by team/tenant', 'search_error'));
+      sendError(res, 500, 'Failed to fetch deleted entities by team/tenant', 'search_error');
     }
   });
 
@@ -6473,7 +6430,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const rolledBackEntity = await storage.performEntityRollback(auditId, entity_type);
       
       if (!rolledBackEntity) {
-        return res.status(404).json(createErrorResponse('Deleted entity not found in audit history or rollback failed', 'not_found'));
+        return sendError(res, 404, 'Deleted entity not found in audit history or rollback failed', 'not_found');
       }
 
       // Invalidate relevant caches after rollback using conditional patterns
@@ -6512,7 +6469,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         logger: 'app.audit.rollback'
       });
       console.error('🚨 Audit rollback error:', error instanceof Error ? error.message : 'Unknown error');
-      res.status(500).json(createErrorResponse('Failed to perform rollback operation', 'rollback_error'));
+      sendError(res, 500, 'Failed to perform rollback operation', 'rollback_error');
     }
   });
 
@@ -6536,7 +6493,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const rolledBackEntity = await storage.performEntityRollback(auditId, entity_type);
       
       if (!rolledBackEntity) {
-        return res.status(404).json(createErrorResponse('Deleted entity not found in audit history or rollback failed', 'not_found'));
+        return sendError(res, 404, 'Deleted entity not found in audit history or rollback failed', 'not_found');
       }
 
       // Invalidate relevant caches using conditional patterns
@@ -6565,7 +6522,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     } catch (error) {
       console.error('Audit rollback V1 error:', error);
-      res.status(500).json(createErrorResponse('Failed to perform rollback operation', 'rollback_error'));
+      sendError(res, 500, 'Failed to perform rollback operation', 'rollback_error');
     }
   });
 
@@ -6611,7 +6568,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
       
       if (!entity) {
-        return res.status(404).json({ message: "Entity not found" });
+        return sendError(res, 404, "Entity not found");
       }
       
       // Create authorization context from FastAPI user data

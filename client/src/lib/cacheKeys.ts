@@ -66,23 +66,60 @@ export function invalidateTenantCaches(queryClient: QueryClient, tenant: string)
   queryClient.invalidateQueries({ queryKey: cacheKeys.dashboardSummary(tenant) });
 }
 
-export function invalidateAdminCaches(queryClient: QueryClient) {
-  queryClient.invalidateQueries({ queryKey: cacheKeys.adminTeams() });
+// Targeted admin cache invalidation functions
+export function invalidateTenantAdminCaches(queryClient: QueryClient) {
   queryClient.invalidateQueries({ queryKey: cacheKeys.adminTenants() });
   queryClient.invalidateQueries({ queryKey: cacheKeys.activeTenants() });
-  
-  // CRITICAL: Invalidate the specific admin panel cache keys
   queryClient.invalidateQueries({ queryKey: ['admin', 'tenants'] });
+  // Also invalidate v1 endpoint
+  queryClient.invalidateQueries({ queryKey: ['/api/v1/tenants'] });
+}
+
+export function invalidateTeamAdminCaches(queryClient: QueryClient) {
+  queryClient.invalidateQueries({ queryKey: cacheKeys.adminTeams() });
   queryClient.invalidateQueries({ queryKey: ['admin', 'teams'] });
+  // Also invalidate tenant caches since team count affects tenants
+  invalidateTenantAdminCaches(queryClient);
+  // Also invalidate v1 endpoint
+  queryClient.invalidateQueries({ queryKey: ['/api/v1/teams'] });
+}
+
+export function invalidateUserAdminCaches(queryClient: QueryClient) {
   queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+  queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
+}
+
+export function invalidateRoleAdminCaches(queryClient: QueryClient) {
   queryClient.invalidateQueries({ queryKey: ['admin', 'roles'] });
-  // Conflicts
+  queryClient.invalidateQueries({ queryKey: ['/api/v1/roles'] });
+}
+
+export function invalidateConflictAdminCaches(queryClient: QueryClient) {
   queryClient.invalidateQueries({ queryKey: ['admin', 'conflicts'] });
   queryClient.invalidateQueries({ queryKey: ['admin', 'conflicts', 'v2'] });
   queryClient.invalidateQueries({ queryKey: ['admin', 'conflicts', 'overview'] });
+  queryClient.invalidateQueries({ queryKey: ['/api/v1/conflicts'] });
+}
+
+export function invalidateAlertAdminCaches(queryClient: QueryClient) {
   queryClient.invalidateQueries({ queryKey: ['admin', 'alerts'] });
   queryClient.invalidateQueries({ queryKey: ['notifications', 'alerts'] });
+}
+
+export function invalidateBroadcastAdminCaches(queryClient: QueryClient) {
   queryClient.invalidateQueries({ queryKey: ['admin', 'broadcast-messages'] });
+  queryClient.invalidateQueries({ queryKey: ['/api/v1/admin/broadcast-messages'] });
+}
+
+// Legacy function for backward compatibility - now calls all targeted invalidations
+export function invalidateAdminCaches(queryClient: QueryClient) {
+  invalidateTenantAdminCaches(queryClient);
+  invalidateTeamAdminCaches(queryClient);
+  invalidateUserAdminCaches(queryClient);
+  invalidateRoleAdminCaches(queryClient);
+  invalidateConflictAdminCaches(queryClient);
+  invalidateAlertAdminCaches(queryClient);
+  invalidateBroadcastAdminCaches(queryClient);
 }
 
 
