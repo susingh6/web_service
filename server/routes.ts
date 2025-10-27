@@ -3636,9 +3636,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   //
   app.get("/api/dashboard/summary", async (req, res) => {
     try {
-      // Wait for cache initialization to prevent race conditions on startup
-      await redisCache.waitForInitialization();
-      
       // Accept both snake_case and camelCase query params for backward compatibility
       const tenantName = (req.query.tenant_name as string) || (req.query.tenant as string);
       const teamName = (req.query.team_name as string) || (req.query.team as string);
@@ -3650,6 +3647,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const isTeamDashboard = teamName && teamName !== '0';
+
+      // Quick check: if Redis is not initialized or has no entities, return empty response immediately
+      const cacheStatus = await redisCache.getCacheStatus();
+      if (!cacheStatus.isInitialized) {
+        const logScope = isTeamDashboard ? `team=${teamName}` : 'tenant-wide';
+        console.log(`GET /api/dashboard/summary - Parameters: tenant=${tenantName}, ${logScope} - cache not ready, returning empty - status: 200`);
+        return res.json({
+          metrics: {
+            totalEntities: 0,
+            compliantEntities: 0,
+            nonCompliantEntities: 0,
+            complianceRate: 0
+          },
+          compliance_trends: { trend: [] },
+          last_updated: new Date().toISOString(),
+          cached: false,
+          date_range: 'last30Days',
+          scope: isTeamDashboard ? 'team' : 'tenant'
+        });
+      }
 
       // Determine if this is a predefined range or custom range
       const isPredefinedRange = !startDate || !endDate || isDateRangePredefined(startDate, endDate);
@@ -3672,8 +3689,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         
         if (!metrics) {
-          const scope = isTeamDashboard ? `team=${teamName}` : 'tenant-wide';
-          return sendError(res, 404, `No data found for the specified ${scope} and range`);
+          // Return empty data instead of 404 to avoid UI blocking
+          const logScope = isTeamDashboard ? `team=${teamName}` : 'tenant-wide';
+          console.log(`GET /api/dashboard/summary - Parameters: tenant=${tenantName}, ${logScope}, range=${rangeType} - no data, returning empty - status: 200`);
+          return res.json({
+            metrics: {
+              totalEntities: 0,
+              compliantEntities: 0,
+              nonCompliantEntities: 0,
+              complianceRate: 0
+            },
+            compliance_trends: complianceTrends || { trend: [] },
+            last_updated: new Date().toISOString(),
+            cached: true,
+            date_range: rangeType,
+            scope: isTeamDashboard ? 'team' : 'tenant'
+          });
         }
         
         const logScope = isTeamDashboard ? `team=${teamName}` : 'tenant-wide';
@@ -3710,8 +3741,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         
         if (!metrics) {
-          const scope = isTeamDashboard ? `team=${teamName}` : 'tenant';
-          return sendError(res, 404, `No data found for the specified ${scope} and date range`);
+          // Return empty data instead of 404 to avoid UI blocking
+          const logScope = isTeamDashboard ? `team=${teamName}` : 'tenant';
+          console.log(`GET /api/dashboard/summary - Parameters: tenant=${tenantName}, ${logScope}, custom range=${startDate} to ${endDate} - no data, returning empty - status: 200`);
+          return res.json({
+            metrics: {
+              totalEntities: 0,
+              compliantEntities: 0,
+              nonCompliantEntities: 0,
+              complianceRate: 0
+            },
+            compliance_trends: { trend: [] },
+            last_updated: new Date().toISOString(),
+            cached: false,
+            date_range: { start_date: startDate, end_date: endDate },
+            scope: isTeamDashboard ? 'team' : 'tenant'
+          });
         }
         
         const logScope = isTeamDashboard ? `team=${teamName}` : 'tenant-wide';
@@ -3741,7 +3786,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       if (!metrics) {
-        return sendError(res, 404, 'No data found for the specified tenant');
+        // Return empty data instead of 404 to avoid UI blocking
+        console.log(`GET /api/dashboard/summary - Parameters: tenant=${tenantName} (default 30-day) - no data, returning empty - status: 200`);
+        return res.json({
+          metrics: {
+            totalEntities: 0,
+            compliantEntities: 0,
+            nonCompliantEntities: 0,
+            complianceRate: 0
+          },
+          compliance_trends: complianceTrends || { trend: [] },
+          last_updated: new Date().toISOString(),
+          cached: true,
+          date_range: "last30Days",
+          scope: isTeamDashboard ? 'team' : 'tenant'
+        });
       }
       
       console.log(`GET /api/dashboard/summary - Parameters: tenant=${tenantName} (default 30-day) - status: 200`);
@@ -3769,6 +3828,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const isTeamDashboard = teamName && teamName !== '0';
+      
+      // Quick check: if Redis is not initialized, return empty presets immediately
+      const cacheStatus = await redisCache.getCacheStatus();
+      if (!cacheStatus.isInitialized) {
+        const scope = isTeamDashboard ? `team=${teamName}` : 'tenant-wide';
+        console.log(`GET /api/dashboard/presets - Cache not ready for tenant=${tenantName}, ${scope}, returning empty - status: 200`);
+        return res.json({
+          presets: {},
+          lastUpdated: new Date(),
+          cached: false,
+          scope: isTeamDashboard ? 'team' : 'tenant'
+        });
+      }
       
       // Import centralized preset configuration
       const { getPresetKeys } = await import('../shared/preset-ranges.js');
