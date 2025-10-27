@@ -42,6 +42,7 @@ import { FormControl, InputLabel, Select, MenuItem } from '@mui/material';
 import Autocomplete from '@mui/material/Autocomplete';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { WEBSOCKET_CONFIG } from '../../../../../shared/websocket-config';
+import { formatDate } from '@/lib/utils';
 
 interface Role {
   id: number;
@@ -53,13 +54,17 @@ interface Role {
   userCount?: number;
   is_system_role: boolean;
   is_active: boolean;
+  actionByUserEmail?: string;
+  createdAt?: string;
 }
 
 interface Permission {
   permission_name: string;
   description: string;
-  category: 'Table' | 'DAG' | 'Notification' | 'Agentic' | 'Notification Subscription';
+  category: 'Table' | 'DAG' | 'Notification' | 'Agentic' | 'Notification Subscription' | 'System';
   is_active: boolean;
+  actionByUserEmail?: string;
+  createdAt?: string;
 }
 
 const RolesManagement = () => {
@@ -424,13 +429,49 @@ const RolesManagement = () => {
 
   const handleSubmitRole = async () => {
     try {
-      console.log('Submitting role:', { selectedRole, roleForm });
+      // Fetch OAuth user email
+      const response = await fetch(buildUrl(endpoints.profile.getCurrent), {
+        credentials: 'include'
+      });
+      const userProfile = response.ok ? await response.json() : null;
+      
       if (selectedRole) {
-        console.log('Updating role:', selectedRole.role_name, roleForm);
-        await updateRoleMutation.mutateAsync({ roleName: selectedRole.role_name, data: roleForm });
+        // PATCH mode: only send changed fields + mandatory fields
+        const payload: any = {
+          // Mandatory fields - always send
+          role_name: roleForm.role_name,
+          is_active: roleForm.is_active ?? true,
+          is_system_role: roleForm.is_system_role ?? false,
+          action_by_user_email: userProfile?.user_email || null,
+          // When is_system_role is true, always send null for team_name and tenant_name
+          team_name: roleForm.is_system_role ? null : (roleForm.team_name || null),
+          tenant_name: roleForm.is_system_role ? null : (roleForm.tenant_name || null),
+        };
+        
+        // Non-mandatory fields - only send if changed
+        if (roleForm.description !== (selectedRole.description || '')) {
+          payload.role_description = roleForm.description || null;
+        }
+        if (JSON.stringify(roleForm.role_permissions || []) !== JSON.stringify(selectedRole.role_permissions || [])) {
+          payload.role_permissions = roleForm.role_permissions || [];
+        }
+        
+        await updateRoleMutation.mutateAsync({ roleName: selectedRole.role_name, data: payload });
       } else {
-        console.log('Creating role:', roleForm);
-        await createRoleMutation.mutateAsync(roleForm);
+        // POST mode: send all fields
+        const payload: any = {
+          role_name: roleForm.role_name,
+          role_description: roleForm.description || null,
+          role_permissions: roleForm.role_permissions || [],
+          is_active: roleForm.is_active ?? true,
+          is_system_role: roleForm.is_system_role ?? false,
+          action_by_user_email: userProfile?.user_email || null,
+          // When is_system_role is true, always send null for team_name and tenant_name
+          team_name: roleForm.is_system_role ? null : (roleForm.team_name || null),
+          tenant_name: roleForm.is_system_role ? null : (roleForm.tenant_name || null),
+        };
+        
+        await createRoleMutation.mutateAsync(payload);
       }
       setRoleDialogOpen(false);
       setSelectedRole(null);
@@ -493,10 +534,40 @@ const RolesManagement = () => {
 
   const handleSubmitPermission = async () => {
     try {
+      // Fetch OAuth user email
+      const response = await fetch(buildUrl(endpoints.profile.getCurrent), {
+        credentials: 'include'
+      });
+      const userProfile = response.ok ? await response.json() : null;
+      
       if (selectedPermission) {
-        await updatePermissionMutation.mutateAsync({ name: selectedPermission.permission_name, data: permissionForm });
+        // PATCH mode: only send changed fields + mandatory fields
+        const payload: any = {
+          // Mandatory fields - always send
+          permission_name: permissionForm.permission_name,
+          is_active: permissionForm.is_active ?? true,
+          action_by_user_email: userProfile?.user_email || null,
+        };
+        
+        // Non-mandatory fields - only send if changed
+        if (permissionForm.description !== (selectedPermission.description || '')) {
+          payload.permission_description = permissionForm.description || null;
+        }
+        if (permissionForm.category !== selectedPermission.category) {
+          payload.permission_category = permissionForm.category;
+        }
+        
+        await updatePermissionMutation.mutateAsync({ name: selectedPermission.permission_name, data: payload });
       } else {
-        await createPermissionMutation.mutateAsync(permissionForm);
+        // POST mode: send all fields
+        const payload: any = {
+          permission_name: permissionForm.permission_name,
+          permission_category: permissionForm.category,
+          permission_description: permissionForm.description || null,
+          is_active: permissionForm.is_active ?? true,
+          action_by_user_email: userProfile?.user_email || null,
+        };
+        await createPermissionMutation.mutateAsync(payload);
       }
       setPermissionDialogOpen(false);
       setSelectedPermission(null);
@@ -599,6 +670,8 @@ const RolesManagement = () => {
                         <TableCell>Type</TableCell>
                         <TableCell>Permissions</TableCell>
                         <TableCell>Status</TableCell>
+                        <TableCell>Action By</TableCell>
+                        <TableCell>Created</TableCell>
                         <TableCell align="right">Actions</TableCell>
                       </TableRow>
                     </TableHead>
@@ -661,6 +734,16 @@ const RolesManagement = () => {
                                 color={role.is_active ? 'success' : 'default'}
                                 variant={role.is_active ? 'filled' : 'outlined'}
                               />
+                            </TableCell>
+                            <TableCell>
+                              <Typography variant="body2" color="text.secondary">
+                                {role.actionByUserEmail || '--'}
+                              </Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Typography variant="body2" color="text.secondary">
+                                {role.createdAt ? formatDate(role.createdAt) : '--'}
+                              </Typography>
                             </TableCell>
                             <TableCell align="right">
                               <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
@@ -736,6 +819,8 @@ const RolesManagement = () => {
                         <TableCell>Permission</TableCell>
                         <TableCell>Category</TableCell>
                         <TableCell>Status</TableCell>
+                        <TableCell>Action By</TableCell>
+                        <TableCell>Created</TableCell>
                         <TableCell align="right">Actions</TableCell>
                       </TableRow>
                     </TableHead>
@@ -749,9 +834,11 @@ const RolesManagement = () => {
                                 <Typography variant="body2" fontWeight="medium">
                                   {permission.permission_name}
                                 </Typography>
-                                <Typography variant="caption" color="text.secondary">
-                                  {permission.description}
-                                </Typography>
+                                {permission.description && (
+                                  <Typography variant="caption" color="text.secondary" display="block">
+                                    {permission.description}
+                                  </Typography>
+                                )}
                               </Box>
                             </Box>
                           </TableCell>
@@ -770,6 +857,16 @@ const RolesManagement = () => {
                               color={permission.is_active ? 'success' : 'default'}
                               variant={permission.is_active ? 'filled' : 'outlined'}
                             />
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2" color="text.secondary">
+                              {permission.actionByUserEmail || '—'}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2" color="text.secondary">
+                              {permission.createdAt ? formatDate(permission.createdAt) : '—'}
+                            </Typography>
                           </TableCell>
                           <TableCell align="right">
                             <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
@@ -807,6 +904,8 @@ const RolesManagement = () => {
               onChange={(e) => setRoleForm({ ...roleForm, role_name: e.target.value })} 
               required 
               fullWidth 
+              disabled={!!selectedRole}
+              helperText={selectedRole ? "Role name cannot be changed" : ""}
             />
             <TextField 
               label="Description" 

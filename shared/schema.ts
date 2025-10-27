@@ -467,6 +467,7 @@ export const roles = pgTable("roles", {
   role_permissions: json("role_permissions").$type<string[]>().notNull().default([]),
   team_name: text("team_name"),
   tenant_name: text("tenant_name"),
+  actionByUserEmail: text("action_by_user_email"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -484,10 +485,12 @@ export const insertRoleSchema = createInsertSchema(roles).omit({
   role_permissions: z.array(z.string()).default([]),
   team_name: z.string().optional(),
   tenant_name: z.string().optional(),
+  actionByUserEmail: z.string().optional(),
 });
 
 export const updateRoleSchema = insertRoleSchema.partial().extend({
   role_name: z.string().min(1, "Role name is required").optional(),
+  actionByUserEmail: z.string().optional(),
 });
 
 // Role types
@@ -501,6 +504,7 @@ export const permissions = pgTable("permissions", {
   permission_name: text("permission_name").notNull().unique(),
   description: text("description"),
   category: text("category").notNull(), // 'Table', 'DAG', 'Notification', 'Agentic', 'Notification Subscription', 'Admin'
+  actionByUserEmail: text("action_by_user_email"), // OAuth user who created/modified this permission
   is_active: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -514,7 +518,7 @@ export const insertPermissionSchema = createInsertSchema(permissions).omit({
 }).extend({
   permission_name: z.string().min(1, "Permission name is required"),
   description: z.string().optional(),
-  category: z.enum(['Table', 'DAG', 'Notification', 'Agentic', 'Notification Subscription', 'Admin']),
+  category: z.enum(['Table', 'DAG', 'Notification', 'Agentic', 'Notification Subscription', 'Admin', 'System']),
   is_active: z.boolean().default(true),
 });
 

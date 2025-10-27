@@ -780,7 +780,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // POST /api/v1/roles - Create new role
   app.post("/api/v1/roles", checkActiveUserDev, async (req: Request, res: Response) => {
     try {
-      const roleData = req.body;
+      // Define schema for admin role creation with new field names
+      const adminRoleSchema = z.object({
+        role_name: z.string().min(1, "Role name is required"),
+        role_description: z.string().nullable().optional(),
+        role_permissions: z.array(z.string()).nullable().optional(),
+        is_active: z.boolean(),
+        is_system_role: z.boolean(),
+        action_by_user_email: z.string().email().nullable().optional().or(z.literal('')),
+        team_name: z.string().nullable().optional(),
+        tenant_name: z.string().nullable().optional(),
+      });
+      
+      // Validate request body
+      const validationResult = adminRoleSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json(createValidationErrorResponse(validationResult.error));
+      }
+      
+      const data = validationResult.data;
+      
+      // If is_system_role is true, force team_name and tenant_name to null
+      const teamName = data.is_system_role ? null : (data.team_name || null);
+      const tenantName = data.is_system_role ? null : (data.tenant_name || null);
+      
       const status = await redisCache.getCacheStatus();
 
       if (status && status.mode === 'redis') {
@@ -793,13 +816,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const now = new Date().toISOString();
         const newRole = {
           id: nextId,
-          role_name: roleData.role_name,
-          description: roleData.description || null,
-          is_active: roleData.is_active ?? true,
-          is_system_role: roleData.is_system_role ?? false,
-          role_permissions: roleData.role_permissions || [],
-          team_name: roleData.team_name || null,
-          tenant_name: roleData.tenant_name || null,
+          role_name: data.role_name,
+          description: data.role_description || null,
+          is_active: data.is_active ?? true,
+          is_system_role: data.is_system_role ?? false,
+          role_permissions: data.role_permissions || [],
+          team_name: teamName,
+          tenant_name: tenantName,
+          actionByUserEmail: data.action_by_user_email || null,
           createdAt: now,
           updatedAt: now,
         };
@@ -818,7 +842,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // In-memory mode: create via storage
-      const newRole = await storage.createRole(roleData);
+      // Map new field names to storage format
+      const storageData = {
+        role_name: data.role_name,
+        description: data.role_description || undefined,
+        role_permissions: data.role_permissions || [],
+        is_active: data.is_active,
+        is_system_role: data.is_system_role,
+        team_name: teamName || undefined,
+        tenant_name: tenantName || undefined,
+        actionByUserEmail: data.action_by_user_email || undefined,
+      };
+      
+      const newRole = await storage.createRole(storageData);
       
       // Invalidate cache so next GET fetches fresh data from storage
       await redisCache.invalidateCache({
@@ -839,7 +875,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/v1/roles/:roleName", checkActiveUserDev, async (req: Request, res: Response) => {
     try {
       const { roleName } = req.params;
-      const roleData = req.body;
+      
+      // Define schema for admin role update with new field names
+      const adminRoleUpdateSchema = z.object({
+        role_name: z.string().min(1, "Role name is required"),
+        role_description: z.string().nullable().optional(),
+        role_permissions: z.array(z.string()).nullable().optional(),
+        is_active: z.boolean(),
+        is_system_role: z.boolean(),
+        action_by_user_email: z.string().email().nullable().optional().or(z.literal('')),
+        team_name: z.string().nullable().optional(),
+        tenant_name: z.string().nullable().optional(),
+      });
+      
+      // Validate request body
+      const validationResult = adminRoleUpdateSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json(createValidationErrorResponse(validationResult.error));
+      }
+      
+      const data = validationResult.data;
+      
+      // If is_system_role is true, force team_name and tenant_name to null
+      const teamName = data.is_system_role ? null : (data.team_name || null);
+      const tenantName = data.is_system_role ? null : (data.tenant_name || null);
+      
+      // Map new field names to storage format
+      const updateData: any = {
+        role_name: data.role_name,
+        is_active: data.is_active,
+        is_system_role: data.is_system_role,
+        actionByUserEmail: data.action_by_user_email || null,
+        team_name: teamName,
+        tenant_name: tenantName,
+      };
+      
+      // Only include non-mandatory fields if they were provided
+      if (data.role_description !== undefined) {
+        updateData.description = data.role_description || null;
+      }
+      if (data.role_permissions !== undefined) {
+        updateData.role_permissions = data.role_permissions || [];
+      }
       
       // Update cache based on mode
       const status = await redisCache.getCacheStatus();
@@ -859,8 +936,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Merge existing role with updates
         updatedRole = {
           ...existingRoles[roleIndex],
-          ...roleData,
-          role_name: roleName, // Ensure name doesn't change
+          ...updateData,
+          updatedAt: new Date().toISOString(),
         };
         
         const updatedRoles = [...existingRoles];
@@ -873,11 +950,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       } else {
         // In-memory mode: update in storage
-        updatedRole = await storage.updateRole(roleName, roleData);
+        updatedRole = await storage.updateRole(roleName, updateData);
       
-      if (!updatedRole) {
-        return sendError(res, 404, `Role '${roleName}' not found`);
-      }
+        if (!updatedRole) {
+          return sendError(res, 404, `Role '${roleName}' not found`);
+        }
       
         // Invalidate cache so next GET fetches fresh data from storage
         await redisCache.invalidateCache({
@@ -990,7 +1067,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // POST /api/v1/permissions - FastAPI fallback for creating permissions
   app.post("/api/v1/permissions", checkActiveUserDev, async (req: Request, res: Response) => {
     try {
-      const permissionData = req.body;
+      // Define schema for admin permission creation with new field names
+      const adminPermissionSchema = z.object({
+        permission_name: z.string().min(1, "Permission name is required"),
+        permission_description: z.string().nullable().optional(),
+        permission_category: z.enum(['Table', 'DAG', 'Notification', 'Agentic', 'Notification Subscription', 'System']),
+        is_active: z.boolean(),
+        action_by_user_email: z.string().email().nullable().optional().or(z.literal('')),
+      });
+      
+      // Validate request body
+      const validationResult = adminPermissionSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json(createValidationErrorResponse(validationResult.error));
+      }
+      
+      const data = validationResult.data;
+      
+      // Map new field names to storage format
+      const permissionData = {
+        permission_name: data.permission_name,
+        description: data.permission_description || null,
+        category: data.permission_category,
+        is_active: data.is_active ?? true,
+        actionByUserEmail: data.action_by_user_email || null,
+      };
+      
       const status = await redisCache.getCacheStatus();
 
       if (status && status.mode === 'redis') {
@@ -1007,6 +1109,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           description: permissionData.description || null,
           category: permissionData.category,
           is_active: permissionData.is_active ?? true,
+          actionByUserEmail: permissionData.actionByUserEmail || null,
           createdAt: now,
           updatedAt: now,
         };
@@ -1025,7 +1128,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // In-memory mode: create via storage
-      const newPermission = await storage.createPermission(permissionData);
+      const newPermission = await storage.createPermission({
+        ...permissionData,
+        description: permissionData.description || undefined,
+        actionByUserEmail: permissionData.actionByUserEmail || undefined,
+      });
       
       // Invalidate cache so next GET fetches fresh data from storage
       await redisCache.invalidateCache({
@@ -1047,7 +1154,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/v1/permissions/:name", checkActiveUserDev, async (req: Request, res: Response) => {
     try {
       const { name } = req.params;
-      const permissionData = req.body;
+      
+      // Define schema for admin permission update with new field names
+      const adminPermissionUpdateSchema = z.object({
+        permission_name: z.string().min(1, "Permission name is required"),
+        permission_description: z.string().nullable().optional(),
+        permission_category: z.enum(['Table', 'DAG', 'Notification', 'Agentic', 'Notification Subscription', 'System']).optional(),
+        is_active: z.boolean(),
+        action_by_user_email: z.string().email().nullable().optional().or(z.literal('')),
+      });
+      
+      // Validate request body
+      const validationResult = adminPermissionUpdateSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json(createValidationErrorResponse(validationResult.error));
+      }
+      
+      const data = validationResult.data;
+      
+      // Map new field names to storage format
+      const updateData: any = {
+        permission_name: data.permission_name,
+        is_active: data.is_active,
+        actionByUserEmail: data.action_by_user_email || null,
+      };
+      
+      // Only include non-mandatory fields if they were provided
+      if (data.permission_description !== undefined) {
+        updateData.description = data.permission_description || null;
+      }
+      if (data.permission_category !== undefined) {
+        updateData.category = data.permission_category;
+      }
       
       // Update cache based on mode
       const status = await redisCache.getCacheStatus();
@@ -1067,8 +1205,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Merge existing permission with updates
         updatedPermission = {
           ...existingPermissions[permissionIndex],
-          ...permissionData,
-          permission_name: name, // Ensure name doesn't change
+          ...updateData,
+          updatedAt: new Date().toISOString(),
         };
         
         const updatedPermissions = [...existingPermissions];
@@ -1081,10 +1219,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       } else {
         // In-memory mode: update in storage
-        updatedPermission = await storage.updatePermission(name, permissionData);
-      if (!updatedPermission) {
-        return sendError(res, 404, `Permission '${name}' not found`);
-      }
+        updatedPermission = await storage.updatePermission(name, updateData);
+        if (!updatedPermission) {
+          return sendError(res, 404, `Permission '${name}' not found`);
+        }
         
         // Invalidate cache so next GET fetches fresh data from storage
         await redisCache.invalidateCache({
