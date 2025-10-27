@@ -412,18 +412,27 @@ export const entitiesApi = {
       }
     }
   },
-  deleteEntityByName: async ({ type, entityName, teamName }: { type: Entity['type']; entityName: string; teamName?: string; }) => {
+  deleteEntityByName: async ({ type, entityName, teamName, tenantName, entity }: { type: Entity['type']; entityName: string; teamName?: string; tenantName?: string; entity?: any; }) => {
     const deleteKey = `${type as string}sDelete` as keyof typeof endpoints;
     const deleter = (endpoints as any)[deleteKey] as ((name: string) => string) | undefined;
     const fastAPIUrl = deleter ? deleter(entityName) : endpoints.v1.typedByName(String(type), 'delete', entityName);
     
+    // Build payload with required fields for DELETE
+    const payload: any = {};
+    if (teamName || entity?.team_name) {
+      payload.team_name = teamName || entity?.team_name;
+    }
+    if (tenantName || entity?.tenant_name) {
+      payload.tenant_name = tenantName || entity?.tenant_name;
+    }
+    
     try {
-      const res = await environmentAwareApiRequest('DELETE', fastAPIUrl);
+      const res = await environmentAwareApiRequest('DELETE', fastAPIUrl, payload);
       return res.status === 204 || res.status === 404;
     } catch (err: any) {
       // If FastAPI path is missing in dev, fall back to Express route
       const expressUrl = endpoints.byName.delete(String(type), entityName, teamName);
-      const res = await expressApiRequest('DELETE', expressUrl);
+      const res = await expressApiRequest('DELETE', expressUrl, payload);
       return res.status === 204 || res.status === 404;
     }
   },
@@ -459,21 +468,34 @@ export const entitiesApi = {
 
     const expressDelete = endpoints.byName.delete(String(type), resolvedEntityName, teamName || entity?.team_name);
 
+    // Build payload with required fields for DELETE
+    const payload: any = {};
+    
+    if (teamName || entity?.team_name) {
+      payload.team_name = teamName || entity?.team_name;
+    }
+    
+    if (entity?.tenant_name) {
+      payload.tenant_name = entity?.tenant_name;
+    }
+    
+    // action_by_user_email will be populated by server from OAuth profile
+
     try {
-      const res = await environmentAwareApiRequest('DELETE', primaryEndpoint);
+      const res = await environmentAwareApiRequest('DELETE', primaryEndpoint, payload);
       return res.ok;
     } catch (error) {
       
       if (fallbackEndpoint) {
         try {
-          const res = await environmentAwareApiRequest('DELETE', fallbackEndpoint);
+          const res = await environmentAwareApiRequest('DELETE', fallbackEndpoint, payload);
           if (res.ok) return true;
         } catch (fallbackError) {
           
         }
       }
 
-      const expressRes = await expressApiRequest('DELETE', expressDelete);
+      const expressRes = await expressApiRequest('DELETE', expressDelete, payload);
       return expressRes.ok;
     }
   },

@@ -5150,16 +5150,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!USE_FASTAPI) {
       // If FastAPI disabled, forward to /api/entities/by-name
       const { entityType, entityName } = req.params;
-      const teamName = req.query.teamName;
-      req.url = `/api/entities/by-name/${entityType}/${entityName}?teamName=${teamName}`;
+      const teamName = req.body?.team_name || req.body?.teamName || req.query.team_name || req.query.teamName;
+      const tenantName = req.body?.tenant_name || req.body?.tenantName || req.query.tenant_name || req.query.tenantName;
+      req.url = `/api/entities/by-name/${entityType}/${entityName}?team_name=${teamName}${tenantName ? `&tenant_name=${tenantName}` : ''}`;
       return app._router.handle(req, res, () => {});
     }
 
     // If flag is ON, use the existing logic from /api/entities/by-name
     // (which already has FastAPI integration)
     const { entityType, entityName } = req.params;
-    const teamName = req.query.teamName;
-    req.url = `/api/entities/by-name/${entityType}/${entityName}?teamName=${teamName}`;
+    const teamName = req.body?.team_name || req.body?.teamName || req.query.team_name || req.query.teamName;
+    const tenantName = req.body?.tenant_name || req.body?.tenantName || req.query.tenant_name || req.query.tenantName;
+    req.url = `/api/entities/by-name/${entityType}/${entityName}?team_name=${teamName}${tenantName ? `&tenant_name=${tenantName}` : ''}`;
     return app._router.handle(req, res, () => {});
   }
 
@@ -5167,8 +5169,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete('/api/entities/by-name/:entityType/:entityName', ...(isDevelopment ? [] : requireActiveUser), async (req: Request, res: Response) => {
     try {
       const { entityType, entityName } = req.params;
-      const teamName = typeof req.query.teamName === 'string' ? req.query.teamName : undefined;
-      let tenantName = typeof req.query.tenantName === 'string' ? req.query.tenantName : undefined;
+      const teamName = (typeof req.query.teamName === 'string' ? req.query.teamName : undefined)
+        || (typeof req.query.team_name === 'string' ? req.query.team_name : undefined)
+        || req.body?.team_name 
+        || req.body?.teamName;
+      let tenantName = (typeof req.query.tenantName === 'string' ? req.query.tenantName : undefined)
+        || (typeof req.query.tenant_name === 'string' ? req.query.tenant_name : undefined)
+        || req.body?.tenant_name
+        || req.body?.tenantName;
 
       const normalizedType = (entityType === 'table' || entityType === 'dag') ? (entityType as Entity['type']) : undefined;
       if (!teamName || !normalizedType) {
@@ -5436,8 +5444,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch('/api/entities/by-name/:entityType/:entityName', ...(isDevelopment ? [] : requireActiveUser), async (req: Request, res: Response) => {
     try {
       const { entityType, entityName } = req.params;
-      const teamName = typeof req.query.teamName === 'string' ? req.query.teamName : undefined;
-      let tenantName = typeof req.query.tenantName === 'string' ? req.query.tenantName : undefined;
+      const teamName = (typeof req.query.teamName === 'string' ? req.query.teamName : undefined) 
+        || req.body?.team_name 
+        || req.body?.teamName;
+      let tenantName = (typeof req.query.tenantName === 'string' ? req.query.tenantName : undefined)
+        || req.body?.tenant_name
+        || req.body?.tenantName;
 
       const normalizedType = (entityType === 'table' || entityType === 'dag') ? (entityType as Entity['type']) : undefined;
 

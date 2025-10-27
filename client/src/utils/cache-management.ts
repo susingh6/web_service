@@ -1003,9 +1003,15 @@ export function useEntityMutation() {
 
   // DELETE
   const deleteMutation = useMutation<boolean | undefined, Error, { entityName: string; entityType: Entity['type']; tenant?: string; teamId: number; teamName?: string; entity?: Entity }, DeleteMutationContext>({
-    mutationFn: async ({ entityName, entityType, teamName }) => {
-      log.debug('[useEntityMutation][delete] mutationFn start', { entityName, entityType, teamName });
-      const result = await entitiesApi.deleteEntityByName({ type: entityType, entityName, teamName });
+    mutationFn: async ({ entityName, entityType, teamName, tenant, entity }) => {
+      log.debug('[useEntityMutation][delete] mutationFn start', { entityName, entityType, teamName, tenant });
+      const result = await entitiesApi.deleteEntityByName({ 
+        type: entityType, 
+        entityName, 
+        teamName,
+        tenantName: tenant,
+        entity
+      });
       log.debug('[useEntityMutation][delete] mutationFn result', { entityName, entityType, result });
       return result;
     },
