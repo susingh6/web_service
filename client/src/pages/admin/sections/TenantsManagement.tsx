@@ -41,14 +41,15 @@ import { formatDate } from '@/lib/utils';
 // Removed custom optimistic wrapper in favor of native React Query mutations
 
 interface Tenant {
-  id: number;
-  name: string;
-  description?: string;
-  email?: string;
-  isActive: boolean;
-  teamsCount: number;
-  actionByUserEmail?: string;
-  createdAt: string;
+  tenant_id: number;
+  tenant_name: string;
+  tenant_description?: string;
+  tenant_email?: string;
+  is_active: boolean;
+  teams_count: number;
+  action_by_user_email?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 interface TenantFormDialogProps {
@@ -60,20 +61,20 @@ interface TenantFormDialogProps {
 
 const TenantFormDialog = ({ open, onClose, tenant, onSubmit }: TenantFormDialogProps) => {
   const [formData, setFormData] = useState({
-    name: tenant?.name || '',
-    description: tenant?.description || '',
-    email: tenant?.email || '',
-    isActive: tenant?.isActive ?? true,
+    name: tenant?.tenant_name || '',
+    description: tenant?.tenant_description || '',
+    email: tenant?.tenant_email || '',
+    isActive: tenant?.is_active ?? true,
   });
 
   // Update form data when tenant prop changes
   useEffect(() => {
     if (tenant) {
       setFormData({
-        name: tenant.name || '',
-        description: tenant.description || '',
-        email: tenant.email || '',
-        isActive: tenant.isActive ?? true,
+        name: tenant.tenant_name || '',
+        description: tenant.tenant_description || '',
+        email: tenant.tenant_email || '',
+        isActive: tenant.is_active ?? true,
       });
     } else {
       setFormData({
@@ -95,13 +96,13 @@ const TenantFormDialog = ({ open, onClose, tenant, onSubmit }: TenantFormDialogP
       };
       
       // Only include non-mandatory fields if they changed
-      const originalDesc = tenant.description || '';
+      const originalDesc = tenant.tenant_description || '';
       const currentDesc = formData.description?.trim() || '';
       if (currentDesc !== originalDesc) {
         cleanedData.description = currentDesc || null;
       }
       
-      const originalEmail = tenant.email || '';
+      const originalEmail = tenant.tenant_email || '';
       const currentEmail = formData.email?.trim() || '';
       if (currentEmail !== originalEmail) {
         cleanedData.email = currentEmail || null;
@@ -211,10 +212,10 @@ const TenantsManagement = () => {
     const tokens = q.split(' ').filter(Boolean);
     return (tenants as Tenant[]).filter((t) => {
       const blob = [
-        t.name,
-        t.description || '',
-        String(t.teamsCount),
-        t.isActive ? 'active' : 'inactive',
+        t.tenant_name,
+        t.tenant_description || '',
+        String(t.teams_count),
+        t.is_active ? 'active' : 'inactive',
       ].join(' ').toLowerCase();
       return tokens.every(tok => blob.includes(tok));
     });
@@ -316,7 +317,7 @@ const TenantsManagement = () => {
 
   const handleSubmitTenant = async (tenantData: any) => {
     if (selectedTenant) {
-      await handleUpdateTenant(selectedTenant.id, tenantData);
+      await handleUpdateTenant(selectedTenant.tenant_id, tenantData);
     } else {
       await handleCreateTenant(tenantData);
     }
@@ -386,17 +387,17 @@ const TenantsManagement = () => {
               </TableHead>
               <TableBody>
                 {filteredTenants.map((tenant: Tenant) => (
-                  <TableRow key={tenant.id}>
+                  <TableRow key={tenant.tenant_id}>
                     <TableCell>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <BusinessIcon color="primary" />
                         <Box>
                           <Typography variant="body2" fontWeight="medium">
-                            {tenant.name}
+                            {tenant.tenant_name}
                           </Typography>
-                          {tenant.description && (
+                          {tenant.tenant_description && (
                             <Typography variant="caption" color="text.secondary" display="block">
-                              {tenant.description}
+                              {tenant.tenant_description}
                             </Typography>
                           )}
                         </Box>
@@ -404,33 +405,33 @@ const TenantsManagement = () => {
                     </TableCell>
                     <TableCell>
                       <Typography variant="body2" color="text.secondary">
-                        {tenant.email || '—'}
+                        {tenant.tenant_email || '—'}
                       </Typography>
                     </TableCell>
                     <TableCell>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <TeamsIcon color="action" fontSize="small" />
                         <Typography variant="body2">
-                          {tenant.teamsCount} teams
+                          {tenant.teams_count} teams
                         </Typography>
                       </Box>
                     </TableCell>
                     <TableCell>
                       <Chip 
-                        label={tenant.isActive ? 'Active' : 'Inactive'} 
+                        label={tenant.is_active ? 'Active' : 'Inactive'} 
                         size="small" 
-                        color={tenant.isActive ? 'success' : 'default'}
-                        variant={tenant.isActive ? 'filled' : 'outlined'}
+                        color={tenant.is_active ? 'success' : 'default'}
+                        variant={tenant.is_active ? 'filled' : 'outlined'}
                       />
                     </TableCell>
                     <TableCell>
                       <Typography variant="body2" color="text.secondary">
-                        {tenant.actionByUserEmail || '—'}
+                        {tenant.action_by_user_email || '—'}
                       </Typography>
                     </TableCell>
                     <TableCell>
                       <Typography variant="body2" color="text.secondary">
-                        {formatDate(tenant.createdAt)}
+                        {formatDate(tenant.created_at)}
                       </Typography>
                     </TableCell>
                     <TableCell>
@@ -455,8 +456,12 @@ const TenantsManagement = () => {
       </Card>
 
       <TenantFormDialog
+        key={selectedTenant ? `edit-${selectedTenant.tenant_id}` : 'create-new'}
         open={dialogOpen}
-        onClose={() => setDialogOpen(false)}
+        onClose={() => {
+          setDialogOpen(false);
+          setSelectedTenant(null);
+        }}
         tenant={selectedTenant}
         onSubmit={handleSubmitTenant}
       />

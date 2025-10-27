@@ -139,10 +139,25 @@ export const teamsApi = {
   getAll: async (teamName?: string) => {
     let url = endpoints.teams;
     if (teamName) {
+      // Keep camelCase param server-side compatible; server maps to snake_case internally
       url += `?teamName=${encodeURIComponent(teamName)}`;
     }
     const res = await environmentAwareApiRequest('GET', url);
-    return await res.json();
+    const data = await res.json();
+    // Normalize team shape to expose camelCase aliases for UI
+    if (Array.isArray(data)) {
+      return data.map((t: any) => ({
+        ...t,
+        id: t.team_id ?? t.id,
+        name: t.team_name ?? t.name,
+        description: t.team_description ?? t.description ?? null,
+        isActive: t.is_active ?? t.isActive ?? true,
+        actionByUserEmail: t.action_by_user_email ?? t.actionByUserEmail ?? null,
+        createdAt: t.created_at ?? t.createdAt ?? null,
+        updatedAt: t.updated_at ?? t.updatedAt ?? null,
+      }));
+    }
+    return data;
   }
 };
 
@@ -153,7 +168,23 @@ export const tenantsApi = {
       url += `?active_only=true`;
     }
     const res = await environmentAwareApiRequest('GET', url);
-    return await res.json();
+    const data = await res.json();
+    if (Array.isArray(data)) {
+      return data.map((t: any) => ({
+        // Preserve original fields
+        ...t,
+        // Add camelCase aliases for components still expecting them
+        id: t.tenant_id ?? t.id,
+        name: t.tenant_name ?? t.name,
+        description: (t as any).tenant_description ?? (t as any).description ?? '',
+        email: (t as any).tenant_email ?? (t as any).email ?? '',
+        isActive: (t as any).is_active ?? (t as any).isActive ?? true,
+        teamsCount: (t as any).teams_count ?? (t as any).teamsCount ?? 0,
+        createdAt: (t as any).created_at ?? (t as any).createdAt,
+        updatedAt: (t as any).updated_at ?? (t as any).updatedAt,
+      }));
+    }
+    return data;
   }
 };
 
@@ -431,13 +462,14 @@ export const dashboardApi = {
     const params = new URLSearchParams();
     
     if (tenant) {
-      params.append('tenant', tenant);
+      // Use snake_case for server; keep camelCase fallback server-side
+      params.append('tenant_name', tenant);
     }
     if (startDate) {
-      params.append('startDate', startDate);
+      params.append('start_date', startDate);
     }
     if (endDate) {
-      params.append('endDate', endDate);
+      params.append('end_date', endDate);
     }
     
     if (params.toString()) {
@@ -446,7 +478,15 @@ export const dashboardApi = {
     
     const res = await environmentAwareApiRequest('GET', url);
     const jsonData = await res.json();
-    return jsonData;
+    // Normalize response to expected camelCase fields for Redux consumers
+    return {
+      metrics: jsonData.metrics,
+      complianceTrends: jsonData.compliance_trends ?? jsonData.complianceTrends,
+      lastUpdated: jsonData.last_updated ?? jsonData.lastUpdated,
+      cached: jsonData.cached,
+      dateRange: jsonData.date_range ?? jsonData.dateRange,
+      scope: jsonData.scope,
+    } as any;
   },
   getTeamPerformance: async (teamId: number) => {
     const res = await environmentAwareApiRequest('GET', endpoints.dashboard.teamPerformance(teamId));

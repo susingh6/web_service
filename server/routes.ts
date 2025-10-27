@@ -652,21 +652,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       } else {
         // In-memory mode: update storage
-        const internalUpdateData: any = {};
-        if (updateData.user_name) internalUpdateData.username = updateData.user_name;
-        if (updateData.user_email) internalUpdateData.email = updateData.user_email;
-        if (updateData.user_slack) internalUpdateData.user_slack = updateData.user_slack;
-        if (updateData.user_pagerduty) internalUpdateData.user_pagerduty = updateData.user_pagerduty;
-        if (updateData.is_active !== undefined) internalUpdateData.is_active = updateData.is_active;
+      const internalUpdateData: any = {};
+      if (updateData.user_name) internalUpdateData.username = updateData.user_name;
+      if (updateData.user_email) internalUpdateData.email = updateData.user_email;
+      if (updateData.user_slack) internalUpdateData.user_slack = updateData.user_slack;
+      if (updateData.user_pagerduty) internalUpdateData.user_pagerduty = updateData.user_pagerduty;
+      if (updateData.is_active !== undefined) internalUpdateData.is_active = updateData.is_active;
         if (updateData.action_by_user_email !== undefined) internalUpdateData.actionByUserEmail = updateData.action_by_user_email || undefined;
 
         updatedUser = await storage.updateUser(userId, internalUpdateData);
-        if (!updatedUser) {
+      if (!updatedUser) {
           return sendError(res, 404, "User not found", "not_found");
         }
 
         // Invalidate cache so next GET fetches fresh data from storage
-        await redisCache.invalidateUserData();
+      await redisCache.invalidateUserData();
       }
       
       // CRITICAL: Also invalidate profile cache for this user so profile page shows updated data
@@ -971,7 +971,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // In-memory mode: update in storage
         updatedRole = await storage.updateRole(roleName, updateData);
       
-        if (!updatedRole) {
+      if (!updatedRole) {
           return sendError(res, 404, `Role '${roleName}' not found`);
         }
       
@@ -1239,7 +1239,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else {
         // In-memory mode: update in storage
         updatedPermission = await storage.updatePermission(name, updateData);
-        if (!updatedPermission) {
+      if (!updatedPermission) {
           return sendError(res, 404, `Permission '${name}' not found`);
         }
         
@@ -1796,14 +1796,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         try {
           const teams = await redisCache.getAllTeams();
           const tenants = await redisCache.getAllTenants();
-          const teamMatch = Array.isArray(teams) ? teams.find((t: any) => (t.name || '').toLowerCase() === (requestTeam || '').toLowerCase()) : null;
+          const teamMatch = Array.isArray(teams)
+            ? teams.find((t: any) => (((t as any).team_name ?? (t as any).name) || '').toLowerCase() === (requestTeam || '').toLowerCase())
+            : null;
           if (teamMatch) {
-            teamId = teamMatch.id ?? null;
-            tenantId = teamMatch.tenant_id ?? null;
+            teamId = ((teamMatch as any).team_id ?? (teamMatch as any).id) ?? null;
+            tenantId = ((teamMatch as any).tenant_id ?? (teamMatch as any).tenantId) ?? null;
           }
           if (!tenantId && tenantName && Array.isArray(tenants)) {
-            const tenantMatch = tenants.find((tn: any) => (tn.name || '').toLowerCase() === (tenantName || '').toLowerCase());
-            if (tenantMatch) tenantId = tenantMatch.id ?? null;
+            const tenantMatch = tenants.find((tn: any) => (((tn as any).tenant_name ?? (tn as any).name) || '').toLowerCase() === (tenantName || '').toLowerCase());
+            if (tenantMatch) tenantId = ((tenantMatch as any).tenant_id ?? (tenantMatch as any).id) ?? null;
           }
         } catch {}
 
@@ -1821,9 +1823,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             if (!itemTeamId && itemTeam) {
               try {
                 const teams = await redisCache.getAllTeams();
-                const teamMatch = Array.isArray(teams) ? teams.find((t: any) => (t.name || '').toLowerCase() === itemTeam.toLowerCase()) : null;
+                const teamMatch = Array.isArray(teams)
+                  ? teams.find((t: any) => (((t as any).team_name ?? (t as any).name) || '').toLowerCase() === itemTeam.toLowerCase())
+                  : null;
                 if (teamMatch) {
-                  itemTeamId = teamMatch.id ?? null;
+                  itemTeamId = (((teamMatch as any).team_id ?? (teamMatch as any).id) ?? null);
                 }
               } catch {}
             }
@@ -2301,7 +2305,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const shouldIncludeInactive = includeInactive === 'true';
       
       // Create a map of tenant ID to tenant for quick lookup
-      const tenantMap = new Map(tenants.map(tenant => [tenant.id, tenant]));
+      const tenantMap = new Map(tenants.map((tenant: any) => [tenant.tenant_id ?? tenant.id, tenant]));
       
       // Filter teams based on both team active status and tenant active status
       const filteredByActive = shouldIncludeInactive
@@ -2312,26 +2316,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
             
             // Team's tenant must also be active (unless includeInactive is true)
             const tenant = tenantMap.get(team.tenant_id);
-            if (!tenant || (tenant as any).isActive === false) return false;
+            if (!tenant || ((tenant as any).is_active ?? (tenant as any).isActive) === false) return false;
             
             return true;
           });
 
       // Add tenant_name to each team for display purposes
-      const teamsWithTenantName = filteredByActive.map(team => {
+      const teamsWithTenantName = filteredByActive.map((team: any) => {
         const tenant = tenantMap.get(team.tenant_id);
         return {
           ...team,
-          tenant_name: tenant?.name || 'Unknown'
+          tenant_name: (tenant as any)?.tenant_name ?? (tenant as any)?.name ?? 'Unknown'
         };
       });
 
+      const transform = (list: any[]) => list.map((t: any) => ({
+        team_id: t.team_id ?? t.id,
+        team_name: t.team_name ?? t.name,
+        team_description: t.team_description ?? t.description ?? null,
+        tenant_id: t.tenant_id,
+        tenant_name: t.tenant_name ?? null,
+        is_active: t.is_active ?? t.isActive ?? true,
+        team_email: t.team_email ?? null,
+        team_slack: t.team_slack ?? null,
+        team_pagerduty: t.team_pagerduty ?? null,
+        team_members_ids: t.team_members_ids ?? null,
+        action_by_user_email: t.action_by_user_email ?? t.actionByUserEmail ?? null,
+        created_at: t.created_at ?? t.createdAt ?? null,
+        updated_at: t.updated_at ?? t.updatedAt ?? null,
+      }));
+
       if (teamName) {
-        const filteredTeams = teamsWithTenantName.filter(team => team.name === teamName);
-        return res.json(filteredTeams);
+        const filteredTeams = teamsWithTenantName.filter((team: any) => (team.name ?? team.team_name) === teamName);
+        return res.json(transform(filteredTeams));
       }
 
-      return res.json(teamsWithTenantName);
+      return res.json(transform(teamsWithTenantName));
     } catch (error) {
       console.error('Error fetching teams:', error);
       return sendError(res, 500, 'Failed to fetch teams from cache');
@@ -2355,10 +2375,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       if (active_only === 'true') {
-        tenants = (tenants || []).filter((tenant: any) => tenant.isActive === true);
+        tenants = (tenants || []).filter((tenant: any) => tenant.isActive === true || tenant.is_active === true);
       }
 
-      res.json(tenants || []);
+      // Transform tenants to snake_case
+      // If Redis is active, DO NOT fall back to camelCase fields (avoid cross-contamination from mock storage)
+      const transformedTenants = (tenants || []).map((tenant: any) => (
+        status && status.mode === 'redis'
+          ? {
+              tenant_id: tenant.tenant_id,
+              tenant_name: tenant.tenant_name,
+              tenant_description: tenant.tenant_description ?? '',
+              tenant_email: tenant.tenant_email ?? '',
+              action_by_user_email: tenant.action_by_user_email ?? undefined,
+              is_active: tenant.is_active ?? true,
+              teams_count: tenant.teams_count ?? 0,
+              created_at: tenant.created_at ?? undefined,
+              updated_at: tenant.updated_at ?? undefined,
+            }
+          : {
+              tenant_id: tenant.tenant_id || tenant.id,
+              tenant_name: tenant.tenant_name || tenant.name,
+              tenant_description: tenant.tenant_description || tenant.description || '',
+              tenant_email: tenant.tenant_email || tenant.email || '',
+              action_by_user_email: tenant.action_by_user_email || tenant.actionByUserEmail || undefined,
+              is_active: tenant.is_active ?? tenant.isActive ?? true,
+              teams_count: tenant.teams_count ?? tenant.teamsCount ?? 0,
+              created_at: tenant.created_at || tenant.createdAt || undefined,
+              updated_at: tenant.updated_at || tenant.updatedAt || undefined,
+            }
+      ));
+
+      res.json(transformedTenants);
     } catch (error) {
       return sendError(res, 500, 'Failed to fetch tenants');
     }
@@ -2379,8 +2427,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       if (active_only === 'true') {
-        tenants = (tenants || []).filter((tenant: any) => tenant.isActive === true);
+        tenants = (tenants || []).filter((tenant: any) => tenant.isActive === true || tenant.is_active === true);
       }
+
+      // Transform tenants to snake_case
+      // If Redis is active, DO NOT fall back to camelCase fields (avoid cross-contamination from mock storage)
+      const transformedTenants = (tenants || []).map((tenant: any) => (
+        redisConnected
+          ? {
+              tenant_id: tenant.tenant_id,
+              tenant_name: tenant.tenant_name,
+              tenant_description: tenant.tenant_description ?? '',
+              tenant_email: tenant.tenant_email ?? '',
+              action_by_user_email: tenant.action_by_user_email ?? undefined,
+              is_active: tenant.is_active ?? true,
+              teams_count: tenant.teams_count ?? 0,
+              created_at: tenant.created_at ?? undefined,
+              updated_at: tenant.updated_at ?? undefined,
+            }
+          : {
+              tenant_id: tenant.tenant_id || tenant.id,
+              tenant_name: tenant.tenant_name || tenant.name,
+              tenant_description: tenant.tenant_description || tenant.description || '',
+              tenant_email: tenant.tenant_email || tenant.email || '',
+              action_by_user_email: tenant.action_by_user_email || tenant.actionByUserEmail || undefined,
+              is_active: tenant.is_active ?? tenant.isActive ?? true,
+              teams_count: tenant.teams_count ?? tenant.teamsCount ?? 0,
+              created_at: tenant.created_at || tenant.createdAt || undefined,
+              updated_at: tenant.updated_at || tenant.updatedAt || undefined,
+            }
+      ));
 
       const lastUpdatedRaw = await (redisCache as any).get ? await (redisCache as any).get('sla:LAST_UPDATED') : null;
       const lastUpdated = lastUpdatedRaw || new Date();
@@ -2391,7 +2467,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         'Cache-Control': 'no-cache'
       });
 
-      res.json(tenants || []);
+      res.json(transformedTenants);
     } catch (error) {
       return sendError(res, 500, 'Failed to fetch tenants from FastAPI fallback');
     }
@@ -2418,15 +2494,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           : 1;
         const now = new Date().toISOString();
         const newTenant = {
-          id: nextId,
-          name: tenant_name,
-          description: tenant_description || '',
-          email: tenant_email || '',
-          actionByUserEmail: action_by_user_email || undefined,
-          isActive: true,
-          teamsCount: 0,
-          createdAt: now,
-          updatedAt: now,
+          tenant_id: nextId,
+          tenant_name: tenant_name,
+          tenant_description: tenant_description || '',
+          tenant_email: tenant_email || '',
+          action_by_user_email: action_by_user_email || undefined,
+          is_active: true,
+          teams_count: 0,
+          created_at: now,
+          updated_at: now,
         };
 
         const updatedTenants = Array.isArray(existing) ? [...existing, newTenant] : [newTenant];
@@ -2465,7 +2541,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         refreshAffectedData: true
       });
 
-      res.status(201).json(newTenant);
+      // Transform to snake_case for response
+      const response = {
+        tenant_id: newTenant.id,
+        tenant_name: newTenant.name,
+        tenant_description: newTenant.description || '',
+        tenant_email: newTenant.email || '',
+        action_by_user_email: (newTenant as any).action_by_user_email || newTenant.actionByUserEmail || undefined,
+        is_active: (newTenant as any).is_active ?? newTenant.isActive ?? true,
+        teams_count: (newTenant as any).teams_count ?? newTenant.teamsCount ?? 0,
+        created_at: (newTenant as any).created_at || newTenant.createdAt || new Date().toISOString(),
+        updated_at: (newTenant as any).updated_at || newTenant.updatedAt || new Date().toISOString()
+      };
+
+      res.status(201).json(response);
     } catch (error) {
       console.error('Tenant creation error:', error);
       sendError(res, 500, "Failed to create tenant", "creation_error");
@@ -2488,8 +2577,92 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { tenant_name, tenant_description, tenant_email, is_active, action_by_user_email } = validationResult.data;
       
-      // Map new field names to storage format
-      // Convert empty string to undefined (to clear the field)
+      // Update cache based on mode
+      const status = await redisCache.getCacheStatus();
+      const redisConnected = status && status.mode === 'redis';
+      if (redisConnected) {
+        // Redis mode: merge updates into the Redis record directly (do not source from mock storage)
+        const existingTenants = await redisCache.getAllTenants();
+        const beforeTenant = Array.isArray(existingTenants)
+          ? existingTenants.find((t: any) => Number((t && (t.id ?? (t as any).tenant_id))) === tenantId)
+          : null;
+        if (!beforeTenant) {
+          return sendError(res, 404, 'Tenant not found', 'not_found');
+        }
+
+        const nowIso = new Date().toISOString();
+        const next = {
+          tenant_id: (beforeTenant as any).tenant_id ?? beforeTenant.id,
+          tenant_name: tenant_name ?? ((beforeTenant as any).tenant_name ?? beforeTenant.name),
+          tenant_description: tenant_description !== undefined
+            ? (tenant_description === '' ? '' : tenant_description)
+            : ((beforeTenant as any).tenant_description ?? beforeTenant.description ?? ''),
+          tenant_email: tenant_email !== undefined
+            ? (tenant_email === '' ? '' : tenant_email)
+            : ((beforeTenant as any).tenant_email ?? (beforeTenant as any).email ?? ''),
+          action_by_user_email: action_by_user_email !== undefined
+            ? (action_by_user_email || undefined)
+            : ((beforeTenant as any).action_by_user_email ?? (beforeTenant as any).actionByUserEmail ?? undefined),
+          is_active: is_active !== undefined
+            ? is_active
+            : ((beforeTenant as any).is_active ?? (beforeTenant as any).isActive ?? true),
+          teams_count: (beforeTenant as any).teams_count ?? (beforeTenant as any).teamsCount ?? 0,
+          created_at: (beforeTenant as any).created_at ?? (beforeTenant as any).createdAt ?? nowIso,
+          updated_at: nowIso,
+        } as any;
+
+        // If tenant name changed, optionally propagate to entities in storage fallback
+        const prevName = (beforeTenant as any).tenant_name ?? (beforeTenant as any).name;
+        if (tenant_name && prevName && tenant_name !== prevName) {
+          await storage.updateEntitiesTenantName(tenantId, tenant_name);
+        }
+
+        // CASCADE: If tenant became inactive, also update teams in Redis
+        let cascaded = false;
+        const wasActive = (((beforeTenant as any).is_active ?? (beforeTenant as any).isActive) === true);
+        if (wasActive && next.is_active === false) {
+          const existingTeams = await redisCache.getAllTeams();
+          const now = new Date().toISOString();
+          const updatedTeams = Array.isArray(existingTeams)
+            ? existingTeams.map((team: any) => {
+                const tTenantId = Number((team && (team.tenant_id ?? team.tenantId)));
+                if (tTenantId === tenantId) {
+                  return { ...team, isActive: false, is_active: false, updatedAt: now, updated_at: now };
+                }
+                return team;
+              })
+            : [];
+          await redisCache.set(CACHE_KEYS.TEAMS, updatedTeams, 6 * 60 * 60);
+          cascaded = true;
+        }
+
+        // Persist TENANTS list with merged record
+        const updatedList = Array.isArray(existingTenants)
+          ? existingTenants.map((t: any) => (Number((t && (t.id ?? t.tenant_id))) === tenantId ? { ...t, ...next } : t))
+          : [next];
+        await redisCache.set(CACHE_KEYS.TENANTS, updatedList, 6 * 60 * 60);
+
+        // Broadcast cache updates for tenants, and teams if cascade occurred
+        try {
+          await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.TENANTS, {
+            action: 'update',
+            tenantId: tenantId,
+            timestamp: new Date().toISOString()
+          });
+          if (cascaded) {
+            await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.TEAM_DETAILS, {
+              action: 'cascade-inactivate',
+              tenantId: tenantId,
+              timestamp: new Date().toISOString()
+            });
+          }
+        } catch {}
+
+        // Respond with the merged snake_case record
+        return res.json(next);
+      }
+
+      // In-memory mode: map to storage update and invalidate caches
       const updateData: any = {};
       if (tenant_name !== undefined) updateData.name = tenant_name;
       if (tenant_description !== undefined) updateData.description = tenant_description === '' ? undefined : tenant_description;
@@ -2497,61 +2670,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (is_active !== undefined) updateData.isActive = is_active;
       if (action_by_user_email !== undefined) updateData.actionByUserEmail = action_by_user_email || undefined;
 
-      // Update tenant (may cascade to teams if tenant becomes inactive)
       const updatedTenant = await storage.updateTenant(tenantId, updateData);
       if (!updatedTenant) {
-        return sendError(res, 404, "Tenant not found", "not_found");
+        return sendError(res, 404, 'Tenant not found', 'not_found');
       }
 
-      // If tenant name changed, propagate to entities so fallback metrics filter by new name
-      const beforeTenants = await redisCache.getAllTenants();
-      const beforeTenant = beforeTenants.find((t: any) => t.id === tenantId);
-      if (tenant_name && beforeTenant && tenant_name !== beforeTenant.name) {
-        await storage.updateEntitiesTenantName(tenantId, tenant_name);
-      }
-
-      // Update cache based on mode
-      const status = await redisCache.getCacheStatus();
-      if (status && status.mode === 'redis') {
-        // Redis mode: write directly to Redis
-        const existingTenants = await redisCache.getAllTenants();
-        const updatedList = Array.isArray(existingTenants)
-          ? existingTenants.map((t: any) => (t.id === updatedTenant.id ? updatedTenant : t))
-          : [updatedTenant];
-        await redisCache.set(CACHE_KEYS.TENANTS, updatedList, 6 * 60 * 60);
-
-        // CASCADE: If tenant became inactive, also update teams in Redis
-        let cascaded = false;
-        if (beforeTenant && beforeTenant.isActive && updatedTenant.isActive === false) {
-          const existingTeams = await redisCache.getAllTeams();
-          const updatedTeams = Array.isArray(existingTeams)
-            ? existingTeams.map((team: any) => 
-                team.tenant_id === updatedTenant.id 
-                  ? { ...team, isActive: false, updatedAt: new Date().toISOString() }
-                  : team
-              )
-            : [];
-          await redisCache.set(CACHE_KEYS.TEAMS, updatedTeams, 6 * 60 * 60);
-          cascaded = true;
-        }
-
-        // Broadcast cache updates for tenants, and teams if cascade occurred
-        try {
-          await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.TENANTS, {
-            action: 'update',
-            tenantId: updatedTenant.id,
-            timestamp: new Date().toISOString()
-          });
-          if (cascaded) {
-            await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.TEAM_DETAILS, {
-              action: 'cascade-inactivate',
-              tenantId: updatedTenant.id,
-              timestamp: new Date().toISOString()
-            });
-          }
-        } catch {}
-      } else {
-        // In-memory mode: invalidate cache so next GET fetches fresh data from storage
+      // In-memory mode: invalidate cache so next GET fetches fresh data from storage
       await redisCache.invalidateTenants();
       await redisCache.invalidateCache({
         keys: ['all_tenants', 'tenants_summary'],
@@ -2562,27 +2686,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
           'dashboard_summary:*',
           'entities:*'
         ],
-        // Rebuild TEAMS and METRICS so summaries for the new tenant name are immediately available
         mainCacheKeys: ['TEAMS', 'METRICS'],
         refreshAffectedData: true
       });
 
-      // Broadcast general tenants update (and teams detail to be safe)
-      try {
-        await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.TENANTS, {
-          action: 'update',
-          tenantId: updatedTenant.id,
-          timestamp: new Date().toISOString()
-        });
-        await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.TEAM_DETAILS, {
-          action: 'cascade-inactivate',
-          tenantId: updatedTenant.id,
-          timestamp: new Date().toISOString()
-        });
-      } catch {}
-      }
+      // Transform to snake_case for response
+      const response = {
+        tenant_id: updatedTenant.id,
+        tenant_name: updatedTenant.name,
+        tenant_description: updatedTenant.description || '',
+        tenant_email: updatedTenant.email || '',
+        action_by_user_email: (updatedTenant as any).action_by_user_email || updatedTenant.actionByUserEmail || undefined,
+        is_active: (updatedTenant as any).is_active ?? updatedTenant.isActive ?? true,
+        teams_count: (updatedTenant as any).teams_count ?? updatedTenant.teamsCount ?? 0,
+        created_at: (updatedTenant as any).created_at || updatedTenant.createdAt || undefined,
+        updated_at: (updatedTenant as any).updated_at || updatedTenant.updatedAt || new Date().toISOString()
+      };
 
-      res.json(updatedTenant);
+      return res.json(response);
     } catch (error) {
       console.error('Tenant update error:', error);
       sendError(res, 500, "Failed to update tenant", "update_error");
@@ -2643,7 +2764,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         refreshAffectedData: true
       });
 
-      res.json(updatedTenant);
+      // Transform to snake_case for response
+      const response = {
+        tenant_id: updatedTenant.id,
+        tenant_name: updatedTenant.name,
+        tenant_description: updatedTenant.description || '',
+        tenant_email: updatedTenant.email || '',
+        action_by_user_email: (updatedTenant as any).action_by_user_email || updatedTenant.actionByUserEmail || undefined,
+        is_active: (updatedTenant as any).is_active ?? updatedTenant.isActive ?? true,
+        teams_count: (updatedTenant as any).teams_count ?? updatedTenant.teamsCount ?? 0,
+        created_at: (updatedTenant as any).created_at || updatedTenant.createdAt || undefined,
+        updated_at: (updatedTenant as any).updated_at || updatedTenant.updatedAt || new Date().toISOString()
+      };
+
+      res.json(response);
     } catch (error) {
       console.error('Tenant update error:', error);
       sendError(res, 500, "Failed to update tenant", "update_error");
@@ -2660,7 +2794,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const shouldIncludeInactive = includeInactive === 'true';
       
       // Create a map of tenant ID to tenant for quick lookup
-      const tenantMap = new Map(tenants.map(tenant => [tenant.id, tenant]));
+      const tenantMap = new Map(tenants.map((tenant: any) => [tenant.tenant_id ?? tenant.id, tenant]));
       
       // Filter teams based on both team active status and tenant active status
       const filteredByActive = shouldIncludeInactive
@@ -2671,26 +2805,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
             
             // Team's tenant must also be active (unless includeInactive is true)
             const tenant = tenantMap.get(team.tenant_id);
-            if (!tenant || (tenant as any).isActive === false) return false;
+            if (!tenant || ((tenant as any).is_active ?? (tenant as any).isActive) === false) return false;
             
             return true;
           });
 
       // Add tenant_name to each team for display purposes
-      const teamsWithTenantName = filteredByActive.map(team => {
+      const teamsWithTenantName = filteredByActive.map((team: any) => {
         const tenant = tenantMap.get(team.tenant_id);
         return {
           ...team,
-          tenant_name: tenant?.name || 'Unknown'
+          tenant_name: (tenant as any)?.tenant_name ?? (tenant as any)?.name ?? 'Unknown'
         };
       });
 
+      const transform = (list: any[]) => list.map((t: any) => ({
+        team_id: t.team_id ?? t.id,
+        team_name: t.team_name ?? t.name,
+        team_description: t.team_description ?? t.description ?? null,
+        tenant_id: t.tenant_id,
+        tenant_name: t.tenant_name ?? null,
+        is_active: t.is_active ?? t.isActive ?? true,
+        team_email: t.team_email ?? null,
+        team_slack: t.team_slack ?? null,
+        team_pagerduty: t.team_pagerduty ?? null,
+        team_members_ids: t.team_members_ids ?? null,
+        action_by_user_email: t.action_by_user_email ?? t.actionByUserEmail ?? null,
+        created_at: t.created_at ?? t.createdAt ?? null,
+        updated_at: t.updated_at ?? t.updatedAt ?? null,
+      }));
+
       if (teamName) {
-        const filteredTeams = teamsWithTenantName.filter(team => team.name === teamName);
-        return res.json(filteredTeams);
+        const filteredTeams = teamsWithTenantName.filter((team: any) => (team.name ?? team.team_name) === teamName);
+        return res.json(transform(filteredTeams));
       }
 
-      return res.json(teamsWithTenantName);
+      return res.json(transform(teamsWithTenantName));
     } catch (error) {
       console.error('Error fetching teams (FastAPI fallback):', error);
       return sendError(res, 500, 'Failed to fetch teams from FastAPI fallback');
@@ -2742,33 +2892,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Redis mode: allocate id from Redis
         const existingTeams = await redisCache.getAllTeams();
         const nextId = Array.isArray(existingTeams) && existingTeams.length > 0
-          ? Math.max(...existingTeams.map((t: any) => Number(t?.id) || 0)) + 1
+          ? Math.max(...existingTeams.map((t: any) => Number((t?.team_id ?? t?.id) || 0))) + 1
           : 1;
         const now = new Date().toISOString();
-        const newTeam = {
-          id: nextId,
-          name: payload.name,
-          description: payload.description || null,
+        const newTeamSnake = {
+          team_id: nextId,
+          team_name: payload.name,
+          team_description: payload.description || null,
           tenant_id: payload.tenant_id,
-          actionByUserEmail: payload.actionByUserEmail || null,
-          isActive: payload.isActive ?? true,
+          action_by_user_email: payload.actionByUserEmail || null,
+          is_active: payload.isActive ?? true,
           team_email: payload.team_email || null,
           team_slack: payload.team_slack || null,
           team_pagerduty: payload.team_pagerduty || null,
           team_members_ids: payload.team_members_ids || null,
-          createdAt: now,
-          updatedAt: now,
+          created_at: now,
+          updated_at: now,
         } as any;
 
-        const updatedTeams = Array.isArray(existingTeams) ? [...existingTeams, newTeam] : [newTeam];
+        const updatedTeams = Array.isArray(existingTeams) ? [...existingTeams, newTeamSnake] : [newTeamSnake];
         await redisCache.set(CACHE_KEYS.TEAMS, updatedTeams, 6 * 60 * 60);
 
-        // Also update TENANTS cache teamsCount for the team's tenant
+        // Also update TENANTS cache teams_count for the team's tenant
         const existingTenants = await redisCache.getAllTenants();
         if (Array.isArray(existingTenants) && existingTenants.length > 0) {
           const updatedTenants = existingTenants.map((t: any) =>
-            t.id === newTeam.tenant_id
-              ? { ...t, teamsCount: (t.teamsCount || 0) + 1 }
+            Number((t.tenant_id ?? t.id)) === newTeamSnake.tenant_id
+              ? { ...t, teams_count: (t.teams_count ?? t.teamsCount ?? 0) + 1 }
               : t
           );
           await redisCache.set(CACHE_KEYS.TENANTS, updatedTenants, 6 * 60 * 60);
@@ -2778,18 +2928,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         try {
           await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.TEAM_DETAILS, {
             action: 'create',
-            teamId: newTeam.id,
-            teamName: newTeam.name,
+            teamId: newTeamSnake.team_id,
+            teamName: newTeamSnake.team_name,
             timestamp: new Date().toISOString()
           });
           await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.TENANTS, {
             action: 'team-count-updated',
-            tenantId: newTeam.tenant_id,
+            tenantId: newTeamSnake.tenant_id,
             timestamp: new Date().toISOString()
           });
         } catch {}
 
-        return res.status(201).json(newTeam);
+        return res.status(201).json(newTeamSnake);
       }
 
       // In-memory mode: create via storage
@@ -2875,20 +3025,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const status = await redisCache.getCacheStatus();
 
       if (status && status.mode === 'redis') {
-        // Redis mode: update Redis directly
+        // Redis mode: update Redis directly (support snake_case ids)
         const teams = await redisCache.get(CACHE_KEYS.TEAMS) || [];
-        const idx = Array.isArray(teams) ? teams.findIndex((t: any) => t.id === teamId) : -1;
+        const idx = Array.isArray(teams) ? teams.findIndex((t: any) => Number((t.team_id ?? t.id)) === teamId) : -1;
         
         if (idx === -1) {
           return sendError(res, 404, "Team not found", "not_found");
         }
 
         const beforeTeam = teams[idx];
+        const nowIso = new Date().toISOString();
         const updatedTeam = {
-          ...beforeTeam,
-          ...updateData,
-          updatedAt: new Date().toISOString()
-        };
+          // preserve snake_case layout in Redis
+          team_id: beforeTeam.team_id ?? beforeTeam.id,
+          team_name: updateData.name ?? (beforeTeam.team_name ?? beforeTeam.name),
+          team_description: (updateData.description !== undefined) ? updateData.description : (beforeTeam.team_description ?? beforeTeam.description ?? null),
+          tenant_id: updateData.tenant_id ?? beforeTeam.tenant_id,
+          is_active: (updateData.isActive !== undefined) ? updateData.isActive : (beforeTeam.is_active ?? beforeTeam.isActive ?? true),
+          action_by_user_email: updateData.actionByUserEmail ?? (beforeTeam.action_by_user_email ?? beforeTeam.actionByUserEmail ?? null),
+          team_email: (updateData.team_email !== undefined) ? updateData.team_email : (beforeTeam.team_email ?? null),
+          team_slack: (updateData.team_slack !== undefined) ? updateData.team_slack : (beforeTeam.team_slack ?? null),
+          team_pagerduty: (updateData.team_pagerduty !== undefined) ? updateData.team_pagerduty : (beforeTeam.team_pagerduty ?? null),
+          team_members_ids: (updateData.team_members_ids !== undefined) ? updateData.team_members_ids : (beforeTeam.team_members_ids ?? null),
+          created_at: beforeTeam.created_at ?? beforeTeam.createdAt ?? nowIso,
+          updated_at: nowIso,
+        } as any;
 
         // Update the team in Redis
         const newTeams = [...teams];
@@ -2898,7 +3059,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Broadcast WebSocket update
         await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.TEAM_DETAILS, {
           teamId,
-          teamName: updatedTeam.name,
+          teamName: updatedTeam.team_name,
           action: 'update',
           timestamp: new Date().toISOString()
         });
@@ -3150,7 +3311,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           redisCache.getEntitiesForApi({ tenantName: tenantNameStr }),
           redisCache.getAllTeams(),
         ]);
-          const activeTeamIds = new Set<number>(teams.filter((t: any) => (t as any).isActive !== false).map((t: any) => t.id));
+          const activeTeamIds = new Set<number>(teams.filter((t: any) => ((t as any).is_active ?? (t as any).isActive) !== false).map((t: any) => (t as any).team_id ?? t.id));
         entities = allEntities.filter((e: any) => (
           e.tenant_name === tenantNameStr &&
           e.is_entity_owner === true &&
@@ -3432,10 +3593,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Wait for cache initialization to prevent race conditions on startup
       await redisCache.waitForInitialization();
       
-      const tenantName = req.query.tenant as string;
-      const teamName = req.query.team as string;
-      const startDate = req.query.startDate as string;
-      const endDate = req.query.endDate as string;
+      // Accept both snake_case and camelCase query params for backward compatibility
+      const tenantName = (req.query.tenant_name as string) || (req.query.tenant as string);
+      const teamName = (req.query.team_name as string) || (req.query.team as string);
+      const startDate = (req.query.start_date as string) || (req.query.startDate as string);
+      const endDate = (req.query.end_date as string) || (req.query.endDate as string);
       
       if (!tenantName) {
         return sendError(res, 400, 'Tenant parameter is required');
@@ -3473,10 +3635,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         return res.json({
           metrics,
-          complianceTrends,
-          lastUpdated: new Date(),
+          compliance_trends: complianceTrends,
+          last_updated: new Date().toISOString(),
           cached: true,
-          dateRange: rangeType,
+          date_range: rangeType,
           scope: isTeamDashboard ? 'team' : 'tenant'
         });
       }
@@ -3511,10 +3673,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         return res.json({ 
           metrics,
-          complianceTrends: null, // No trends for custom date ranges yet
-          lastUpdated: new Date(),
+          compliance_trends: null, // No trends for custom date ranges yet
+          last_updated: new Date().toISOString(),
           cached: false,
-          dateRange: { startDate, endDate },
+          date_range: { start_date: startDate, end_date: endDate },
           scope: isTeamDashboard ? 'team' : 'tenant'
         });
       }
@@ -3540,10 +3702,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json({
         metrics,
-        complianceTrends,
-        lastUpdated: new Date(),
+        compliance_trends: complianceTrends,
+        last_updated: new Date().toISOString(),
         cached: true,
-        dateRange: "last30Days"
+        date_range: "last30Days"
       });
     } catch (error) {
       console.error('Dashboard summary error:', error);
@@ -3609,7 +3771,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const status = await redisCache.getCacheStatus();
 
       if (status && status.mode === 'redis') {
-        const tenantName = req.query.tenant as string;
+      const tenantName = req.query.tenant as string;
         const teams = await redisCache.get(CACHE_KEYS.TEAMS) || [];
         const tenants = await redisCache.get(CACHE_KEYS.TENANTS) || [];
         const users = await redisCache.getAllUsersFromHash() || [];
@@ -3963,13 +4125,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
       if (incomingType === 'dag') {
         canonical.entity_name = raw.entity_name || raw.name || raw.dag_name;
-        canonical.entity_display_name = raw.entity_display_name || raw.dag_name || canonical.entity_name;
+          canonical.entity_display_name = raw.entity_display_name || raw.dag_name || canonical.entity_name;
         canonical.dag_name = raw.dag_name || canonical.entity_display_name;
         canonical.dag_schedule = raw.dag_schedule || raw.entity_schedule || null;
         canonical.owner_entity_ref_name = raw.owner_entity_ref_name || raw.owner_entity_reference || '';
       } else {
         canonical.entity_name = raw.entity_name || raw.name || raw.table_name;
-        canonical.entity_display_name = raw.entity_display_name || raw.table_name || canonical.entity_name;
+          // Prefer schema.table for tables when schema is provided
+          canonical.entity_display_name = raw.entity_display_name || (raw.schema_name && raw.table_name ? `${raw.schema_name}.${raw.table_name}` : (raw.table_name || canonical.entity_name));
         canonical.schema_name = raw.schema_name ?? null;
         canonical.table_name = raw.table_name || canonical.entity_display_name;
         canonical.table_schedule = raw.table_schedule || raw.entity_schedule || null;
@@ -3993,25 +4156,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const teams = await redisCache.get(CACHE_KEYS.TEAMS) || [];
           const tenants = await redisCache.get(CACHE_KEYS.TENANTS) || [];
 
-          // If teamId is missing but team_name provided, resolve teamId
+          // If teamId is missing but team_name provided, resolve teamId (support snake_case)
           if (!payload.teamId && payload.team_name) {
-            const teamByName = Array.isArray(teams) ? teams.find((t: any) => t.name === payload.team_name) : null;
+            const lcName = String(payload.team_name).toLowerCase();
+            const teamByName = Array.isArray(teams)
+              ? teams.find((t: any) => String((t.team_name ?? t.name) || '').toLowerCase() === lcName)
+              : null;
             if (teamByName) {
-              payload.teamId = teamByName.id;
-              payload.team_name = teamByName.name;
-              // Resolve tenant name from team
-              const tenant = Array.isArray(tenants) ? tenants.find((t: any) => t.id === teamByName.tenant_id) : null;
-              if (tenant) payload.tenant_name = payload.tenant_name || tenant.name;
+              const resolvedTeamId = Number((teamByName.team_id ?? teamByName.id));
+              payload.teamId = resolvedTeamId;
+              payload.team_name = teamByName.team_name ?? teamByName.name;
+              // Resolve tenant name from team (support snake_case tenants)
+              const teamTenantId = Number(teamByName.tenant_id ?? teamByName.tenantId);
+              const tenant = Array.isArray(tenants)
+                ? tenants.find((t: any) => Number((t.tenant_id ?? t.id)) === teamTenantId)
+                : null;
+              if (tenant) payload.tenant_name = payload.tenant_name || (tenant.tenant_name ?? tenant.name);
             }
           }
 
-          // If teamId exists, ensure team_name and tenant_name are set from canonical source
+          // If teamId exists, ensure team_name and tenant_name are set from canonical source (support snake_case)
           if (payload.teamId) {
-            const team = Array.isArray(teams) ? teams.find((t: any) => t.id === payload.teamId) : null;
+            const team = Array.isArray(teams)
+              ? teams.find((t: any) => Number((t.team_id ?? t.id)) === Number(payload.teamId))
+              : null;
             if (team) {
-              payload.team_name = payload.team_name || team.name;
-              const tenant = Array.isArray(tenants) ? tenants.find((t: any) => t.id === team.tenant_id) : null;
-              if (tenant) payload.tenant_name = payload.tenant_name || tenant.name;
+              payload.team_name = payload.team_name || (team.team_name ?? team.name);
+              const teamTenantId = Number(team.tenant_id ?? team.tenantId);
+              const tenant = Array.isArray(tenants)
+                ? tenants.find((t: any) => Number((t.tenant_id ?? t.id)) === teamTenantId)
+                : null;
+              if (tenant) payload.tenant_name = payload.tenant_name || (tenant.tenant_name ?? tenant.name);
             }
           }
         } else {
@@ -4280,7 +4455,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           canonical.owner_entity_ref_name = (raw as any).is_entity_owner === true ? null : ((raw as any).owner_entity_ref_name ?? (raw as any).owner_entity_reference ?? '');
         } else {
           canonical.entity_name = (raw as any).entity_name || (raw as any).name || (raw as any).table_name;
-          canonical.entity_display_name = (raw as any).entity_display_name || (raw as any).table_name || canonical.entity_name;
+          // Prefer schema.table for tables when schema is provided
+          canonical.entity_display_name = (raw as any).entity_display_name || ((raw as any).schema_name && (raw as any).table_name ? `${(raw as any).schema_name}.${(raw as any).table_name}` : ((raw as any).table_name || canonical.entity_name));
           canonical.schema_name = (raw as any).schema_name ?? null;
           canonical.table_name = (raw as any).table_name || canonical.entity_display_name;
           canonical.table_schedule = (raw as any).table_schedule || (raw as any).entity_schedule || null;
@@ -4327,20 +4503,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const teams = await redisCache.get(CACHE_KEYS.TEAMS) || [];
             const tenants = await redisCache.get(CACHE_KEYS.TENANTS) || [];
             if (!payload.teamId && payload.team_name) {
-              const teamByName = Array.isArray(teams) ? teams.find((t: any) => t.name === payload.team_name) : null;
+              const teamByName = Array.isArray(teams)
+                ? teams.find((t: any) => (((t as any).team_name ?? (t as any).name)) === payload.team_name)
+                : null;
               if (teamByName) {
-                payload.teamId = teamByName.id;
-                payload.team_name = teamByName.name;
-                const tenant = Array.isArray(tenants) ? tenants.find((t: any) => t.id === teamByName.tenant_id) : null;
-                if (tenant) payload.tenant_name = payload.tenant_name || tenant.name;
+                payload.teamId = ((teamByName as any).team_id ?? (teamByName as any).id);
+                payload.team_name = (teamByName as any).team_name ?? (teamByName as any).name;
+                const tenant = Array.isArray(tenants)
+                  ? tenants.find((t: any) => (((t as any).tenant_id ?? (t as any).id)) === (((teamByName as any).tenant_id ?? (teamByName as any).tenantId)))
+                  : null;
+                if (tenant) payload.tenant_name = payload.tenant_name || ((tenant as any).tenant_name ?? (tenant as any).name);
               }
             }
             if (payload.teamId) {
-              const team = Array.isArray(teams) ? teams.find((t: any) => t.id === payload.teamId) : null;
+              const team = Array.isArray(teams)
+                ? teams.find((t: any) => (((t as any).id ?? (t as any).team_id)) === payload.teamId)
+                : null;
               if (team) {
-                payload.team_name = payload.team_name || team.name;
-                const tenant = Array.isArray(tenants) ? tenants.find((t: any) => t.id === team.tenant_id) : null;
-                if (tenant) payload.tenant_name = payload.tenant_name || tenant.name;
+                payload.team_name = payload.team_name || ((team as any).team_name ?? (team as any).name);
+                const tenant = Array.isArray(tenants)
+                  ? tenants.find((t: any) => (((t as any).tenant_id ?? (t as any).id)) === (((team as any).tenant_id ?? (team as any).tenantId)))
+                  : null;
+                if (tenant) payload.tenant_name = payload.tenant_name || ((tenant as any).tenant_name ?? (tenant as any).name);
               }
             }
           } else {
@@ -4500,12 +4684,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         try {
           const teams = await redisCache.getAllTeams();
           const tenants = await redisCache.getAllTenants();
-          const matches = teams.filter((t: any) => (t.name || '') === teamName);
+          const matches = teams.filter((t: any) => (((t as any).team_name ?? (t as any).name) || '') === teamName);
           if (matches.length > 0) {
-            const tenantIds = Array.from(new Set(matches.map((t: any) => t.tenant_id)));
+            const tenantIds = Array.from(new Set(matches.map((t: any) => (t as any).tenant_id ?? (t as any).tenantId)));
             if (tenantIds.length === 1) {
-              const tn = tenants.find((t: any) => t.id === tenantIds[0]);
-              tenantName = tn ? tn.name : undefined;
+              const tn = tenants.find((t: any) => (((t as any).tenant_id ?? (t as any).id)) === tenantIds[0]);
+              tenantName = tn ? (((tn as any).tenant_name ?? (tn as any).name) as string) : undefined;
             }
           }
         } catch {}
@@ -4546,16 +4730,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         try {
           const teams = await redisCache.getAllTeams();
           const tenants = await redisCache.getAllTenants();
-          const matches = teams.filter((t: any) => t.name === teamName);
+          // Support snake_case and camelCase team shapes
+          const matches = teams.filter((t: any) => ((t as any).team_name ?? (t as any).name) === teamName);
           if (matches.length === 0) {
             return sendError(res, 404, `Team not found: ${teamName}`);
           }
-          const tenantIds = Array.from(new Set(matches.map((t: any) => t.tenant_id)));
+          const tenantIds = Array.from(new Set(matches.map((t: any) => (t as any).tenant_id ?? (t as any).tenantId)));
           if (tenantIds.length > 1) {
             return sendError(res, 400, 'Multiple tenants found for team name. Provide tenantName to disambiguate.');
           }
-          const tenant = tenants.find(t => t.id === tenantIds[0]);
-          tenantName = tenant ? tenant.name : undefined;
+          const tenant = tenants.find((t: any) => ((t as any).tenant_id ?? (t as any).id) === tenantIds[0]);
+          tenantName = tenant ? ((tenant as any).tenant_name ?? (tenant as any).name) : undefined;
         } catch {}
       }
 
@@ -5650,7 +5835,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ]
       });
 
-      res.status(201).json(newTenant);
+      // Transform to snake_case for response
+      const response = {
+        tenant_id: newTenant.id,
+        tenant_name: newTenant.name,
+        tenant_description: newTenant.description || '',
+        tenant_email: newTenant.email || '',
+        action_by_user_email: (newTenant as any).action_by_user_email || newTenant.actionByUserEmail || undefined,
+        is_active: (newTenant as any).is_active ?? newTenant.isActive ?? true,
+        teams_count: (newTenant as any).teams_count ?? newTenant.teamsCount ?? 0,
+        created_at: (newTenant as any).created_at || newTenant.createdAt || new Date().toISOString(),
+        updated_at: (newTenant as any).updated_at || newTenant.updatedAt || new Date().toISOString()
+      };
+
+      res.status(201).json(response);
     } catch (error) {
       console.error('Tenant creation error:', error);
       return sendError(res, 500, 'Failed to create tenant');

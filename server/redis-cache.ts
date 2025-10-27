@@ -880,15 +880,18 @@ export class RedisCache {
         // enrich from compliance
         status: this.mapStatusFromCompliance(comp?.last_sla_status),
         currentSla: typeof comp?.last_sla_compliance_pct === 'number' ? comp.last_sla_compliance_pct : null,
-        // When FastAPI compliance is unavailable, don't fabricate a shared timestamp.
-        // Leave null so UI shows '—' and avoids copying the same time to all entities.
-        // Prefer compliance last_reported_at; fallback to slim.lastRefreshed, then last_reported_at so UI always has a timestamp
+        // Prefer compliance last_reported_at; fallback to slim.lastRefreshed, then last_reported_at
         lastRefreshed: comp?.last_reported_at
           ? new Date(comp.last_reported_at)
           : (e.lastRefreshed ? new Date(e.lastRefreshed) : (e.last_reported_at ? new Date(e.last_reported_at) : null)),
         // Also map updatedAt if present
         updatedAt: e.updatedAt ? new Date(e.updatedAt) : (e.last_reported_at ? new Date(e.last_reported_at) : null),
-      };
+      } as any;
+
+      // Normalize owner/active booleans for Summary consumers
+      mapped.is_entity_owner = (e.is_entity_owner === true) || (e.isEntityOwner === true);
+      mapped.is_active = (e.is_active !== false) && (e.isActive !== false);
+
       return mapped;
     });
 
@@ -3068,18 +3071,18 @@ export class RedisCache {
       const entities = await this.getAllEntities();
       const teams = await this.getAllTeams();
       
-      // Find the team
-      const team = teams.find(t => t.name === teamName);
+      // Find the team (support snake_case and camelCase)
+      const team = teams.find((t: any) => ((t as any).team_name ?? (t as any).name) === teamName);
       if (!team) {
         console.error(`Team not found: ${teamName}`);
         return false;
       }
       
       // Find the entity
-      const entityIndex = entities.findIndex(e => 
-        e.name === entityName && 
-        e.type === entityType && 
-        e.teamId === team.id
+      const entityIndex = entities.findIndex((e: any) => 
+        ((e as any).name ?? (e as any).entity_name) === entityName && 
+        ((e as any).type ?? (e as any).entity_type) === entityType && 
+        (((e as any).teamId ?? (e as any).team_id) === ((team as any).id ?? (team as any).team_id))
       );
       
       if (entityIndex === -1) {

@@ -71,10 +71,10 @@ interface TeamFormDialogProps {
 
 const TeamFormDialog = ({ open, onClose, team, tenants, activeTenants, onSubmit }: TeamFormDialogProps) => {
   const [formData, setFormData] = useState({
-    name: team?.name || '',
-    description: team?.description || '',
+    name: (team as any)?.team_name ?? team?.name ?? '',
+    description: (team as any)?.team_description ?? team?.description ?? '',
     tenant_id: team?.tenant_id || '',
-    isActive: team?.isActive ?? true,
+    isActive: (team as any)?.is_active ?? team?.isActive ?? true,
     team_email: team?.team_email || [],
     team_slack: team?.team_slack || [],
     team_pagerduty: team?.team_pagerduty || [],
@@ -112,10 +112,10 @@ const TeamFormDialog = ({ open, onClose, team, tenants, activeTenants, onSubmit 
   useEffect(() => {
     if (team) {
       setFormData({
-        name: team.name || '',
-        description: team.description || '',
+        name: (team as any)?.team_name ?? team.name ?? '',
+        description: (team as any)?.team_description ?? team.description ?? '',
         tenant_id: team.tenant_id || '',
-        isActive: team.isActive ?? true,
+        isActive: (team as any)?.is_active ?? team.isActive ?? true,
         team_email: team.team_email || [],
         team_slack: team.team_slack || [],
         team_pagerduty: team.team_pagerduty || [],
@@ -214,7 +214,7 @@ const TeamFormDialog = ({ open, onClose, team, tenants, activeTenants, onSubmit 
     return user?.user_name || email;
   };
   
-  const tenantName = tenants.find(t => t.id === formData.tenant_id)?.name || 'Unknown';
+  const tenantName = tenants.find(t => (t.tenant_id ?? t.id) === formData.tenant_id)?.tenant_name || 'Unknown';
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
@@ -263,8 +263,8 @@ const TeamFormDialog = ({ open, onClose, team, tenants, activeTenants, onSubmit 
                     data-testid="select-tenant"
             >
                     {activeTenants.map((tenant) => (
-                <MenuItem key={tenant.id} value={tenant.id}>
-                  {tenant.name}
+                <MenuItem key={tenant.tenant_id} value={tenant.tenant_id}>
+                  {tenant.tenant_name}
                 </MenuItem>
               ))}
             </Select>
@@ -679,11 +679,11 @@ const TeamsManagement = () => {
 
   // Extract only active tenants for team creation dropdown 
   const activeTenants = useMemo(() => 
-    allTenants.filter((t: any) => t.isActive !== false), [allTenants]);
+    allTenants.filter((t: any) => (t.is_active ?? t.isActive) !== false), [allTenants]);
 
   // Create efficient tenant name lookup map using ALL tenants (O(1) vs O(n) Array.find)
   const tenantNameMap = useMemo(() => 
-    new Map(allTenants.map((t: any) => [t.id, t.name])), [allTenants]);
+    new Map(allTenants.map((t: any) => [t.tenant_id ?? t.id, t.tenant_name ?? t.name])), [allTenants]);
 
   // Multi-field search logic with normalized search index
   const filteredTeams = useMemo(() => {
@@ -705,10 +705,10 @@ const TeamsManagement = () => {
       // Create normalized search index for this team
       const tenantName = tenantNameMap.get(team.tenant_id) ?? 'Unknown';
       const searchableFields = [
-        team.name || '',
-        team.id?.toString() || '',
+        (team.team_name ?? team.name ?? ''),
+        (team.team_id ?? team.id ?? '')?.toString() || '',
         tenantName,
-        team.description || ''
+        (team.team_description ?? team.description ?? '')
       ];
       
       // Join all searchable fields into a single lowercase string
@@ -809,7 +809,7 @@ const TeamsManagement = () => {
   // Modern cache-managed team update
   const handleUpdateTeamModern = async (teamId: number, teamData: any) => {
     // Get original team data for comparison before update
-    const originalTeam = teams?.find((team: any) => team.id === teamId);
+    const originalTeam = teams?.find((team: any) => ((team as any)?.team_id ?? team.id) === teamId);
     
     try {
       await updateTeamAdmin(teamId, teamData);
@@ -830,7 +830,7 @@ const TeamsManagement = () => {
       if (teamData.hasOwnProperty('team_members_ids') && originalTeam) {
         const originalMembers = originalTeam.team_members_ids || [];
         const newMembers = teamData.team_members_ids || [];
-        const teamName = originalTeam.name;
+        const teamName = (originalTeam as any)?.team_name ?? originalTeam.name;
         const tenantName = tenantNameMap.get(originalTeam.tenant_id) || 'Unknown';
         
         // Detect member additions
@@ -947,11 +947,11 @@ const TeamsManagement = () => {
       const previous = queryClient.getQueryData<any[]>(['admin', 'teams']);
       
       // Find the original team data for comparison later
-      const originalTeam = previous?.find(team => team.id === teamId);
+      const originalTeam = previous?.find((team: any) => ((team as any)?.team_id ?? team.id) === teamId);
       
       queryClient.setQueryData<any[]>(['admin', 'teams'], (old) => {
         if (!old) return [] as any[];
-        return old.map(team => team.id === teamId ? { ...team, ...teamData } : team);
+        return old.map((team: any) => (((team as any)?.team_id ?? team.id) === teamId ? { ...team, ...teamData } : team));
       });
       return { previous, originalTeam };
     },
@@ -1126,8 +1126,8 @@ const TeamsManagement = () => {
       if (teamData.tenant_id) {
         payload.tenant_id = teamData.tenant_id;
         // Find tenant name from tenants list
-        const tenant = allTenants?.find((t: any) => t.id === teamData.tenant_id);
-        payload.tenant_name = tenant?.name || null;
+        const tenant = allTenants?.find((t: any) => (t.tenant_id ?? t.id) === teamData.tenant_id);
+        payload.tenant_name = tenant?.tenant_name ?? tenant?.name ?? null;
       }
       
       // Non-mandatory fields - only include if provided in teamData (for PATCH)
@@ -1158,7 +1158,8 @@ const TeamsManagement = () => {
       }
       
       if (selectedTeam) {
-        await handleUpdateTeamModern(selectedTeam.id, payload);
+        const id = (selectedTeam as any)?.team_id ?? selectedTeam.id;
+        await handleUpdateTeamModern(id, payload);
       } else {
         await handleCreateTeamModern(payload);
       }
@@ -1267,17 +1268,17 @@ const TeamsManagement = () => {
               </TableHead>
               <TableBody>
                 {paginatedTeams?.map((team: any) => (
-                  <TableRow key={team.id}>
+                  <TableRow key={(team.team_id ?? team.id)}>
                     <TableCell>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <GroupIcon color="primary" />
                         <Box>
                           <Typography variant="body2" fontWeight="medium">
-                            {team.name}
+                            {team.team_name ?? team.name}
                           </Typography>
-                          {team.description && (
+                          {(team.team_description ?? team.description) && (
                             <Typography variant="caption" color="text.secondary" display="block">
-                              {team.description}
+                              {team.team_description ?? team.description}
                             </Typography>
                           )}
                         </Box>
@@ -1293,47 +1294,47 @@ const TeamsManagement = () => {
                     </TableCell>
                     <TableCell>
                       <ContactChips 
-                        items={team.team_email || []} 
+                        items={(team.team_email || [])} 
                         maxVisible={2}
-                        testId={`team-email-${team.id}`}
+                        testId={`team-email-${team.team_id ?? team.id}`}
                       />
                     </TableCell>
                     <TableCell>
                       <ContactChips 
                         items={team.team_slack || []} 
                         maxVisible={2}
-                        testId={`team-slack-${team.id}`}
+                        testId={`team-slack-${team.team_id ?? team.id}`}
                       />
                     </TableCell>
                     <TableCell>
                       <ContactChips 
                         items={team.team_pagerduty || []} 
                         maxVisible={2}
-                        testId={`team-pagerduty-${team.id}`}
+                        testId={`team-pagerduty-${team.team_id ?? team.id}`}
                       />
                     </TableCell>
                     <TableCell>
                       <Typography variant="body2">
-                        {team.team_members_ids?.length || 0} members
+                        {(team.team_members_ids?.length || 0)} members
                       </Typography>
                     </TableCell>
                     <TableCell>
                       <Chip 
-                        label={team.isActive ?? true ? 'Active' : 'Inactive'} 
+                        label={((team.is_active ?? team.isActive) ?? true) ? 'Active' : 'Inactive'} 
                         size="small" 
-                        color={team.isActive ?? true ? 'success' : 'default'}
-                        variant={team.isActive ?? true ? 'filled' : 'outlined'}
-                        data-testid={`chip-team-status-${team.id}`}
+                        color={((team.is_active ?? team.isActive) ?? true) ? 'success' : 'default'}
+                        variant={((team.is_active ?? team.isActive) ?? true) ? 'filled' : 'outlined'}
+                        data-testid={`chip-team-status-${team.team_id ?? team.id}`}
                       />
                     </TableCell>
                     <TableCell>
                       <Typography variant="body2" color="text.secondary">
-                        {team.actionByUserEmail || '—'}
+                        {team.action_by_user_email ?? team.actionByUserEmail ?? '—'}
                       </Typography>
                     </TableCell>
                     <TableCell>
                       <Typography variant="body2" color="text.secondary">
-                        {formatDate(team.createdAt)}
+                        {formatDate(team.created_at ?? team.createdAt)}
                       </Typography>
                     </TableCell>
                     <TableCell>
@@ -1343,7 +1344,7 @@ const TeamsManagement = () => {
                             size="small" 
                             color="primary"
                             onClick={() => handleEditTeam(team)}
-                            data-testid={`button-edit-team-${team.id}`}
+                            data-testid={`button-edit-team-${team.team_id ?? team.id}`}
                           >
                             <EditIcon />
                           </IconButton>
@@ -1374,8 +1375,9 @@ const TeamsManagement = () => {
       </Card>
 
       <TeamFormDialog
+        key={selectedTeam ? `edit-${(selectedTeam as any)?.team_id ?? selectedTeam?.id}` : 'create-new'}
         open={dialogOpen}
-        onClose={() => setDialogOpen(false)}
+        onClose={() => { setDialogOpen(false); setSelectedTeam(null); }}
         team={selectedTeam}
         tenants={allTenants}
         activeTenants={activeTenants}

@@ -1155,6 +1155,7 @@ export function useAdminMutation() {
       await queryClient.invalidateQueries({ queryKey: ['admin', 'teams'] });
       
       // CRITICAL: Invalidate main dashboard caches when tenant status changes
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'tenants'] });
       await queryClient.invalidateQueries({ queryKey: ['/api/tenants'] });
       await queryClient.invalidateQueries({ queryKey: ['/api/v1/tenants'] });
       await queryClient.invalidateQueries({ queryKey: ['/api/tenants', 'active'] });

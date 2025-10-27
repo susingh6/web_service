@@ -270,17 +270,25 @@ const TeamDashboard = ({
         setTeamSummaryLoading(true);
         try {
           const params = new URLSearchParams({
-            tenant: tenantName,
-            team: teamName,
-            startDate: format(teamDateRange.startDate, 'yyyy-MM-dd'),
-            endDate: format(teamDateRange.endDate, 'yyyy-MM-dd'),
+            tenant_name: tenantName,
+            team_name: teamName,
+            start_date: format(teamDateRange.startDate, 'yyyy-MM-dd'),
+            end_date: format(teamDateRange.endDate, 'yyyy-MM-dd'),
           });
           const rangeType = teamDateRange.label === 'Custom Range' ? 'custom' : 'preset (fallback)';
           console.log(`[TeamDashboard ${teamName}] Fetching ${rangeType} range data from API`);
           const generalUrl = `/api/dashboard/summary?${params.toString()}`;
           const response = await apiRequest('GET', generalUrl);
           const data = await response.json();
-          setTeamSummaryData(data);
+          // Normalize response to support snake_case fields
+          setTeamSummaryData({
+            metrics: data.metrics,
+            complianceTrends: data.compliance_trends ?? data.complianceTrends,
+            lastUpdated: data.last_updated ?? data.lastUpdated,
+            dateRange: data.date_range ?? data.dateRange,
+            cached: data.cached,
+            scope: data.scope,
+          });
         } catch (error) {
           console.error('[TeamDashboard] Error fetching summary:', error);
           setTeamSummaryData(null);
