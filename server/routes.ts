@@ -4779,9 +4779,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const isOwner = req.body?.is_entity_owner === true || req.body?.is_entity_owner === undefined; // default assume owner unless explicitly false
         if (isOwner && teamName && tenantName) {
           const serverName = (req.body?.server_name ?? null) as string | null;
-          const displayCandidate = (
-            (normalizedType === 'table' && req.body?.schema_name && req.body?.table_name) ? `${req.body.schema_name}.${req.body.table_name}` : undefined
-          ) || req.body?.dag_name || req.body?.entity_display_name || entityName;
+          let displayCandidate = entityName;
+          
+          // For tables, we need to resolve the full schema.table display name
+          if (normalizedType === 'table') {
+            // Fetch existing entity to get current schema/table values
+            let existingSchema: string | null = null;
+            let existingTable: string | null = null;
+            try {
+              const existingList = await redisCache.getEntitiesForApi({ tenantName });
+              const existing = Array.isArray(existingList) ? existingList.find((e: any) => (
+                ((e.entity_type || e.type) === 'table') &&
+                ((e.team_name || e.teamName) === teamName) &&
+                ((e.entity_name || e.name) === entityName)
+              )) : undefined;
+              if (existing) {
+                existingSchema = (existing as any).schema_name ?? null;
+                existingTable = (existing as any).table_name ?? null;
+                // If explicit fields not present, try to derive from entity_display_name
+                if ((!existingSchema || !existingTable) && (existing as any).entity_display_name) {
+                  const displayName = (existing as any).entity_display_name;
+                  if (displayName.includes('.')) {
+                    existingSchema = displayName.slice(0, displayName.lastIndexOf('.'));
+                    existingTable = displayName.slice(displayName.lastIndexOf('.') + 1);
+                  } else {
+                    existingTable = displayName;
+                  }
+                }
+              }
+            } catch {}
+            
+            // Merge: PATCH body values take precedence, existing values are fallback
+            const finalSchema = req.body?.schema_name ?? existingSchema;
+            const finalTable = req.body?.table_name ?? existingTable;
+            
+            if (finalSchema && finalTable) {
+              displayCandidate = `${finalSchema}.${finalTable}`;
+            } else if (finalTable) {
+              displayCandidate = finalTable;
+            } else if (req.body?.entity_display_name) {
+              displayCandidate = req.body.entity_display_name;
+            }
+          } else if (normalizedType === 'dag') {
+            // For DAGs, use dag_name or entity_display_name
+            displayCandidate = req.body?.dag_name || req.body?.entity_display_name || entityName;
+          } else {
+            // For other types, use entity_display_name or entityName
+            displayCandidate = req.body?.entity_display_name || entityName;
+          }
           if (displayCandidate) {
             const conflict = await redisCache.checkOwnershipConflict({
               tenant_name: tenantName,
@@ -4891,7 +4936,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!slimUpdated) {
         return sendError(res, 404, 'Entity not found');
       }
-      return res.json(slimUpdated);
+      
+      // Apply the same projection as GET to ensure UI receives proper schema_name/table_name
+      const response = {
+        ...slimUpdated,
+        type: slimUpdated.entity_type,
+        teamId: slimUpdated.team_id,
+        name: slimUpdated.entity_name,
+        schema_name: slimUpdated.entity_type === 'table'
+          ? (slimUpdated.schema_name ?? (typeof slimUpdated.entity_display_name === 'string' && slimUpdated.entity_display_name.includes('.')
+              ? slimUpdated.entity_display_name.slice(0, slimUpdated.entity_display_name.lastIndexOf('.'))
+              : undefined))
+          : undefined,
+        table_name: slimUpdated.entity_type === 'table'
+          ? (slimUpdated.table_name ?? (typeof slimUpdated.entity_display_name === 'string' && slimUpdated.entity_display_name.includes('.')
+              ? slimUpdated.entity_display_name.slice(slimUpdated.entity_display_name.lastIndexOf('.') + 1)
+              : undefined))
+          : undefined,
+        dag_name: slimUpdated.entity_type === 'dag' ? (slimUpdated.entity_display_name || slimUpdated.dag_name) : undefined,
+      };
+      
+      return res.json(response);
     } catch (error) {
       return sendError(res, 500, 'Failed to update entity');
     }

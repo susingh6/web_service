@@ -183,11 +183,18 @@ export class RedisCache {
 
     // Map incoming schema_name/table_name into entity_display_name for tables
     if (params.entityType === 'table') {
-      const schema = params.updates.schema_name ?? null;
-      const table = params.updates.table_name ?? null;
+      const schema = params.updates.schema_name ?? current.schema_name ?? null;
+      const table = params.updates.table_name ?? current.table_name ?? null;
       if (schema || table) {
-        const effectiveTable = table || current.entity_name || current.name;
-        next.entity_display_name = schema ? `${schema}.${effectiveTable}` : effectiveTable;
+        const effectiveSchema = schema || (current.entity_display_name && current.entity_display_name.includes('.') 
+          ? current.entity_display_name.slice(0, current.entity_display_name.lastIndexOf('.'))
+          : null);
+        const effectiveTable = table || (current.entity_display_name && current.entity_display_name.includes('.')
+          ? current.entity_display_name.slice(current.entity_display_name.lastIndexOf('.') + 1)
+          : current.entity_name || current.name);
+        next.entity_display_name = effectiveSchema ? `${effectiveSchema}.${effectiveTable}` : effectiveTable;
+        next.schema_name = effectiveSchema;
+        next.table_name = effectiveTable;
       }
     }
     // Map dag_name into entity_display_name for DAGs
@@ -870,10 +877,19 @@ export class RedisCache {
         type: e.entity_type,
         teamId: e.team_id,
         name: e.entity_name,
-        // Map display_name for table case to UI table_name field
-        table_name: e.entity_type === 'table' ? (e.entity_display_name || e.entity_name) : undefined,
-        // Map display_name for dag case to UI dag_name field
-        dag_name: e.entity_type === 'dag' ? (e.entity_display_name || e.entity_name) : undefined,
+        // Preserve true component names; do not collapse schema.table into table_name
+        // For tables, derive schema/table from entity_display_name when explicit fields are absent
+        schema_name: e.entity_type === 'table'
+          ? (e.schema_name ?? (typeof e.entity_display_name === 'string' && e.entity_display_name.includes('.')
+              ? e.entity_display_name.slice(0, e.entity_display_name.lastIndexOf('.'))
+              : undefined))
+          : undefined,
+        table_name: e.entity_type === 'table'
+          ? (e.table_name ?? (typeof e.entity_display_name === 'string' && e.entity_display_name.includes('.')
+              ? e.entity_display_name.slice(e.entity_display_name.lastIndexOf('.') + 1)
+              : undefined))
+          : undefined,
+        dag_name: e.entity_type === 'dag' ? (e.entity_display_name || e.dag_name) : undefined,
         // Ensure schedule fields are available for UI (entity_schedule OR fallback to dag/table_schedule)
         dag_schedule: e.entity_type === 'dag' ? (e.entity_schedule || e.dag_schedule) : undefined,
         table_schedule: e.entity_type === 'table' ? (e.entity_schedule || e.table_schedule) : undefined,
