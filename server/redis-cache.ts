@@ -196,12 +196,22 @@ export class RedisCache {
         next.schema_name = effectiveSchema;
         next.table_name = effectiveTable;
       }
+      
+      // Map table_schedule to entity_schedule (matching projectSlimEntity logic)
+      if (params.updates.table_schedule !== undefined) {
+        next.entity_schedule = params.updates.table_schedule;
+      }
     }
     // Map dag_name into entity_display_name for DAGs
     if (params.entityType === 'dag') {
       const dagName = params.updates.dag_name ?? null;
       if (typeof dagName === 'string' && dagName.trim() !== '') {
         next.entity_display_name = dagName.trim();
+      }
+      
+      // Map dag_schedule to entity_schedule (matching projectSlimEntity logic)
+      if (params.updates.dag_schedule !== undefined) {
+        next.entity_schedule = params.updates.dag_schedule;
       }
     }
 
@@ -224,6 +234,12 @@ export class RedisCache {
         (next as any)[k] = params.updates[k];
       }
     });
+
+    // Update timestamps to reflect the change
+    const now = new Date().toISOString();
+    next.updatedAt = now;
+    next.lastRefreshed = now;
+    next.last_reported_at = now;
 
     // Persist (hash-only)
     await (this.redis as any).hset(CACHE_KEYS.ENTITIES_HASH, field, JSON.stringify(next));

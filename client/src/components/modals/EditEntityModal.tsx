@@ -174,22 +174,72 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
           entityName: entity.name, 
           teamName: entity.team_name,
           entityType: entity.type,
+          table_schedule_in_response: detailsData.table_schedule,
+          expected_runtime_minutes_in_response: detailsData.expected_runtime_minutes,
+          detailsDataKeys: Object.keys(detailsData),
           detailsData 
         });
+
+        // Check for warning field from FastAPI failure
+        if (detailsData.warning) {
+          toast({
+            variant: "destructive",
+            title: "⚠️ Server unavailable - showing cached data",
+            description: "Some fields may be missing or outdated. Please save carefully or try again in a few moments.",
+            duration: 5000,
+          });
+        }
 
         // Normalize team_name from various possible API response formats
         const normalizedTeamName = detailsData.team_name || '';
 
+        // Extract owner emails from owner_details (can be single object, array, or null)
+        let ownerEmails: string[] = [];
+        if (detailsData.owner_details) {
+          if (Array.isArray(detailsData.owner_details)) {
+            // Multiple owners: extract all emails
+            ownerEmails = detailsData.owner_details
+              .map((owner: any) => owner.user_email)
+              .filter(Boolean);
+          } else if (typeof detailsData.owner_details === 'object') {
+            // Single owner: extract email
+            if (detailsData.owner_details.user_email) {
+              ownerEmails = [detailsData.owner_details.user_email];
+            }
+          }
+        }
+
+        // Normalize arrays from FastAPI response
+        const normalizeArray = (field: any): string => {
+          if (!field) return '';
+          if (Array.isArray(field)) return field.join(',');
+          return String(field);
+        };
+
         const normalized = {
           ...detailsData,
-          team_name: normalizedTeamName
+          team_name: normalizedTeamName,
+          // Ensure name field exists for form compatibility
+          name: detailsData.entity_name || detailsData.name,
+          // Add owner_email field from owner_details
+          owner_email: ownerEmails.length > 0 ? ownerEmails.join(',') : (detailsData.owner_email || ''),
+          // Normalize array fields to comma-separated strings for form
+          donemarker_lookback: normalizeArray(detailsData.donemarker_lookback),
+          table_donemarker_location: normalizeArray(detailsData.table_donemarker_location),
+          dag_donemarker_location: normalizeArray(detailsData.dag_donemarker_location),
+          table_dependency: normalizeArray(detailsData.table_dependency),
+          dag_dependency: normalizeArray(detailsData.dag_dependency),
         };
 
         console.debug('[EditEntityModal] Normalized entity details:', { 
           entityName: entity.name, 
           originalTeamName: detailsData.team_name,
           normalizedTeamName,
-          teamId: detailsData.teamId
+          teamId: detailsData.teamId,
+          hasWarning: !!detailsData.warning,
+          table_schedule: normalized.table_schedule,
+          dag_schedule: normalized.dag_schedule,
+          fullNormalized: normalized
         });
 
         return normalized;
@@ -241,7 +291,7 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
       is_entity_owner: false,
       owner_entity_ref_name: '',
       is_active: true,
-      expected_runtime_minutes: 60,
+      expected_runtime_minutes: undefined,
       donemarker_location: '',
       donemarker_lookback: 0,
       schema_name: '',
@@ -287,10 +337,18 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
   useEffect(() => {
     if (open && entityDetails && !isLoadingEntityDetails) {
       // Resetting form with entity details
+      
+      console.log('[EditEntityModal] entityDetails at form reset:', {
+        table_schedule: (entityDetails as any).table_schedule,
+        dag_schedule: (entityDetails as any).dag_schedule,
+        expected_runtime_minutes: entityDetails.expected_runtime_minutes,
+        keys: Object.keys(entityDetails),
+        fullEntityDetails: entityDetails
+      });
 
       // Map entity details to form fields
       const formData = entityType === 'table' ? {
-        entity_name: entityDetails.name || '',
+        entity_name: entityDetails.entity_name || entityDetails.name || '',
         tenant_name: entityDetails.tenant_name || '',
         team_name: entityDetails.team_name || '',
         notification_preferences: entityDetails.notification_preferences || [],
@@ -300,16 +358,16 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
           : (entityDetails as any).owner_entity_ref_name?.entity_owner_name) || (entityDetails as any).owner_entity_reference || '',
 
         is_active: entityDetails.is_active !== undefined ? entityDetails.is_active : true,
-        expected_runtime_minutes: entityDetails.expected_runtime_minutes || 60,
-        donemarker_location: entityDetails.donemarker_location || '',
+        expected_runtime_minutes: entityDetails.expected_runtime_minutes ?? undefined,
+        donemarker_location: entityDetails.table_donemarker_location || entityDetails.donemarker_location || '',
         donemarker_lookback: entityDetails.donemarker_lookback || 0,
         schema_name: (entityDetails as any).schema_name || '',
-        table_name: (entityDetails as any).table_name || entityDetails.name || '',
+        table_name: (entityDetails as any).table_name || entityDetails.entity_name || entityDetails.name || '',
         table_description: (entityDetails as any).table_description || entityDetails.description || '',
         table_schedule: (entityDetails as any).table_schedule || '',
         table_dependency: (entityDetails as any).table_dependency || '',
       } : {
-        entity_name: entityDetails.name || '',
+        entity_name: entityDetails.entity_name || entityDetails.name || '',
         tenant_name: entityDetails.tenant_name || '',
         team_name: entityDetails.team_name || '',
         notification_preferences: entityDetails.notification_preferences || [],
@@ -319,15 +377,21 @@ const EditEntityModal = ({ open, onClose, entity, teams, initialTenantName, init
           : (entityDetails as any).owner_entity_ref_name?.entity_owner_name) || (entityDetails as any).owner_entity_reference || '',
 
         is_active: entityDetails.is_active !== undefined ? entityDetails.is_active : true,
-        expected_runtime_minutes: entityDetails.expected_runtime_minutes || 60,
-        donemarker_location: entityDetails.donemarker_location || '',
+        expected_runtime_minutes: entityDetails.expected_runtime_minutes ?? undefined,
+        donemarker_location: entityDetails.dag_donemarker_location || entityDetails.donemarker_location || '',
         donemarker_lookback: entityDetails.donemarker_lookback || 0,
-        dag_name: (entityDetails as any).dag_name || entityDetails.name || '',
+        dag_name: (entityDetails as any).dag_name || entityDetails.entity_name || entityDetails.name || '',
         dag_description: (entityDetails as any).dag_description || entityDetails.description || '',
         dag_schedule: (entityDetails as any).dag_schedule || '',
         dag_dependency: (entityDetails as any).dag_dependency || '',
         server_name: (entityDetails as any).server_name || '',
       };
+
+      console.log('[EditEntityModal] Resetting form with data:', {
+        table_schedule: formData.table_schedule || (formData as any).dag_schedule,
+        expected_runtime_minutes: formData.expected_runtime_minutes,
+        fullFormData: formData
+      });
 
       reset(formData);
 

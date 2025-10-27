@@ -3342,6 +3342,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           server_name: e.server_name ?? e.serverName,
           last_reported_at: e.last_reported_at ?? e.lastReportedAt,
           updated_at: e.updated_at ?? e.updatedAt,
+          // CamelCase aliases for UI compatibility
+          updatedAt: e.updated_at ?? e.updatedAt,
+          lastRefreshed: e.lastRefreshed ?? e.last_refreshed,
+          createdAt: e.createdAt ?? e.created_at,
         };
         
         // For tables, ensure schema_name and table_name are properly derived
@@ -4225,6 +4229,172 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   // Create entity - bypass auth in development for testing
+  // FastAPI-first entity creation route - tries FastAPI, falls back to Express
+  app.post("/api/v1/entities", ...(isDevelopment ? [checkActiveUserDev] : requireActiveUser), async (req: Request, res: Response) => {
+    const USE_FASTAPI = process.env.ENABLE_FASTAPI_INTEGRATION === 'true';
+    
+    if (!USE_FASTAPI) {
+      // If FastAPI disabled, forward to /api/entities
+      req.url = '/api/entities';
+      return app._router.handle(req, res, () => {});
+    }
+
+    try {
+      const raw = req.body || {};
+      const entityType = ((raw as any).entity_type || raw.type) === 'dag' ? 'dag' : 'table';
+      
+      // Fetch OAuth user email for action_by_user_email
+      let actionByUserEmail: string | null = null;
+      try {
+        const profileRes = await fetch('http://127.0.0.1:5050/profile/current', {
+          headers: req.headers as any,
+        });
+        if (profileRes.ok) {
+          const profile = await profileRes.json();
+          actionByUserEmail = profile.email || null;
+        }
+      } catch {}
+
+      // Build FastAPI payload with all fields (snake_case)
+      const fastApiPayload: any = {
+        entity_name: raw.entity_name || raw.name,
+        team_name: raw.team_name,
+        tenant_name: raw.tenant_name,
+        is_entity_owner: raw.is_entity_owner !== false,
+        is_active: raw.is_active !== false,
+        expected_runtime_minutes: raw.expected_runtime_minutes ?? null,
+        donemarker_lookback: raw.donemarker_lookback ?? null,
+        server_name: raw.server_name ?? null,
+        owner_email: raw.owner_email ?? raw.user_email ?? null,
+        user_email: raw.user_email ?? null,
+        action_by_user_email: actionByUserEmail,
+      };
+
+      if (entityType === 'dag') {
+        fastApiPayload.entity_display_name = raw.entity_display_name || raw.dag_name || fastApiPayload.entity_name;
+        fastApiPayload.dag_name = raw.dag_name || fastApiPayload.entity_display_name;
+        fastApiPayload.dag_schedule = raw.dag_schedule || raw.entity_schedule || null;
+        fastApiPayload.dag_description = raw.dag_description || null;
+        fastApiPayload.dag_dependency = raw.dag_dependency || null;
+        fastApiPayload.dag_donemarker_location = raw.dag_donemarker_location || raw.donemarker_location || null;
+        if (!fastApiPayload.is_entity_owner) {
+          fastApiPayload.owner_entity_ref_name = raw.owner_entity_ref_name || raw.owner_entity_reference || null;
+        }
+      } else {
+        fastApiPayload.entity_display_name = raw.entity_display_name || (raw.schema_name && raw.table_name ? `${raw.schema_name}.${raw.table_name}` : (raw.table_name || fastApiPayload.entity_name));
+        fastApiPayload.schema_name = raw.schema_name ?? null;
+        fastApiPayload.table_name = raw.table_name || fastApiPayload.entity_display_name;
+        fastApiPayload.table_schedule = raw.table_schedule || raw.entity_schedule || null;
+        fastApiPayload.table_description = raw.table_description || null;
+        fastApiPayload.table_dependency = raw.table_dependency || null;
+        fastApiPayload.table_donemarker_location = raw.table_donemarker_location || raw.donemarker_location || null;
+        if (!fastApiPayload.is_entity_owner) {
+          fastApiPayload.owner_entity_ref_name = raw.owner_entity_ref_name || raw.owner_entity_reference || null;
+        }
+      }
+
+      // Try FastAPI first
+      const FASTAPI_BASE_URL = process.env.FASTAPI_BASE_URL || 'http://localhost:8080';
+      const fastApiUrl = `${FASTAPI_BASE_URL}/api/v1/${entityType}s`;
+      const sessionIdHeader = (Array.isArray(req.headers['x-session-id']) ? req.headers['x-session-id'][0] : req.headers['x-session-id']) as string | undefined;
+      
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (sessionIdHeader) headers['X-Session-ID'] = sessionIdHeader;
+
+      // Optimistically update Redis first
+      let redisEntity: any = null;
+      try {
+        // Convert FastAPI payload to Redis format
+        const redisPayload = { ...raw, action_by_user_email: actionByUserEmail };
+        redisEntity = await redisCache.createEntity(redisPayload);
+        console.log(`✅ Optimistic Redis update: Created entity ${redisEntity.entity_name || redisEntity.name}`);
+      } catch (redisError) {
+        console.error('Redis optimistic update failed:', redisError);
+        // Continue to try FastAPI anyway
+      }
+
+      try {
+        // Add timeout to prevent hanging if FastAPI is unresponsive
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
+        const resp = await fetch(fastApiUrl, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(fastApiPayload),
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (resp.ok) {
+          console.log(`✅ FastAPI success: POST ${fastApiUrl} - status: ${resp.status}`);
+          
+          // FastAPI succeeded, return the entity from Redis (optimistic update)
+          // No need to parse FastAPI response for entities (no auto-generated IDs)
+          return res.status(201).json(redisEntity);
+        } else {
+          // FastAPI returned explicit error (4xx/5xx), revert Redis changes
+          const errorText = await resp.text().catch(() => 'Unknown error');
+          console.error(`❌ FastAPI error: POST ${fastApiUrl} - status: ${resp.status} - ${errorText}`);
+          
+          if (redisEntity) {
+            console.log(`🔄 Reverting Redis due to explicit FastAPI error (${resp.status})`);
+            try {
+              await redisCache.deleteSlimEntityByComposite({
+                tenantName: redisEntity.tenant_name || redisEntity.tenantName,
+                teamName: redisEntity.team_name || redisEntity.teamName,
+                entityType: entityType as 'table' | 'dag',
+                entityName: redisEntity.entity_name || redisEntity.name,
+              });
+            } catch {}
+          }
+          
+          // Return error to client - DO NOT fallback to Express when flag is ON
+          return sendError(res, resp.status, `FastAPI error: ${errorText}`, 'fastapi_error');
+        }
+      } catch (fetchError: any) {
+        console.error('FastAPI call failed:', fetchError);
+        
+        // Check if it's a timeout (AbortError) or connection failure
+        const isTimeout = fetchError.name === 'AbortError';
+        const isConnectionError = fetchError.message?.includes('fetch failed') || fetchError.code === 'ECONNREFUSED';
+        
+        if (isTimeout) {
+          // Timeout: Don't rollback Redis - assume FastAPI may still succeed eventually
+          console.warn(`⏱️ FastAPI timeout after 10s - keeping entity in Redis for eventual consistency`);
+          console.warn(`Entity ${redisEntity?.entity_name || redisEntity?.name} will sync on next cache refresh`);
+          return sendError(res, 504, 'FastAPI request timeout - entity created in cache, will sync on next refresh', 'gateway_timeout');
+        } else if (isConnectionError) {
+          // Connection refused: Don't rollback Redis - FastAPI may be temporarily down
+          console.warn(`🔌 FastAPI connection failed - keeping entity in Redis for eventual consistency`);
+          console.warn(`Entity ${redisEntity?.entity_name || redisEntity?.name} will sync when FastAPI is available`);
+          return sendError(res, 503, 'FastAPI service unavailable - entity created in cache, will sync when service is available', 'service_unavailable');
+        } else {
+          // Other fetch errors: Revert Redis as a safety measure
+          console.error(`❌ Unexpected FastAPI error: ${fetchError.message}`);
+          
+          if (redisEntity) {
+            console.log(`🔄 Reverting Redis due to unexpected error`);
+            try {
+              await redisCache.deleteSlimEntityByComposite({
+                tenantName: redisEntity.tenant_name || redisEntity.tenantName,
+                teamName: redisEntity.team_name || redisEntity.teamName,
+                entityType: entityType as 'table' | 'dag',
+                entityName: redisEntity.entity_name || redisEntity.name,
+              });
+            } catch {}
+          }
+          
+          return sendError(res, 500, `FastAPI error: ${fetchError.message}`, 'server_error');
+        }
+      }
+    } catch (error) {
+      console.error('POST /api/v1/entities error:', error);
+      return sendError(res, 500, 'Failed to create entity', 'server_error');
+    }
+  });
+
   app.post("/api/entities", ...(isDevelopment ? [checkActiveUserDev] : requireActiveUser), async (req: Request, res: Response) => {
     try {
       // For entity creation, prune client fluff to a canonical payload before validation
@@ -4530,6 +4700,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return sendError(res, 500, 'Failed to create entity');
     }
   });
+  // FastAPI-first bulk create routes for tables and dags
+  app.post("/api/v1/tables/bulk", ...(isDevelopment ? [checkActiveUserDev] : requireActiveUser), async (req: Request, res: Response) => {
+    // Forward to /api/entities/bulk (which handles FastAPI integration)
+    req.body = req.body.map((entity: any) => ({ ...entity, type: 'table', entity_type: 'table' }));
+    req.url = '/api/entities/bulk';
+    return app._router.handle(req, res, () => {});
+  });
+
+  app.post("/api/v1/dags/bulk", ...(isDevelopment ? [checkActiveUserDev] : requireActiveUser), async (req: Request, res: Response) => {
+    // Forward to /api/entities/bulk (which handles FastAPI integration)
+    req.body = req.body.map((entity: any) => ({ ...entity, type: 'dag', entity_type: 'dag' }));
+    req.url = '/api/entities/bulk';
+    return app._router.handle(req, res, () => {});
+  });
+
   // Transactional bulk create (all-or-nothing) for Express fallback - bypass auth in development
   app.post('/api/entities/bulk', ...(isDevelopment ? [checkActiveUserDev] : requireActiveUser), async (req: Request, res: Response) => {
     try {
@@ -4785,6 +4970,199 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // FastAPI-first GET routes for tables and dags (for edit modal)
+  app.get("/api/v1/tables/:entityName", ...(isDevelopment ? [checkActiveUserDev] : requireActiveUser), async (req: Request, res: Response) => {
+    req.params.entityType = 'table';
+    return handleFastApiEntityGet(req, res);
+  });
+
+  app.get("/api/v1/dags/:entityName", ...(isDevelopment ? [checkActiveUserDev] : requireActiveUser), async (req: Request, res: Response) => {
+    req.params.entityType = 'dag';
+    return handleFastApiEntityGet(req, res);
+  });
+
+  // Shared handler for FastAPI-first entity GET (for edit modal)
+  async function handleFastApiEntityGet(req: Request, res: Response) {
+    const USE_FASTAPI = process.env.ENABLE_FASTAPI_INTEGRATION === 'true';
+    const { entityType, entityName } = req.params;
+    const tenantName = req.query.tenant_name as string | undefined;
+    const teamName = req.query.team_name as string | undefined;
+
+    // Helper function to get Redis fallback data
+    async function getRedisData() {
+      try {
+        const entities = await redisCache.getEntitiesForApi({ teamId: undefined });
+        const entity = entities.find((e: any) => 
+          ((e.entity_name || e.name) === entityName) &&
+          ((e.entity_type || e.type) === entityType) &&
+          (!teamName || (e.team_name || e.teamName) === teamName)
+        );
+
+        if (!entity) {
+          return null;
+        }
+
+        // Return slim entity data with snake_case projection
+        // Map Redis generic fields to type-specific fields to match FastAPI response
+        const isTable = entityType === 'table';
+        const isDag = entityType === 'dag';
+        
+        // Extract all available fields from Redis slim entity
+        // Note: Spread operator skips undefined values, so we need to be explicit
+        const baseFields: any = {
+          entity_name: entity.entity_name || entity.name,
+          entity_type: entity.entity_type || entity.type,
+          tenant_id: entity.tenant_id || entity.tenantId,
+          tenant_name: entity.tenant_name || entity.tenantName,
+          team_id: entity.team_id || entity.teamId,
+          team_name: entity.team_name || entity.teamName,
+          schema_name: entity.schema_name || null,
+          table_name: entity.table_name || null,
+          dag_name: entity.dag_name || null,
+          is_entity_owner: entity.is_entity_owner ?? entity.isEntityOwner ?? true,
+          is_active: entity.is_active ?? entity.isActive ?? true,
+          
+          // Include fields even if null/undefined (explicit null for missing fields)
+          expected_runtime_minutes: entity.expected_runtime_minutes ?? entity.expectedRuntimeMinutes ?? null,
+          donemarker_lookback: entity.donemarker_lookback ?? entity.donemarkerLookback ?? null,
+          
+          // Note: Redis slim entities don't have owner_details
+          owner_details: null,
+        };
+        
+        // Add type-specific schedule field
+        if (isTable) {
+          baseFields.table_schedule = entity.entity_schedule || entity.table_schedule || null;
+          baseFields.table_description = entity.table_description ?? entity.tableDescription ?? null;
+          baseFields.table_dependency = entity.table_dependency ?? entity.tableDependency ?? null;
+          baseFields.table_donemarker_location = entity.table_donemarker_location ?? entity.tableDonemarkerLocation ?? null;
+        }
+        
+        if (isDag) {
+          baseFields.dag_schedule = entity.entity_schedule || entity.dag_schedule || null;
+          baseFields.dag_description = entity.dag_description ?? entity.dagDescription ?? null;
+          baseFields.dag_dependency = entity.dag_dependency ?? entity.dagDependency ?? null;
+          baseFields.dag_donemarker_location = entity.dag_donemarker_location ?? entity.dagDonemarkerLocation ?? null;
+          baseFields.server_name = entity.server_name ?? entity.serverName ?? null;
+        }
+        
+        return baseFields;
+      } catch (error) {
+        console.error('Redis fallback failed:', error);
+        return null;
+      }
+    }
+
+    if (!USE_FASTAPI) {
+      // FastAPI disabled, return Redis data directly
+      const redisData = await getRedisData();
+      if (!redisData) {
+        return sendError(res, 404, 'Entity not found');
+      }
+      return res.status(200).json(redisData);
+    }
+
+    // FastAPI enabled, try FastAPI first
+    try {
+      const FASTAPI_BASE_URL = process.env.FASTAPI_BASE_URL || 'http://localhost:8080';
+      const queryParams = new URLSearchParams();
+      if (tenantName) queryParams.append('tenant_name', tenantName);
+      if (teamName) queryParams.append('team_name', teamName);
+      
+      const fastApiUrl = `${FASTAPI_BASE_URL}/api/v1/${entityType}s/${entityName}${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
+      const sessionIdHeader = (Array.isArray(req.headers['x-session-id']) ? req.headers['x-session-id'][0] : req.headers['x-session-id']) as string | undefined;
+      
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (sessionIdHeader) headers['X-Session-ID'] = sessionIdHeader;
+
+      // Add timeout to prevent hanging
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
+      const resp = await fetch(fastApiUrl, {
+        method: 'GET',
+        headers,
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      if (resp.ok) {
+        const result = await resp.json();
+        console.log(`✅ FastAPI success: GET ${fastApiUrl} - status: ${resp.status}`);
+        return res.status(200).json(result);
+      } else {
+        // FastAPI returned error, fall back to Redis
+        const errorText = await resp.text().catch(() => 'Unknown error');
+        console.error(`❌ FastAPI error: GET ${fastApiUrl} - status: ${resp.status} - ${errorText}`);
+        
+        const redisData = await getRedisData();
+        if (redisData) {
+          console.log(`🔄 Falling back to Redis data for ${entityName}`);
+          return res.status(200).json({
+            ...redisData,
+            warning: 'Failed to fetch full details from FastAPI - showing cached data'
+          });
+        } else {
+          return sendError(res, 404, 'Entity not found in cache');
+        }
+      }
+    } catch (fetchError: any) {
+      console.error('FastAPI call failed:', fetchError);
+      
+      const isTimeout = fetchError.name === 'AbortError';
+      const isConnectionError = fetchError.message?.includes('fetch failed') || fetchError.code === 'ECONNREFUSED';
+      
+      if (isTimeout) {
+        console.warn(`⏱️ FastAPI timeout after 10s - falling back to Redis`);
+      } else if (isConnectionError) {
+        console.warn(`🔌 FastAPI connection failed - falling back to Redis`);
+      }
+      
+      // Fall back to Redis for any error
+      const redisData = await getRedisData();
+      if (redisData) {
+        return res.status(200).json({
+          ...redisData,
+          warning: 'Failed to fetch full details from FastAPI - showing cached data'
+        });
+      } else {
+        return sendError(res, 404, 'Entity not found');
+      }
+    }
+  }
+
+  // FastAPI-first delete routes for tables and dags
+  app.delete("/api/v1/tables/:entityName", ...(isDevelopment ? [checkActiveUserDev] : requireActiveUser), async (req: Request, res: Response) => {
+    req.params.entityType = 'table';
+    return handleFastApiEntityDelete(req, res, app);
+  });
+
+  app.delete("/api/v1/dags/:entityName", ...(isDevelopment ? [checkActiveUserDev] : requireActiveUser), async (req: Request, res: Response) => {
+    req.params.entityType = 'dag';
+    return handleFastApiEntityDelete(req, res, app);
+  });
+
+  // Shared handler for FastAPI-first entity deletes
+  async function handleFastApiEntityDelete(req: Request, res: Response, app: any) {
+    const USE_FASTAPI = process.env.ENABLE_FASTAPI_INTEGRATION === 'true';
+    
+    if (!USE_FASTAPI) {
+      // If FastAPI disabled, forward to /api/entities/by-name
+      const { entityType, entityName } = req.params;
+      const teamName = req.query.teamName;
+      req.url = `/api/entities/by-name/${entityType}/${entityName}?teamName=${teamName}`;
+      return app._router.handle(req, res, () => {});
+    }
+
+    // If flag is ON, use the existing logic from /api/entities/by-name
+    // (which already has FastAPI integration)
+    const { entityType, entityName } = req.params;
+    const teamName = req.query.teamName;
+    req.url = `/api/entities/by-name/${entityType}/${entityName}?teamName=${teamName}`;
+    return app._router.handle(req, res, () => {});
+  }
+
   // Delete entity by name (slim/Redis-first) - bypass auth in development for testing
   app.delete('/api/entities/by-name/:entityType/:entityName', ...(isDevelopment ? [] : requireActiveUser), async (req: Request, res: Response) => {
     try {
@@ -4813,7 +5191,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } catch {}
       }
 
-      // Slim-only delete by composite identifiers (now includes tenantName when resolvable)
+      if (!tenantName) {
+        return sendError(res, 400, 'tenantName could not be resolved');
+      }
+
+      // Fetch OAuth user email for action_by_user_email
+      let actionByUserEmail: string | null = null;
+      try {
+        const profileRes = await fetch('http://127.0.0.1:5050/profile/current', {
+          headers: req.headers as any,
+        });
+        if (profileRes.ok) {
+          const profile = await profileRes.json();
+          actionByUserEmail = profile.email || null;
+        }
+      } catch {}
+
+      // Try FastAPI first if enabled
+      const USE_FASTAPI = process.env.ENABLE_FASTAPI_INTEGRATION === 'true';
+      if (USE_FASTAPI) {
+        try {
+          const FASTAPI_BASE_URL = process.env.FASTAPI_BASE_URL || 'http://localhost:8080';
+          const fastApiUrl = `${FASTAPI_BASE_URL}/api/v1/${normalizedType}s/${entityName}`;
+          const sessionIdHeader = (Array.isArray(req.headers['x-session-id']) ? req.headers['x-session-id'][0] : req.headers['x-session-id']) as string | undefined;
+          
+          const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+          if (sessionIdHeader) headers['X-Session-ID'] = sessionIdHeader;
+          
+          const payload = {
+            team_name: teamName,
+            tenant_name: tenantName,
+            action_by_user_email: actionByUserEmail
+          };
+
+          const resp = await fetch(fastApiUrl, {
+            method: 'DELETE',
+            headers,
+            body: JSON.stringify(payload)
+          });
+
+          if (resp.ok) {
+            console.log(`DELETE /api/entities/by-name/${entityType}/${entityName} - FastAPI success - status: ${resp.status}`);
+            // Also delete from Redis cache for consistency
+            await redisCache.deleteSlimEntityByComposite({
+              tenantName,
+              teamName,
+              entityType: normalizedType as 'table' | 'dag',
+              entityName,
+            });
+            return res.status(204).end();
+          }
+        } catch (error) {
+          console.error('FastAPI delete failed, falling back to Express:', error);
+        }
+      }
+
+      // Fallback: Redis-only delete by composite identifiers
       const removed = await redisCache.deleteSlimEntityByComposite({
         tenantName,
         teamName,
@@ -4823,11 +5256,181 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!removed) {
         return sendError(res, 404, 'Entity not found');
       }
+      
+      console.log(`DELETE /api/entities/by-name/${entityType}/${entityName} - Express fallback success - status: 204`);
       return res.status(204).end();
     } catch (error) {
+      console.error('Delete entity error:', error);
       return sendError(res, 500, 'Failed to delete entity');
     }
   });
+
+  // FastAPI-first entity update routes for tables and dags
+  app.patch("/api/v1/tables/:entityName", ...(isDevelopment ? [checkActiveUserDev] : requireActiveUser), async (req: Request, res: Response) => {
+    req.params.entityType = 'table';
+    return handleFastApiEntityUpdate(req, res, app);
+  });
+
+  app.patch("/api/v1/dags/:entityName", ...(isDevelopment ? [checkActiveUserDev] : requireActiveUser), async (req: Request, res: Response) => {
+    req.params.entityType = 'dag';
+    return handleFastApiEntityUpdate(req, res, app);
+  });
+
+  // Shared handler for FastAPI-first entity updates
+  async function handleFastApiEntityUpdate(req: Request, res: Response, app: any) {
+    const USE_FASTAPI = process.env.ENABLE_FASTAPI_INTEGRATION === 'true';
+    
+    if (!USE_FASTAPI) {
+      // If FastAPI disabled, forward to /api/entities/by-name
+      const { entityType, entityName } = req.params;
+      const teamName = req.query.teamName || req.body?.team_name || req.body?.teamName;
+      req.url = `/api/entities/by-name/${entityType}/${entityName}?teamName=${teamName}`;
+      return app._router.handle(req, res, () => {});
+    }
+
+    try {
+      const { entityType, entityName } = req.params;
+      const raw = req.body || {};
+      
+      // Fetch OAuth user email for action_by_user_email
+      let actionByUserEmail: string | null = null;
+      try {
+        const profileRes = await fetch('http://127.0.0.1:5050/profile/current', {
+          headers: req.headers as any,
+        });
+        if (profileRes.ok) {
+          const profile = await profileRes.json();
+          actionByUserEmail = profile.email || null;
+        }
+      } catch {}
+
+      // Build FastAPI payload with all fields (snake_case)
+      const fastApiPayload: any = {
+        ...raw,
+        action_by_user_email: actionByUserEmail,
+      };
+
+      // Get teamName from query or body for Redis operations
+      const teamName = (req.query.teamName as string) || raw.team_name || raw.teamName;
+      const tenantName = (req.query.tenantName as string) || raw.tenant_name || raw.tenantName;
+
+      if (!teamName) {
+        return sendError(res, 400, 'teamName is required for entity updates');
+      }
+
+      // Try FastAPI first
+      const FASTAPI_BASE_URL = process.env.FASTAPI_BASE_URL || 'http://localhost:8080';
+      const fastApiUrl = `${FASTAPI_BASE_URL}/api/v1/${entityType}s/${entityName}`;
+      const sessionIdHeader = (Array.isArray(req.headers['x-session-id']) ? req.headers['x-session-id'][0] : req.headers['x-session-id']) as string | undefined;
+      
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (sessionIdHeader) headers['X-Session-ID'] = sessionIdHeader;
+
+      // Get current entity from Redis before update (for potential rollback)
+      let originalEntity: any = null;
+      try {
+        const entities = await redisCache.getEntitiesForApi({ teamId: undefined });
+        originalEntity = entities.find((e: any) => 
+          ((e.entity_name || e.name) === entityName) &&
+          ((e.entity_type || e.type) === entityType) &&
+          ((e.team_name || e.teamName) === teamName)
+        );
+      } catch {}
+
+      // Optimistically update Redis first
+      let updatedEntity: any = null;
+      try {
+        updatedEntity = await redisCache.updateSlimEntityByComposite({
+          tenantName,
+          teamName,
+          entityType: entityType as 'table' | 'dag',
+          entityName,
+          updates: raw
+        });
+        console.log(`✅ Optimistic Redis update: Updated entity ${entityName}`);
+      } catch (redisError) {
+        console.error('Redis optimistic update failed:', redisError);
+        // Continue to try FastAPI anyway
+      }
+
+      try {
+        // Add timeout to prevent hanging
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
+        const resp = await fetch(fastApiUrl, {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify(fastApiPayload),
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (resp.ok) {
+          console.log(`✅ FastAPI success: PATCH ${fastApiUrl} - status: ${resp.status}`);
+          
+          // FastAPI succeeded, return the updated entity from Redis
+          return res.status(200).json(updatedEntity || originalEntity);
+        } else {
+          // FastAPI returned explicit error (4xx/5xx), revert Redis changes
+          const errorText = await resp.text().catch(() => 'Unknown error');
+          console.error(`❌ FastAPI error: PATCH ${fastApiUrl} - status: ${resp.status} - ${errorText}`);
+          
+          if (originalEntity && updatedEntity) {
+            console.log(`🔄 Reverting Redis to original state`);
+            try {
+              await redisCache.updateSlimEntityByComposite({
+                tenantName,
+                teamName,
+                entityType: entityType as 'table' | 'dag',
+                entityName,
+                updates: originalEntity
+              });
+            } catch {}
+          }
+          
+          return sendError(res, resp.status, `FastAPI error: ${errorText}`, 'fastapi_error');
+        }
+      } catch (fetchError: any) {
+        console.error('FastAPI call failed:', fetchError);
+        
+        const isTimeout = fetchError.name === 'AbortError';
+        const isConnectionError = fetchError.message?.includes('fetch failed') || fetchError.code === 'ECONNREFUSED';
+        
+        if (isTimeout) {
+          // Timeout: Don't rollback Redis - assume FastAPI may still succeed
+          console.warn(`⏱️ FastAPI timeout after 10s - keeping updates in Redis for eventual consistency`);
+          return sendError(res, 504, 'FastAPI request timeout - entity updated in cache, will sync on next refresh', 'gateway_timeout');
+        } else if (isConnectionError) {
+          // Connection refused: Don't rollback Redis
+          console.warn(`🔌 FastAPI connection failed - keeping updates in Redis for eventual consistency`);
+          return sendError(res, 503, 'FastAPI service unavailable - entity updated in cache, will sync when service is available', 'service_unavailable');
+        } else {
+          // Other errors: Revert Redis as a safety measure
+          console.error(`❌ Unexpected FastAPI error: ${fetchError.message}`);
+          
+          if (originalEntity && updatedEntity) {
+            console.log(`🔄 Reverting Redis due to unexpected error`);
+            try {
+              await redisCache.updateSlimEntityByComposite({
+                tenantName,
+                teamName,
+                entityType: entityType as 'table' | 'dag',
+                entityName,
+                updates: originalEntity
+              });
+            } catch {}
+          }
+          
+          return sendError(res, 500, `FastAPI error: ${fetchError.message}`, 'server_error');
+        }
+      }
+    } catch (error) {
+      console.error('PATCH /api/v1/{tables|dags}/:entityName error:', error);
+      return sendError(res, 500, 'Failed to update entity', 'server_error');
+    }
+  }
 
   // Update entity by-name (PATCH) - bypass auth in development for testing
   app.patch('/api/entities/by-name/:entityType/:entityName', ...(isDevelopment ? [] : requireActiveUser), async (req: Request, res: Response) => {
@@ -5072,6 +5675,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
               : undefined))
           : undefined,
         dag_name: slimUpdated.entity_type === 'dag' ? (slimUpdated.entity_display_name || slimUpdated.dag_name) : undefined,
+        // Add type-specific schedule fields for UI compatibility
+        table_schedule: slimUpdated.entity_type === 'table' ? slimUpdated.entity_schedule : undefined,
+        dag_schedule: slimUpdated.entity_type === 'dag' ? slimUpdated.entity_schedule : undefined,
       };
       
       return res.json(response);

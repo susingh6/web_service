@@ -43,6 +43,18 @@ function normalizeEntity(entity: any): any {
     table_name: entity.table_name,
     dag_name: entity.dag_name,
     
+    // Type-specific fields from FastAPI GET responses
+    table_schedule: entity.table_schedule,
+    table_description: entity.table_description,
+    table_dependency: entity.table_dependency,
+    table_donemarker_location: entity.table_donemarker_location,
+    dag_schedule: entity.dag_schedule,
+    dag_description: entity.dag_description,
+    dag_dependency: entity.dag_dependency,
+    dag_donemarker_location: entity.dag_donemarker_location,
+    donemarker_lookback: entity.donemarker_lookback,
+    owner_details: entity.owner_details,
+    
     // CamelCase aliases for backward compatibility with UI components
     type: entity.entity_type ?? entity.type,
     name: entity.entity_name ?? entity.name,
@@ -58,6 +70,7 @@ function normalizeEntity(entity: any): any {
     serverName: entity.server_name ?? entity.serverName,
     lastReportedAt: entity.last_reported_at ?? entity.lastReportedAt,
     updatedAt: entity.updated_at ?? entity.updatedAt,
+    lastRefreshed: entity.last_refreshed ?? entity.lastRefreshed ?? entity.last_reported_at ?? entity.lastReportedAt, 
   };
 }
 
