@@ -23,9 +23,11 @@ export interface Tenant {
   id: number;
   name: string;
   description?: string;
+  email?: string;
   // Additional metadata used in admin UI
   isActive: boolean;
   teamsCount: number;
+  actionByUserEmail?: string; // OAuth user who created/modified this tenant
   createdAt: string;
   updatedAt: string;
 }
@@ -84,7 +86,7 @@ export interface IStorage {
   
   // Tenant operations
   getTenants(): Promise<Tenant[]>;
-  createTenant(tenant: { name: string; description?: string }): Promise<Tenant>;
+  createTenant(tenant: { name: string; description?: string | null; email?: string | null; actionByUserEmail?: string | null }): Promise<Tenant>;
   updateTenant(id: number, tenant: Partial<Tenant>): Promise<Tenant | undefined>;
   
   // Entity operations
@@ -655,6 +657,7 @@ export class MemStorage implements IStorage {
       team_email: insertTeam.team_email ? [...insertTeam.team_email] : null,
       team_slack: insertTeam.team_slack ? [...insertTeam.team_slack] : null,
       team_pagerduty: insertTeam.team_pagerduty ? [...insertTeam.team_pagerduty] : null,
+      actionByUserEmail: insertTeam.actionByUserEmail || null,
       team_notify_preference_id: (insertTeam as any).team_notify_preference_id ?? null,
       isActive: insertTeam.isActive !== undefined ? insertTeam.isActive : true // Default to active
     };
@@ -863,13 +866,15 @@ export class MemStorage implements IStorage {
     return Array.from(this.tenants.values());
   }
 
-  async createTenant(tenantData: { name: string; description?: string }): Promise<Tenant> {
+  async createTenant(tenantData: { name: string; description?: string | null; email?: string | null; actionByUserEmail?: string | null }): Promise<Tenant> {
     await this.ensureInitialized();
     const now = new Date().toISOString();
     const tenant: Tenant = {
       id: this.tenantId++,
       name: tenantData.name,
-      description: tenantData.description || '',
+      description: tenantData.description || undefined,
+      email: tenantData.email || undefined,
+      actionByUserEmail: tenantData.actionByUserEmail || undefined,
       isActive: true,        // Default to active status
       teamsCount: 0,         // Default teams count
       createdAt: now,

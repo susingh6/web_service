@@ -49,6 +49,7 @@ import { WEBSOCKET_CONFIG } from '../../../../../shared/websocket-config';
 import { buildUrl, endpoints } from '@/config';
 import { tenantsApi } from '@/features/sla/api';
 import { Team } from '@shared/schema';
+import { formatDate } from '@/lib/utils';
 // Removed custom optimistic wrapper in favor of native React Query mutations
 
 // Define user interface for type safety - matches actual API response
@@ -84,7 +85,7 @@ const TeamFormDialog = ({ open, onClose, team, tenants, activeTenants, onSubmit 
   
   // Fetch available users for member management
   const { data: availableUsers = [], isLoading: isLoadingUsers, error: usersError } = useQuery({
-    queryKey: ['admin', 'users', 'v2'], // v2: Force cache refresh after Redis-first implementation
+    queryKey: ['admin', 'users'], // Standardized key for query deduplication
     queryFn: async () => {
       const headers: Record<string, string> = {};
       const sessionId = localStorage.getItem('fastapi_session_id');
@@ -102,10 +103,9 @@ const TeamFormDialog = ({ open, onClose, team, tenants, activeTenants, onSubmit 
       const data = await response.json();
       return data;
     },
-    // Keep query enabled so WebSocket invalidations work
-    // Fetch on mount and when invalidated via WebSocket
-    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
-    refetchOnMount: 'always', // Always refetch when component mounts
+    // Standardized cache settings for query deduplication
+    staleTime: 6 * 60 * 60 * 1000, // Cache for 6 hours (same as other components)
+    gcTime: 6 * 60 * 60 * 1000,    // Keep in memory for 6 hours
   });
   
   // Update form data when team prop changes
@@ -137,22 +137,60 @@ const TeamFormDialog = ({ open, onClose, team, tenants, activeTenants, onSubmit 
   }, [team]);
 
   const handleSubmit = () => {
-    const teamData: any = {
-      name: formData.name,
-      description: formData.description,
-      isActive: formData.isActive,
-      team_email: formData.team_email,
-      team_slack: formData.team_slack,
-      team_pagerduty: formData.team_pagerduty,
-      team_members_ids: formData.team_members_ids,
-    };
-    
-    // Only include tenant_id for new team creation, exclude on updates
-    if (!team) {
-      teamData.tenant_id = formData.tenant_id;
+    if (team) {
+      // Edit mode: only send changed non-mandatory fields, always send mandatory fields
+      const teamData: any = {
+        // Mandatory fields (always send)
+        name: formData.name,
+        isActive: formData.isActive,
+        tenant_id: formData.tenant_id,
+      };
+      
+      // Non-mandatory fields: only include if changed
+      if (formData.description !== (team.description || '')) {
+        teamData.description = formData.description || null;
+      }
+      
+      const originalEmail = Array.isArray(team.team_email) ? team.team_email : [];
+      const currentEmail = Array.isArray(formData.team_email) ? formData.team_email : [];
+      if (JSON.stringify(originalEmail) !== JSON.stringify(currentEmail)) {
+        teamData.team_email = currentEmail.length > 0 ? currentEmail : null;
+      }
+      
+      const originalSlack = Array.isArray(team.team_slack) ? team.team_slack : [];
+      const currentSlack = Array.isArray(formData.team_slack) ? formData.team_slack : [];
+      if (JSON.stringify(originalSlack) !== JSON.stringify(currentSlack)) {
+        teamData.team_slack = currentSlack.length > 0 ? currentSlack : null;
+      }
+      
+      const originalPagerduty = Array.isArray(team.team_pagerduty) ? team.team_pagerduty : [];
+      const currentPagerduty = Array.isArray(formData.team_pagerduty) ? formData.team_pagerduty : [];
+      if (JSON.stringify(originalPagerduty) !== JSON.stringify(currentPagerduty)) {
+        teamData.team_pagerduty = currentPagerduty.length > 0 ? currentPagerduty : null;
+      }
+      
+      const originalMembers = Array.isArray(team.team_members_ids) ? team.team_members_ids : [];
+      const currentMembers = Array.isArray(formData.team_members_ids) ? formData.team_members_ids : [];
+      if (JSON.stringify(originalMembers) !== JSON.stringify(currentMembers)) {
+        teamData.team_members_ids = currentMembers.length > 0 ? currentMembers : null;
+      }
+      
+      onSubmit(teamData);
+    } else {
+      // Create mode: send all fields
+      const teamData: any = {
+        name: formData.name,
+        description: formData.description,
+        isActive: formData.isActive,
+        team_email: formData.team_email,
+        team_slack: formData.team_slack,
+        team_pagerduty: formData.team_pagerduty,
+        team_members_ids: formData.team_members_ids,
+        tenant_id: formData.tenant_id,
+      };
+      onSubmit(teamData);
     }
     
-    onSubmit(teamData);
     onClose();
     setFormData({ 
       name: '', description: '', tenant_id: '', isActive: true,
@@ -531,7 +569,7 @@ const TeamsManagement = () => {
         
         // Invalidate users cache when USERS cache is updated
         if (data.cacheType === WEBSOCKET_CONFIG.cacheUpdateTypes.USERS) {
-          await queryClient.invalidateQueries({ queryKey: ['admin', 'users', 'v2'] });
+          await queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
         }
       }
     },
@@ -613,6 +651,30 @@ const TeamsManagement = () => {
       return await tenantsApi.getAll(false); // active_only=false to get all tenants
     },
     staleTime: 6 * 60 * 60 * 1000,
+  });
+
+  // Fetch users for email mapping
+  const { data: allUsers = [] } = useQuery({
+    queryKey: ['admin', 'users'],
+    queryFn: async () => {
+      const headers: Record<string, string> = {};
+      const sessionId = localStorage.getItem('fastapi_session_id');
+      if (sessionId) headers['X-Session-ID'] = sessionId;
+      
+      const url = buildUrl(endpoints.admin.users.getAll);
+      const response = await fetch(url, {
+        headers,
+        credentials: 'include'
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to fetch users: ${response.status} - ${errorText}`);
+      }
+      const data = await response.json();
+      return data;
+    },
+    staleTime: 6 * 60 * 60 * 1000,
+    gcTime: 6 * 60 * 60 * 1000,
   });
 
   // Extract only active tenants for team creation dropdown 
@@ -1046,12 +1108,59 @@ const TeamsManagement = () => {
 
   const handleSubmitTeam = async (teamData: any) => {
     try {
+      // Fetch OAuth user email
+      const response = await fetch(buildUrl(endpoints.profile.getCurrent), {
+        credentials: 'include'
+      });
+      const userProfile = response.ok ? await response.json() : null;
+      
+      // Transform field names to match API expectations
+      const payload: any = {
+        // Mandatory fields - always send
+        team_name: teamData.name,
+        is_active: teamData.isActive ?? true,
+        action_by_user_email: userProfile?.user_email || null,
+      };
+      
+      // For both create and update: include tenant_id and tenant_name
+      if (teamData.tenant_id) {
+        payload.tenant_id = teamData.tenant_id;
+        // Find tenant name from tenants list
+        const tenant = allTenants?.find((t: any) => t.id === teamData.tenant_id);
+        payload.tenant_name = tenant?.name || null;
+      }
+      
+      // Non-mandatory fields - only include if provided in teamData (for PATCH)
+      if (teamData.description !== undefined) {
+        payload.team_description = teamData.description || null;
+      }
+      if (teamData.team_email !== undefined) {
+        payload.team_email = Array.isArray(teamData.team_email) && teamData.team_email.length > 0 ? teamData.team_email : null;
+      }
+      if (teamData.team_slack !== undefined) {
+        payload.team_slack = Array.isArray(teamData.team_slack) && teamData.team_slack.length > 0 ? teamData.team_slack : null;
+      }
+      if (teamData.team_pagerduty !== undefined) {
+        payload.team_pagerduty = Array.isArray(teamData.team_pagerduty) && teamData.team_pagerduty.length > 0 ? teamData.team_pagerduty : null;
+      }
+      if (teamData.team_members_ids !== undefined) {
+        payload.team_members_ids = Array.isArray(teamData.team_members_ids) && teamData.team_members_ids.length > 0 ? teamData.team_members_ids : null;
+        
+        // Convert team_members_ids to team_members_emails
+        if (payload.team_members_ids && Array.isArray(payload.team_members_ids)) {
+          payload.team_members_emails = payload.team_members_ids.map((memberId: string) => {
+            const user = allUsers?.find((u: any) => String(u.user_id) === String(memberId) || u.user_name === memberId);
+            return user?.user_email || memberId;
+          });
+        } else {
+          payload.team_members_emails = null;
+        }
+      }
+      
       if (selectedTeam) {
-        console.log('📝 Submitting team update:', { teamId: selectedTeam.id, teamData });
-        await handleUpdateTeamModern(selectedTeam.id, teamData);
+        await handleUpdateTeamModern(selectedTeam.id, payload);
       } else {
-        console.log('📝 Submitting team creation:', { teamData });
-        await handleCreateTeamModern(teamData);
+        await handleCreateTeamModern(payload);
       }
     } catch (error: any) {
       // Enhanced error logging with full error details
@@ -1146,12 +1255,12 @@ const TeamsManagement = () => {
                 <TableRow>
                   <TableCell>Team Name</TableCell>
                   <TableCell>Tenant</TableCell>
-                  <TableCell>Description</TableCell>
                   <TableCell>Email</TableCell>
                   <TableCell>Slack</TableCell>
                   <TableCell>PagerDuty</TableCell>
                   <TableCell>Members</TableCell>
                   <TableCell>Status</TableCell>
+                  <TableCell>Action By</TableCell>
                   <TableCell>Created</TableCell>
                   <TableCell>Actions</TableCell>
                 </TableRow>
@@ -1162,9 +1271,16 @@ const TeamsManagement = () => {
                     <TableCell>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <GroupIcon color="primary" />
-                        <Typography variant="body2" fontWeight="medium">
-                          {team.name}
-                        </Typography>
+                        <Box>
+                          <Typography variant="body2" fontWeight="medium">
+                            {team.name}
+                          </Typography>
+                          {team.description && (
+                            <Typography variant="caption" color="text.secondary" display="block">
+                              {team.description}
+                            </Typography>
+                          )}
+                        </Box>
                       </Box>
                     </TableCell>
                     <TableCell>
@@ -1174,11 +1290,6 @@ const TeamsManagement = () => {
                         variant="outlined"
                         color="primary"
                       />
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" color="text.secondary">
-                        {team.description || 'No description'}
-                      </Typography>
                     </TableCell>
                     <TableCell>
                       <ContactChips 
@@ -1216,8 +1327,13 @@ const TeamsManagement = () => {
                       />
                     </TableCell>
                     <TableCell>
-                      <Typography variant="body2">
-                        {new Date(team.createdAt).toLocaleDateString()}
+                      <Typography variant="body2" color="text.secondary">
+                        {team.actionByUserEmail || '—'}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" color="text.secondary">
+                        {formatDate(team.createdAt)}
                       </Typography>
                     </TableCell>
                     <TableCell>

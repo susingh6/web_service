@@ -1,8 +1,45 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
+import { format } from 'date-fns'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
+}
+
+/**
+ * Format a date to a human-readable string
+ * Shows "Today, hh:mm a" for today, "Yesterday, hh:mm a" for yesterday, or "MMM d, yyyy" for older dates
+ * @param date Date to format (Date object or string)
+ * @returns Formatted date string
+ */
+export function formatDate(date: Date | string | null | undefined): string {
+  if (!date) return 'N/A';
+  
+  const dateObj = date instanceof Date ? date : new Date(date);
+  
+  if (isNaN(dateObj.getTime())) {
+    return 'Invalid date';
+  }
+  
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  
+  try {
+    const todayStr = today.toDateString();
+    const yesterdayStr = yesterday.toDateString();
+    const dateObjStr = dateObj.toDateString();
+    
+    if (dateObjStr === todayStr) {
+      return `Today, ${format(dateObj, 'hh:mm a')}`;
+    } else if (dateObjStr === yesterdayStr) {
+      return `Yesterday, ${format(dateObj, 'hh:mm a')}`;
+    } else {
+      return format(dateObj, 'MMM d, yyyy');
+    }
+  } catch (error) {
+    return format(dateObj, 'MMM d, yyyy');
+  }
 }
 
 /**

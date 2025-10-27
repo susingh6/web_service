@@ -37,14 +37,17 @@ import { useToast } from '@/hooks/use-toast';
 import { buildUrl, endpoints } from '@/config';
 import { tenantsApi } from '@/features/sla/api';
 import { Search as SearchIcon, Clear as ClearIcon } from '@mui/icons-material';
+import { formatDate } from '@/lib/utils';
 // Removed custom optimistic wrapper in favor of native React Query mutations
 
 interface Tenant {
   id: number;
   name: string;
   description?: string;
+  email?: string;
   isActive: boolean;
   teamsCount: number;
+  actionByUserEmail?: string;
   createdAt: string;
 }
 
@@ -59,6 +62,7 @@ const TenantFormDialog = ({ open, onClose, tenant, onSubmit }: TenantFormDialogP
   const [formData, setFormData] = useState({
     name: tenant?.name || '',
     description: tenant?.description || '',
+    email: tenant?.email || '',
     isActive: tenant?.isActive ?? true,
   });
 
@@ -68,21 +72,55 @@ const TenantFormDialog = ({ open, onClose, tenant, onSubmit }: TenantFormDialogP
       setFormData({
         name: tenant.name || '',
         description: tenant.description || '',
+        email: tenant.email || '',
         isActive: tenant.isActive ?? true,
       });
     } else {
       setFormData({
         name: '',
         description: '',
+        email: '',
         isActive: true,
       });
     }
   }, [tenant]);
 
   const handleSubmit = () => {
-    onSubmit(formData);
+    if (tenant) {
+      // Edit mode: always send mandatory fields
+      const cleanedData: any = {
+        // Mandatory fields - always send them
+        name: formData.name,
+        isActive: formData.isActive,
+      };
+      
+      // Only include non-mandatory fields if they changed
+      const originalDesc = tenant.description || '';
+      const currentDesc = formData.description?.trim() || '';
+      if (currentDesc !== originalDesc) {
+        cleanedData.description = currentDesc || null;
+      }
+      
+      const originalEmail = tenant.email || '';
+      const currentEmail = formData.email?.trim() || '';
+      if (currentEmail !== originalEmail) {
+        cleanedData.email = currentEmail || null;
+      }
+      
+      onSubmit(cleanedData);
+    } else {
+      // Create mode: send all fields
+      const cleanedData = {
+        name: formData.name,
+        description: formData.description?.trim() || null,
+        email: formData.email?.trim() || null,
+        isActive: formData.isActive,
+      };
+      onSubmit(cleanedData);
+    }
+    
     onClose();
-    setFormData({ name: '', description: '', isActive: true });
+    setFormData({ name: '', description: '', email: '', isActive: true });
   };
 
   return (
@@ -109,6 +147,15 @@ const TenantFormDialog = ({ open, onClose, tenant, onSubmit }: TenantFormDialogP
             value={formData.description}
             onChange={(e) => setFormData({ ...formData, description: e.target.value })}
             placeholder="Brief description of this tenant organization"
+          />
+          
+          <TextField
+            fullWidth
+            label="Tenant Email"
+            type="email"
+            value={formData.email}
+            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+            placeholder="e.g., data-team@company.com"
           />
           
           <FormControlLabel
@@ -176,7 +223,22 @@ const TenantsManagement = () => {
   // Modern cache-managed tenant creation
   const handleCreateTenant = async (tenantData: any) => {
     try {
-      await createTenant(tenantData);
+      // Fetch OAuth user email
+      const response = await fetch(buildUrl(endpoints.profile.getCurrent), {
+        credentials: 'include'
+      });
+      const userProfile = response.ok ? await response.json() : null;
+      
+      // Transform to new field names (tenantData already has nulls from handleSubmit)
+      const payload = {
+        tenant_name: tenantData.name,
+        tenant_description: tenantData.description,
+        tenant_email: tenantData.email,
+        is_active: tenantData.isActive ?? true,
+        action_by_user_email: userProfile?.user_email || null,
+      };
+      
+      await createTenant(payload);
       toast({ title: 'Success', description: 'New tenant has been successfully created.' });
       setDialogOpen(false);
     } catch (error: any) {
@@ -192,7 +254,37 @@ const TenantsManagement = () => {
   // Modern cache-managed tenant update
   const handleUpdateTenant = async (tenantId: number, tenantData: any) => {
     try {
-      await updateTenant(tenantId, tenantData);
+      // Fetch OAuth user email
+      const response = await fetch(buildUrl(endpoints.profile.getCurrent), {
+        credentials: 'include'
+      });
+      const userProfile = response.ok ? await response.json() : null;
+      
+      // Transform to new field names
+      // Send empty string ("") if user cleared the field (to explicitly clear it)
+      // Mandatory fields are always included
+      const payload: any = {
+        // Mandatory fields - always send them
+        tenant_name: tenantData.name,
+        is_active: tenantData.isActive ?? true,
+        action_by_user_email: userProfile?.user_email || null,
+      };
+      
+      if (tenantData.description !== undefined) {
+        // Empty string or whitespace-only means user wants to clear it
+        payload.tenant_description = tenantData.description === null || tenantData.description?.trim() === '' 
+          ? '' 
+          : tenantData.description;
+      }
+      
+      if (tenantData.email !== undefined) {
+        // Empty string or whitespace-only means user wants to clear it
+        payload.tenant_email = tenantData.email === null || tenantData.email?.trim() === '' 
+          ? '' 
+          : tenantData.email;
+      }
+      
+      await updateTenant(tenantId, payload);
       toast({ title: 'Tenant Updated', description: 'Tenant has been successfully updated.' });
       setDialogOpen(false);
 
@@ -284,9 +376,10 @@ const TenantsManagement = () => {
               <TableHead>
                 <TableRow>
                   <TableCell>Tenant Name</TableCell>
-                  <TableCell>Description</TableCell>
+                  <TableCell>Email</TableCell>
                   <TableCell>Teams</TableCell>
                   <TableCell>Status</TableCell>
+                  <TableCell>Action By</TableCell>
                   <TableCell>Created</TableCell>
                   <TableCell>Actions</TableCell>
                 </TableRow>
@@ -297,14 +390,21 @@ const TenantsManagement = () => {
                     <TableCell>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <BusinessIcon color="primary" />
-                        <Typography variant="body2" fontWeight="medium">
-                          {tenant.name}
-                        </Typography>
+                        <Box>
+                          <Typography variant="body2" fontWeight="medium">
+                            {tenant.name}
+                          </Typography>
+                          {tenant.description && (
+                            <Typography variant="caption" color="text.secondary" display="block">
+                              {tenant.description}
+                            </Typography>
+                          )}
+                        </Box>
                       </Box>
                     </TableCell>
                     <TableCell>
                       <Typography variant="body2" color="text.secondary">
-                        {tenant.description || 'No description'}
+                        {tenant.email || '—'}
                       </Typography>
                     </TableCell>
                     <TableCell>
@@ -324,8 +424,13 @@ const TenantsManagement = () => {
                       />
                     </TableCell>
                     <TableCell>
-                      <Typography variant="body2">
-                        {new Date(tenant.createdAt).toLocaleDateString()}
+                      <Typography variant="body2" color="text.secondary">
+                        {tenant.actionByUserEmail || '—'}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" color="text.secondary">
+                        {formatDate(tenant.createdAt)}
                       </Typography>
                     </TableCell>
                     <TableCell>

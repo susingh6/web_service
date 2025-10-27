@@ -31,16 +31,19 @@ type RollbackRequest = z.infer<typeof rollbackRequestSchema>;
 
 // Tenant validation schemas (not defined in shared/schema.ts)
 const adminTenantSchema = z.object({
-  name: z.string().min(1, "Tenant name is required"),
-  description: z.string().optional()
+  tenant_name: z.string().min(1, "Tenant name is required"),
+  tenant_description: z.string().nullable().optional(),
+  tenant_email: z.string().email().nullable().optional().or(z.literal('')),
+  is_active: z.boolean().optional(),
+  action_by_user_email: z.string().email().nullable().optional().or(z.literal('')),
 });
 
 const updateTenantSchema = z.object({
-  name: z.string().min(1, "Tenant name is required").optional(),
-  description: z.string().optional(),
-  isActive: z.boolean().optional()
-}).refine(data => Object.keys(data).length > 0, {
-  message: "At least one field must be provided for update"
+  tenant_name: z.string().min(1, "Tenant name is required"), // Mandatory
+  tenant_description: z.string().optional().or(z.literal('')),
+  tenant_email: z.string().email().optional().or(z.literal('')),
+  is_active: z.boolean(), // Mandatory
+  action_by_user_email: z.string().email().nullable().or(z.literal('')), // Mandatory (but can be null)
 });
 
 const updateUserSchema = adminUserSchema.partial().refine(data => Object.keys(data).length > 0, {
@@ -2246,7 +2249,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json(createValidationErrorResponse(validationResult.error));
       }
 
-      const { name, description } = validationResult.data;
+      const { tenant_name, tenant_description, tenant_email, action_by_user_email } = validationResult.data;
 
       // Update cache based on mode
       const status = await redisCache.getCacheStatus();
@@ -2259,8 +2262,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const now = new Date().toISOString();
         const newTenant = {
           id: nextId,
-          name,
-          description: description || '',
+          name: tenant_name,
+          description: tenant_description || '',
+          email: tenant_email || '',
+          actionByUserEmail: action_by_user_email || undefined,
           isActive: true,
           teamsCount: 0,
           createdAt: now,
@@ -2283,7 +2288,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // In-memory mode: create via storage
-      const newTenant = await storage.createTenant({ name, description });
+      const newTenant = await storage.createTenant({ 
+        name: tenant_name, 
+        description: tenant_description,
+        email: tenant_email,
+        actionByUserEmail: action_by_user_email
+      });
 
       await redisCache.invalidateCache({
         keys: ['all_tenants', 'tenants_summary'],
@@ -2319,7 +2329,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json(createValidationErrorResponse(validationResult.error));
       }
 
-      const updateData = validationResult.data;
+      const { tenant_name, tenant_description, tenant_email, is_active, action_by_user_email } = validationResult.data;
+      
+      // Map new field names to storage format
+      // Convert empty string to undefined (to clear the field)
+      const updateData: any = {};
+      if (tenant_name !== undefined) updateData.name = tenant_name;
+      if (tenant_description !== undefined) updateData.description = tenant_description === '' ? undefined : tenant_description;
+      if (tenant_email !== undefined) updateData.email = tenant_email === '' ? undefined : tenant_email;
+      if (is_active !== undefined) updateData.isActive = is_active;
+      if (action_by_user_email !== undefined) updateData.actionByUserEmail = action_by_user_email || undefined;
 
       // Update tenant (may cascade to teams if tenant becomes inactive)
       const updatedTenant = await storage.updateTenant(tenantId, updateData);
@@ -2330,8 +2349,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // If tenant name changed, propagate to entities so fallback metrics filter by new name
       const beforeTenants = await redisCache.getAllTenants();
       const beforeTenant = beforeTenants.find((t: any) => t.id === tenantId);
-      if (updateData.name && beforeTenant && updateData.name !== beforeTenant.name) {
-        await storage.updateEntitiesTenantName(tenantId, updateData.name);
+      if (tenant_name && beforeTenant && tenant_name !== beforeTenant.name) {
+        await storage.updateEntitiesTenantName(tenantId, tenant_name);
       }
 
       // Update cache based on mode
@@ -2427,7 +2446,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json(createValidationErrorResponse(validationResult.error));
       }
 
-      const updateData = validationResult.data;
+      const { tenant_name, tenant_description, tenant_email, is_active, action_by_user_email } = validationResult.data;
+      
+      // Map new field names to storage format
+      // Convert empty string to undefined (to clear the field)
+      const updateData: any = {};
+      if (tenant_name !== undefined) updateData.name = tenant_name;
+      if (tenant_description !== undefined) updateData.description = tenant_description === '' ? undefined : tenant_description;
+      if (tenant_email !== undefined) updateData.email = tenant_email === '' ? undefined : tenant_email;
+      if (is_active !== undefined) updateData.isActive = is_active;
+      if (action_by_user_email !== undefined) updateData.actionByUserEmail = action_by_user_email || undefined;
 
       // Update tenant (may cascade to teams if tenant becomes inactive)
       const updatedTenant = await storage.updateTenant(tenantId, updateData);
@@ -2438,8 +2466,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // If tenant name changed, propagate to entities so fallback metrics filter by new name
       const beforeTenants = await redisCache.getAllTenants();
       const beforeTenant = beforeTenants.find((t: any) => t.id === tenantId);
-      if (updateData.name && beforeTenant && updateData.name !== beforeTenant.name) {
-        await storage.updateEntitiesTenantName(tenantId, updateData.name);
+      if (tenant_name && beforeTenant && tenant_name !== beforeTenant.name) {
+        await storage.updateEntitiesTenantName(tenantId, tenant_name);
       }
 
       // Invalidate both tenant and team caches since tenant status/name changes can affect teams
@@ -2515,13 +2543,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // FastAPI fallback route for creating new teams (Redis-first write)
   app.post("/api/v1/teams", requireActiveUser, async (req: Request, res: Response) => {
     try {
+      // Define schema for admin team creation with new field names
+      const adminTeamSchema = z.object({
+        team_name: z.string().min(1, "Team name is required"),
+        team_description: z.string().nullable().optional(),
+        tenant_id: z.number(),
+        tenant_name: z.string().nullable().optional(),
+        team_members_ids: z.array(z.string()).nullable().optional(),
+        team_members_emails: z.array(z.string()).nullable().optional(),
+        team_email: z.array(z.string()).nullable().optional(),
+        team_slack: z.array(z.string()).nullable().optional(),
+        team_pagerduty: z.array(z.string()).nullable().optional(),
+        action_by_user_email: z.string().email().nullable().optional().or(z.literal('')),
+        is_active: z.boolean().optional(),
+      });
+      
       // Validate request body
-      const validationResult = insertTeamSchema.safeParse(req.body);
+      const validationResult = adminTeamSchema.safeParse(req.body);
       if (!validationResult.success) {
         return res.status(400).json(createValidationErrorResponse(validationResult.error));
       }
 
-      const payload = validationResult.data;
+      const data = validationResult.data;
+      
+      // Map new field names to storage format
+      const payload = {
+        name: data.team_name,
+        description: data.team_description || null,
+        tenant_id: data.tenant_id,
+        team_members_ids: data.team_members_ids || null,
+        team_email: data.team_email || null,
+        team_slack: data.team_slack || null,
+        team_pagerduty: data.team_pagerduty || null,
+        actionByUserEmail: data.action_by_user_email || null,
+        isActive: data.is_active ?? true,
+      };
 
       // Update cache based on mode
       const status = await redisCache.getCacheStatus();
@@ -2535,13 +2591,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const newTeam = {
           id: nextId,
           name: payload.name,
-          description: payload.description || '',
+          description: payload.description || null,
           tenant_id: payload.tenant_id,
+          actionByUserEmail: payload.actionByUserEmail || null,
           isActive: payload.isActive ?? true,
-          team_email: payload.team_email || [],
-          team_slack: payload.team_slack || [],
-          team_pagerduty: payload.team_pagerduty || [],
-          team_members_ids: payload.team_members_ids || [],
+          team_email: payload.team_email || null,
+          team_slack: payload.team_slack || null,
+          team_pagerduty: payload.team_pagerduty || null,
+          team_members_ids: payload.team_members_ids || null,
           createdAt: now,
           updatedAt: now,
         } as any;
@@ -2602,7 +2659,109 @@ export async function registerRoutes(app: Express): Promise<Server> {
       sendError(res, 500, "Failed to create team", "creation_error");
     }
   });
-  // FastAPI fallback route for updating teams (Redis-first write)
+  // FastAPI fallback route for updating teams (Redis-first write) - PATCH endpoint
+  app.patch("/api/v1/teams/:teamId", ...(isDevelopment ? [checkActiveUserDev] : [requireActiveUser]), async (req: Request, res: Response) => {
+    try {
+      const teamId = parseInt(req.params.teamId);
+      if (isNaN(teamId)) {
+        return sendError(res, 400, "Invalid team ID", "validation_error");
+      }
+
+      // Define schema for admin team update with new field names
+      const adminTeamUpdateSchema = z.object({
+        team_name: z.string().min(1, "Team name is required"),
+        team_description: z.string().nullable().optional(),
+        tenant_id: z.number(),
+        tenant_name: z.string().nullable().optional(),
+        team_members_ids: z.array(z.string()).nullable().optional(),
+        team_members_emails: z.array(z.string()).nullable().optional(),
+        team_email: z.array(z.string()).nullable().optional(),
+        team_slack: z.array(z.string()).nullable().optional(),
+        team_pagerduty: z.array(z.string()).nullable().optional(),
+        action_by_user_email: z.string().email().nullable().optional().or(z.literal('')),
+        is_active: z.boolean(),
+      });
+
+      // Validate request body
+      const validationResult = adminTeamUpdateSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json(createValidationErrorResponse(validationResult.error));
+      }
+
+      const data = validationResult.data;
+      
+      // Map new field names to storage format
+      const updateData: any = {
+        name: data.team_name,
+        tenant_id: data.tenant_id,
+        isActive: data.is_active,
+        actionByUserEmail: data.action_by_user_email || null,
+      };
+      
+      // Only include non-mandatory fields if they were provided
+      if (data.team_description !== undefined) {
+        updateData.description = data.team_description || null;
+      }
+      if (data.team_email !== undefined) {
+        updateData.team_email = data.team_email || null;
+      }
+      if (data.team_slack !== undefined) {
+        updateData.team_slack = data.team_slack || null;
+      }
+      if (data.team_pagerduty !== undefined) {
+        updateData.team_pagerduty = data.team_pagerduty || null;
+      }
+      if (data.team_members_ids !== undefined) {
+        updateData.team_members_ids = data.team_members_ids || null;
+      }
+
+      const status = await redisCache.getCacheStatus();
+
+      if (status && status.mode === 'redis') {
+        // Redis mode: update Redis directly
+        const teams = await redisCache.get(CACHE_KEYS.TEAMS) || [];
+        const idx = Array.isArray(teams) ? teams.findIndex((t: any) => t.id === teamId) : -1;
+        
+        if (idx === -1) {
+          return sendError(res, 404, "Team not found", "not_found");
+        }
+
+        const beforeTeam = teams[idx];
+        const updatedTeam = {
+          ...beforeTeam,
+          ...updateData,
+          updatedAt: new Date().toISOString()
+        };
+
+        // Update the team in Redis
+        const newTeams = [...teams];
+        newTeams[idx] = updatedTeam;
+        await redisCache.set(CACHE_KEYS.TEAMS, newTeams, 6 * 60 * 60);
+
+        // Broadcast WebSocket update
+        await redisCache.broadcastCacheUpdate(WEBSOCKET_CONFIG.cacheUpdateTypes.TEAM_DETAILS, {
+          teamId,
+          teamName: updatedTeam.name,
+          action: 'update',
+          timestamp: new Date().toISOString()
+        });
+
+        return res.json(updatedTeam);
+      }
+
+      // In-memory mode: use storage
+      const updatedTeam = await storage.updateTeam(teamId, updateData);
+      if (!updatedTeam) {
+        return sendError(res, 404, "Team not found", "not_found");
+      }
+
+      return res.json(updatedTeam);
+    } catch (error) {
+      console.error('Team update error:', error);
+      return sendError(res, 500, "Failed to update team", "update_error");
+    }
+  });
+  // FastAPI fallback route for updating teams (Redis-first write) - PUT endpoint (legacy)
   app.put("/api/v1/teams/:teamId", ...(isDevelopment ? [checkActiveUserDev] : [requireActiveUser]), async (req: Request, res: Response) => {
     try {
       const teamId = parseInt(req.params.teamId);
@@ -2691,7 +2850,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
       sendError(res, 500, "Failed to update team", "update_error");
     }
   });
-  // Express fallback route for updating teams (for frontend fallback mechanism)
+  // Express fallback route for updating teams (for frontend fallback mechanism) - PATCH endpoint
+  app.patch("/api/teams/:teamId", ...(isDevelopment ? [checkActiveUserDev] : [requireActiveUser]), async (req: Request, res: Response) => {
+    try {
+      const teamId = parseInt(req.params.teamId);
+      if (isNaN(teamId)) {
+        return sendError(res, 400, "Invalid team ID", "validation_error");
+      }
+
+      // Validate request body
+      const validationResult = updateTeamSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json(createValidationErrorResponse(validationResult.error));
+      }
+
+      const updateData = validationResult.data;
+
+      // Update team
+      const beforeTeam2 = await storage.getTeam(teamId);
+      const updatedTeam = await storage.updateTeam(teamId, updateData);
+      if (!updatedTeam) {
+        return sendError(res, 404, "Team not found", "not_found");
+      }
+
+      // If team name changed, propagate to entities so fallback metrics (and Redis keys) match new name
+      if (updateData.name && beforeTeam2 && updateData.name !== beforeTeam2.name) {
+        await storage.updateEntitiesTeamName(teamId, updateData.name);
+        await redisCache.invalidateTeamData(beforeTeam2.name);
+        await redisCache.invalidateTeamData(updateData.name);
+        await redisCache.invalidateTeamMetricsCache(beforeTeam2.tenant_id ? String(beforeTeam2.tenant_id) : 'UnknownTenant', beforeTeam2.name);
+        await redisCache.invalidateTeamMetricsCache(beforeTeam2.tenant_id ? String(beforeTeam2.tenant_id) : 'UnknownTenant', updateData.name);
+      }
+
+      return res.json(updatedTeam);
+    } catch (error) {
+      console.error('Team update error:', error);
+      return sendError(res, 500, "Failed to update team", "update_error");
+    }
+  });
+  // Express fallback route for updating teams (for frontend fallback mechanism) - PUT endpoint (legacy)
   app.put("/api/teams/:teamId", ...(isDevelopment ? [checkActiveUserDev] : [requireActiveUser]), async (req: Request, res: Response) => {
     try {
       const teamId = parseInt(req.params.teamId);
@@ -5260,8 +5457,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/admin/tenants", requireActiveUser, async (req: Request, res: Response) => {
     try {
       const tenantSchema = z.object({
-        name: z.string().min(1),
-        description: z.string().optional(),
+        tenant_name: z.string().min(1),
+        tenant_description: z.string().nullable().optional(),
+        tenant_email: z.string().email().nullable().optional().or(z.literal('')),
+        is_active: z.boolean().optional(),
+        action_by_user_email: z.string().email().nullable().optional().or(z.literal('')),
       });
       
       const result = tenantSchema.safeParse(req.body);
@@ -5269,7 +5469,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json(createValidationErrorResponse(result.error, "Invalid tenant data"));
       }
       
-      const tenantData = result.data;
+      const { tenant_name, tenant_description, tenant_email, is_active } = result.data;
+      const tenantData = {
+        name: tenant_name,
+        description: tenant_description || null,
+        email: tenant_email || null,
+      };
       
       // Create tenant
       const newTenant = await storage.createTenant(tenantData);

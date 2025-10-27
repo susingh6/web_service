@@ -28,6 +28,7 @@ export const teams = pgTable("teams", {
   team_slack: json("team_slack").$type<string[]>(),
   team_pagerduty: json("team_pagerduty").$type<string[]>(),
   team_notify_preference_id: integer("team_notify_preference_id"),
+  actionByUserEmail: text("action_by_user_email"), // OAuth user who created/modified this team
   isActive: boolean("is_active").notNull().default(true), // Active status for admin management
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -183,6 +184,7 @@ export const insertTeamSchema = createInsertSchema(teams).pick({
   team_email: true,
   team_slack: true,
   team_pagerduty: true,
+  actionByUserEmail: true,
   isActive: true,
 });
 
@@ -195,6 +197,7 @@ export const updateTeamSchema = z.object({
   team_email: z.array(z.string()).optional(),
   team_slack: z.array(z.string()).optional(),  
   team_pagerduty: z.array(z.string()).optional(),
+  actionByUserEmail: z.string().optional(),
   isActive: z.boolean().optional(),
 }).refine(data => Object.keys(data).length > 0, {
   message: "At least one field must be provided for update"

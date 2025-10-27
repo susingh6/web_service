@@ -1118,8 +1118,8 @@ export function useAdminMutation() {
       return response.json();
     },
     onSuccess: async () => {
-      const { invalidateAdminCaches } = await import('@/lib/cacheKeys');
-      await invalidateAdminCaches(queryClient);
+      const { invalidateTenantAdminCaches } = await import('@/lib/cacheKeys');
+      await invalidateTenantAdminCaches(queryClient);
     },
   });
 
@@ -1146,8 +1146,8 @@ export function useAdminMutation() {
       return response.json();
     },
     onSuccess: async (result, { tenantData }) => {
-      const { invalidateAdminCaches } = await import('@/lib/cacheKeys');
-      await invalidateAdminCaches(queryClient);
+      const { invalidateTeamAdminCaches } = await import('@/lib/cacheKeys');
+      await invalidateTeamAdminCaches(queryClient);
       
       // Invalidate team caches since tenant status changes can cascade to teams
       await queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
@@ -1195,8 +1195,8 @@ export function useAdminMutation() {
       return response.json();
     },
     onSuccess: async () => {
-      const { invalidateAdminCaches } = await import('@/lib/cacheKeys');
-      await invalidateAdminCaches(queryClient);
+      const { invalidateTeamAdminCaches } = await import('@/lib/cacheKeys');
+      await invalidateTeamAdminCaches(queryClient);
     },
   });
 
@@ -1223,11 +1223,11 @@ export function useAdminMutation() {
       return response.json();
     },
     onSuccess: async () => {
-      const { invalidateAdminCaches } = await import('@/lib/cacheKeys');
-      await invalidateAdminCaches(queryClient);
-      // Comprehensive cache invalidation for team updates
-      await queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
-      await queryClient.invalidateQueries({ queryKey: ['admin', 'teams'] });
+      const { invalidateTeamAdminCaches } = await import('@/lib/cacheKeys');
+      await invalidateTeamAdminCaches(queryClient);
+      // Comprehensive cache invalidation for team updates (already done in invalidateTeamAdminCaches)
+      // await queryClient.invalidateQueries({ queryKey: ['/api/teams'] });
+      // await queryClient.invalidateQueries({ queryKey: ['admin', 'teams'] });
       await queryClient.invalidateQueries({ queryKey: ['/api/dashboard/summary'] });
       await queryClient.invalidateQueries({ queryKey: ['/api/v1/dashboard/summary'] });
       await queryClient.invalidateQueries({ queryKey: ['/api/v1/get_team_members'] });
@@ -1286,8 +1286,8 @@ export function useAdminMutation() {
       await queryClient.invalidateQueries({ queryKey: ['profile', result?.user_email] });
       await queryClient.invalidateQueries({ queryKey: ['profile', result?.email] });
       
-      const { invalidateAdminCaches } = await import('@/lib/cacheKeys');
-      await invalidateAdminCaches(queryClient);
+      const { invalidateUserAdminCaches } = await import('@/lib/cacheKeys');
+      await invalidateUserAdminCaches(queryClient);
       
       // Emit custom event to notify profile page and other components to refresh
       window.dispatchEvent(new CustomEvent('user-profile-updated', { 
@@ -1338,8 +1338,8 @@ export function useAdminMutation() {
       if (ctx?.previous) queryClient.setQueryData(['admin', 'roles'], ctx.previous);
     },
     onSuccess: async () => {
-      const { invalidateAdminCaches } = await import('@/lib/cacheKeys');
-      await invalidateAdminCaches(queryClient);
+      const { invalidateRoleAdminCaches } = await import('@/lib/cacheKeys');
+      await invalidateRoleAdminCaches(queryClient);
     },
   });
 
@@ -1378,8 +1378,8 @@ export function useAdminMutation() {
       if (ctx?.previous) queryClient.setQueryData(['admin', 'roles'], ctx.previous);
     },
     onSuccess: async () => {
-      const { invalidateAdminCaches } = await import('@/lib/cacheKeys');
-      await invalidateAdminCaches(queryClient);
+      const { invalidateRoleAdminCaches } = await import('@/lib/cacheKeys');
+      await invalidateRoleAdminCaches(queryClient);
     },
   });
 
@@ -1412,8 +1412,8 @@ export function useAdminMutation() {
       if (ctx?.previous) queryClient.setQueryData(['admin', 'roles'], ctx.previous);
     },
     onSuccess: async () => {
-      const { invalidateAdminCaches } = await import('@/lib/cacheKeys');
-      await invalidateAdminCaches(queryClient);
+      const { invalidateRoleAdminCaches } = await import('@/lib/cacheKeys');
+      await invalidateRoleAdminCaches(queryClient);
     },
   });
 
@@ -1436,6 +1436,7 @@ export function useAdminMutation() {
         teamId: parseInt(entity.team_id),
         entityId: entity.entity_id
       });
+      // Rollback affects entities, so keep full admin cache invalidation
       const { invalidateAdminCaches } = await import('@/lib/cacheKeys');
       await invalidateAdminCaches(queryClient);
       
@@ -1480,9 +1481,9 @@ export function useAdminMutation() {
       return response.json();
     },
     onSuccess: async () => {
-      // Use the centralized admin cache invalidation system
-      const { invalidateAdminCaches } = await import('@/lib/cacheKeys');
-      await invalidateAdminCaches(queryClient);
+      // Use targeted alert cache invalidation
+      const { invalidateAlertAdminCaches } = await import('@/lib/cacheKeys');
+      await invalidateAlertAdminCaches(queryClient);
     },
   });
 
@@ -1503,9 +1504,9 @@ export function useAdminMutation() {
       return response.json();
     },
     onSuccess: async () => {
-      // Use the centralized admin cache invalidation system
-      const { invalidateAdminCaches } = await import('@/lib/cacheKeys');
-      await invalidateAdminCaches(queryClient);
+      // Use targeted alert cache invalidation  
+      const { invalidateAlertAdminCaches } = await import('@/lib/cacheKeys');
+      await invalidateAlertAdminCaches(queryClient);
     },
   });
 
@@ -1594,11 +1595,11 @@ export function useTeamMemberMutationV2() {
       }
     },
     onSuccess: async (_result, { teamName, userId, user, tenantName, teamId }) => {
-      // Modern comprehensive cache invalidation
-      const { invalidateAdminCaches } = await import('@/lib/cacheKeys');
-      await invalidateAdminCaches(queryClient);
+      // Targeted cache invalidation for team member changes
+      const { invalidateTeamAdminCaches, invalidateUserAdminCaches } = await import('@/lib/cacheKeys');
+      await invalidateTeamAdminCaches(queryClient);
+      await invalidateUserAdminCaches(queryClient);
       await queryClient.invalidateQueries({ queryKey: ['/api/users'] });
-      await queryClient.invalidateQueries({ queryKey: ['/api/v1/teams'] });
       await queryClient.invalidateQueries({ queryKey: ['team-notification-settings', tenantName, teamName] });
       await queryClient.invalidateQueries({ queryKey: ['admin', 'teams'] });
       // CRITICAL: Also invalidate notification component team member cache
@@ -1695,11 +1696,11 @@ export function useTeamMemberMutationV2() {
       }
     },
     onSuccess: async (_result, { teamName, userId, tenantName, teamId }) => {
-      // Modern comprehensive cache invalidation
-      const { invalidateAdminCaches } = await import('@/lib/cacheKeys');
-      await invalidateAdminCaches(queryClient);
+      // Targeted cache invalidation for team member changes
+      const { invalidateTeamAdminCaches, invalidateUserAdminCaches } = await import('@/lib/cacheKeys');
+      await invalidateTeamAdminCaches(queryClient);
+      await invalidateUserAdminCaches(queryClient);
       await queryClient.invalidateQueries({ queryKey: ['/api/users'] });
-      await queryClient.invalidateQueries({ queryKey: ['/api/v1/teams'] });
       await queryClient.invalidateQueries({ queryKey: ['team-notification-settings', tenantName, teamName] });
       await queryClient.invalidateQueries({ queryKey: ['admin', 'teams'] });
       // CRITICAL: Also invalidate notification component team member cache

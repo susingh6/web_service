@@ -85,8 +85,8 @@ export function invalidateTeamAdminCaches(queryClient: QueryClient) {
 }
 
 export function invalidateUserAdminCaches(queryClient: QueryClient) {
+  // Invalidate admin user queries (now standardized to single key)
   queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
-  queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
 }
 
 export function invalidateRoleAdminCaches(queryClient: QueryClient) {

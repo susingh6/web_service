@@ -1,4 +1,4 @@
 [
-  {"name":"Data Engineering","description":"Data Engineering team and related entities","isActive":true},
-  {"name":"Ad Engineering","description":"Ad Engineering team and related entities","isActive":true}
+  {"name":"Data Engineering","description":"Data Engineering team and related entities","email":"data-eng@company.com","actionByUserEmail":"admin@company.com","isActive":true},
+  {"name":"Ad Engineering","description":"Ad Engineering team and related entities","email":"ad-eng@company.com","actionByUserEmail":"admin@company.com","isActive":true}
 ]

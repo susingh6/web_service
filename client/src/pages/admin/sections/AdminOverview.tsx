@@ -70,7 +70,7 @@ const AdminOverview = () => {
   });
 
   const { data: users = [] } = useQuery({
-    queryKey: ['admin', 'users', 'v2'],
+    queryKey: ['admin', 'users'], // Standardized key for query deduplication
     queryFn: async () => {
       const response = await fetch(buildUrl(endpoints.admin.users.getAll));
       if (!response.ok) throw new Error('Failed to fetch users');

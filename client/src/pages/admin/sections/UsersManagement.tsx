@@ -232,8 +232,11 @@ const UsersManagement = () => {
   const filteredUsers = useMemo(() => {
     if (!users || users.length === 0) return [];
     
+    // Sort users by user_id (oldest first)
+    const sortedUsers = [...users].sort((a, b) => (a.user_id || 0) - (b.user_id || 0));
+    
     if (!deferredSearchQuery.trim()) {
-      return users;
+      return sortedUsers;
     }
     
     // Split search query into tokens (case-insensitive, AND semantics)
@@ -242,9 +245,9 @@ const UsersManagement = () => {
       .split(' ')
       .filter(token => token.trim().length > 0);
     
-    if (searchTokens.length === 0) return users;
+    if (searchTokens.length === 0) return sortedUsers;
     
-    return users.filter((user: any) => {
+    return sortedUsers.filter((user: any) => {
       // Create normalized search index for this user
       const searchableFields = [
         user.user_name || '',
@@ -430,7 +433,7 @@ const UsersManagement = () => {
         queryClient.invalidateQueries({ queryKey: ['teamMembers'] });
         queryClient.invalidateQueries({ queryKey: ['/api/v1/get_team_members'] });
         // CRITICAL: Invalidate EntityDetailsModal user list cache to show expired indicators
-        queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
+        queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
       }
 
       toast({
