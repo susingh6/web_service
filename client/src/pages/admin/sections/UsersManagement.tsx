@@ -46,6 +46,7 @@ import { User } from '@shared/schema';
 import { useOptimisticMutation, CACHE_PATTERNS, INVALIDATION_SCENARIOS } from '@/utils/cache-management';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { WEBSOCKET_CONFIG } from '../../../../../shared/websocket-config';
+import { formatDate } from '@/lib/utils';
 
 interface UserFormDialogProps {
   open: boolean;
@@ -190,7 +191,7 @@ const UsersManagement = () => {
     componentType: WEBSOCKET_CONFIG.componentTypes.USERS_MANAGEMENT,
     onCacheUpdated: async (_data, cacheType) => {
       if (cacheType === WEBSOCKET_CONFIG.cacheUpdateTypes.USERS) {
-        await queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+        await queryClient.invalidateQueries({ queryKey: ['admin', 'users', 'v2'] });
       }
     }
   });
@@ -200,7 +201,7 @@ const UsersManagement = () => {
 
   // Fetch users from admin endpoint with FastAPI headers
   const { data: users = [], isLoading } = useQuery({
-    queryKey: ['admin', 'users'],
+    queryKey: ['admin', 'users', 'v2'], // v2 to force cache refresh after adding actionByUserEmail and createdAt
     staleTime: 6 * 60 * 60 * 1000, // Cache for 6 hours
     gcTime: 6 * 60 * 60 * 1000,    // Keep in memory for 6 hours
     queryFn: async () => {
@@ -289,14 +290,32 @@ const UsersManagement = () => {
 
   // Create user mutation with optimistic updates following FastAPI pattern
   const createUser = async (userData: any) => {
+    // Fetch OAuth user email
+    const response = await fetch(buildUrl(endpoints.profile.getCurrent), {
+      credentials: 'include'
+    });
+    const userProfile = response.ok ? await response.json() : null;
+    
+    // Add action_by_user_email to userData for POST request
+    const userDataWithAction = {
+      ...userData,
+      action_by_user_email: userProfile?.user_email || null,
+    };
+    
     // Generate optimistic ID for tracking
     const optimisticId = Date.now();
-    const optimisticUser = { ...userData, user_id: optimisticId };
+    // Transform to match the format returned by GET endpoint (snake_case)
+    const optimisticUser = { 
+      ...userData, 
+      user_id: optimisticId,
+      action_by_user_email: userProfile?.user_email || null,
+      created_at: new Date().toISOString()
+    };
     
     try {
       const result = await executeWithOptimism({
         optimisticUpdate: {
-          queryKey: ['admin', 'users'],
+          queryKey: ['admin', 'users', 'v2'],
           updater: (old: any[] | undefined) => old ? [...old, optimisticUser] : [optimisticUser],
         },
         mutationFn: async () => {
@@ -312,20 +331,20 @@ const UsersManagement = () => {
           const response = await fetch(buildUrl(endpoints.admin.users.create), {
             method: 'POST',
             headers,
-            body: JSON.stringify(userData),
+            body: JSON.stringify(userDataWithAction),
             credentials: 'include',
           });
           if (!response.ok) throw new Error('Failed to create user');
           return response.json();
         },
-        // Use generic invalidation since users don't have specific scenarios yet
+        // Don't invalidate - we'll update the cache directly with the server response
         invalidationScenario: undefined,
-        rollbackKeys: [['admin', 'users']],
+        rollbackKeys: [],
       });
 
       // Replace optimistic entry with real server response
       if (result) {
-        cacheManager.setOptimisticData(['admin', 'users'], (old: any[] | undefined) => {
+        cacheManager.setOptimisticData(['admin', 'users', 'v2'], (old: any[] | undefined) => {
           if (!old) return [result];
           return old.map(user => user.user_id === optimisticId ? result : user);
         });
@@ -376,14 +395,26 @@ const UsersManagement = () => {
 
   // Update user mutation with optimistic updates following FastAPI pattern
   const updateUser = async (userId: number, userData: any) => {
+    // Fetch OAuth user email
+    const response = await fetch(buildUrl(endpoints.profile.getCurrent), {
+      credentials: 'include'
+    });
+    const userProfile = response.ok ? await response.json() : null;
+    
+    // Add action_by_user_email to userData
+    const userDataWithAction = {
+      ...userData,
+      action_by_user_email: userProfile?.user_email || null,
+    };
+    
     try {
       const result = await executeWithOptimism({
         optimisticUpdate: {
-          queryKey: ['admin', 'users'],
+          queryKey: ['admin', 'users', 'v2'],
           updater: (old: any[] | undefined) => {
             if (!old) return [];
             return old.map(user => 
-              user.user_id === userId ? { ...user, ...userData } : user
+              user.user_id === userId ? { ...user, ...userDataWithAction } : user
             );
           },
         },
@@ -400,15 +431,15 @@ const UsersManagement = () => {
           const response = await fetch(buildUrl(endpoints.admin.users.update, userId), {
             method: 'PATCH',
             headers,
-            body: JSON.stringify(userData),
+            body: JSON.stringify(userDataWithAction),
             credentials: 'include',
           });
           if (!response.ok) throw new Error('Failed to update user');
           return response.json();
         },
-        // Use generic invalidation since users don't have specific scenarios yet
+        // Don't invalidate - optimistic update already applied
         invalidationScenario: undefined,
-        rollbackKeys: [['admin', 'users']],
+        rollbackKeys: [],
       });
 
       // CRITICAL FIX: Apply optimistic update to profile cache if current user is being updated
@@ -433,7 +464,7 @@ const UsersManagement = () => {
         queryClient.invalidateQueries({ queryKey: ['teamMembers'] });
         queryClient.invalidateQueries({ queryKey: ['/api/v1/get_team_members'] });
         // CRITICAL: Invalidate EntityDetailsModal user list cache to show expired indicators
-        queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+        queryClient.invalidateQueries({ queryKey: ['admin', 'users', 'v2'] });
       }
 
       toast({
@@ -590,6 +621,8 @@ const UsersManagement = () => {
                   <TableCell>Slack</TableCell>
                   <TableCell>PagerDuty</TableCell>
                   <TableCell>Status</TableCell>
+                  <TableCell>Action By</TableCell>
+                  <TableCell>Created</TableCell>
                   <TableCell>Actions</TableCell>
                 </TableRow>
               </TableHead>
@@ -646,6 +679,16 @@ const UsersManagement = () => {
                         size="small" 
                         color={user.is_active ? "success" : "error"}
                       />
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" color="text.secondary">
+                        {user.action_by_user_email || '--'}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" color="text.secondary">
+                        {user.created_at ? formatDate(user.created_at) : '--'}
+                      </Typography>
                     </TableCell>
                     <TableCell>
                       <Box sx={{ display: 'flex', gap: 1 }}>

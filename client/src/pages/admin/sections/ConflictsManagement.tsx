@@ -40,6 +40,7 @@ import { useToast } from '@/hooks/use-toast';
 import { buildUrl, endpoints } from '@/config';
 import { apiRequest } from '@/lib/queryClient';
 import { ConflictNotification } from '@shared/schema';
+import { formatDate } from '@/lib/utils';
 
 interface ConflictDetailsDialogProps {
   open: boolean;
@@ -148,7 +149,7 @@ const ConflictDetailsDialog = ({ open, onClose, conflict, onResolve, isResolving
                   <strong>Requested By:</strong> {(conflict as any).conflictDetails?.requestedBy || 'Unknown'}
                 </Typography>
                 <Typography variant="body2" gutterBottom>
-                  <strong>Created:</strong> {new Date(conflict.createdAt).toLocaleDateString()}
+                  <strong>Created:</strong> {formatDate(conflict.createdAt)}
                 </Typography>
                 
                 <Box sx={{ mt: 2 }}>
@@ -559,7 +560,7 @@ const ConflictsManagement = () => {
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2">
-                          {conflict.createdAt ? new Date(conflict.createdAt).toLocaleDateString() : 'Unknown'}
+                          {conflict.createdAt ? formatDate(conflict.createdAt) : 'Unknown'}
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
                           {daysOld} days ago

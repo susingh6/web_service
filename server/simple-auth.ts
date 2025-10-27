@@ -471,6 +471,7 @@ export function setupSimpleAuth(app: Express) {
             user_pagerduty: null,
             is_active: true,
             role: userRole || 'admin',
+            action_by_user_email: userEmail, // Self-registration via OAuth
           });
 
           const sessionUser = {

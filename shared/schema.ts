@@ -15,6 +15,9 @@ export const users = pgTable("users", {
   user_slack: json("user_slack").$type<string[]>(), // Slack handles for notifications
   user_pagerduty: json("user_pagerduty").$type<string[]>(), // PagerDuty contacts for notifications
   is_active: boolean("is_active").default(true), // Active status for admin management
+  actionByUserEmail: text("action_by_user_email"), // OAuth user who created/modified this user
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 // Teams schema
@@ -165,6 +168,7 @@ export const insertUserSchema = createInsertSchema(users).pick({
   user_slack: true,
   user_pagerduty: true,
   is_active: true,
+  actionByUserEmail: true,
 });
 
 // Admin user schema for admin panel (maps to frontend expectations)
@@ -174,6 +178,7 @@ export const adminUserSchema = z.object({
   user_slack: z.array(z.string()).nullable().optional(),
   user_pagerduty: z.array(z.string()).nullable().optional(),
   is_active: z.boolean().default(true),
+  action_by_user_email: z.string().email().nullable().optional().or(z.literal('')),
 });
 
 export const insertTeamSchema = createInsertSchema(teams).pick({

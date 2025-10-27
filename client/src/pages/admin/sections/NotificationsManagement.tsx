@@ -77,13 +77,15 @@ interface AlertFormData {
   message: string;
   alertType: 'system' | 'maintenance' | 'warning' | 'info';
   severity: 'low' | 'medium' | 'high' | 'critical';
-  expiresInHours: number;
+  expiryValue: number;
+  expiryUnit: 'minutes' | 'hours' | 'days';
 }
 
 interface AdminMessageFormData {
   message: string;
   deliveryType: 'immediate' | 'login_triggered' | 'immediate_and_login_triggered';
-  expiresInDays: number;
+  expiryValue: number;
+  expiryUnit: 'minutes' | 'hours' | 'days';
 }
 
 const AlertTypeIcons = {
@@ -132,7 +134,8 @@ const NotificationsManagement = () => {
       message: '',
       alertType: 'info',
       severity: 'low',
-      expiresInHours: 24,
+      expiryValue: 24,
+      expiryUnit: 'hours',
     }
   });
 
@@ -141,7 +144,8 @@ const NotificationsManagement = () => {
     defaultValues: {
       message: '',
       deliveryType: 'login_triggered',
-      expiresInDays: 1,
+      expiryValue: 1,
+      expiryUnit: 'days',
     }
   });
 
@@ -228,7 +232,21 @@ const NotificationsManagement = () => {
   // Create alert mutation using centralized cache management
   const createAlertMutation = useMutation({
     mutationFn: async (data: AlertFormData) => {
-      const expiresAtDate = new Date(Date.now() + data.expiresInHours * 60 * 60 * 1000);
+      // Calculate expiry time based on unit
+      let expiryMilliseconds = 0;
+      switch (data.expiryUnit) {
+        case 'minutes':
+          expiryMilliseconds = data.expiryValue * 60 * 1000;
+          break;
+        case 'hours':
+          expiryMilliseconds = data.expiryValue * 60 * 60 * 1000;
+          break;
+        case 'days':
+          expiryMilliseconds = data.expiryValue * 24 * 60 * 60 * 1000;
+          break;
+      }
+      
+      const expiresAtDate = new Date(Date.now() + expiryMilliseconds);
       const alertData = {
         title: data.title,
         message: data.message,
@@ -263,13 +281,27 @@ const NotificationsManagement = () => {
   // Create admin message mutation
   const createMessageMutation = useMutation({
     mutationFn: async (data: AdminMessageFormData) => {
+      // Calculate expiry time based on unit
+      let expiryMilliseconds = 0;
+      switch (data.expiryUnit) {
+        case 'minutes':
+          expiryMilliseconds = data.expiryValue * 60 * 1000;
+          break;
+        case 'hours':
+          expiryMilliseconds = data.expiryValue * 60 * 60 * 1000;
+          break;
+        case 'days':
+          expiryMilliseconds = data.expiryValue * 24 * 60 * 60 * 1000;
+          break;
+      }
+      
       const messageData = {
         message: data.message,
         dateKey: new Date().toISOString().split('T')[0],
         deliveryType: data.deliveryType,
         isActive: true,
         createdByUserId: 1, // Will be replaced with actual user ID from session
-        expiresAt: new Date(Date.now() + data.expiresInDays * 24 * 60 * 60 * 1000).toISOString(),
+        expiresAt: new Date(Date.now() + expiryMilliseconds).toISOString(),
       };
 
       // Try FastAPI endpoint first
@@ -705,22 +737,39 @@ const NotificationsManagement = () => {
               />
             </Box>
 
-            <Controller
-              name="expiresInHours"
-              control={alertForm.control}
-              rules={{ required: 'Expiration time is required', min: { value: 1, message: 'Must be at least 1 hour' } }}
-              render={({ field, fieldState }) => (
-                <TextField
-                  {...field}
-                  label="Expires in (hours)"
-                  type="number"
-                  fullWidth
-                  error={!!fieldState.error}
-                  helperText={fieldState.error?.message}
-                  data-testid="input-alert-expires"
-                />
-              )}
-            />
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              <Controller
+                name="expiryValue"
+                control={alertForm.control}
+                rules={{ required: 'Expiration time is required', min: { value: 1, message: 'Must be at least 1' } }}
+                render={({ field, fieldState }) => (
+                  <TextField
+                    {...field}
+                    label="Expires in"
+                    type="number"
+                    fullWidth
+                    error={!!fieldState.error}
+                    helperText={fieldState.error?.message}
+                    data-testid="input-alert-expires"
+                  />
+                )}
+              />
+              
+              <Controller
+                name="expiryUnit"
+                control={alertForm.control}
+                render={({ field }) => (
+                  <FormControl sx={{ minWidth: 120 }}>
+                    <InputLabel>Unit</InputLabel>
+                    <Select {...field} label="Unit" data-testid="select-alert-expiry-unit">
+                      <MenuItem value="minutes">Minutes</MenuItem>
+                      <MenuItem value="hours">Hours</MenuItem>
+                      <MenuItem value="days">Days</MenuItem>
+                    </Select>
+                  </FormControl>
+                )}
+              />
+            </Box>
           </Box>
         </DialogContent>
         <DialogActions>
@@ -781,22 +830,39 @@ const NotificationsManagement = () => {
               )}
             />
 
-            <Controller
-              name="expiresInDays"
-              control={messageForm.control}
-              rules={{ required: 'Expiration time is required', min: { value: 1, message: 'Must be at least 1 day' } }}
-              render={({ field, fieldState }) => (
-                <TextField
-                  {...field}
-                  label="Expires in (days)"
-                  type="number"
-                  fullWidth
-                  error={!!fieldState.error}
-                  helperText={fieldState.error?.message}
-                  data-testid="input-broadcast-expires"
-                />
-              )}
-            />
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              <Controller
+                name="expiryValue"
+                control={messageForm.control}
+                rules={{ required: 'Expiration time is required', min: { value: 1, message: 'Must be at least 1' } }}
+                render={({ field, fieldState }) => (
+                  <TextField
+                    {...field}
+                    label="Expires in"
+                    type="number"
+                    fullWidth
+                    error={!!fieldState.error}
+                    helperText={fieldState.error?.message}
+                    data-testid="input-broadcast-expires"
+                  />
+                )}
+              />
+              
+              <Controller
+                name="expiryUnit"
+                control={messageForm.control}
+                render={({ field }) => (
+                  <FormControl sx={{ minWidth: 120 }}>
+                    <InputLabel>Unit</InputLabel>
+                    <Select {...field} label="Unit" data-testid="select-broadcast-expiry-unit">
+                      <MenuItem value="minutes">Minutes</MenuItem>
+                      <MenuItem value="hours">Hours</MenuItem>
+                      <MenuItem value="days">Days</MenuItem>
+                    </Select>
+                  </FormControl>
+                )}
+              />
+            </Box>
           </Box>
         </DialogContent>
         <DialogActions>

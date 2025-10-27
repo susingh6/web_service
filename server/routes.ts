@@ -462,10 +462,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Redis-first: read from users hash (HVALS)
         const users = await redisCache.getAllUsersFromHash();
         const transformedUsers = Array.isArray(users) ? users.map((user: any) => ({
-          id: user.id,
-          name: user.username,
-          email: user.email || '',
-          is_active: user.is_active !== false
+          user_id: user.id,
+          user_name: user.username,
+          user_email: user.email || '',
+          user_slack: user.user_slack || [],
+          user_pagerduty: user.user_pagerduty || [],
+          is_active: user.is_active !== false,
+          actionByUserEmail: user.action_by_user_email || null,
+          createdAt: user.createdAt || null
         })) : [];
         return res.json(transformedUsers);
       }
@@ -473,10 +477,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Redis not available: return mock users from storage
       const users = await storage.getUsers();
       const transformedUsers = users.map(user => ({
-        id: user.id,
-        name: user.username,
-        email: user.email || '',
-        is_active: user.is_active !== false
+        user_id: user.id,
+        user_name: user.username,
+        user_email: user.email || '',
+        user_slack: user.user_slack || [],
+        user_pagerduty: user.user_pagerduty || [],
+        is_active: user.is_active !== false,
+        actionByUserEmail: user.actionByUserEmail || null,
+        createdAt: user.createdAt || null
       }));
       res.json(transformedUsers);
     } catch (error) {
@@ -492,7 +500,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json(createValidationErrorResponse(validationResult.error));
       }
 
-      const { user_name, user_email, user_slack, user_pagerduty, is_active } = validationResult.data;
+      const { user_name, user_email, user_slack, user_pagerduty, is_active, action_by_user_email } = validationResult.data;
 
       // Update cache based on mode
       const status = await redisCache.getCacheStatus();
@@ -504,6 +512,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           user_slack,
           user_pagerduty,
           is_active,
+          action_by_user_email: action_by_user_email || null,
         });
         return res.status(201).json({
           user_id: created.id,
@@ -511,7 +520,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           user_email: created.email || '',
           user_slack: created.user_slack || null,
           user_pagerduty: created.user_pagerduty || null,
-          is_active: created.is_active ?? true
+          is_active: created.is_active ?? true,
+          action_by_user_email: created.action_by_user_email || null,
+          created_at: created.created_at || new Date().toISOString()
         });
       }
 
@@ -524,7 +535,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         user_slack: user_slack || [],
         user_pagerduty: user_pagerduty || [],
         is_active: is_active,
-        role: "user"
+        role: "user",
+        actionByUserEmail: action_by_user_email || undefined
       });
 
       await redisCache.invalidateCache({
@@ -541,7 +553,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         user_email: newUser.email || '',
         user_slack: newUser.user_slack || null,
         user_pagerduty: newUser.user_pagerduty || null,
-        is_active: newUser.is_active ?? true
+        is_active: newUser.is_active ?? true,
+        action_by_user_email: newUser.actionByUserEmail || null,
+        created_at: (newUser as any).created_at || newUser.createdAt || new Date().toISOString()
       });
     } catch (error) {
       sendError(res, 500, "Failed to create user");
@@ -599,7 +613,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         user_email: updatedUser.email,
         user_slack: updatedUser.user_slack || [],
         user_pagerduty: updatedUser.user_pagerduty || [],
-        is_active: updatedUser.is_active
+        is_active: updatedUser.is_active,
+        action_by_user_email: updatedUser.action_by_user_email || updatedUser.actionByUserEmail || null,
+        created_at: updatedUser.created_at || updatedUser.createdAt || null
       };
 
       res.json(transformedUser);
@@ -636,20 +652,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       } else {
         // In-memory mode: update storage
-      const internalUpdateData: any = {};
-      if (updateData.user_name) internalUpdateData.username = updateData.user_name;
-      if (updateData.user_email) internalUpdateData.email = updateData.user_email;
-      if (updateData.user_slack) internalUpdateData.user_slack = updateData.user_slack;
-      if (updateData.user_pagerduty) internalUpdateData.user_pagerduty = updateData.user_pagerduty;
-      if (updateData.is_active !== undefined) internalUpdateData.is_active = updateData.is_active;
+        const internalUpdateData: any = {};
+        if (updateData.user_name) internalUpdateData.username = updateData.user_name;
+        if (updateData.user_email) internalUpdateData.email = updateData.user_email;
+        if (updateData.user_slack) internalUpdateData.user_slack = updateData.user_slack;
+        if (updateData.user_pagerduty) internalUpdateData.user_pagerduty = updateData.user_pagerduty;
+        if (updateData.is_active !== undefined) internalUpdateData.is_active = updateData.is_active;
+        if (updateData.action_by_user_email !== undefined) internalUpdateData.actionByUserEmail = updateData.action_by_user_email || undefined;
 
         updatedUser = await storage.updateUser(userId, internalUpdateData);
-      if (!updatedUser) {
-        return sendError(res, 404, "User not found", "not_found");
-      }
+        if (!updatedUser) {
+          return sendError(res, 404, "User not found", "not_found");
+        }
 
         // Invalidate cache so next GET fetches fresh data from storage
-      await redisCache.invalidateUserData();
+        await redisCache.invalidateUserData();
       }
       
       // CRITICAL: Also invalidate profile cache for this user so profile page shows updated data
@@ -678,7 +695,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         user_email: updatedUser.email,
         user_slack: updatedUser.user_slack || [],
         user_pagerduty: updatedUser.user_pagerduty || [],
-        is_active: updatedUser.is_active
+        is_active: updatedUser.is_active,
+        action_by_user_email: updatedUser.action_by_user_email || updatedUser.actionByUserEmail || null,
+        created_at: updatedUser.created_at || updatedUser.createdAt || null
       };
 
       res.json(transformedUser);
@@ -5663,14 +5682,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         users = await storage.getUsers();
       }
       
-      // Transform to admin format expected by frontend
+      // Transform to admin format expected by frontend (snake_case to match FastAPI)
       const adminUsers = Array.isArray(users) ? users.map((user: any) => ({
         user_id: user.id,
         user_name: user.username,
         user_email: user.email || '',
         user_slack: user.user_slack || null,
         user_pagerduty: user.user_pagerduty || null,
-        is_active: user.is_active ?? true
+        is_active: user.is_active ?? true,
+        action_by_user_email: user.action_by_user_email || user.actionByUserEmail || null,
+        created_at: user.created_at || user.createdAt || null
       })) : [];
 
       res.json(adminUsers);
@@ -5708,7 +5729,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           user_email: created.email || '',
           user_slack: created.user_slack || null,
           user_pagerduty: created.user_pagerduty || null,
-          is_active: created.is_active ?? true
+          is_active: created.is_active ?? true,
+          action_by_user_email: created.action_by_user_email || null,
+          created_at: created.created_at || null
         });
       }
 
@@ -5721,7 +5744,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         user_slack: adminUserData.user_slack || null,
         user_pagerduty: adminUserData.user_pagerduty || null,
         is_active: adminUserData.is_active ?? true,
-        role: "user" as const
+        role: "user" as const,
+        actionByUserEmail: adminUserData.action_by_user_email || null
       });
       await redisCache.invalidateUserData();
       
@@ -5731,7 +5755,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         user_email: user.email || '',
         user_slack: user.user_slack || null,
         user_pagerduty: user.user_pagerduty || null,
-        is_active: user.is_active ?? true
+        is_active: user.is_active ?? true,
+        action_by_user_email: user.actionByUserEmail || null,
+        created_at: (user as any).created_at || user.createdAt || null
       });
     } catch (error) {
       console.error('Admin user creation error:', error);
@@ -5870,7 +5896,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         user_email: updatedUser.email || '',
         user_slack: updatedUser.user_slack || null,
         user_pagerduty: updatedUser.user_pagerduty || null,
-        is_active: updatedUser.is_active ?? true
+        is_active: updatedUser.is_active ?? true,
+        action_by_user_email: updatedUser.action_by_user_email || updatedUser.actionByUserEmail || null,
+        created_at: updatedUser.created_at || updatedUser.createdAt || null
       };
       
       res.json(adminUser);

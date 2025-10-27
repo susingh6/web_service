@@ -417,6 +417,8 @@ export class MemStorage implements IStorage {
         is_active: insertUser.is_active ?? existingUser.is_active ?? true,
         user_slack: insertUser.user_slack ? [...insertUser.user_slack] : (existingUser.user_slack ?? null),
         user_pagerduty: insertUser.user_pagerduty ? [...insertUser.user_pagerduty] : (existingUser.user_pagerduty ?? null),
+        actionByUserEmail: insertUser.actionByUserEmail ?? existingUser.actionByUserEmail ?? null,
+        updatedAt: new Date(),
       };
       this.users.set(existingUser.id, updatedUser);
       return updatedUser;
@@ -424,6 +426,7 @@ export class MemStorage implements IStorage {
     
     // Create a new user
     const id = this.userId++;
+    const now = new Date();
     const user: User = { 
       ...insertUser, 
       id,
@@ -435,7 +438,10 @@ export class MemStorage implements IStorage {
       azureObjectId: insertUser.azureObjectId ?? null,
       is_active: insertUser.is_active ?? true,
       user_slack: (insertUser.user_slack ? [...insertUser.user_slack] : null),
-      user_pagerduty: (insertUser.user_pagerduty ? [...insertUser.user_pagerduty] : null)
+      user_pagerduty: (insertUser.user_pagerduty ? [...insertUser.user_pagerduty] : null),
+      actionByUserEmail: insertUser.actionByUserEmail ?? null,
+      createdAt: now,
+      updatedAt: now,
     };
     this.users.set(id, user);
     return user;
@@ -456,6 +462,8 @@ export class MemStorage implements IStorage {
       is_active: partialUser.is_active ?? existingUser.is_active ?? true,
       user_slack: partialUser.user_slack ? [...partialUser.user_slack] : existingUser.user_slack ?? null,
       user_pagerduty: partialUser.user_pagerduty ? [...partialUser.user_pagerduty] : existingUser.user_pagerduty ?? null,
+      actionByUserEmail: partialUser.actionByUserEmail ?? existingUser.actionByUserEmail ?? null,
+      updatedAt: new Date(),
     };
     this.users.set(id, updatedUser);
     return updatedUser;
@@ -522,6 +530,7 @@ export class MemStorage implements IStorage {
       role_permissions: insertRole.role_permissions || [],
       team_name: insertRole.team_name || null,
       tenant_name: insertRole.tenant_name || null,
+      actionByUserEmail: insertRole.actionByUserEmail || null,
       createdAt: now,
       updatedAt: now,
     };
@@ -585,6 +594,7 @@ export class MemStorage implements IStorage {
       description: insertPermission.description || null,
       category: insertPermission.category,
       is_active: insertPermission.is_active ?? true,
+      actionByUserEmail: insertPermission.actionByUserEmail || null,
       createdAt: now,
       updatedAt: now,
     };
@@ -1266,6 +1276,7 @@ export class MemStorage implements IStorage {
         role_permissions: roleData.role_permissions || [], // Load permissions from JSON
         team_name: roleData.team_name || null, // Team-specific or null for system-wide roles
         tenant_name: roleData.tenant_name || null, // Tenant-specific or null for system-wide roles
+        actionByUserEmail: roleData.actionByUserEmail || null,
         createdAt: now,
         updatedAt: now
       };
@@ -1297,6 +1308,7 @@ export class MemStorage implements IStorage {
         description: permData.description,
         category: permData.category,
         is_active: permData.is_active,
+        actionByUserEmail: permData.actionByUserEmail || null,
         createdAt: now,
         updatedAt: now
       };

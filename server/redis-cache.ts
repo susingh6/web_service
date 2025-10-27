@@ -403,6 +403,7 @@ export class RedisCache {
       idNum = Date.now();
     }
 
+    const now = new Date().toISOString();
     const userNormalized = {
       id: idNum,
       username: adminUserData.user_name || adminUserData.username || email,
@@ -414,6 +415,9 @@ export class RedisCache {
       role: adminUserData.role ?? 'user',
       team: adminUserData.team ?? null,
       azureObjectId: adminUserData.azureObjectId ?? null,
+      action_by_user_email: adminUserData.action_by_user_email ?? null,
+      created_at: now,
+      updated_at: now,
     };
 
     await (this.redis as any).hset(CACHE_KEYS.USERS_HASH, email, JSON.stringify(userNormalized));
@@ -448,6 +452,8 @@ export class RedisCache {
       role: updates.role ?? current.role ?? 'user',
       team: updates.team ?? current.team ?? null,
       azureObjectId: updates.azureObjectId ?? current.azureObjectId ?? null,
+      action_by_user_email: updates.action_by_user_email ?? current.action_by_user_email ?? null,
+      updated_at: new Date().toISOString(),
     };
 
     if (nextEmail !== existingEmail) {
@@ -1661,6 +1667,9 @@ export class RedisCache {
             role: u.role ?? 'user',
             team: u.team ?? null,
             azureObjectId: u.azureObjectId ?? null,
+            action_by_user_email: u.action_by_user_email ?? u.actionByUserEmail ?? null,
+            createdAt: u.createdAt ?? u.created_at ?? new Date().toISOString(),
+            updatedAt: u.updatedAt ?? u.updated_at ?? new Date().toISOString(),
           };
           multi.hset(CACHE_KEYS.USERS_HASH, field, JSON.stringify(userNormalized));
           if (userNormalized.id && userNormalized.id > 0) {

@@ -8,7 +8,7 @@ export function cn(...inputs: ClassValue[]) {
 
 /**
  * Format a date to a human-readable string
- * Shows "Today, hh:mm a" for today, "Yesterday, hh:mm a" for yesterday, or "MMM d, yyyy" for older dates
+ * Shows "Today, hh:mm a" for today, "Yesterday, hh:mm a" for yesterday, or "MMM d, yyyy, hh:mm a" for older dates
  * @param date Date to format (Date object or string)
  * @returns Formatted date string
  */
@@ -35,10 +35,10 @@ export function formatDate(date: Date | string | null | undefined): string {
     } else if (dateObjStr === yesterdayStr) {
       return `Yesterday, ${format(dateObj, 'hh:mm a')}`;
     } else {
-      return format(dateObj, 'MMM d, yyyy');
+      return format(dateObj, 'MMM d, yyyy, hh:mm a');
     }
   } catch (error) {
-    return format(dateObj, 'MMM d, yyyy');
+    return format(dateObj, 'MMM d, yyyy, hh:mm a');
   }
 }
 
