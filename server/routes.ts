@@ -3324,9 +3324,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.log(`GET /api/v1/entities - status: 200`);
       }
       
-      res.json(entities);
+      // Transform all entities to ensure consistent snake_case response
+      const transformedEntities = entities.map((e: any) => {
+        const base: any = {
+          entity_type: e.entity_type || e.type,
+          entity_name: e.entity_name || e.name,
+          entity_display_name: e.entity_display_name,
+          team_id: e.team_id ?? e.teamId,
+          team_name: e.team_name ?? e.teamName,
+          tenant_id: e.tenant_id ?? e.tenantId,
+          tenant_name: e.tenant_name ?? e.tenantName,
+          is_entity_owner: e.is_entity_owner ?? e.isEntityOwner ?? false,
+          is_active: e.is_active ?? e.isActive ?? true,
+          entity_schedule: e.entity_schedule ?? e.entitySchedule,
+          expected_runtime_minutes: e.expected_runtime_minutes ?? e.expectedRuntimeMinutes,
+          owner_entity_ref_name: e.owner_entity_ref_name ?? e.ownerEntityRefName,
+          server_name: e.server_name ?? e.serverName,
+          last_reported_at: e.last_reported_at ?? e.lastReportedAt,
+          updated_at: e.updated_at ?? e.updatedAt,
+        };
+        
+        // For tables, ensure schema_name and table_name are properly derived
+        if (base.entity_type === 'table') {
+          let schema = e.schema_name;
+          let table = e.table_name;
+          
+          // If explicit fields not present, derive from entity_display_name
+          if ((!schema || !table) && e.entity_display_name && e.entity_display_name.includes('.')) {
+            const lastDot = e.entity_display_name.lastIndexOf('.');
+            schema = e.entity_display_name.slice(0, lastDot);
+            table = e.entity_display_name.slice(lastDot + 1);
+          } else if (!table && e.entity_display_name) {
+            table = e.entity_display_name;
+          }
+          
+          base.schema_name = schema ?? undefined;
+          base.table_name = table ?? undefined;
+        }
+        
+        // For DAGs, ensure dag_name is properly set
+        if (base.entity_type === 'dag') {
+          base.dag_name = e.dag_name ?? e.entity_display_name ?? undefined;
+        }
+        
+        return base;
+      });
+      
+      res.json(transformedEntities);
     } catch (error) {
-      console.error('FastAPI fallback GET /api/v1/entities error:', error);
+      console.error('GET /api/v1/entities error:', error);
       sendError(res, 500, "Failed to get entities", "server_error");
     }
   });

@@ -20,15 +20,44 @@ async function checkFastAPIAvailable(): Promise<boolean> {
   }
 }
 
-// Normalize entity field names (camelCase ↔ snake_case)
-function normalizeEntity(entity: any): Entity {
+// Normalize entity field names (API returns snake_case, UI expects both)
+function normalizeEntity(entity: any): any {
   return {
-    ...entity,
-    is_active: entity.is_active ?? entity.isActive,
-    is_entity_owner: entity.is_entity_owner ?? entity.isEntityOwner,
-    // Ensure camelCase fields for UI compatibility
-    isActive: entity.isActive ?? entity.is_active,
-    isEntityOwner: entity.isEntityOwner ?? entity.is_entity_owner,
+    // Snake_case (primary from API)
+    entity_type: entity.entity_type ?? entity.type,
+    entity_name: entity.entity_name ?? entity.name,
+    entity_display_name: entity.entity_display_name,
+    team_id: entity.team_id ?? entity.teamId,
+    team_name: entity.team_name ?? entity.teamName,
+    tenant_id: entity.tenant_id ?? entity.tenantId,
+    tenant_name: entity.tenant_name ?? entity.tenantName,
+    is_entity_owner: entity.is_entity_owner ?? entity.isEntityOwner ?? false,
+    is_active: entity.is_active ?? entity.isActive ?? true,
+    entity_schedule: entity.entity_schedule ?? entity.entitySchedule,
+    expected_runtime_minutes: entity.expected_runtime_minutes ?? entity.expectedRuntimeMinutes,
+    owner_entity_ref_name: entity.owner_entity_ref_name ?? entity.ownerEntityRefName,
+    server_name: entity.server_name ?? entity.serverName,
+    last_reported_at: entity.last_reported_at ?? entity.lastReportedAt,
+    updated_at: entity.updated_at ?? entity.updatedAt,
+    schema_name: entity.schema_name,
+    table_name: entity.table_name,
+    dag_name: entity.dag_name,
+    
+    // CamelCase aliases for backward compatibility with UI components
+    type: entity.entity_type ?? entity.type,
+    name: entity.entity_name ?? entity.name,
+    teamId: entity.team_id ?? entity.teamId,
+    teamName: entity.team_name ?? entity.teamName,
+    tenantId: entity.tenant_id ?? entity.tenantId,
+    tenantName: entity.tenant_name ?? entity.tenantName,
+    isEntityOwner: entity.is_entity_owner ?? entity.isEntityOwner ?? false,
+    isActive: entity.is_active ?? entity.isActive ?? true,
+    entitySchedule: entity.entity_schedule ?? entity.entitySchedule,
+    expectedRuntimeMinutes: entity.expected_runtime_minutes ?? entity.expectedRuntimeMinutes,
+    ownerEntityRefName: entity.owner_entity_ref_name ?? entity.ownerEntityRefName,
+    serverName: entity.server_name ?? entity.serverName,
+    lastReportedAt: entity.last_reported_at ?? entity.lastReportedAt,
+    updatedAt: entity.updated_at ?? entity.updatedAt,
   };
 }
 
